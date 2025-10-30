@@ -1,0 +1,20 @@
+# environment variables
+.env
+
+# node modules
+node_modules/
+
+# logs
+*.log
+
+# local config
+config/*.json
+credentials.json
+
+# build or dist folders
+dist/
+build/
+
+# system files
+.DS_Store
+Thumbs.db
