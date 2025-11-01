@@ -7,6 +7,10 @@ import {
   Upload,
   Search,
   Settings,
+  BarChart3,
+  Brain,
+  Database,
+  Mic,
 } from "lucide-react";
 import Navbar from "../components/Navbar.jsx";
 
@@ -21,7 +25,7 @@ const Dashboard = () => {
   const handleUpload = () => navigate("/upload-meeting");
   const handleCreateMeeting = () => navigate("/create-meeting");
   const handlePolicies = () => navigate("/policies");
-  const handleSearchReports = () => navigate("/reports");
+  const handleReports = () => navigate("/reports");
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -38,22 +42,39 @@ const Dashboard = () => {
               {organizationName}
             </h1>
           </div>
-                  <p className="text-gray-600 text-sm sm:text-base mb-4">
-                      Role:{" "}
-                      <span className="font-semibold">
-                          {userData?.role
-                              ? userData.role.charAt(0).toUpperCase() + userData.role.slice(1)
-                              : "Member"}
-                      </span>
-                  </p>
+          <p className="text-gray-600 text-sm sm:text-base mb-4">
+            Role:{" "}
+            <span className="font-semibold">
+              {userData?.role
+                ? userData.role.charAt(0).toUpperCase() +
+                  userData.role.slice(1).toLowerCase()
+                : "Member"}
+            </span>
+          </p>
 
+          {/* 🔍 AI-Powered Search Section */}
+          <div className="mt-6 flex flex-col items-center space-y-3">
+            <h3 className="text-lg font-semibold text-gray-800">
+              🤖 AI-Powered Search
+            </h3>
+            <p className="text-gray-500 text-sm">
+              Ask anything about your meetings, policies, or decisions.
+            </p>
 
-          {/* ✅ Search Bar */}
-          <input
-            type="text"
-            placeholder="Search meetings, policies, or reports..."
-            className="mt-2 w-full sm:w-96 px-5 py-2 border rounded-full shadow-sm focus:ring-2 focus:ring-blue-400 outline-none"
-          />
+            <div className="flex items-center w-full sm:w-[28rem] bg-white shadow-md rounded-full border border-gray-300 overflow-hidden">
+              <input
+                type="text"
+                placeholder="e.g. What decisions were made in last month’s meetings?"
+                className="flex-grow px-5 py-2 text-sm text-gray-700 focus:outline-none"
+              />
+              <button
+                onClick={() => alert("🚀 AI search feature coming soon!")}
+                className="bg-blue-600 text-white px-5 py-2 font-medium text-sm rounded-r-full hover:bg-blue-700 transition-all duration-200"
+              >
+                AI Search
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Action Grid */}
@@ -62,7 +83,7 @@ const Dashboard = () => {
           <FeatureCard
             icon={<Upload className="w-10 h-10 text-blue-600" />}
             title="Upload Recorded Meetings"
-            description="Store and analyze past meetings automatically."
+            description="Store, transcribe, and analyze past meetings automatically with AI speech-to-text."
             onClick={handleUpload}
           />
 
@@ -70,32 +91,32 @@ const Dashboard = () => {
           <FeatureCard
             icon={<FileText className="w-10 h-10 text-green-600" />}
             title="Create New Meeting"
-            description="Schedule, organize, and record new meetings."
+            description="Schedule, organize, and record new meetings with real-time AI transcription."
             onClick={handleCreateMeeting}
           />
 
-          {/* Summaries / Minutes */}
+          {/* AI Summaries */}
           <FeatureCard
-            icon={<Settings className="w-10 h-10 text-purple-600" />}
-            title="Meeting Summaries"
-            description="View or edit automated summaries and decisions."
+            icon={<Brain className="w-10 h-10 text-purple-600" />}
+            title="AI Summarization"
+            description="Automatically generate Minutes of Meeting and highlight key action points."
             onClick={() => navigate("/summaries")}
           />
 
-          {/* Policy Repository */}
+          {/* Policies & Version Control */}
           <FeatureCard
-            icon={<FileText className="w-10 h-10 text-yellow-600" />}
+            icon={<Database className="w-10 h-10 text-yellow-600" />}
             title="Policies & Rules Repository"
-            description="Maintain versioned digital records of policies."
+            description="Maintain version-controlled digital records for policies and governance documents."
             onClick={handlePolicies}
           />
 
-          {/* Search Reports */}
+          {/* Reports & Analytics */}
           <FeatureCard
-            icon={<Search className="w-10 h-10 text-pink-600" />}
-            title="Search & Generate Reports"
-            description="Find records and generate AI-powered reports."
-            onClick={handleSearchReports}
+            icon={<BarChart3 className="w-10 h-10 text-indigo-600" />}
+            title="Reports & Analytics"
+            description="Visualize trends — meetings held, policies updated, and decisions made automatically."
+            onClick={handleReports}
           />
         </div>
       </div>
@@ -110,7 +131,7 @@ const FeatureCard = ({ icon, title, description, onClick }) => (
     className="bg-white w-full max-w-xs rounded-2xl shadow-md hover:shadow-lg cursor-pointer border border-gray-100 transition-all duration-300 p-6 flex flex-col items-center text-center hover:-translate-y-1"
   >
     <div className="mb-4">{icon}</div>
-    <h3 className="text-lg font-semibold mb-2">{title}</h3>
+    <h3 className="text-lg font-semibold mb-2 text-gray-800">{title}</h3>
     <p className="text-sm text-gray-500">{description}</p>
   </div>
 );

@@ -56,22 +56,39 @@ export const AppContextProvider = (props) => {
 
   // ✅ Fetch user data from backend
   const getUserData = async () => {
-  try {
-    const { data } = await axios.get(`${backendUrl}/api/auth/user-data`, { withCredentials: true });
-    if (data.success) {
-      setUserData(data.user); // user should include { name, email, role, organization }
-      localStorage.setItem("userData", JSON.stringify(data.user));
+    try {
+      const { data } = await axios.get(`${backendUrl}/api/auth/user-data`, {
+        withCredentials: true,
+      });
+
+      if (data.success && data.user) {
+        setUserData(data.user); // user should include { name, email, role, organization }
+        localStorage.setItem("userData", JSON.stringify(data.user));
+        return data.user; // ✅ return user so Login.jsx can use it immediately
+      } else {
+        console.warn("No user data received from backend:", data.message);
+        setUserData(null);
+        return null;
+      }
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      setUserData(null);
+      return null; // ✅ ensure consistent return type
     }
-  } catch (error) {
-    console.error("Error fetching user data:", error);
-    setUserData(null);
-  }
-};
+  };
+
 
 
   useEffect(() => {
-    getAuthState();
+    const storedUser = localStorage.getItem("userData");
+    if (storedUser) {
+      setUserData(JSON.parse(storedUser));
+      setIsLoggedin(true);
+    } else {
+      getAuthState();
+    }
   }, []);
+
 
   // ✅ Logout function
   const logoutUser = async () => {

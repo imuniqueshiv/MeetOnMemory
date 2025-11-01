@@ -6,6 +6,11 @@ import cookieParser from "cookie-parser";
 
 import authRoutes from "./routes/authRoutes.js";
 import organizationRoutes from "./routes/organizationRoutes.js";
+// import meetingRoutes from "./routes/meetingRoutes.js";
+// import aiRoutes from "./routes/aiRoutes.js";
+
+
+
 
 dotenv.config();
 connectDB();
@@ -23,5 +28,7 @@ app.use(cors({
 // ✅ Mount routes
 app.use("/api/auth", authRoutes);
 app.use("/api/organizations", organizationRoutes);
+// app.use("/api/meetings", meetingRoutes);
+// app.use("/api/ai", aiRoutes);
 
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));

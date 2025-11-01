@@ -1,22 +1,27 @@
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css"; // ✅ Don’t forget CSS import
+import "react-toastify/dist/ReactToastify.css";
 
 // --- Public Pages ---
+import Home from "./pages/Home.jsx"; // 👈 Public landing page
 import Login from "./pages/Login.jsx";
 import EmailVerify from "./pages/EmailVerify.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
 
 // --- Protected Pages ---
-import Home from "./pages/Home.jsx";
 import MeetingListPage from "./pages/MeetingListPage.jsx";
 import SelectRolePage from "./pages/SelectRolePage.jsx";
 import CreateOrganizationPage from "./pages/CreateOrganizationPage.jsx";
-// import JoinOrganizationPage from "./pages/JoinOrganizationPage.jsx"; // (future feature)
 import Dashboard from "./pages/Dashboard.jsx";
 
-
+// ✅ Newly Added Feature Pages
+import CreateMeeting from "./pages/CreateMeeting.jsx";
+import UploadMeeting from "./pages/UploadMeeting.jsx";
+import Policies from "./pages/Policies.jsx";
+import Summaries from "./pages/Summaries.jsx";
+import Reports from "./pages/Reports.jsx";
+import AiSearch from "./pages/AiSearch.jsx";
 
 // --- Components ---
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
@@ -24,26 +29,17 @@ import ProtectedRoute from "./components/ProtectedRoute.jsx";
 const App = () => {
   return (
     <>
-      {/* Toast notifications (top-right by default) */}
+      {/* Toast Notifications */}
       <ToastContainer position="top-right" autoClose={3000} theme="colored" />
 
-      {/* === Application Routes === */}
       <Routes>
-        {/* === Public Routes === */}
+        {/* === Public Routes (No login required) === */}
+        <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/email-verify" element={<EmailVerify />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* === Protected Routes (require login) === */}
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Home />
-            </ProtectedRoute>
-          }
-        />
-
+        {/* === Protected Routes (Require login) === */}
         <Route
           path="/meetings"
           element={
@@ -53,7 +49,6 @@ const App = () => {
           }
         />
 
-        {/* === Onboarding Routes === */}
         <Route
           path="/select-role"
           element={
@@ -72,7 +67,6 @@ const App = () => {
           }
         />
 
-
         <Route
           path="/dashboard"
           element={
@@ -82,16 +76,63 @@ const App = () => {
           }
         />
 
-
-        {/* Future addition
+        {/* ✅ Newly Added Dashboard Feature Routes */}
         <Route
-          path="/join-organization"
+          path="/create-meeting"
           element={
             <ProtectedRoute>
-              <JoinOrganizationPage />
+              <CreateMeeting />
             </ProtectedRoute>
           }
-        /> */}
+        />
+
+        <Route
+          path="/upload-meeting"
+          element={
+            <ProtectedRoute>
+              <UploadMeeting />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/policies"
+          element={
+            <ProtectedRoute>
+              <Policies />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/summaries"
+          element={
+            <ProtectedRoute>
+              <Summaries />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute>
+              <Reports />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/ai-search"
+          element={
+            <ProtectedRoute>
+              <AiSearch />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ✅ Fallback route — send unknown routes to Home */}
+        <Route path="*" element={<Home />} />
       </Routes>
     </>
   );
