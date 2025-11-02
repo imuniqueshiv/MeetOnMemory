@@ -1,42 +1,46 @@
 import mongoose from "mongoose";
 
-const meetingSchema = new mongoose.Schema({
-    createdBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'user', // <-- FIX
-        required: true
+const meetingSchema = new mongoose.Schema(
+  {
+    uploadedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true, // ✅ Required field (renamed from user)
+    },
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+      default: null,
     },
     title: {
-        type: String,
-        required: [true, "Meeting title is required"],
+      type: String,
+      required: true,
+      trim: true,
     },
-    date: {
-        type: Date,
-        required: [true, "Meeting date is required"],
-    },
-    status: {
-        type: String,
-        enum: ['Upcoming', 'Completed', 'Processing'],
-        default: 'Upcoming'
+    fileUrl: {
+      type: String, // Path or cloud link to uploaded audio/video file
     },
     transcript: {
-        type: String,
-        default: ''
+      type: String, // Raw transcript text
     },
     summary: {
-        type: String,
-        default: ''
+      type: String, // AI-generated summary (Minutes of Meeting)
     },
-    actionItems: {
-        type: [String],
-        default: []
+    aiNotes: {
+      type: String, // Optional - additional AI notes (e.g., key decisions)
     },
-    audioFileUrl: {
-        type: String,
-        default: ''
-    }
-}, { timestamps: true });
+    duration: {
+      type: Number, // in seconds (optional)
+    },
+    status: {
+      type: String,
+      enum: ["uploaded", "processing", "completed", "failed"],
+      default: "uploaded",
+    },
+    tags: [String], // e.g., ["policy", "finance", "staff"]
+  },
+  { timestamps: true }
+);
 
-const Meeting = mongoose.model('Meeting', meetingSchema);
-
+const Meeting = mongoose.model("Meeting", meetingSchema);
 export default Meeting;
