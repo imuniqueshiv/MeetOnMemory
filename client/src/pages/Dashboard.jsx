@@ -5,12 +5,9 @@ import {
   Building2,
   FileText,
   Upload,
-  Search,
-  Settings,
   BarChart3,
   Brain,
   Database,
-  Mic,
 } from "lucide-react";
 import Navbar from "../components/Navbar.jsx";
 
@@ -26,6 +23,9 @@ const Dashboard = () => {
   const handleCreateMeeting = () => navigate("/create-meeting");
   const handlePolicies = () => navigate("/policies");
   const handleReports = () => navigate("/reports");
+
+  // ✅ NEW: Navigate to AI Search Page
+  const handleAISearch = () => navigate("/ai-search");
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -66,9 +66,12 @@ const Dashboard = () => {
                 type="text"
                 placeholder="e.g. What decisions were made in last month’s meetings?"
                 className="flex-grow px-5 py-2 text-sm text-gray-700 focus:outline-none"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleAISearch();
+                }}
               />
               <button
-                onClick={() => alert("🚀 AI search feature coming soon!")}
+                onClick={handleAISearch}
                 className="bg-blue-600 text-white px-5 py-2 font-medium text-sm rounded-r-full hover:bg-blue-700 transition-all duration-200"
               >
                 AI Search
