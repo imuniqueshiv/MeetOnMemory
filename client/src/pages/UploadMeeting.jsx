@@ -1,5 +1,4 @@
-// client/src/pages/UploadMeeting.jsx
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import Navbar from "../components/Navbar.jsx";
@@ -13,9 +12,20 @@ const UploadMeeting = () => {
   const [isUploading, setIsUploading] = useState(false);
 
   const [transcript, setTranscript] = useState("");
-  const [summary, setSummary] = useState("");
   const [meetingId, setMeetingId] = useState(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [summary, setSummary] = useState("");
+
+  // New fields for required date + optional title
+  const [meetingDate, setMeetingDate] = useState(() => {
+    // default to today's date in yyyy-mm-dd for input[type=date]
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  });
+  const [title, setTitle] = useState("");
 
   const allowedTypes = [
     "audio/wav",
@@ -52,7 +62,8 @@ const UploadMeeting = () => {
 
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("title", `${userData?.name || "user"} - ${file.name}`);
+      // don't force title here; user may leave it blank -> backend will auto-generate later
+      if (title) formData.append("title", title);
 
       const res = await axios.post(`${backendUrl}/api/meetings/upload`, formData, {
         withCredentials: true,
@@ -67,6 +78,8 @@ const UploadMeeting = () => {
         toast.success("Transcription complete!");
         setTranscript(res.data.transcript || "");
         setMeetingId(res.data.meetingId || null);
+        // if backend returns an auto title, populate it (optional)
+        if (res.data.autoTitle) setTitle(res.data.autoTitle);
       } else {
         toast.error(res.data?.message || "Upload failed");
       }
@@ -79,9 +92,15 @@ const UploadMeeting = () => {
     }
   };
 
+  // Generate structured MoM (minutes of meeting) using backend (Gemini or HF fallback)
   const handleGenerateSummary = async () => {
     if (!transcript && !meetingId) {
       toast.error("No transcript available. Upload a meeting first.");
+      return;
+    }
+    // meeting date is required
+    if (!meetingDate) {
+      toast.error("Please select a meeting date (required).");
       return;
     }
 
@@ -89,15 +108,24 @@ const UploadMeeting = () => {
       setIsSummarizing(true);
       setSummary("");
 
-      const payload = meetingId ? { meetingId } : { transcript };
+      // Prefer to send meetingId (backend will lookup transcript in DB); also send date + optional title
+      const payload = {
+        meetingId: meetingId || undefined,
+        transcript: meetingId ? undefined : transcript,
+        date: meetingDate,
+        title: title || undefined, // backend will auto-generate if missing
+      };
 
       const res = await axios.post(`${backendUrl}/api/meetings/summarize`, payload, {
         withCredentials: true,
+        headers: { "Content-Type": "application/json" },
+        timeout: 120000,
       });
 
       if (res.data?.success) {
-        setSummary(res.data.summary || "");
-        toast.success("AI Summary generated!");
+        // backend returns structured object plus a human readable summary text
+        setSummary(res.data.momText || res.data.summary || JSON.stringify(res.data.mom || res.data));
+        toast.success("Minutes of Meeting created!");
       } else {
         toast.error(res.data?.message || "Failed to generate summary");
       }
@@ -128,14 +156,22 @@ const UploadMeeting = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <Navbar />
-      <div className="flex flex-col items-center justify-center flex-grow px-6 py-20 md:py-28">
+      <div className="flex flex-col items-center justify-center flex-grow px-6 py-16 md:py-24">
         <div className="w-full max-w-4xl text-center">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Upload Recorded Meeting</h1>
-          <p className="text-gray-500 mb-8">
-            Upload audio recordings (WAV / MP3 / M4A). Our AI will transcribe and summarize them automatically.
+          <p className="text-gray-500 mb-6">
+            Upload audio (WAV / MP3 / M4A). We'll transcribe it, then generate a structured Minutes of Meeting (MoM).
           </p>
 
-          <div className="bg-white shadow-md rounded-xl p-8 mb-10 text-left">
+          <div className="bg-white shadow-md rounded-xl p-6 mb-8 text-left">
+            <label className="block mb-3 font-medium text-gray-700">Optional Title (AI will auto-generate if left blank)</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Optional meeting title"
+              className="block w-full text-sm text-gray-700 border border-gray-200 rounded-md p-2 mb-3" />
+
+            <label className="block mb-3 font-medium text-gray-700">Meeting Date (required)</label>
+            <input type="date" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)}
+              className="block w-48 text-sm text-gray-700 border border-gray-200 rounded-md p-2 mb-4" required />
+
             <label className="block mb-4 font-medium text-gray-700">Choose Meeting Audio File:</label>
             <input type="file" accept="audio/*" onChange={handleFileChange}
               className="block w-full text-sm text-gray-700 border border-gray-200 rounded-lg p-2" />
@@ -166,14 +202,12 @@ const UploadMeeting = () => {
               <h3 className="text-lg font-semibold mb-3">Transcript</h3>
               {transcript ? (
                 <>
-                  <div className="text-gray-700 whitespace-pre-wrap mb-4 max-h-80 overflow-y-auto border p-3 rounded-lg bg-gray-50">
-                    {transcript}
-                  </div>
+                  <div className="text-gray-700 whitespace-pre-wrap mb-4 max-h-80 overflow-y-auto border p-3 rounded-lg bg-gray-50">{transcript}</div>
                   <div className="flex gap-3">
                     <button onClick={handleDownloadTranscript} className="px-4 py-2 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-100">Download</button>
                     <button onClick={() => { navigator.clipboard.writeText(transcript); toast.success("Transcript copied to clipboard."); }} className="px-4 py-2 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-100">Copy</button>
                     <button onClick={handleGenerateSummary} disabled={isSummarizing} className={`ml-auto px-5 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 ${isSummarizing ? "opacity-70 cursor-not-allowed" : ""}`}>
-                      {isSummarizing ? "Summarizing..." : "Generate Summary"}
+                      {isSummarizing ? "Generating MoM..." : "Generate Minutes (MoM)"}
                     </button>
                   </div>
                 </>
@@ -183,22 +217,22 @@ const UploadMeeting = () => {
             </div>
 
             <div className="bg-white rounded-xl shadow p-6 text-left">
-              <h3 className="text-lg font-semibold mb-3">AI Summary (Minutes of Meeting)</h3>
+              <h3 className="text-lg font-semibold mb-3">AI Minutes of Meeting (MoM)</h3>
               {summary ? (
                 <>
                   <div className="text-gray-700 whitespace-pre-wrap mb-4 max-h-80 overflow-y-auto border p-3 rounded-lg bg-gray-50">{summary}</div>
                   <div className="flex gap-3">
                     <button onClick={() => { navigator.clipboard.writeText(summary); toast.success("Summary copied to clipboard."); }} className="px-4 py-2 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-100">Copy</button>
-                    <button onClick={() => toast.info("Meeting saved successfully.")} className="px-5 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 ml-auto">Save Meeting</button>
+                    <button onClick={() => toast.info("Meeting saved (already saved during summarization).")} className="px-5 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 ml-auto">Saved</button>
                   </div>
                 </>
               ) : (
-                <p className="text-gray-500">AI summary will appear here after clicking "Generate Summary".</p>
+                <p className="text-gray-500">AI minutes will appear here after clicking "Generate Minutes (MoM)".</p>
               )}
             </div>
           </div>
 
-          <p className="text-gray-500 text-sm mt-10 flex items-center justify-center gap-1">💡 Tip: For best results, use clear audio (single speaker recommended). Large files may take a few minutes.</p>
+          <p className="text-gray-500 text-sm mt-8">💡 Tip: For best results use clear audio (one speaker at a time). Dates are required for proper MoM generation.</p>
         </div>
       </div>
     </div>

@@ -10,6 +10,10 @@ import meetingRoutes from "./routes/meetingRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
 import { initVectorStore } from "./utils/embeddingUtils.js";
 import aiRoutes from "./routes/aiRoutes.js";
+import policyRoutes from "./routes/policyRoutes.js";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
+import geminiRoutes from "./routes/geminiRoutes.js";
+
 
 
 import multer from "multer";
@@ -40,6 +44,10 @@ app.use("/api/organizations", organizationRoutes);
 app.use("/api/meetings", meetingRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/ai-search", aiRoutes);
+app.use("/api/policies", policyRoutes);
+app.use("/api/analytics", analyticsRoutes);
+app.use("/api/gemini", geminiRoutes);
+
 
 
 // ✅ Server initialization

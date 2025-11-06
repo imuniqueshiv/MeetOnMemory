@@ -90,11 +90,11 @@ const Dashboard = () => {
             onClick={handleUpload}
           />
 
-          {/* Create Meeting */}
+          {/* Create Meeting & Events */}
           <FeatureCard
             icon={<FileText className="w-10 h-10 text-green-600" />}
-            title="Create New Meeting"
-            description="Schedule, organize, and record new meetings with real-time AI transcription."
+            title=" Meeting & Event Hub"
+            description="Schedule meetings, upload recordings for AI summaries, or create session cards for conferences and seminars."
             onClick={handleCreateMeeting}
           />
 

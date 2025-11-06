@@ -5,7 +5,7 @@ const meetingSchema = new mongoose.Schema(
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true, // ✅ Required field (renamed from user)
+      required: true, // user must be logged in
     },
     organization: {
       type: mongoose.Schema.Types.ObjectId,
@@ -17,20 +17,78 @@ const meetingSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    fileUrl: {
-      type: String, // Path or cloud link to uploaded audio/video file
+    description: {
+      type: String, // Meeting description/objective
+      default: "",
     },
-    transcript: {
-      type: String, // Raw transcript text
+    meetingType: {
+      type: String, // conference, policy, event, internal
+      enum: ["conference", "policy", "event", "internal"],
+      default: "conference",
     },
-    summary: {
-      type: String, // AI-generated summary (Minutes of Meeting)
+    date: {
+      type: Date,
+      required: true,
     },
-    aiNotes: {
-      type: String, // Optional - additional AI notes (e.g., key decisions)
+    time: {
+      type: String, // Meeting time (e.g., "14:30")
+      default: "",
     },
     duration: {
-      type: Number, // in seconds (optional)
+      type: Number, // Duration in minutes
+      default: null,
+    },
+    location: {
+      type: String, // Location/platform (e.g., "Zoom", "Conference Room A")
+      default: "",
+    },
+    venue: {
+      type: String, // Venue details (physical address or meeting link)
+      default: "",
+    },
+    participants: [
+      {
+        name: { type: String, required: true },
+        email: { type: String, default: "" },
+        role: { type: String, default: "" },
+      },
+    ],
+    agendaItems: [
+      {
+        text: { type: String, required: true },
+      },
+    ],
+    policyDetails: {
+      // For policy-type meetings
+      policyName: { type: String, default: "" },
+      policyVersion: { type: String, default: "" },
+      effectiveDate: { type: Date, default: null },
+      approvalRequired: { type: Boolean, default: false },
+    },
+    recordingType: {
+      type: String, // "upload" or "live"
+      enum: ["upload", "live"],
+      default: "upload",
+    },
+    fileUrl: {
+      type: String, // Path or cloud link to uploaded audio/video file
+      default: "",
+    },
+    transcript: {
+      type: String, // Raw transcript text from AssemblyAI
+      default: "",
+    },
+    summary: {
+      type: String, // Human-readable MoM text
+      default: "",
+    },
+    structuredMoM: {
+      type: mongoose.Schema.Types.Mixed, // Structured JSON (title, decisions[], action_items[], attendees[])
+      default: null,
+    },
+    aiNotes: {
+      type: String, // Optional - additional AI notes
+      default: "",
     },
     status: {
       type: String,

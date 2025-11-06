@@ -1,56 +1,131 @@
-// server/controllers/meetingController.js
 import fs from "fs";
 import axios from "axios";
 import FormData from "form-data";
 import Meeting from "../models/meetingModel.js";
 import { indexMeeting } from "../utils/embeddingUtils.js";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const USE_WHISPER = false; // if you want to use OpenAI Whisper
-const USE_OPENAI_SUMMARY = false; // if you want to use OpenAI summarization instead of HF
+/**
+ * Meeting Controller - Handles all meeting operations
+ * 
+ * Features:
+ * 1. Schedule meetings (from CreateMeeting Schedule section)
+ * 2. Upload & transcribe audio (from both UploadMeeting page and CreateMeeting Upload section)
+ * 3. Generate AI summaries/MOM using Gemini 2.0 Flash (fallback to HuggingFace)
+ * 4. Fetch all meetings for dashboard
+ * 
+ * APIs Used:
+ * - AssemblyAI: Speech-to-text transcription
+ * - Google Gemini 2.0 Flash: AI summary generation
+ * - HuggingFace: Fallback for summarization
+ */
 
+// Config
+const USE_WHISPER = false;
 const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_PROJECT_ID = process.env.OPENAI_PROJECT_ID;
 const HUGGINGFACE_API_KEY = process.env.HUGGINGFACE_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
-/* ============================================================
-   Upload & Transcription
-   - Saves meeting to DB + indexes it (indexMeeting)
-   - Uses AssemblyAI by default (works fine for hackathon)
-   ============================================================ */
+/* =========================================================
+   1. CREATE MEETING (Schedule from CreateMeeting form)
+   - Creates meeting record with comprehensive details
+   - Used by: CreateMeeting.jsx "Schedule Meeting" section
+   ========================================================= */
+export const createMeeting = async (req, res) => {
+  try {
+    const uploaderId = req.user?.id || req.user?._id;
+    if (!uploaderId) {
+      return res.status(401).json({ success: false, message: "Unauthorized. Login required." });
+    }
+
+    const {
+      title,
+      description,
+      meetingType,
+      date,
+      time,
+      duration,
+      location,
+      venue,
+      participants,
+      agendaItems,
+      policyDetails,
+      recordingType
+    } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ success: false, message: "Meeting title is required" });
+    }
+
+    const meeting = await Meeting.create({
+      uploadedBy: uploaderId,
+      organization: req.user?.organization || null,
+      title: title.trim(),
+      description: description || "",
+      meetingType: meetingType || "conference",
+      date: date ? new Date(date) : new Date(),
+      time: time || "",
+      duration: duration || null,
+      location: location || "",
+      venue: venue || "",
+      participants: participants || [],
+      agendaItems: agendaItems || [],
+      policyDetails: policyDetails || null,
+      recordingType: recordingType || "upload",
+      transcript: "",
+      summary: "",
+      structuredMoM: null,
+      status: "uploaded",
+    });
+
+    // Index meeting for semantic search (non-blocking)
+    try {
+      await indexMeeting(meeting);
+    } catch (idxErr) {
+      console.error("⚠️ indexMeeting error (continuing):", idxErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Meeting scheduled successfully",
+      meeting: {
+        _id: meeting._id,
+        title: meeting.title,
+        meetingType: meeting.meetingType,
+        date: meeting.date,
+      }
+    });
+  } catch (error) {
+    console.error("❌ createMeeting Error:", error?.message || error);
+    return res.status(500).json({ success: false, message: error.message || "Failed to create meeting" });
+  }
+};
+
+/* =========================================================
+   2. UPLOAD MEETING (Original - from UploadMeeting page)
+   - Uploads audio file, transcribes using AssemblyAI
+   - Returns meetingId + transcript for further processing
+   - Used by: UploadMeeting.jsx (existing working page)
+   ========================================================= */
 export const uploadMeeting = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "No audio file uploaded. Please upload a valid meeting recording.",
-      });
+      return res.status(400).json({ success: false, message: "No audio file uploaded." });
+    }
+    const uploaderId = req.user?.id || req.user?._id;
+    if (!uploaderId) {
+      return res.status(401).json({ success: false, message: "Unauthorized. Login required." });
     }
 
     const filePath = req.file.path;
     let transcriptText = "";
 
-    // Option 1: OpenAI Whisper (if enabled)
-    if (USE_WHISPER) {
-      console.log("🎙 Using OpenAI Whisper API for transcription...");
-      const formData = new FormData();
-      formData.append("file", fs.createReadStream(filePath));
-      formData.append("model", "whisper-1");
+    console.log("🎙️ Starting transcription with AssemblyAI...");
 
-      const response = await axios.post("https://api.openai.com/v1/audio/transcriptions", formData, {
-        headers: {
-          ...formData.getHeaders(),
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          ...(OPENAI_PROJECT_ID ? { "OpenAI-Project": OPENAI_PROJECT_ID } : {}),
-        },
-      });
-
-      transcriptText = response.data?.text || "";
-      console.log("✅ Whisper transcription completed!");
-    } else {
-      // Option 2: AssemblyAI (default)
-      console.log("🎤 Uploading to AssemblyAI for transcription...");
-
+    // Transcription using AssemblyAI
+    if (!USE_WHISPER) {
+      // Step 1: Upload file to AssemblyAI
       const uploadRes = await axios.post(
         "https://api.assemblyai.com/v2/upload",
         fs.readFileSync(filePath),
@@ -63,9 +138,9 @@ export const uploadMeeting = async (req, res) => {
       );
 
       const audioUrl = uploadRes.data.upload_url;
-      console.log("✅ File uploaded to AssemblyAI:", audioUrl);
+      console.log("✅ File uploaded to AssemblyAI");
 
-      // Create transcription job
+      // Step 2: Create transcription job
       const transcriptRes = await axios.post(
         "https://api.assemblyai.com/v2/transcript",
         { audio_url: audioUrl },
@@ -73,54 +148,55 @@ export const uploadMeeting = async (req, res) => {
       );
 
       const transcriptId = transcriptRes.data.id;
-      console.log("⏳ Transcription job started:", transcriptId);
+      console.log("⏳ Transcription job created, polling for completion...");
 
-      // Poll for completion
+      // Step 3: Poll for completion
       let transcriptData;
-      const start = Date.now();
       while (true) {
         const checkRes = await axios.get(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
           headers: { authorization: ASSEMBLYAI_API_KEY },
         });
-
         if (checkRes.data.status === "completed") {
           transcriptData = checkRes.data;
-          console.log("✅ Transcription completed in", ((Date.now() - start) / 1000).toFixed(1), "s");
+          console.log("✅ Transcription completed");
           break;
         } else if (checkRes.data.status === "error") {
-          throw new Error(checkRes.data.error || "AssemblyAI transcription failed.");
+          throw new Error(checkRes.data.error || "AssemblyAI transcription error");
         }
-
-        await new Promise((r) => setTimeout(r, 3000));
+        // Wait 2.5 seconds before next poll
+        await new Promise((r) => setTimeout(r, 2500));
       }
-
       transcriptText = transcriptData.text || "";
+    } else {
+      throw new Error("Whisper path not enabled in this build.");
     }
 
-    // Save meeting to DB
+    // Create meeting record in database
     const meeting = await Meeting.create({
-      uploadedBy: req.user?._id || null,
+      uploadedBy: uploaderId,
       organization: req.user?.organization || null,
-      title: req.body.title || `Untitled Meeting - ${Date.now()}`,
+      title: req.body.title?.trim() || `Meeting - ${new Date().toLocaleDateString()}`,
+      date: req.body.date ? new Date(req.body.date) : new Date(),
+      meetingType: req.body.meetingType || "internal",
       fileUrl: req.file.path,
       transcript: transcriptText,
       summary: "",
+      structuredMoM: null,
       status: "completed",
     });
 
-    // Index into Pinecone (await so indexing finishes or errors are logged)
+    // Index meeting for semantic search (non-blocking)
     try {
       await indexMeeting(meeting);
     } catch (idxErr) {
-      console.error("❌ indexMeeting error (continuing):", idxErr);
+      console.error("⚠️ indexMeeting error (continuing):", idxErr.message);
     }
 
-    // Remove temporary file
+    // Cleanup temp file
     try {
       fs.unlinkSync(filePath);
     } catch (e) {
-      // non-fatal
-      console.warn("⚠️ Could not delete temp upload:", e.message || e);
+      console.warn("⚠️ Could not delete temp file:", e.message);
     }
 
     return res.status(200).json({
@@ -130,108 +206,406 @@ export const uploadMeeting = async (req, res) => {
       transcript: transcriptText,
     });
   } catch (error) {
-    console.error("❌ uploadMeeting Error:", error.response?.data || error.message || error);
-    return res.status(500).json({
-      success: false,
-      message: error.response?.data?.error || error.message || "Server error during upload",
-    });
+    console.error("❌ uploadMeeting Error:", error?.response?.data || error?.message || error);
+    return res.status(500).json({ success: false, message: error.message || "Upload failed" });
   }
 };
 
-/* ============================================================
-   Summarization endpoint — accepts:
-     - { meetingId }  OR
-     - { transcript }
-   Falls back to Hugging Face inference router endpoint.
-   Handles different response shapes.
-   ============================================================ */
+/* =========================================================
+   3. UPLOAD AUDIO FOR EXISTING MEETING
+   - Uploads audio to an already created meeting
+   - Used by: CreateMeeting.jsx "Upload Meeting" section
+   ========================================================= */
+export const uploadAudioForMeeting = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No audio file uploaded." });
+    }
+    
+    const { meetingId } = req.body;
+    if (!meetingId) {
+      return res.status(400).json({ success: false, message: "Meeting ID is required" });
+    }
+
+    const uploaderId = req.user?.id || req.user?._id;
+    if (!uploaderId) {
+      return res.status(401).json({ success: false, message: "Unauthorized. Login required." });
+    }
+
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: "Meeting not found" });
+    }
+
+    if (meeting.uploadedBy.toString() !== uploaderId.toString()) {
+      return res.status(403).json({ success: false, message: "You don't have permission to update this meeting" });
+    }
+
+    const filePath = req.file.path;
+    let transcriptText = "";
+
+    console.log("🎙️ Transcribing audio for existing meeting...");
+
+    // Transcription using AssemblyAI
+    if (!USE_WHISPER) {
+      const uploadRes = await axios.post(
+        "https://api.assemblyai.com/v2/upload",
+        fs.readFileSync(filePath),
+        {
+          headers: {
+            authorization: ASSEMBLYAI_API_KEY,
+            "Transfer-Encoding": "chunked",
+          },
+        }
+      );
+
+      const audioUrl = uploadRes.data.upload_url;
+
+      const transcriptRes = await axios.post(
+        "https://api.assemblyai.com/v2/transcript",
+        { audio_url: audioUrl },
+        { headers: { authorization: ASSEMBLYAI_API_KEY } }
+      );
+
+      const transcriptId = transcriptRes.data.id;
+
+      // Poll for completion
+      let transcriptData;
+      while (true) {
+        const checkRes = await axios.get(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
+          headers: { authorization: ASSEMBLYAI_API_KEY },
+        });
+        if (checkRes.data.status === "completed") {
+          transcriptData = checkRes.data;
+          console.log("✅ Transcription completed");
+          break;
+        } else if (checkRes.data.status === "error") {
+          throw new Error(checkRes.data.error || "AssemblyAI transcription error");
+        }
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+      transcriptText = transcriptData.text || "";
+    }
+
+    // Update meeting with transcript
+    meeting.transcript = transcriptText;
+    meeting.fileUrl = req.file.path;
+    meeting.status = "completed";
+    await meeting.save();
+
+    // Re-index meeting
+    try {
+      await indexMeeting(meeting);
+    } catch (idxErr) {
+      console.error("⚠️ indexMeeting error (continuing):", idxErr.message);
+    }
+
+    // Cleanup temp file
+    try {
+      fs.unlinkSync(filePath);
+    } catch (e) {
+      console.warn("⚠️ Could not delete temp file:", e.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Audio uploaded and transcribed successfully",
+      meetingId: meeting._id,
+      transcript: transcriptText,
+    });
+  } catch (error) {
+    console.error("❌ uploadAudioForMeeting Error:", error?.message || error);
+    return res.status(500).json({ success: false, message: error.message || "Upload failed" });
+  }
+};
+
+/* =========================================================
+   4. SUMMARIZE MEETING (Generate AI MOM)
+   - Accepts: { meetingId?, transcript?, date (required), title? }
+   - Generates structured MoM JSON using Gemini 2.0 Flash
+   - Falls back to HuggingFace if Gemini fails
+   - Returns readable MoM text + structured JSON
+   - Used by: Both UploadMeeting.jsx and CreateMeeting.jsx
+   ========================================================= */
 export const summarizeMeeting = async (req, res) => {
   try {
-    const { meetingId, transcript } = req.body;
+    const { meetingId, transcript, date, title } = req.body;
+
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        message: "Meeting date is required.",
+      });
+    }
 
     let textToSummarize = (transcript || "").trim();
 
-    if (!textToSummarize && meetingId) {
-      // fetch meeting from DB
-      const meeting = await Meeting.findById(meetingId).lean();
-      if (!meeting) {
-        return res.status(404).json({ success: false, message: "Meeting not found." });
-      }
+    // Fetch meeting transcript if only meetingId is provided
+    let meeting = null;
+    if (meetingId && !textToSummarize) {
+      meeting = await Meeting.findById(meetingId);
+      if (!meeting)
+        return res.status(404).json({ success: false, message: "Meeting not found" });
       textToSummarize = (meeting.transcript || "").trim();
     }
 
     if (!textToSummarize) {
-      return res.status(400).json({ success: false, message: "No transcript provided." });
+      return res.status(400).json({
+        success: false,
+        message: "No transcript provided.",
+      });
     }
 
-    console.log("📄 Summarizing text (length):", textToSummarize.length);
+    console.log(`🧠 Generating MoM for ${meetingId || "transcript-only"}...`);
 
-    // Use Hugging Face router inference
-    const hfUrl = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn";
+    // ======= Build Professional MoM Prompt =======
+    const prompt = `
+You are an advanced AI meeting assistant responsible for preparing *formal, well-structured Minutes of Meeting (MoM)* 
+from the transcript provided below.
 
-    const hfResponse = await axios.post(
-      hfUrl,
-      { inputs: textToSummarize },
-      {
-        headers: {
-          Authorization: `Bearer ${HUGGINGFACE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        timeout: 120000, // 2 min, summarization may take time
+The MoM should be factual, concise, and formatted for professional use in organizations, universities, or institutions.  
+Avoid repetition, filler words, and unnecessary phrases. Capture key insights, outcomes, and responsibilities accurately.
+
+🎯 Your goal is to return a clean JSON object with the following fields:
+{
+  "title": "A clear, professional meeting title (e.g., 'AI Integration Strategy Discussion')",
+  "date": "${date}",
+  "summary": "A concise 4–6 sentence paragraph summarizing the meeting objectives, key points discussed, and overall conclusions. Use formal tone.",
+  "agenda": ["main agenda point 1", "main agenda point 2", "main agenda point 3"],
+  "key_discussions": [
+    "Summarize core discussion points or debates in neutral and objective language.",
+    "Mention who contributed if identifiable (optional)."
+  ],
+  "decisions": [
+    "List final decisions or outcomes agreed upon during the meeting, if any."
+  ],
+  "action_items": [
+    {"task": "Describe the specific task or next step", "owner": "Person responsible (if mentioned)", "due_date": "Deadline or expected date, if mentioned"}
+  ],
+  "attendees": ["List attendees if mentioned or infer from transcript"],
+  "notes": "Include any follow-up requirements, risks, or additional remarks worth noting."
+}
+
+Transcript:
+${textToSummarize}
+
+🧠 Instructions:
+- Return ONLY valid JSON (no Markdown, no commentary, no backticks).
+- Write in clear, formal English.
+- Ensure every array key is present — use [] or "" for missing info.
+- Avoid hallucinating or adding extra information.
+- Maintain factual tone based on transcript content only.
+- If user provided a title: ${title || "none"}, incorporate or refine it if appropriate.
+`;
+
+    // ======= Use Gemini 2.0 Flash for Summarization =======
+    let structured = null;
+    let humanReadable = "";
+
+    try {
+      console.log(`📡 Using Gemini model: ${GEMINI_MODEL}`);
+
+      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODEL,
+      });
+
+      const result = await model.generateContent(prompt);
+      const outputText = result.response.text();
+
+      // Try to parse JSON from response
+      try {
+        structured = JSON.parse(outputText);
+      } catch (e) {
+        // Extract JSON from markdown code blocks if present
+        const match = outputText.match(/\{[\s\S]*\}/);
+        structured = match ? JSON.parse(match[0]) : { rawText: outputText };
       }
-    );
 
-    console.log("✅ Hugging Face raw response:", typeof hfResponse.data === "object" ? hfResponse.data : "[non-json]");
+      console.log("✅ Gemini response received");
+    } catch (gemErr) {
+      console.error("❌ Gemini API error, falling back to HuggingFace:", gemErr.message);
 
-    // Normalize possible response shapes
-    let summaryText = "";
+      // ======= Fallback: HuggingFace =======
+      try {
+        const hfUrl = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn";
 
-    if (Array.isArray(hfResponse.data) && hfResponse.data[0]?.summary_text) {
-      summaryText = hfResponse.data[0].summary_text;
-    } else if (hfResponse.data?.summary_text) {
-      summaryText = hfResponse.data.summary_text;
-    } else if (hfResponse.data?.generated_text) {
-      summaryText = hfResponse.data.generated_text;
-    } else if (hfResponse.data?.results?.[0]?.summary_text) {
-      summaryText = hfResponse.data.results[0].summary_text;
-    } else if (typeof hfResponse.data === "string") {
-      summaryText = hfResponse.data;
-    } else {
-      // best-effort: try to stringify and fallback
-      summaryText = JSON.stringify(hfResponse.data).slice(0, 2000);
+        const hfResp = await axios.post(
+          hfUrl,
+          { inputs: textToSummarize.substring(0, 1024) }, // HuggingFace has input limits
+          {
+            headers: {
+              Authorization: `Bearer ${HUGGINGFACE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            timeout: 120000,
+          }
+        );
+
+        const hfText =
+          Array.isArray(hfResp.data) && hfResp.data[0]?.summary_text
+            ? hfResp.data[0].summary_text
+            : hfResp.data?.generated_text || JSON.stringify(hfResp.data);
+
+        // Try to structure the HuggingFace response
+        structured = {
+          title: title || `Meeting on ${date}`,
+          date: date,
+          summary: hfText,
+          agenda: [],
+          key_discussions: [],
+          decisions: [],
+          action_items: [],
+          attendees: [],
+          notes: "Generated using fallback summarization model"
+        };
+
+        console.log("✅ HuggingFace fallback completed");
+      } catch (hfErr) {
+        console.error("❌ HuggingFace also failed:", hfErr.message);
+        throw new Error("Both Gemini and HuggingFace summarization failed");
+      }
     }
 
-    // Save summary back to meeting if meetingId provided
-    if (meetingId) {
-      await Meeting.findByIdAndUpdate(meetingId, { summary: summaryText }, { new: true });
+    // ======= Build Human-Readable MoM Text =======
+    if (structured) {
+      const mom = {
+        title: structured.title || title || `Meeting on ${date}`,
+        date: structured.date || date,
+        summary: structured.summary || structured.rawText || "",
+        agenda: structured.agenda || [],
+        key_discussions: structured.key_discussions || [],
+        decisions: structured.decisions || [],
+        action_items: structured.action_items || structured.actions || [],
+        attendees: structured.attendees || [],
+        notes: structured.notes || "",
+      };
+
+      // Format human-readable text
+      humanReadable += `📅 Title: ${mom.title}\n`;
+      humanReadable += `Date: ${new Date(mom.date).toLocaleDateString()}\n\n`;
+      humanReadable += `📝 Summary:\n${mom.summary}\n\n`;
+
+      if (mom.agenda.length) {
+        humanReadable += "📋 Agenda:\n";
+        mom.agenda.forEach((item, i) => (humanReadable += `${i + 1}. ${item}\n`));
+        humanReadable += "\n";
+      }
+
+      if (mom.key_discussions.length) {
+        humanReadable += "💬 Key Discussions:\n";
+        mom.key_discussions.forEach((d, i) => (humanReadable += `${i + 1}. ${d}\n`));
+        humanReadable += "\n";
+      }
+
+      if (mom.decisions.length) {
+        humanReadable += "✅ Decisions:\n";
+        mom.decisions.forEach((d, i) => (humanReadable += `${i + 1}. ${d}\n`));
+        humanReadable += "\n";
+      }
+
+      if (mom.action_items.length) {
+        humanReadable += "🎯 Action Items:\n";
+        mom.action_items.forEach((a, i) => {
+          const text =
+            typeof a === "string"
+              ? a
+              : `${a.task || a.action || ""}${a.owner ? " — " + a.owner : ""}${
+                  a.due_date ? " (Due: " + a.due_date + ")" : ""
+                }`;
+          humanReadable += `${i + 1}. ${text}\n`;
+        });
+        humanReadable += "\n";
+      }
+
+      if (mom.attendees.length) {
+        humanReadable += "👥 Attendees: " + mom.attendees.join(", ") + "\n\n";
+      }
+      if (mom.notes) {
+        humanReadable += "🗒 Notes:\n" + mom.notes + "\n";
+      }
+
+      // ======= Save to Database =======
+      let meetingToUpdate = meeting;
+
+      if (!meetingToUpdate && meetingId) {
+        meetingToUpdate = await Meeting.findById(meetingId);
+      }
+
+      if (!meetingToUpdate && !meetingId) {
+        // User provided transcript only (no existing meeting)
+        meetingToUpdate = await Meeting.create({
+          uploadedBy: req.user?.id || req.user?._id,
+          title: mom.title,
+          date: new Date(date),
+          transcript: textToSummarize,
+          summary: humanReadable,
+          structuredMoM: mom,
+          status: "completed",
+        });
+        await indexMeeting(meetingToUpdate);
+      } else if (meetingToUpdate) {
+        // Update existing meeting
+        meetingToUpdate.title = mom.title;
+        meetingToUpdate.date = new Date(date);
+        meetingToUpdate.summary = humanReadable;
+        meetingToUpdate.structuredMoM = mom;
+        await meetingToUpdate.save();
+      }
+
+      console.log("✅ MoM saved to database");
+
+      return res.status(200).json({
+        success: true,
+        message: "Minutes generated successfully",
+        mom: structured,
+        momText: humanReadable,
+        meetingId: meetingToUpdate?._id || meetingId,
+      });
     }
 
-    return res.status(200).json({ success: true, summary: summaryText });
-  } catch (error) {
-    console.error("❌ summarizeMeeting Error:", error.response?.data || error.message || error);
+    return res.status(500).json({ success: false, message: "No summary generated" });
+  } catch (err) {
+    console.error("❌ summarizeMeeting Error:", err.message || err);
     return res.status(500).json({
       success: false,
-      message: "Failed to generate summary.",
-      error: error.response?.data || error.message,
+      message: err.message || "Internal server error",
     });
   }
 };
 
-/* ============================================================
-   Fetch meetings for user (used by dashboard)
-   ============================================================ */
+/* =========================================================
+   5. GET ALL MEETINGS (Dashboard)
+   - Fetches all meetings for logged-in user
+   - Used by: Dashboard/Summaries page
+   ========================================================= */
 export const getAllMeetings = async (req, res) => {
   try {
-    const userId = req.user?._id;
-    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
 
     const meetings = await Meeting.find({ uploadedBy: userId })
       .sort({ createdAt: -1 })
-      .select("title summary transcript createdAt");
+      .select("title summary structuredMoM createdAt date meetingType status");
 
     return res.status(200).json({ success: true, meetings });
   } catch (error) {
-    console.error("❌ getAllMeetings Error:", error);
+    console.error("❌ getAllMeetings Error:", error.message);
     return res.status(500).json({ success: false, message: "Failed to fetch meetings" });
+  }
+};
+
+export const deleteMeeting = async (req, res) => {
+  try {
+    const meeting = await Meeting.findByIdAndDelete(req.params.id);
+    if (!meeting)
+      return res.status(404).json({ success: false, message: "Meeting not found" });
+
+    res.status(200).json({ success: true, message: "Meeting deleted successfully" });
+  } catch (error) {
+    console.error("❌ deleteMeeting Error:", error);
+    res.status(500).json({ success: false, message: "Server error while deleting meeting" });
   }
 };
