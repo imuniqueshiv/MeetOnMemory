@@ -22,6 +22,8 @@ import Policies from "./pages/Policies.jsx";
 import Summaries from "./pages/Summaries.jsx";
 import Reports from "./pages/Reports.jsx";
 import AiSearch from "./pages/AiSearch.jsx";
+import MeetingRoom from "./pages/MeetingRoom.jsx";
+
 
 // --- Components ---
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
@@ -130,6 +132,9 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+
+      <Route path="/meeting-room" element={<MeetingRoom />} />
+
 
         {/* ✅ Fallback route — send unknown routes to Home */}
         <Route path="*" element={<Home />} />

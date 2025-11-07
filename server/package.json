@@ -26,12 +26,15 @@
     "form-data": "^4.0.4",
     "fs": "^0.0.1-security",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.19.2",
+    "mongoose": "^8.19.3",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.10",
-    "nodemon": "^3.1.10",
     "onnxruntime-web": "^1.23.0",
     "openai": "^6.7.0",
-    "pdf-parse": "^2.4.5"
+    "pdf-parse": "^2.4.5",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
   }
 }

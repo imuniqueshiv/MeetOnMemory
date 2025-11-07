@@ -3,13 +3,13 @@ import Navbar from "../components/Navbar.jsx";
 import { AppContent } from "../context/AppContext.jsx";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { 
-  FileText, 
-  Calendar, 
-  Users, 
-  MapPin, 
-  Clock, 
-  Upload, 
+import {
+  FileText,
+  Calendar,
+  Users,
+  MapPin,
+  Clock,
+  Upload,
   Mic,
   Video,
   FileAudio,
@@ -208,7 +208,7 @@ const CreateMeeting = () => {
       formData.append("title", uploadData.title);
       formData.append("date", uploadData.date);
       formData.append("meetingType", uploadData.meetingType);
-      
+
       if (audioFile) {
         formData.append("audio", audioFile);
       }
@@ -227,7 +227,7 @@ const CreateMeeting = () => {
 
       if (response.data?.success) {
         toast.success("Meeting uploaded! AI is generating summary...");
-        
+
         // Auto-generate summary if transcript exists
         if (response.data.transcript) {
           const summaryRes = await axios.post(
@@ -240,7 +240,7 @@ const CreateMeeting = () => {
             },
             { withCredentials: true }
           );
-          
+
           if (summaryRes.data?.success) {
             toast.success("✅ AI Summary generated successfully!");
           }
@@ -300,11 +300,11 @@ const CreateMeeting = () => {
       formData.append("speaker", sessionData.speaker);
       formData.append("speakerBio", sessionData.speakerBio);
       formData.append("speakerTitle", sessionData.speakerTitle);
-      
+
       slideFiles.forEach((file) => {
         formData.append("slides", file);
       });
-      
+
       if (videoFile) {
         formData.append("video", videoFile);
       }
@@ -321,7 +321,7 @@ const CreateMeeting = () => {
       if (response.data?.success) {
         toast.success("✨ Session card generated successfully!");
         setGeneratedSessions([response.data.session, ...generatedSessions]);
-        
+
         // Reset form
         setSessionData({
           eventName: "",
@@ -346,7 +346,7 @@ const CreateMeeting = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      
+
       <div className="max-w-6xl mx-auto px-6 py-20 md:py-28">
         {/* Header */}
         <div className="text-center mb-10">
@@ -362,31 +362,28 @@ const CreateMeeting = () => {
         <div className="flex flex-wrap gap-3 mb-8 justify-center">
           <button
             onClick={() => setActiveSection("schedule")}
-            className={`px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2 ${
-              activeSection === "schedule"
+            className={`px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2 ${activeSection === "schedule"
                 ? "bg-blue-600 text-white shadow-lg"
                 : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
-            }`}
+              }`}
           >
             <Calendar size={20} /> Schedule Meeting
           </button>
           <button
             onClick={() => setActiveSection("upload")}
-            className={`px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2 ${
-              activeSection === "upload"
+            className={`px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2 ${activeSection === "upload"
                 ? "bg-blue-600 text-white shadow-lg"
                 : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
-            }`}
+              }`}
           >
             <Upload size={20} /> Upload Meeting
           </button>
           <button
             onClick={() => setActiveSection("session")}
-            className={`px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2 ${
-              activeSection === "session"
+            className={`px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2 ${activeSection === "session"
                 ? "bg-blue-600 text-white shadow-lg"
                 : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
-            }`}
+              }`}
           >
             <Presentation size={20} /> Session Cards
           </button>
@@ -413,11 +410,10 @@ const CreateMeeting = () => {
                       key={type}
                       type="button"
                       onClick={() => setScheduleData({ ...scheduleData, meetingType: type })}
-                      className={`px-4 py-2 rounded-lg border-2 transition capitalize ${
-                        scheduleData.meetingType === type
+                      className={`px-4 py-2 rounded-lg border-2 transition capitalize ${scheduleData.meetingType === type
                           ? "border-blue-600 bg-blue-50 text-blue-700"
                           : "border-gray-200 hover:border-gray-300"
-                      }`}
+                        }`}
                     >
                       {type}
                     </button>
@@ -681,11 +677,10 @@ const CreateMeeting = () => {
                       key={type}
                       type="button"
                       onClick={() => setUploadData({ ...uploadData, meetingType: type })}
-                      className={`px-4 py-2 rounded-lg border-2 transition capitalize ${
-                        uploadData.meetingType === type
+                      className={`px-4 py-2 rounded-lg border-2 transition capitalize ${uploadData.meetingType === type
                           ? "border-indigo-600 bg-indigo-50 text-indigo-700"
                           : "border-gray-200 hover:border-gray-300"
-                      }`}
+                        }`}
                     >
                       {type}
                     </button>
@@ -726,22 +721,20 @@ const CreateMeeting = () => {
                   <button
                     type="button"
                     onClick={() => setRecordingType("upload")}
-                    className={`px-4 py-2 rounded-lg border-2 transition ${
-                      recordingType === "upload"
+                    className={`px-4 py-2 rounded-lg border-2 transition ${recordingType === "upload"
                         ? "border-indigo-600 bg-indigo-50 text-indigo-700"
                         : "border-gray-200 hover:border-gray-300"
-                    }`}
+                      }`}
                   >
                     <Upload size={16} className="inline mr-2" /> Upload Files
                   </button>
                   <button
                     type="button"
                     onClick={() => setRecordingType("live")}
-                    className={`px-4 py-2 rounded-lg border-2 transition ${
-                      recordingType === "live"
+                    className={`px-4 py-2 rounded-lg border-2 transition ${recordingType === "live"
                         ? "border-indigo-600 bg-indigo-50 text-indigo-700"
                         : "border-gray-200 hover:border-gray-300"
-                    }`}
+                      }`}
                   >
                     <Video size={16} className="inline mr-2" /> Live Connect
                   </button>
@@ -793,35 +786,20 @@ const CreateMeeting = () => {
                   </div>
                 </>
               ) : (
-                <div className="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <Video className="text-blue-600 flex-shrink-0" size={24} />
-                    <div>
-                      <h3 className="font-semibold text-gray-900 mb-2">Live Meeting Connect</h3>
-                      <p className="text-sm text-gray-700 mb-3">
-                        Connect directly with Zoom, Google Meet, Microsoft Teams, or Outlook for real-time transcription and AI-powered minutes generation.
-                      </p>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                          Zoom Integration
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                          Google Meet Integration
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                          Microsoft Teams Integration
-                        </div>
-                      </div>
-                      <div className="mt-4 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm flex items-center gap-2">
-                        <AlertCircle size={16} />
-                        <strong>Coming Soon:</strong> Live integration feature under development
-                      </div>
-                    </div>
+                <div className="mt-4 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm flex items-center gap-2">
+                  <AlertCircle size={16} className="flex-shrink-0" />
+                  <div>
+                    <strong>Live Integration:</strong> Real-time video conferencing and AI transcription are being built into our own platform.
+                    <br />
+                    <a
+                      href="/meeting-room"
+                      className="underline text-blue-700 font-medium hover:text-blue-900 transition"
+                    >
+                      🚀 Try Demo Meeting Room
+                    </a>
                   </div>
                 </div>
+
               )}
 
               {/* Submit */}
@@ -890,7 +868,7 @@ const CreateMeeting = () => {
                 <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <Users size={20} className="text-purple-600" /> Speaker Profile
                 </h3>
-                
+
                 <div className="mb-4">
                   <label className="block mb-2 font-medium text-gray-700">Speaker Name</label>
                   <input
