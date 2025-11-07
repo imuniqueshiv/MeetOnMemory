@@ -13,11 +13,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
  * 2. Upload & transcribe audio (from both UploadMeeting page and CreateMeeting Upload section)
  * 3. Generate AI summaries/MOM using Gemini 2.0 Flash (fallback to HuggingFace)
  * 4. Fetch all meetings for dashboard
- * 
- * APIs Used:
- * - AssemblyAI: Speech-to-text transcription
- * - Google Gemini 2.0 Flash: AI summary generation
- * - HuggingFace: Fallback for summarization
+ * 5. Voice/Text search (new)
  */
 
 // Config
@@ -481,10 +477,13 @@ ${textToSummarize}
         notes: structured.notes || "",
       };
 
-      // Format human-readable text
-      humanReadable += `📅 Title: ${mom.title}\n`;
-      humanReadable += `Date: ${new Date(mom.date).toLocaleDateString()}\n\n`;
-      humanReadable += `📝 Summary:\n${mom.summary}\n\n`;
+        // Add Overview before Title
+    humanReadable += `📘 Overview:\n${mom.summary}\n\n`;
+    humanReadable += `📅 Title: ${mom.title}\n`;
+    humanReadable += `Date: ${new Date(mom.date).toLocaleDateString()}\n\n`;
+    humanReadable += `📝 Summary:\n${mom.summary}\n\n`;
+
+
 
       if (mom.agenda.length) {
         humanReadable += "📋 Agenda:\n";
@@ -607,5 +606,79 @@ export const deleteMeeting = async (req, res) => {
   } catch (error) {
     console.error("❌ deleteMeeting Error:", error);
     res.status(500).json({ success: false, message: "Server error while deleting meeting" });
+  }
+};
+
+/* =========================================================
+   6. NEW: VOICE/TEXT SEARCH (searchMeetingsByText)
+   - Accepts either:
+       { query: "text to search" }
+     or
+       { audioUrl: "https://...uploaded-audio.wav" } (AssemblyAI-uploaded URL)
+   - If audioUrl provided, transcribe using AssemblyAI, then search
+   - Searches title, summary, transcript fields
+   ========================================================= */
+export const searchMeetingsByText = async (req, res) => {
+  try {
+    let { query, audioUrl } = req.body;
+
+    // If audioUrl provided and no query, transcribe it first using AssemblyAI
+    if (audioUrl && (!query || query.trim() === "")) {
+      console.log("🎧 Transcribing audioUrl for voice search...");
+
+      // Create transcript job
+      const transcriptRes = await axios.post(
+        "https://api.assemblyai.com/v2/transcript",
+        { audio_url: audioUrl },
+        { headers: { authorization: ASSEMBLYAI_API_KEY } }
+      );
+
+      const transcriptId = transcriptRes.data.id;
+
+      // Poll for completion
+      let transcriptData = null;
+      while (true) {
+        const checkRes = await axios.get(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
+          headers: { authorization: ASSEMBLYAI_API_KEY },
+        });
+        if (checkRes.data.status === "completed") {
+          transcriptData = checkRes.data;
+          break;
+        } else if (checkRes.data.status === "error") {
+          throw new Error(checkRes.data.error || "AssemblyAI transcription error");
+        }
+        // wait 2s before polling again
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+
+      query = transcriptData.text || "";
+      console.log("🔊 Voice transcribed to text:", query);
+    }
+
+    if (!query || query.trim() === "") {
+      return res.status(400).json({ success: false, message: "No search query provided" });
+    }
+
+    // Basic regex search across title, summary, transcript
+    console.log(`🔍 Searching meetings for: "${query}"`);
+    const results = await Meeting.find({
+      $or: [
+        { title: { $regex: query, $options: "i" } },
+        { summary: { $regex: query, $options: "i" } },
+        { transcript: { $regex: query, $options: "i" } },
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .select("title summary transcript createdAt date meetingType");
+
+    return res.status(200).json({
+      success: true,
+      query,
+      count: results.length,
+      results,
+    });
+  } catch (error) {
+    console.error("❌ searchMeetingsByText Error:", error?.message || error);
+    return res.status(500).json({ success: false, message: "Search failed", error: error.message });
   }
 };

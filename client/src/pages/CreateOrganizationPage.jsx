@@ -14,24 +14,21 @@ const CreateOrganizationPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!orgName.trim()) {
-      return toast.error("Organization name is required.");
-    }
+    if (!orgName.trim()) return toast.error("Organization name is required.");
 
     try {
       setLoading(true);
       axios.defaults.withCredentials = true;
 
-      // ✅ Unified route for "create or join existing"
       const { data } = await axios.post(
         `${backendUrl}/api/organizations/create-or-join`,
-        { name: orgName.trim() }
+        { name: orgName.trim(), role: "admin" }
       );
 
       if (data.success) {
         toast.success(data.message);
-        await getUserData(); // refresh user context
-        navigate("/dashboard"); // go to main dashboard/home
+        await getUserData();
+        navigate("/dashboard");
       } else {
         toast.error(data.message || "Something went wrong");
       }
@@ -48,16 +45,16 @@ const CreateOrganizationPage = () => {
       <Navbar />
       <div className="grow flex items-center justify-center w-full px-4">
         <div className="bg-white p-10 rounded-lg shadow-xl text-center w-full max-w-md">
-          <h1 className="text-3xl font-bold mb-6">Create Your Organization</h1>
+          <h1 className="text-3xl font-bold mb-6">Create or Join Organization</h1>
           <p className="text-gray-600 mb-8">
-            Give your organization a name to get started.
+            Enter your organization name. If it exists, you’ll be linked to it.
           </p>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <input
               type="text"
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}
-              placeholder="Enter your organization's name"
+              placeholder="Enter your organization name"
               className="w-full px-4 py-3 border rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
@@ -65,7 +62,7 @@ const CreateOrganizationPage = () => {
               disabled={loading}
               className="w-full p-3 bg-blue-600 text-white rounded-lg text-lg font-semibold hover:bg-blue-700 transition-all"
             >
-              {loading ? "Processing..." : "Create and Continue"}
+              {loading ? "Processing..." : "Create / Join"}
             </button>
           </form>
         </div>

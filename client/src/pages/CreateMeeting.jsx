@@ -31,7 +31,7 @@ import {
 
 const CreateMeeting = () => {
   const { backendUrl } = useContext(AppContent);
-  const [activeSection, setActiveSection] = useState("schedule");
+  const [activeSection, setActiveSection] = useState("live");
   const [loading, setLoading] = useState(false);
 
   // ========== SECTION 1: SCHEDULE MEETINGS ==========
@@ -51,15 +51,11 @@ const CreateMeeting = () => {
   const [newAgenda, setNewAgenda] = useState("");
   const [attachments, setAttachments] = useState([]);
 
-  // ========== SECTION 2: UPLOAD MEETINGS (MOM) ==========
-  const [uploadData, setUploadData] = useState({
-    title: "",
-    date: "",
-    meetingType: "internal",
-  });
-  const [audioFile, setAudioFile] = useState(null);
-  const [momFile, setMomFile] = useState(null);
-  const [recordingType, setRecordingType] = useState("upload");
+  // ========== SECTION 2: LIVE MEETING ==========
+  const [liveParticipants, setLiveParticipants] = useState([]);
+  const [newLiveParticipant, setNewLiveParticipant] = useState({ name: "", email: "" });
+  const [showRecordingDialog, setShowRecordingDialog] = useState(false);
+  const [recordingConsent, setRecordingConsent] = useState(null);
 
   // ========== SECTION 3: SESSION CARDS (CONFERENCE/SEMINAR) ==========
   const [sessionData, setSessionData] = useState({
@@ -73,7 +69,7 @@ const CreateMeeting = () => {
   const [videoFile, setVideoFile] = useState(null);
   const [generatedSessions, setGeneratedSessions] = useState([]);
 
-  // ========== HANDLERS: SECTION 1 ==========
+  // ========== HANDLERS: SECTION 1 - SCHEDULE ==========
   const handleScheduleChange = (e) => {
     const { name, value } = e.target;
     setScheduleData((prev) => ({ ...prev, [name]: value }));
@@ -122,6 +118,11 @@ const CreateMeeting = () => {
       return;
     }
 
+    if (!scheduleData.date || !scheduleData.time) {
+      toast.error("Date and time are required");
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = {
@@ -131,13 +132,19 @@ const CreateMeeting = () => {
       };
 
       const response = await axios.post(
-        `${backendUrl}/api/meetings/create`,
+        `${backendUrl}/api/meetings/schedule`,
         payload,
         { withCredentials: true }
       );
 
       if (response.data?.success) {
-        toast.success("Meeting scheduled successfully!");
+        toast.success("✅ Meeting scheduled and synced to calendars!");
+        
+        // Trigger calendar integration
+        if (response.data.calendarLinks) {
+          toast.info("📅 Calendar invites sent to all participants!");
+        }
+
         // Reset form
         setScheduleData({
           title: "",
@@ -163,105 +170,49 @@ const CreateMeeting = () => {
     }
   };
 
-  // ========== HANDLERS: SECTION 2 ==========
-  const handleUploadChange = (e) => {
-    const { name, value } = e.target;
-    setUploadData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleAudioUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const validTypes = ["audio/mpeg", "audio/wav", "audio/mp3", "audio/mp4", "video/mp4"];
-      if (!validTypes.includes(file.type)) {
-        toast.error("Please upload a valid audio/video file");
-        return;
-      }
-      setAudioFile(file);
-      toast.success(`File "${file.name}" selected`);
+  // ========== HANDLERS: SECTION 2 - LIVE MEETING ==========
+  const addLiveParticipant = () => {
+    if (newLiveParticipant.name.trim() && newLiveParticipant.email.trim()) {
+      setLiveParticipants([...liveParticipants, { ...newLiveParticipant, id: Date.now() }]);
+      setNewLiveParticipant({ name: "", email: "" });
+      toast.success("Participant added");
+    } else {
+      toast.error("Please enter both name and email");
     }
   };
 
-  const handleMomUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setMomFile(file);
-      toast.success(`MOM file "${file.name}" selected`);
-    }
+  const removeLiveParticipant = (id) => {
+    setLiveParticipants(liveParticipants.filter((p) => p.id !== id));
   };
 
-  const handleUploadSubmit = async (e) => {
-    e.preventDefault();
-    if (!uploadData.title.trim() || !uploadData.date) {
-      toast.error("Title and date are required");
+  const handleStartLiveMeeting = () => {
+    if (liveParticipants.length === 0) {
+      toast.warning("Add at least one participant before starting the meeting");
       return;
     }
+    setShowRecordingDialog(true);
+  };
 
-    if (!audioFile && !momFile) {
-      toast.error("Please upload at least one file (audio/video or MOM document)");
-      return;
-    }
+  const handleRecordingChoice = (willRecord) => {
+    setRecordingConsent(willRecord);
+    setShowRecordingDialog(false);
 
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append("title", uploadData.title);
-      formData.append("date", uploadData.date);
-      formData.append("meetingType", uploadData.meetingType);
+    const recordingStatus = willRecord ? "with recording enabled" : "without recording";
+    toast.success(`🎥 Starting live meeting ${recordingStatus}...`);
 
-      if (audioFile) {
-        formData.append("audio", audioFile);
-      }
-      if (momFile) {
-        formData.append("mom", momFile);
-      }
-
-      const response = await axios.post(
-        `${backendUrl}/api/meetings/upload`,
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-          withCredentials: true,
-        }
+    // Redirect to meeting room with parameters
+    setTimeout(() => {
+      window.open(
+        `/meeting-room?recording=${willRecord}&participants=${encodeURIComponent(JSON.stringify(liveParticipants))}`,
+        '_blank'
       );
-
-      if (response.data?.success) {
-        toast.success("Meeting uploaded! AI is generating summary...");
-
-        // Auto-generate summary if transcript exists
-        if (response.data.transcript) {
-          const summaryRes = await axios.post(
-            `${backendUrl}/api/meetings/summarize`,
-            {
-              meetingId: response.data.meetingId,
-              transcript: response.data.transcript,
-              date: uploadData.date,
-              title: uploadData.title,
-            },
-            { withCredentials: true }
-          );
-
-          if (summaryRes.data?.success) {
-            toast.success("✅ AI Summary generated successfully!");
-          }
-        }
-
-        // Reset form
-        setUploadData({ title: "", date: "", meetingType: "internal" });
-        setAudioFile(null);
-        setMomFile(null);
-      } else {
-        toast.error(response.data?.message || "Upload failed");
-      }
-    } catch (error) {
-      console.error("Error uploading meeting:", error);
-      toast.error(error.response?.data?.message || "Upload failed");
-    } finally {
-      setLoading(false);
-    }
+      
+      // Reset participants after redirect
+      setLiveParticipants([]);
+    }, 500);
   };
 
-  // ========== HANDLERS: SECTION 3 ==========
+  // ========== HANDLERS: SECTION 3 - SESSION CARDS ==========
   const handleSessionChange = (e) => {
     const { name, value } = e.target;
     setSessionData((prev) => ({ ...prev, [name]: value }));
@@ -310,7 +261,7 @@ const CreateMeeting = () => {
       }
 
       const response = await axios.post(
-        `${backendUrl}/api/sessions/create`,
+        `${backendUrl}/api/sessions/generate`,
         formData,
         {
           headers: { "Content-Type": "multipart/form-data" },
@@ -319,7 +270,7 @@ const CreateMeeting = () => {
       );
 
       if (response.data?.success) {
-        toast.success("✨ Session card generated successfully!");
+        toast.success("✨ AI Session card generated successfully!");
         setGeneratedSessions([response.data.session, ...generatedSessions]);
 
         // Reset form
@@ -354,7 +305,7 @@ const CreateMeeting = () => {
             📝 Meeting & Event Hub
           </h1>
           <p className="text-gray-600 max-w-3xl mx-auto">
-            Schedule meetings, upload recordings for AI summaries, or create session cards for conferences and seminars.
+            Schedule meetings with calendar integration, start live meetings with AI transcription, or create session cards for conferences.
           </p>
         </div>
 
@@ -370,18 +321,18 @@ const CreateMeeting = () => {
             <Calendar size={20} /> Schedule Meeting
           </button>
           <button
-            onClick={() => setActiveSection("upload")}
-            className={`px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2 ${activeSection === "upload"
-                ? "bg-blue-600 text-white shadow-lg"
+            onClick={() => setActiveSection("live")}
+            className={`px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2 ${activeSection === "live"
+                ? "bg-indigo-600 text-white shadow-lg"
                 : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
               }`}
           >
-            <Upload size={20} /> Upload Meeting
+            <Video size={20} /> Live Meeting
           </button>
           <button
             onClick={() => setActiveSection("session")}
             className={`px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2 ${activeSection === "session"
-                ? "bg-blue-600 text-white shadow-lg"
+                ? "bg-purple-600 text-white shadow-lg"
                 : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
               }`}
           >
@@ -396,7 +347,7 @@ const CreateMeeting = () => {
               <Calendar className="text-blue-600" size={28} />
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Schedule Meeting</h2>
-                <p className="text-sm text-gray-600">Create and manage meeting schedules with participants and agendas</p>
+                <p className="text-sm text-gray-600">Create and manage meeting schedules with automatic calendar integration</p>
               </div>
             </div>
 
@@ -450,23 +401,25 @@ const CreateMeeting = () => {
               {/* Date & Time */}
               <div className="grid md:grid-cols-3 gap-4 mb-6">
                 <div>
-                  <label className="block mb-2 font-semibold text-gray-700">Date</label>
+                  <label className="block mb-2 font-semibold text-gray-700">Date *</label>
                   <input
                     type="date"
                     name="date"
                     value={scheduleData.date}
                     onChange={handleScheduleChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
+                    required
                   />
                 </div>
                 <div>
-                  <label className="block mb-2 font-semibold text-gray-700">Time</label>
+                  <label className="block mb-2 font-semibold text-gray-700">Time *</label>
                   <input
                     type="time"
                     name="time"
                     value={scheduleData.time}
                     onChange={handleScheduleChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
+                    required
                   />
                 </div>
                 <div>
@@ -628,10 +581,10 @@ const CreateMeeting = () => {
               </div>
 
               {/* Calendar Integration Notice */}
-              <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-3">
-                <AlertCircle className="text-yellow-600 flex-shrink-0" size={20} />
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+                <CheckCircle className="text-green-600 flex-shrink-0" size={20} />
                 <div className="text-sm text-gray-700">
-                  <strong>Coming Soon:</strong> Google Calendar & Outlook integration for automatic invites and reminders.
+                  <strong>Auto Calendar Sync:</strong> This meeting will be automatically added to Google Calendar, Outlook, and participant calendars with email invites.
                 </div>
               </div>
 
@@ -644,11 +597,11 @@ const CreateMeeting = () => {
                 {loading ? (
                   <>
                     <Loader2 className="animate-spin" size={18} />
-                    Scheduling...
+                    Scheduling & Syncing Calendars...
                   </>
                 ) : (
                   <>
-                    <Send size={18} /> Schedule Meeting
+                    <Send size={18} /> Schedule Meeting & Send Invites
                   </>
                 )}
               </button>
@@ -656,170 +609,119 @@ const CreateMeeting = () => {
           </div>
         )}
 
-        {/* ========== SECTION 2: UPLOAD MEETINGS ========== */}
-        {activeSection === "upload" && (
+        {/* ========== SECTION 2: LIVE MEETING ========== */}
+        {activeSection === "live" && (
           <div className="bg-white shadow-lg rounded-2xl p-8">
             <div className="flex items-center gap-3 mb-6">
-              <Upload className="text-indigo-600" size={28} />
+              <Video className="text-indigo-600" size={28} />
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Upload Meeting (MOM & Summaries)</h2>
-                <p className="text-sm text-gray-600">Upload recordings or minutes for AI-powered summarization</p>
+                <h2 className="text-2xl font-bold text-gray-900">Start Live Meeting</h2>
+                <p className="text-sm text-gray-600">Add participants and start a live meeting with optional AI transcription</p>
               </div>
             </div>
 
-            <form onSubmit={handleUploadSubmit}>
-              {/* Meeting Type */}
-              <div className="mb-6">
-                <label className="block mb-3 font-semibold text-gray-700">Meeting Type</label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {["conference", "policy", "event", "internal"].map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setUploadData({ ...uploadData, meetingType: type })}
-                      className={`px-4 py-2 rounded-lg border-2 transition capitalize ${uploadData.meetingType === type
-                          ? "border-indigo-600 bg-indigo-50 text-indigo-700"
-                          : "border-gray-200 hover:border-gray-300"
-                        }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Title & Date */}
-              <div className="mb-6">
-                <label className="block mb-2 font-semibold text-gray-700">Meeting Title *</label>
+            {/* Participants */}
+            <div className="mb-6">
+              <label className="block mb-3 font-semibold text-gray-700 flex items-center gap-2">
+                <Users size={18} /> Add Participants
+              </label>
+              <div className="grid md:grid-cols-2 gap-3 mb-3">
                 <input
                   type="text"
-                  name="title"
-                  value={uploadData.title}
-                  onChange={handleUploadChange}
-                  placeholder="e.g., Weekly Standup, Client Meeting"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none"
-                  required
+                  value={newLiveParticipant.name}
+                  onChange={(e) => setNewLiveParticipant({ ...newLiveParticipant, name: e.target.value })}
+                  placeholder="Full Name"
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none"
                 />
-              </div>
-
-              <div className="mb-6">
-                <label className="block mb-2 font-semibold text-gray-700">Meeting Date *</label>
                 <input
-                  type="date"
-                  name="date"
-                  value={uploadData.date}
-                  onChange={handleUploadChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none"
-                  required
+                  type="email"
+                  value={newLiveParticipant.email}
+                  onChange={(e) => setNewLiveParticipant({ ...newLiveParticipant, email: e.target.value })}
+                  placeholder="Email Address"
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none"
                 />
               </div>
+              <button
+                type="button"
+                onClick={addLiveParticipant}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+              >
+                <UserPlus size={16} /> Add Participant
+              </button>
 
-              {/* Recording Method */}
-              <div className="mb-6">
-                <label className="block mb-3 font-semibold text-gray-700">Recording Method</label>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setRecordingType("upload")}
-                    className={`px-4 py-2 rounded-lg border-2 transition ${recordingType === "upload"
-                        ? "border-indigo-600 bg-indigo-50 text-indigo-700"
-                        : "border-gray-200 hover:border-gray-300"
-                      }`}
-                  >
-                    <Upload size={16} className="inline mr-2" /> Upload Files
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRecordingType("live")}
-                    className={`px-4 py-2 rounded-lg border-2 transition ${recordingType === "live"
-                        ? "border-indigo-600 bg-indigo-50 text-indigo-700"
-                        : "border-gray-200 hover:border-gray-300"
-                      }`}
-                  >
-                    <Video size={16} className="inline mr-2" /> Live Connect
-                  </button>
+              {liveParticipants.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {liveParticipants.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between bg-gray-50 px-4 py-2 rounded-lg">
+                      <span className="text-sm">
+                        <strong>{p.name}</strong> - {p.email}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeLiveParticipant(p.id)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Live Meeting Info */}
+            <div className="relative overflow-hidden rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 via-white to-purple-50 p-6 shadow-lg mb-6">
+              <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none"></div>
+
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-indigo-700 flex items-center gap-2 mb-2">
+                    <Video className="text-indigo-600" size={22} />
+                    Live AI Meeting Connect
+                  </h3>
+                  <p className="text-gray-700 mb-4 leading-relaxed">
+                    🔴 Experience <strong>real-time video conferencing</strong> integrated with
+                    <strong> AI-powered transcription and live summarization</strong>. Your meeting notes will be generated instantly with smart highlights.
+                  </p>
+
+                  <ul className="text-sm text-gray-600 mb-4 space-y-1">
+                    <li>• Automatic speech-to-text in real-time</li>
+                    <li>• Live participant tracking & emotion insights</li>
+                    <li>• AI auto-summary after meeting ends</li>
+                  </ul>
+                </div>
+
+                <div className="flex-shrink-0">
+                  <img
+                    src="https://cdn.dribbble.com/users/23546/screenshots/20531077/media/0a5f35125d57a6eb88a6a0a2d3087b45.gif"
+                    alt="Live meeting animation"
+                    className="w-56 rounded-xl border border-indigo-100 shadow-md"
+                  />
                 </div>
               </div>
+            </div>
 
-              {recordingType === "upload" ? (
-                <>
-                  {/* Audio/Video Upload */}
-                  <div className="mb-6">
-                    <label className="block mb-2 font-semibold text-gray-700 flex items-center gap-2">
-                      <FileAudio size={18} /> Upload Audio/Video Recording
-                    </label>
-                    <input
-                      type="file"
-                      accept="audio/*,video/*"
-                      onChange={handleAudioUpload}
-                      className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-indigo-400"
-                    />
-                    {audioFile && (
-                      <p className="mt-2 text-sm text-green-600 flex items-center gap-2">
-                        <CheckCircle size={16} /> {audioFile.name}
-                      </p>
-                    )}
-                    <p className="mt-2 text-xs text-gray-500">
-                      Supported: MP3, WAV, MP4. AI will auto-transcribe and generate MOM.
-                    </p>
-                  </div>
-
-                  {/* MOM Document Upload */}
-                  <div className="mb-6">
-                    <label className="block mb-2 font-semibold text-gray-700 flex items-center gap-2">
-                      <FileText size={18} /> Upload Minutes of Meeting (MOM) Document (Optional)
-                    </label>
-                    <input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.txt"
-                      onChange={handleMomUpload}
-                      className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-indigo-400"
-                    />
-                    {momFile && (
-                      <p className="mt-2 text-sm text-green-600 flex items-center gap-2">
-                        <CheckCircle size={16} /> {momFile.name}
-                      </p>
-                    )}
-                    <p className="mt-2 text-xs text-gray-500">
-                      Upload existing MOM documents for record-keeping and archival.
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <div className="mt-4 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm flex items-center gap-2">
-                  <AlertCircle size={16} className="flex-shrink-0" />
-                  <div>
-                    <strong>Live Integration:</strong> Real-time video conferencing and AI transcription are being built into our own platform.
-                    <br />
-                    <a
-                      href="/meeting-room"
-                      className="underline text-blue-700 font-medium hover:text-blue-900 transition"
-                    >
-                      🚀 Try Demo Meeting Room
-                    </a>
-                  </div>
-                </div>
-
-              )}
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={loading || recordingType === "live"}
-                className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="animate-spin" size={18} />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={18} /> Upload & Generate AI Summary
-                  </>
-                )}
-              </button>
-            </form>
+            {/* Start Meeting Button */}
+            <a
+              href="/meeting-room"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                if (liveParticipants.length === 0) {
+                  e.preventDefault();
+                  toast.warning("Add at least one participant before starting the meeting");
+                } else {
+                  setShowRecordingDialog(true);
+                  e.preventDefault();
+                }
+              }}
+              className={`w-full px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2 shadow-md hover:shadow-xl ${
+                liveParticipants.length === 0 ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+            >
+              <Video size={18} /> 🚀 Start Live Meeting
+              <ExternalLink size={16} />
+            </a>
           </div>
         )}
 
@@ -1040,6 +942,48 @@ const CreateMeeting = () => {
           </div>
         )}
       </div>
+
+      {/* Recording Consent Dialog */}
+      {showRecordingDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-fade-in">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
+                <Video className="text-indigo-600" size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Recording Permission</h3>
+                <p className="text-sm text-gray-600">Choose recording option</p>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-700 mb-4">
+                Do you want to record this meeting for AI transcription and summarization?
+              </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-gray-700">
+                <strong>With Recording:</strong> AI will transcribe the meeting in real-time and generate a summary with action items after the meeting ends.
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleRecordingChoice(false)}
+                className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition"
+              >
+                No, Skip Recording
+              </button>
+              <button
+                onClick={() => handleRecordingChoice(true)}
+                className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+              >
+                <CheckCircle size={18} />
+                Yes, Record
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

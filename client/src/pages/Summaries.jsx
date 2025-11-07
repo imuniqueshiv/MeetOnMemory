@@ -1,16 +1,27 @@
-import React, { useEffect, useState, useContext } from "react";
+import React, { useEffect, useState, useContext, useRef } from "react";
 import Navbar from "../components/Navbar.jsx";
 import axios from "axios";
 import { AppContent } from "../context/AppContext.jsx";
 import { toast } from "react-toastify";
-import { FileText, Loader2, Search, MoreVertical, X, Copy, Trash2, Star, Pin } from "lucide-react";
+import {
+  FileText,
+  Loader2,
+  Search,
+  MoreVertical,
+  X,
+  Copy,
+  Trash2,
+  Star,
+  Pin,
+  Mic,
+  MicOff,
+} from "lucide-react";
 
 /**
  * Summaries.jsx
- * Displays all stored meeting summaries and allows searching through them.
- * Backend endpoint:
- *   GET /api/meetings/all
- *   GET /api/meetings/:id (optional, for detailed view)
+ * ✅ Displays all stored meeting summaries
+ * ✅ Supports both text and voice search
+ * ✅ "View" button and modal fully functional
  */
 
 const Summaries = () => {
@@ -18,12 +29,61 @@ const Summaries = () => {
   const [summaries, setSummaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
+
   const [openMenuId, setOpenMenuId] = useState(null);
   const [viewModal, setViewModal] = useState(null);
   const [pinnedIds, setPinnedIds] = useState([]);
   const [starredIds, setStarredIds] = useState([]);
 
-  // Fetch summaries from backend
+  // 🎙️ Setup browser-based voice recognition
+  useEffect(() => {
+    if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+      const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = "en-US";
+
+      recognition.onstart = () => setListening(true);
+      recognition.onend = () => setListening(false);
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setSearch((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        toast.success(`🎤 Recognized: "${transcript}"`);
+      };
+
+      recognition.onerror = () => {
+        toast.error("Voice input not recognized. Please try again.");
+        setListening(false);
+      };
+
+      recognitionRef.current = recognition;
+    } else {
+      console.warn("Voice recognition not supported in this browser.");
+    }
+  }, []);
+
+  const handleVoiceSearch = () => {
+    if (!recognitionRef.current) {
+      toast.error("Voice search not supported in this browser.");
+      return;
+    }
+
+    if (listening) {
+      recognitionRef.current.stop();
+      toast.info("🎙️ Voice recognition stopped.");
+    } else {
+      recognitionRef.current.start();
+      toast.info("🎤 Listening... Speak now!");
+    }
+  };
+
+  // 🧠 Fetch all meeting summaries
   useEffect(() => {
     const fetchSummaries = async () => {
       try {
@@ -47,13 +107,14 @@ const Summaries = () => {
     fetchSummaries();
   }, [backendUrl]);
 
+  // 🔍 Filter meetings by title or summary
   const filteredSummaries = summaries.filter(
     (m) =>
       m.title?.toLowerCase().includes(search.toLowerCase()) ||
       m.summary?.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Sort summaries: pinned first, then starred, then by date
+  // 📌 Sort meetings (Pinned > Starred > Default)
   const sortedSummaries = [...filteredSummaries].sort((a, b) => {
     const aPinned = pinnedIds.includes(a._id);
     const bPinned = pinnedIds.includes(b._id);
@@ -67,60 +128,50 @@ const Summaries = () => {
     return 0;
   });
 
- // ✅ FIXED DELETE HANDLER
-const handleDelete = async (id) => {
-  if (!window.confirm("Are you sure you want to delete this meeting?")) return;
+  // ❌ Delete meeting
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this meeting?")) return;
 
-  try {
-    // 1️⃣ Send request to backend to delete meeting
-    const res = await axios.delete(`${backendUrl}/api/meetings/delete/${id}`, {
-      withCredentials: true,
-    });
+    try {
+      const res = await axios.delete(`${backendUrl}/api/meetings/delete/${id}`, {
+        withCredentials: true,
+      });
 
-    if (res.data?.success) {
-      // 2️⃣ Update frontend state immediately
-      setSummaries((prev) => prev.filter((s) => s._id !== id));
-      setPinnedIds((prev) => prev.filter((pid) => pid !== id));
-      setStarredIds((prev) => prev.filter((sid) => sid !== id));
-
-      toast.success("Meeting deleted successfully");
-    } else {
-      toast.error(res.data?.message || "Failed to delete meeting");
+      if (res.data?.success) {
+        setSummaries((prev) => prev.filter((s) => s._id !== id));
+        setPinnedIds((prev) => prev.filter((pid) => pid !== id));
+        setStarredIds((prev) => prev.filter((sid) => sid !== id));
+        toast.success("Meeting deleted successfully");
+      } else {
+        toast.error(res.data?.message || "Failed to delete meeting");
+      }
+    } catch (err) {
+      console.error("Delete Error:", err);
+      toast.error("Server error while deleting meeting");
+    } finally {
+      setOpenMenuId(null);
     }
-  } catch (err) {
-    console.error("❌ Delete Error:", err);
-    toast.error("Server error while deleting meeting");
-  } finally {
-    setOpenMenuId(null);
-  }
-};
+  };
 
   const togglePin = (id) => {
-    if (pinnedIds.includes(id)) {
-      setPinnedIds(pinnedIds.filter((pid) => pid !== id));
-      toast.info("Meeting unpinned");
-    } else {
-      setPinnedIds([...pinnedIds, id]);
-      toast.success("Meeting pinned to top");
-    }
-    setOpenMenuId(null);
+    setPinnedIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((pid) => pid !== id)
+        : [...prev, id]
+    );
   };
 
   const toggleStar = (id) => {
-    if (starredIds.includes(id)) {
-      setStarredIds(starredIds.filter((sid) => sid !== id));
-      toast.info("Removed from favorites");
-    } else {
-      setStarredIds([...starredIds, id]);
-      toast.success("Added to favorites");
-    }
-    setOpenMenuId(null);
+    setStarredIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((sid) => sid !== id)
+        : [...prev, id]
+    );
   };
 
   const handleCopy = (summary) => {
     navigator.clipboard.writeText(summary.summary);
     toast.success("Summary copied!");
-    setOpenMenuId(null);
   };
 
   return (
@@ -131,16 +182,16 @@ const handleDelete = async (id) => {
       <div className="flex flex-col items-center justify-center flex-grow px-6 py-20 md:py-28">
         <div className="w-full max-w-5xl text-center">
           {/* Header */}
-          <h1 className="text-4xl font-bold text-gray-900 mb-3">
-            🧠 AI Meeting Summaries
+          <h1 className="text-4xl font-bold text-gray-900 mb-3 flex items-center justify-center gap-2">
+            🧠 <span className="bg-gradient-to-r from-purple-600 to-blue-500 bg-clip-text text-transparent">AI Meeting Summaries</span>
           </h1>
           <p className="text-gray-600 mb-8">
             Review automatically generated <b>Minutes of Meeting</b>, action items, and insights from all recorded sessions.
           </p>
 
-          {/* Search Bar */}
+          {/* 🔍 Search Bar with Voice + Text */}
           <div className="flex items-center justify-center mb-10">
-            <div className="flex items-center w-full sm:w-[28rem] bg-white shadow-sm border border-gray-200 rounded-full overflow-hidden">
+            <div className="flex items-center w-full sm:w-[30rem] bg-white shadow-sm border border-gray-200 rounded-full overflow-hidden hover:ring-2 hover:ring-blue-300 transition">
               <input
                 type="text"
                 placeholder="Search meetings by title or keyword..."
@@ -148,6 +199,18 @@ const handleDelete = async (id) => {
                 onChange={(e) => setSearch(e.target.value)}
                 className="flex-grow px-4 py-2 text-sm text-gray-700 focus:outline-none"
               />
+              {/* 🎤 Voice Search Button */}
+              <button
+                onClick={handleVoiceSearch}
+                className={`px-3 py-2 border-l border-gray-200 transition flex items-center justify-center ${
+                  listening ? "text-red-500 animate-pulse" : "text-gray-600 hover:text-blue-600"
+                }`}
+                title={listening ? "Stop Listening" : "Start Voice Search"}
+              >
+                {listening ? <MicOff size={18} /> : <Mic size={18} />}
+              </button>
+
+              {/* Search Button */}
               <button
                 className="bg-blue-600 text-white px-4 py-2 rounded-r-full hover:bg-blue-700 transition flex items-center gap-2"
                 onClick={() => toast.info("Search updated")}
@@ -349,10 +412,7 @@ const handleDelete = async (id) => {
 
       {/* Close menu when clicking outside */}
       {openMenuId && (
-        <div
-          className="fixed inset-0 z-0"
-          onClick={() => setOpenMenuId(null)}
-        />
+        <div className="fixed inset-0 z-0" onClick={() => setOpenMenuId(null)} />
       )}
     </div>
   );
