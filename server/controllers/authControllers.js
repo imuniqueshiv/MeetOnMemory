@@ -41,9 +41,10 @@ export const register = async (req, res) => {
       subject: "Welcome to MeetOnMemory!",
       text: `Welcome to MeetOnMemory, ${name}! Your account has been successfully created.`,
     };
-    await transporter.sendMail(mailOptions);
+    res.json({ success: true, message: "Registration successful" });
 
-    return res.json({ success: true, message: "Registration successful" });
+    transporter.sendMail(mailOptions).catch((err) => {
+      console.error("Welcome email failed to send:", err.message);  });
   } catch (error) {
     console.error("Register error:", error);
     res.json({ success: false, message: error.message });

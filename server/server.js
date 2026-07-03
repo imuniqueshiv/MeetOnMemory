@@ -101,22 +101,21 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/gemini", geminiRoutes);
 
 // ================================
-// VECTOR STORE INIT
-// ================================
-try {
-  await initVectorStore();
-  console.log("✅ Vector store initialized");
-} catch (error) {
-  console.error("⚠️ Vector store initialization failed:", error.message);
-}
-
-// ================================
 // START SERVER
 // ================================
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌐 Allowed Origins: ${allowedOrigins.join(", ")}`);
 });
+
+// ================================
+// VECTOR STORE INIT (non-blocking)
+// ================================
+initVectorStore()
+  .then(() => console.log("✅ Vector store initialized"))
+  .catch((error) => {
+    console.error("⚠️ Vector store initialization failed:", error.message);
+  });
 
 // ================================
 // SOCKET.IO
