@@ -2,6 +2,7 @@
 import React, { useState, useContext, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
+import { toast } from "react-toastify";
 import AppContent from "../context/AppContent";
 import {
   Menu,
@@ -28,7 +29,8 @@ const NAV_LINKS = [
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { backendUrl, userData, setUserData } = useContext(AppContent);
+  const { backendUrl, userData, setIsLoggedin, setUserData } =
+    useContext(AppContent);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -137,12 +139,18 @@ const Navbar = () => {
         {},
         { withCredentials: true },
       );
+      setIsLoggedin(false);
       setUserData(null);
       localStorage.removeItem("userData");
-      window.location.href = "/login";
+      setMenuOpen(false);
+      setMobileOpen(false);
+      setMobileNotifOpen(false);
+      setNotificationsOpen(false);
+      toast.success("Logged out successfully");
+      navigate("/");
     } catch (err) {
       console.error("Logout failed", err);
-      window.location.href = "/login";
+      toast.error("Failed to logout. Please try again.");
     }
   };
 
