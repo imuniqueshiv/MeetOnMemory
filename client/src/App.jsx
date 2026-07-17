@@ -42,6 +42,8 @@ import MemoryConsolidation from "./pages/MemoryConsolidation.jsx";
 import PolicyCompliance from "./pages/PolicyCompliance.jsx";
 import Settings from "./pages/Settings.jsx";
 import MembershipRequests from "./pages/MembershipRequests.jsx";
+import AdminPanel from "./pages/AdminPanel.jsx";
+import AccessDenied from "./pages/AccessDenied.jsx";
 import Navbar from "./components/Navbar";
 import ScrollNavigator from "./components/ScrollNavigator";
 
@@ -362,6 +364,23 @@ const App = () => {
               </ProtectedRoute>
             }
           />
+
+          {/* ✅ Admin Panel Route */}
+          <Route
+            path="/admin-panel"
+            element={
+              <ProtectedRoute
+                resource="admin_panel"
+                action="view"
+                forbiddenFallback
+              >
+                <AdminPanel />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ✅ Access Denied Route */}
+          <Route path="/access-denied" element={<AccessDenied />} />
 
           {/* ✅ Fallback route — send unknown routes to Home */}
           <Route path="*" element={<Home />} />

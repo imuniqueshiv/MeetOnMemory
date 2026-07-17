@@ -2,8 +2,9 @@ import React, { useContext } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import AppContent from "../context/AppContent";
 import { useRBAC } from "../hooks/useRBAC.js";
+import AccessDenied from "../pages/AccessDenied.jsx";
 
-const ProtectedRoute = ({ children, requiredPermission, resource, action }) => {
+const ProtectedRoute = ({ children, requiredPermission, resource, action, forbiddenFallback }) => {
   const { isLoggedin, userData, isLoading } = useContext(AppContent);
   const { hasPermission } = useRBAC();
   const location = useLocation();
@@ -41,12 +42,18 @@ const ProtectedRoute = ({ children, requiredPermission, resource, action }) => {
   // RBAC: Check if user has required permission
   if (resource && action) {
     if (!hasPermission(resource, action)) {
+      if (forbiddenFallback) {
+        return <AccessDenied fullPage={false} />;
+      }
       return <Navigate to="/dashboard" state={{ from: location }} replace />;
     }
   } else if (requiredPermission) {
     const permResource = typeof requiredPermission === "object" ? requiredPermission.resource : requiredPermission;
     const permAction = typeof requiredPermission === "object" ? requiredPermission.action : "view";
     if (!hasPermission(permResource, permAction)) {
+      if (forbiddenFallback) {
+        return <AccessDenied fullPage={false} />;
+      }
       return <Navigate to="/dashboard" state={{ from: location }} replace />;
     }
   }

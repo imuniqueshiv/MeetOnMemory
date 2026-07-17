@@ -6,6 +6,10 @@ import ProtectedRoute from "../ProtectedRoute";
 import AppContent from "../../context/AppContent";
 import * as useRBACHook from "../../hooks/useRBAC";
 
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key) => key }),
+}));
+
 // Mock the useRBAC hook
 vi.mock("../../hooks/useRBAC", () => ({
   useRBAC: vi.fn(),
@@ -160,5 +164,28 @@ describe("ProtectedRoute", () => {
     );
 
     expect(screen.getByText("Protected Content")).toBeInTheDocument();
+  });
+
+  it("renders AccessDenied when forbiddenFallback is true and user lacks permission", () => {
+    const mockHasPermission = vi.fn().mockReturnValue(false);
+    vi.spyOn(useRBACHook, "useRBAC").mockReturnValue({
+      hasPermission: mockHasPermission,
+    });
+
+    renderWithProviders(
+      <ProtectedRoute resource="admin_panel" action="view" forbiddenFallback>
+        <div>Protected Content</div>
+      </ProtectedRoute>,
+      {
+        isLoading: false,
+        isLoggedin: true,
+        userData: { hasCompletedOnboarding: true },
+      },
+    );
+
+    expect(mockHasPermission).toHaveBeenCalledWith("admin_panel", "view");
+    expect(screen.getByText("403")).toBeInTheDocument();
+    expect(screen.getByText("Access Denied")).toBeInTheDocument();
+    expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
   });
 });
