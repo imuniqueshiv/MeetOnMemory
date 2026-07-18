@@ -90,6 +90,12 @@ const Footer = () => {
               >
                 {t("footer.terms")}
               </a>
+              <Link
+                to="/help-center"
+                className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200"
+              >
+                Help Center
+              </Link>
               <a
                 href="https://github.com/imuniqueshiv/MeetOnMemory"
                 target="_blank"
@@ -242,6 +248,14 @@ const Footer = () => {
               {t("footer.company")}
             </h3>
             <ul className="flex flex-col gap-3">
+              <li>
+                <Link
+                  to="/help-center"
+                  className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 inline-block font-medium"
+                >
+                  Help Center
+                </Link>
+              </li>
               <li>
                 <a
                   href="https://github.com/imuniqueshiv/MeetOnMemory"
