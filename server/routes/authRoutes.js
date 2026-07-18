@@ -39,31 +39,7 @@ router.get("/user-data", userAuth, getUserData);
 // 🔥 FIXED: Add this route for frontend login check
 router.get("/is-auth", userAuth, isAuthenticated);
 
-import csrf from "csurf";
 
-const csrfProtection = csrf({
-  cookie: {
-    key: "_csrf",
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-  },
-});
-
-// ✅ CSRF Token route for frontend
-router.get("/csrf", csrfProtection, (req, res) => {
-  try {
-    const csrfToken = req.csrfToken();
-    res.json({ success: true, csrfToken });
-  } catch (error) {
-    // CSRF is bypassed in development, return success without token
-    res.json({
-      success: true,
-      csrfToken: null,
-      message: "CSRF bypassed in development",
-    });
-  }
-});
 
 // ✅ Google Calendar Auth
 router.get("/test-123", (req, res) => res.send("working"));

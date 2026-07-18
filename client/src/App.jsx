@@ -9,6 +9,10 @@ import Login from "./pages/Login.jsx";
 import EmailVerify from "./pages/EmailVerify.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
 import PublicOrganizationProfile from "./pages/PublicOrganizationProfile.jsx";
+import Privacy from "./pages/Privacy.jsx";
+import Terms from "./pages/Terms.jsx";
+import Security from "./pages/Security.jsx";
+import Contact from "./pages/Contact.jsx";
 import HelpCenter from "./pages/HelpCenter.jsx";
 
 // --- Protected Pages ---
@@ -159,11 +163,15 @@ const App = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/email-verify" element={<EmailVerify />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/security" element={<Security />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/help-center" element={<HelpCenter />} />
           <Route
             path="/organizations/:slug"
             element={<PublicOrganizationProfile />}
           />
-          <Route path="/help-center" element={<HelpCenter />} />
 
           {/* === Protected Routes (Require login) === */}
           <Route

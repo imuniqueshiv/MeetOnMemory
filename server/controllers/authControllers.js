@@ -177,7 +177,7 @@ export const googleCalendarCallback = async (req, res) => {
     const token = req.cookies?.token;
     await AuthService.googleCalendarCallback({ code, token });
 
-    res.redirect("http://localhost:5173/profile?sync=success");
+    res.redirect(`${process.env.CLIENT_URL || "http://localhost:5173"}/profile?sync=success`);
   } catch (error) {
     console.error("Google Calendar Callback error:", error);
     if (error.statusCode === 401) {
@@ -185,6 +185,6 @@ export const googleCalendarCallback = async (req, res) => {
     } else if (error.statusCode === 404) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
-    res.redirect("http://localhost:5173/profile?sync=error");
+    res.redirect(`${process.env.CLIENT_URL || "http://localhost:5173"}/profile?sync=error`);
   }
 };

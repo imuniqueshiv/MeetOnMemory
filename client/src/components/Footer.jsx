@@ -76,20 +76,30 @@ const Footer = () => {
 
             {/* Right: Links & Back to Top */}
             <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-medium text-gray-500 dark:text-gray-400">
-              <a
-                href="#"
-                onClick={(e) => e.preventDefault()}
+              <Link
+                to="/privacy"
                 className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200"
               >
                 {t("footer.privacy")}
-              </a>
-              <a
-                href="#"
-                onClick={(e) => e.preventDefault()}
+              </Link>
+              <Link
+                to="/terms"
                 className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200"
               >
                 {t("footer.terms")}
-              </a>
+              </Link>
+              <Link
+                to="/security"
+                className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200"
+              >
+                {t("footer.security", "Security")}
+              </Link>
+              <Link
+                to="/contact"
+                className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200"
+              >
+                {t("footer.contact", "Contact")}
+              </Link>
               <Link
                 to="/help-center"
                 className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200"
@@ -250,6 +260,14 @@ const Footer = () => {
             <ul className="flex flex-col gap-3">
               <li>
                 <Link
+                  to="/contact"
+                  className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 inline-block font-medium"
+                >
+                  Contact Support
+                </Link>
+              </li>
+              <li>
+                <Link
                   to="/help-center"
                   className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 inline-block font-medium"
                 >
@@ -334,9 +352,33 @@ const Footer = () => {
 
         {/* Bottom bar */}
         <div className="pt-8 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <p className="text-gray-400 dark:text-gray-500 text-sm">
-            &copy; {currentYear} MeetOnMemory. {t("footer.allRightsReserved")}
-          </p>
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1">
+            <p className="text-gray-400 dark:text-gray-500 text-sm">
+              &copy; {currentYear} MeetOnMemory. {t("footer.allRightsReserved")}
+            </p>
+            <span className="hidden sm:inline text-gray-300 dark:text-gray-700">|</span>
+            <div className="flex items-center gap-3 text-xs font-medium text-gray-400 dark:text-gray-500">
+              <Link to="/privacy" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                {t("footer.privacy")}
+              </Link>
+              <span>•</span>
+              <Link to="/terms" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                {t("footer.terms")}
+              </Link>
+              <span>•</span>
+              <Link to="/security" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                {t("footer.security", "Security")}
+              </Link>
+              <span>•</span>
+              <Link to="/help-center" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                Help Center
+              </Link>
+              <span>•</span>
+              <Link to="/contact" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                {t("footer.contact", "Contact")}
+              </Link>
+            </div>
+          </div>
           <p className="text-gray-400 dark:text-gray-500 text-sm">
             {t("footer.madeWith")} ❤️ {t("footer.by")} {t("footer.meetOnMemoryTeam")}.
           </p>

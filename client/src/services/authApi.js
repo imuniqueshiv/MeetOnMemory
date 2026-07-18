@@ -10,5 +10,5 @@ export const authApi = {
   verifyAccount: (data) => apiClient.post("/api/auth/verify-account", data),
   sendResetOtp: (data) => apiClient.post("/api/auth/send-reset-otp", data),
   resetPassword: (data) => apiClient.post("/api/auth/reset-password", data),
-  getCsrfToken: () => apiClient.get("/api/auth/csrf"),
+  getCsrfToken: () => apiClient.get("/api/csrf-token"),
 };

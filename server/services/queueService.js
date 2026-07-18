@@ -123,7 +123,7 @@ export const initAIWorker = (app) => {
     async (job) => {
       const { meetingId, transcript, date, title, userId } = job.data;
       const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-      const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+      const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
       const HUGGINGFACE_API_KEY = process.env.HUGGINGFACE_API_KEY;
 
       let textToSummarize = (transcript || "").trim();

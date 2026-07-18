@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar.jsx";
 import {
@@ -43,7 +43,7 @@ const HelpCenter = () => {
     { id: "security-privacy", name: "Security & Privacy", icon: Shield },
   ];
 
-  const articles = [
+  const articles = useMemo(() => [
     {
       id: "create-account",
       category: "getting-started",
@@ -194,7 +194,7 @@ const HelpCenter = () => {
       - Regular Security Audits: We run weekly automated vulnerability sweeps and static code analysis checks across our repository.`,
       tags: ["encryption", "aes-256", "tls", "security", "tenant", "audit"],
     },
-  ];
+  ], []);
 
   // Handle article rating
   const handleRateArticle = (id, rating) => {
@@ -227,7 +227,7 @@ const HelpCenter = () => {
     }
     
     return result;
-  }, [searchQuery, selectedCategory]);
+  }, [searchQuery, selectedCategory, articles]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300 flex flex-col" ref={topRef}>
@@ -511,3 +511,4 @@ const HelpCenter = () => {
 };
 
 export default HelpCenter;
+

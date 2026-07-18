@@ -27,7 +27,7 @@ apiClient.interceptors.response.use(
       if (!originalRequest._retry) {
         originalRequest._retry = true;
         try {
-          const { data } = await axios.get(`${backendUrl}/api/auth/csrf`, {
+          const { data } = await axios.get(`${backendUrl}/api/csrf-token`, {
             withCredentials: true,
           });
           if (data && data.csrfToken) {
@@ -50,8 +50,11 @@ apiClient.interceptors.response.use(
 
     if (!error.response) {
       // Network error (offline or server not reachable)
-      friendlyMessage =
-        "Network offline. Please check your internet connection.";
+      if (!navigator.onLine) {
+        friendlyMessage = "Network offline. Please check your internet connection.";
+      } else {
+        friendlyMessage = "Unable to reach the server. This may be a network issue or a CORS policy restriction.";
+      }
       // Mock the response so local catch blocks using error.response?.data?.message work
       error.response = { data: { message: friendlyMessage }, status: 0 };
     } else {
