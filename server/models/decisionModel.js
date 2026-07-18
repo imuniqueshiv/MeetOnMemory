@@ -125,6 +125,3 @@ const decisionSchema = new mongoose.Schema(
 const Decision =
   mongoose.models.Decision || mongoose.model("Decision", decisionSchema);
 export default Decision;
-
-
-export default Decision;
