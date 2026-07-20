@@ -18,7 +18,7 @@ function cosineSimilarity(a, b) {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-async function findBestMatch(Model, text, embedding, organization) {
+async function findBestMatch(Model, embedding, organization) {
   if (!embedding?.length) return null;
 
   // Scope candidates to the same organization (multi-tenant correctness)
@@ -75,9 +75,14 @@ export async function processStructuredMoM(meeting, mom) {
     });
 
     if (match) {
-      match.relatesTo.push(decision._id);
-      await match.save();
-    }
+  match.relatesTo = match.relatesTo || [];
+
+  if (!match.relatesTo.includes(decision._id)) {
+    match.relatesTo.push(decision._id);
+  }
+
+  await match.save();
+}
 
     results.decisions.push(decision);
   }
@@ -90,10 +95,15 @@ export async function processStructuredMoM(meeting, mom) {
 
     const owner =
       typeof item === "object" ? item.owner || "Unassigned" : "Unassigned";
-    const dueDate =
-      typeof item === "object" && item.due_date
-        ? new Date(item.due_date)
-        : null;
+    let dueDate = null;
+
+    if (typeof item === "object" && item.due_date) {
+    const parsed = new Date(item.due_date);
+
+    if (!isNaN(parsed.getTime())) {
+    dueDate = parsed;
+  }
+}
 
     const embedding = await embedText(text);
     const match = await findBestMatch(
@@ -122,9 +132,14 @@ export async function processStructuredMoM(meeting, mom) {
     });
 
     if (match) {
-      match.relatesTo.push(actionItem._id);
-      await match.save();
-    }
+  match.relatesTo = match.relatesTo || [];
+
+  if (!match.relatesTo.includes(actionItem._id)) {
+    match.relatesTo.push(actionItem._id);
+  }
+
+  await match.save();
+}
 
     results.actionItems.push(actionItem);
   }
