@@ -31,7 +31,7 @@ const organizationSchema = new mongoose.Schema(
     },
     visibility: {
       type: String,
-      enum: ["public", "private"],
+      enum: ["public", "private", "invite-only"],
       default: "private",
     },
     owner: {

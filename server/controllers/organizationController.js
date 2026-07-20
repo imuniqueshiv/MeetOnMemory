@@ -2,6 +2,8 @@
 import Organization from "../models/organizationModel.js";
 import userModel from "../models/userModel.js";
 import Membership from "../models/membershipModel.js";
+import Invitation from "../models/invitationModel.js";
+import MembershipRequest from "../models/membershipRequestModel.js";
 import { createAndPushNotification } from "../services/notificationService.js";
 import mongoose from "mongoose";
 import crypto from "crypto";
@@ -54,10 +56,74 @@ export const createOrJoinOrganization = async (req, res) => {
         (m) => m.toString() === userId.toString(),
       );
 
-      if (!alreadyMember) {
-        organization.members.push(userId);
-        await organization.save();
+      if (alreadyMember) {
+        return res.status(400).json({
+          success: false,
+          message: "You are already a member of this organization.",
+        });
       }
+
+      // Validate visibility & permission to join
+      const orgVisibility = organization.visibility || "private";
+      if (orgVisibility !== "public") {
+        const user = await userModel.findById(userId);
+        const token = req.body.invitationToken || req.body.token;
+
+        let invitation = null;
+        if (token) {
+          invitation = await Invitation.findOne({
+            token,
+            organization: organization._id,
+            status: "pending",
+            expiresAt: { $gt: new Date() },
+          });
+        } else if (user?.email) {
+          invitation = await Invitation.findOne({
+            organization: organization._id,
+            email: user.email.toLowerCase(),
+            status: "pending",
+            expiresAt: { $gt: new Date() },
+          });
+        }
+
+        if (!invitation) {
+          const pendingRequest = await MembershipRequest.findOne({
+            user: userId,
+            organization: organization._id,
+            status: "pending",
+          });
+          if (pendingRequest) {
+            return res.status(409).json({
+              success: false,
+              message: "Membership request is already pending approval.",
+            });
+          }
+          return res.status(403).json({
+            success: false,
+            message:
+              "Forbidden: Private or invite-only organization cannot be joined without a valid invitation.",
+          });
+        }
+
+        invitation.status = "accepted";
+        invitation.acceptedAt = new Date();
+        invitation.acceptedBy = userId;
+        await invitation.save();
+      }
+
+      organization.members.push(userId);
+      await organization.save();
+
+      await Membership.findOneAndUpdate(
+        { user: userId, organization: organization._id },
+        {
+          user: userId,
+          organization: organization._id,
+          role: "member",
+          status: "active",
+        },
+        { upsert: true, new: true },
+      );
 
       await userModel.findByIdAndUpdate(userId, {
         role: "member",
@@ -104,6 +170,13 @@ export const createOrJoinOrganization = async (req, res) => {
         owner: userId,
         createdBy: userId,
         members: [userId],
+      });
+
+      await Membership.create({
+        user: userId,
+        organization: organization._id,
+        role: "admin",
+        status: "active",
       });
 
       await userModel.findByIdAndUpdate(userId, {
@@ -217,10 +290,74 @@ export const joinOrganization = async (req, res) => {
       (m) => m.toString() === userId.toString(),
     );
 
-    if (!alreadyMember) {
-      organization.members.push(userId);
-      await organization.save();
+    if (alreadyMember) {
+      return res.status(400).json({
+        success: false,
+        message: "You are already a member of this organization.",
+      });
     }
+
+    // Validate visibility & permission to join
+    const orgVisibility = organization.visibility || "private";
+    if (orgVisibility !== "public") {
+      const user = await userModel.findById(userId);
+      const token = req.body.invitationToken || req.body.token;
+
+      let invitation = null;
+      if (token) {
+        invitation = await Invitation.findOne({
+          token,
+          organization: organization._id,
+          status: "pending",
+          expiresAt: { $gt: new Date() },
+        });
+      } else if (user?.email) {
+        invitation = await Invitation.findOne({
+          organization: organization._id,
+          email: user.email.toLowerCase(),
+          status: "pending",
+          expiresAt: { $gt: new Date() },
+        });
+      }
+
+      if (!invitation) {
+        const pendingRequest = await MembershipRequest.findOne({
+          user: userId,
+          organization: organization._id,
+          status: "pending",
+        });
+        if (pendingRequest) {
+          return res.status(409).json({
+            success: false,
+            message: "Membership request is already pending approval.",
+          });
+        }
+        return res.status(403).json({
+          success: false,
+          message:
+            "Forbidden: Private or invite-only organization cannot be joined without a valid invitation.",
+        });
+      }
+
+      invitation.status = "accepted";
+      invitation.acceptedAt = new Date();
+      invitation.acceptedBy = userId;
+      await invitation.save();
+    }
+
+    organization.members.push(userId);
+    await organization.save();
+
+    await Membership.findOneAndUpdate(
+      { user: userId, organization: organization._id },
+      {
+        user: userId,
+        organization: organization._id,
+        role: "member",
+        status: "active",
+      },
+      { upsert: true, new: true },
+    );
 
     // Update user to be a member of this organization
     await userModel.findByIdAndUpdate(userId, {
