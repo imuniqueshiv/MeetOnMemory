@@ -20,13 +20,37 @@ const formatFileSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
+const normalizeError = (err) => {
+  if (err.response) {
+    return {
+      message: err.response.data?.message || "Server error during upload",
+      code: "SERVER_ERROR",
+      status: err.response.status,
+    };
+  }
+  if (err.request) {
+    return {
+      message: "No response from server. Check your network connection.",
+      code: "NETWORK_ERROR",
+      status: 0,
+    };
+  }
+  return {
+    message: err.message || "An unexpected error occurred",
+    code: "CLIENT_ERROR",
+    status: 500,
+  };
+};
+
 const useMeetingUpload = () => {
   const [file, setFile] = useState(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [transcript, setTranscript] = useState("");
-  const [meetingId, setMeetingId] = useState(null);
+  const [uploadState, setUploadState] = useState({
+    status: "idle", // "idle" | "loading" | "success" | "error"
+    progress: 0,
+    data: null,
+    error: null,
+  });
 
   // Expose refs if needed by UI
   const fileInputRef = useRef(null);
@@ -70,26 +94,36 @@ const useMeetingUpload = () => {
 
   const resetUpload = (setSummary, setTitle) => {
     setFile(null);
-    setTranscript("");
+    setUploadState({
+      status: "idle",
+      progress: 0,
+      data: null,
+      error: null,
+    });
     if (setSummary) setSummary("");
-    setMeetingId(null);
     if (setTitle) setTitle("");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  const handleUpload = async (title, setTitle) => {
+  const handleUpload = async (title, options = {}) => {
+    const callbacks =
+      typeof options === "function" ? { setTitle: options } : options;
+    const { onSuccess, onError, setTitle } = callbacks;
+
     if (!file) {
       toast.error("Please select an audio file first.");
       return;
     }
 
     try {
-      setIsUploading(true);
-      setUploadProgress(0);
-      setTranscript("");
-      setMeetingId(null);
+      setUploadState({
+        status: "loading",
+        progress: 0,
+        data: null,
+        error: null,
+      });
 
       const formData = new FormData();
       formData.append("file", file);
@@ -100,41 +134,77 @@ const useMeetingUpload = () => {
           const percent = Math.round(
             (progressEvent.loaded * 100) / progressEvent.total,
           );
-          setUploadProgress(percent);
+          setUploadState((prev) => ({ ...prev, progress: percent }));
         },
       });
 
       if (res.data?.success) {
-        toast.success("Transcription complete!");
-        setTranscript(res.data.transcript || "");
-        setMeetingId(res.data.meetingId || null);
-        if (res.data.autoTitle && setTitle) setTitle(res.data.autoTitle);
+        const responseData = {
+          transcript: res.data.transcript || "",
+          meetingId: res.data.meetingId || null,
+          autoTitle: res.data.autoTitle || "",
+        };
+
+        setUploadState({
+          status: "success",
+          progress: 0,
+          data: responseData,
+          error: null,
+        });
+
+        if (responseData.autoTitle && setTitle)
+          setTitle(responseData.autoTitle);
+        onSuccess?.(responseData);
       } else {
-        toast.error(res.data?.message || "Upload failed");
+        const appErr = {
+          message: res.data?.message || "Upload failed",
+          code: "APP_ERROR",
+          status: res.status || 200,
+        };
+
+        setUploadState({
+          status: "error",
+          progress: 0,
+          data: null,
+          error: appErr,
+        });
+
+        onError?.(appErr);
       }
     } catch (err) {
       console.error("Upload error:", err);
-      toast.error(
-        err.response?.data?.message ||
-          err.message ||
-          "Server error during upload",
-      );
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
+      const normalizedErr = normalizeError(err);
+
+      setUploadState({
+        status: "error",
+        progress: 0,
+        data: null,
+        error: normalizedErr,
+      });
+
+      onError?.(normalizedErr);
     }
   };
 
   return {
     file,
     setFile,
-    uploadProgress,
-    isUploading,
+    uploadProgress: uploadState.progress,
+    isUploading: uploadState.status === "loading",
     isDragging,
-    transcript,
-    setTranscript,
-    meetingId,
-    setMeetingId,
+    transcript: uploadState.data?.transcript || "",
+    setTranscript: (val) =>
+      setUploadState((prev) => ({
+        ...prev,
+        data: { ...(prev.data || {}), transcript: val },
+      })),
+    meetingId: uploadState.data?.meetingId || null,
+    setMeetingId: (val) =>
+      setUploadState((prev) => ({
+        ...prev,
+        data: { ...(prev.data || {}), meetingId: val },
+      })),
+    uploadState,
     fileInputRef,
     validateAndSetFile,
     handleFileChange,

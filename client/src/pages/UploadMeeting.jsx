@@ -273,7 +273,17 @@ const UploadMeeting = () => {
             <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3 w-full sm:w-auto justify-start order-2 sm:order-1">
                 <button
-                  onClick={() => handleUpload(title, setTitle)}
+                  onClick={() =>
+                    handleUpload(title, {
+                      setTitle,
+                      onSuccess: () => {
+                        toast.success("Transcription complete!");
+                      },
+                      onError: (err) => {
+                        toast.error(err.message);
+                      },
+                    })
+                  }
                   disabled={isUploading || !file}
                   className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
                     isUploading || !file
