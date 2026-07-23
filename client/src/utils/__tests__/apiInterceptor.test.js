@@ -1,6 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import axios from "axios";
 import "../apiInterceptor"; // This attaches the interceptor
+function mockHttpError(status, data = {}) {
+  axios.defaults.adapter = async () => {
+    return Promise.reject({
+      response: {
+        status,
+        data,
+      },
+    });
+  };
+}
+
+function mockNetworkError() {
+  mockNetworkError();
+}
 
 describe("apiInterceptor", () => {
   let originalAdapter;
@@ -33,11 +47,7 @@ describe("apiInterceptor", () => {
   });
 
   it("handles 403 Forbidden", async () => {
-    axios.defaults.adapter = async () => {
-      return Promise.reject({
-        response: { status: 403, data: {} },
-      });
-    };
+    mockHttpError(403);
 
     try {
       await axios.get("/test");
@@ -49,11 +59,7 @@ describe("apiInterceptor", () => {
   });
 
   it("handles 404 Not Found", async () => {
-    axios.defaults.adapter = async () => {
-      return Promise.reject({
-        response: { status: 404, data: {} },
-      });
-    };
+   mockHttpError(404);
 
     try {
       await axios.get("/test");
@@ -63,11 +69,7 @@ describe("apiInterceptor", () => {
   });
 
   it("handles Server Errors (500)", async () => {
-    axios.defaults.adapter = async () => {
-      return Promise.reject({
-        response: { status: 500, data: {} },
-      });
-    };
+    mockHttpError(401);
 
     try {
       await axios.get("/test");
