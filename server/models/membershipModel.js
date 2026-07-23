@@ -31,6 +31,20 @@ const membershipSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
+    engagementScore: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    engagementBreakdown: {
+      meetingsCreated: { type: Number, default: 0 },
+      meetingsAttended: { type: Number, default: 0 },
+      decisionsContributed: { type: Number, default: 0 },
+      actionItemsResolved: { type: Number, default: 0 },
+      liveMeetingParticipation: { type: Number, default: 0 },
+      policiesUploaded: { type: Number, default: 0 },
+      lastActivityAt: { type: Date, default: null },
+    },
   },
   { timestamps: true },
 );
@@ -40,6 +54,7 @@ membershipSchema.index({ user: 1, organization: 1 }, { unique: true });
 membershipSchema.index({ organization: 1, status: 1 });
 membershipSchema.index({ user: 1, status: 1 });
 membershipSchema.index({ joinedAt: -1 });
+membershipSchema.index({ organization: 1, engagementScore: -1 });
 
 const Membership =
   mongoose.models.Membership || mongoose.model("Membership", membershipSchema);

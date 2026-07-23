@@ -263,9 +263,10 @@ export const uploadAndProcessPolicy = async (
 
   // Webhook event
   try {
+    eventBus.emit("policy.created", policy);
     eventBus.emit("policy.updated", policy);
   } catch (evtErr) {
-    console.error("⚠️ Failed to emit policy.updated event:", evtErr.message);
+    console.error("⚠️ Failed to emit policy events:", evtErr.message);
   }
 
   await policy.populate("uploadedBy", "name email");
@@ -315,9 +316,12 @@ export const reanalyzePolicy = async (policyId) => {
 
     // Webhook event
     try {
-      eventBus.emit("policy.updated", policy);
+      eventBus.emit("policy.reanalyzed", policy);
     } catch (evtErr) {
-      console.error("⚠️ Failed to emit policy.updated event:", evtErr.message);
+      console.error(
+        "⚠️ Failed to emit policy.reanalyzed event:",
+        evtErr.message,
+      );
     }
 
     // Re-index + re-evaluate (fire-and-forget)

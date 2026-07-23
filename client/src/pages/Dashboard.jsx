@@ -14,6 +14,7 @@ import {
   Shield,
 } from "lucide-react";
 import Navbar from "../components/Navbar.jsx";
+import Leaderboard from "../components/organization/Leaderboard.jsx";
 
 /* ─── Role Badge ──────────────────────────────────────────────────────────── */
 const ROLE_STYLES = {
@@ -22,7 +23,6 @@ const ROLE_STYLES = {
   member: "bg-sky-50 text-sky-700 border-sky-200",
   guest: "bg-slate-100 text-slate-600 border-slate-200",
 };
-
 
 const ROUTE_MAP = {
   "upload-meeting": "/upload-meeting",
@@ -131,7 +131,7 @@ const Dashboard = () => {
   ];
 
   const visibleCards = FEATURE_CARDS.filter(
-    (card) => !card.adminOnly || isAdmin
+    (card) => !card.adminOnly || isAdmin,
   );
 
   return (
@@ -315,6 +315,14 @@ const Dashboard = () => {
               );
             })}
           </div>
+        </section>
+
+        {/* ── Leaderboard ── */}
+        <section
+          aria-label="Leaderboard"
+          className="mt-10 sm:mt-12 fade-in-up stagger-7"
+        >
+          <Leaderboard organizationId={userData?.organization?._id} />
         </section>
       </main>
     </div>

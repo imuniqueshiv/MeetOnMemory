@@ -6,6 +6,7 @@ import {
   updateMembershipRole,
   removeMembership,
   leaveOrganization,
+  getOrganizationLeaderboard,
 } from "../controllers/membershipController.js";
 import userAuth from "../middleware/userAuth.js";
 import { requireAdmin } from "../middleware/rbac.js"; // eslint-disable-line no-unused-vars
@@ -51,6 +52,14 @@ router.post(
   writeLimiter,
   requirePermission("organizations", "leave"),
   leaveOrganization,
+);
+
+// Leaderboard
+router.get(
+  "/organization/:organizationId/leaderboard",
+  requireOrgMembership,
+  requirePermission("team_members", "view"),
+  getOrganizationLeaderboard,
 );
 
 export default router;

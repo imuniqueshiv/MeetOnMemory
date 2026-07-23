@@ -15,4 +15,11 @@ export const organizationApi = {
     apiClient.get("/api/organizations/browse", { params }),
   searchOrganizations: (params) =>
     apiClient.get("/api/organizations/search", { params }),
+  getLeaderboard: (organizationId, limit = 10) =>
+    apiClient.get(
+      `/api/memberships/organization/${organizationId}/leaderboard`,
+      {
+        params: { limit },
+      },
+    ),
 };

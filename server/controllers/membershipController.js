@@ -253,3 +253,57 @@ export const leaveOrganization = async (req, res) => {
     sendError(res, 500, "Server error");
   }
 };
+
+/**
+ * ✅ Get Organization Leaderboard
+ * GET /api/memberships/organization/:organizationId/leaderboard
+ */
+export const getOrganizationLeaderboard = async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    const { limit = 10 } = req.query;
+
+    if (!req.user || !req.user.id) {
+      return sendError(res, 401, "Authentication failed.");
+    }
+
+    const organization = await Organization.findById(organizationId);
+
+    if (!organization) {
+      return sendError(res, 404, "Organization not found.");
+    }
+
+    const membership = await Membership.findOne({
+      user: req.user.id,
+      organization: organizationId,
+      status: "active",
+    });
+
+    if (!membership) {
+      return sendError(res, 403, "Not a member of this organization.");
+    }
+
+    const leaderboard = await Membership.find({
+      organization: organizationId,
+      status: "active",
+      engagementScore: { $gt: 0 },
+    })
+      .populate("user", "name email profilePic isAccountVerified")
+      .sort({ engagementScore: -1 })
+      .limit(parseInt(limit, 10))
+      .lean();
+
+    const formattedLeaderboard = leaderboard.map((entry, index) => ({
+      rank: index + 1,
+      user: entry.user,
+      engagementScore: entry.engagementScore,
+      engagementBreakdown: entry.engagementBreakdown,
+      lastActivityAt: entry.engagementBreakdown?.lastActivityAt,
+    }));
+
+    sendSuccess(res, { leaderboard: formattedLeaderboard });
+  } catch (error) {
+    console.error("❌ Error fetching leaderboard:", error);
+    sendError(res, 500, "Server error");
+  }
+};

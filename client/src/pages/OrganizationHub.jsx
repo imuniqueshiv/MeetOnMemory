@@ -1,13 +1,16 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { organizationApi } from "../services";
 import { toast } from "react-toastify";
 import Navbar from "../components/Navbar";
 import OrganizationHeader from "../components/organization/OrganizationHeader";
 import OrganizationGrid from "../components/organization/OrganizationGrid";
 import OrganizationEmptyState from "../components/organization/OrganizationEmptyState";
+import Leaderboard from "../components/organization/Leaderboard.jsx";
+import AppContent from "../context/AppContent";
 
 // Organization Hub page for managing user organizations
 const OrganizationHub = () => {
+  const { userData } = useContext(AppContent);
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -44,6 +47,9 @@ const OrganizationHub = () => {
               Your Organizations
             </h2>
             <OrganizationGrid organizations={organizations} loading={false} />
+            <div className="mt-8">
+              <Leaderboard organizationId={userData?.organization?._id} />
+            </div>
           </>
         ) : (
           <OrganizationEmptyState />

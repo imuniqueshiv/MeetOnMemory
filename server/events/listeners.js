@@ -1,5 +1,6 @@
 import eventBus from "../services/eventBus.js";
 import { createNotification } from "../services/notificationService.js";
+import { incrementEngagementScore } from "../services/engagementScoringService.js";
 
 export const initListeners = (io) => {
   if (!io) {
@@ -28,6 +29,14 @@ export const initListeners = (io) => {
         );
       }
     }
+
+    if (meeting.uploadedBy && meeting.organization) {
+      await incrementEngagementScore(
+        meeting.uploadedBy,
+        meeting.organization,
+        "meetingsCreated",
+      );
+    }
   });
 
   // ─────────────────────────────────────────────────────────────
@@ -35,7 +44,6 @@ export const initListeners = (io) => {
   // ─────────────────────────────────────────────────────────────
 
   eventBus.on("mom.generated", async (meeting) => {
-    // Notify the meeting uploader/owner if they exist on the object
     const userId = meeting.uploadedBy || meeting.owner;
     if (userId) {
       const formattedNotification = await createNotification(
@@ -53,13 +61,27 @@ export const initListeners = (io) => {
         );
       }
 
-      // We also emit a specific socket event for the UI to catch
       io.to(userId.toString()).emit("mom-generation-complete", {
         meetingId: meeting._id,
         title: meeting.title,
         summary: meeting.summary,
         mom: meeting.structuredMoM,
       });
+    }
+
+    if (meeting.organization) {
+      const participants = meeting.participants || [];
+      for (const participant of participants) {
+        const participantId =
+          participant.user || participant._id || participant;
+        if (participantId && participantId.toString() !== userId?.toString()) {
+          await incrementEngagementScore(
+            participantId,
+            meeting.organization,
+            "meetingsAttended",
+          );
+        }
+      }
     }
   });
 
@@ -126,8 +148,54 @@ export const initListeners = (io) => {
           );
         }
       }
+
+      if (_orgId) {
+        for (const user of participants) {
+          await incrementEngagementScore(
+            user._id,
+            _orgId,
+            "liveMeetingParticipation",
+          );
+        }
+      }
     },
   );
+
+  eventBus.on("actionItem.resolved", async ({ userId, organization }) => {
+    if (userId && organization) {
+      await incrementEngagementScore(
+        userId,
+        organization,
+        "actionItemsResolved",
+      );
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // POLICIES
+  // ─────────────────────────────────────────────────────────────
+
+  eventBus.on("policy.created", async (policy) => {
+    const uploaderId = policy.uploadedBy?._id || policy.uploadedBy;
+    if (uploaderId && policy.organization) {
+      await incrementEngagementScore(
+        uploaderId,
+        policy.organization,
+        "policiesUploaded",
+      );
+    }
+  });
+
+  eventBus.on("policy.updated", async (policy) => {
+    const editorId = policy.lastEditedBy?._id || policy.lastEditedBy;
+    if (editorId && policy.organization) {
+      await incrementEngagementScore(
+        editorId,
+        policy.organization,
+        "policiesUploaded",
+      );
+    }
+  });
 
   console.log("✅ Event listeners initialized");
 };

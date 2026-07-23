@@ -9,6 +9,7 @@ import {
   recordMemoryFeedback,
 } from "../services/importanceScoringService.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
+import eventBus from "../services/eventBus.js";
 
 const ALLOWED_SORT_FIELDS = {
   importance: { importanceScore: -1 },
@@ -40,7 +41,8 @@ export const getDecisionLineageController = async (req, res) => {
     const cleanId = new mongoose.Types.ObjectId(id);
 
     // Verify the requested decision belongs to the user's organization
-    const startDecision = await Decision.findById(cleanId).select("organization");
+    const startDecision =
+      await Decision.findById(cleanId).select("organization");
 
     if (
       !startDecision ||
@@ -290,7 +292,6 @@ export const updateActionItemStatus = async (req, res) => {
 
     const cleanId = new mongoose.Types.ObjectId(id);
 
-    // Fetch first to satisfy CodeQL
     const item = await ActionItem.findOne({
       _id: cleanId,
       organization,
@@ -304,6 +305,14 @@ export const updateActionItemStatus = async (req, res) => {
     item.resolvedAt = safeStatus === "resolved" ? new Date() : null;
 
     await item.save();
+
+    if (safeStatus === "resolved" && item.owner) {
+      eventBus.emit("actionItem.resolved", {
+        actionItem: item,
+        userId: item.owner,
+        organization: organization,
+      });
+    }
 
     sendSuccess(res, { actionItem: item });
   } catch (error) {

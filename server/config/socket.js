@@ -5,6 +5,7 @@ import { createClient } from "redis";
 import meetingSocket from "../socket/meetingSocket.js";
 import documentSync from "../socket/documentSync.js";
 import transcriptSocket from "../socket/transcriptSocket.js";
+import { initListeners } from "../events/listeners.js";
 
 export function configureSocket(server, app) {
   // SOCKET.IO
@@ -56,6 +57,8 @@ export function configureSocket(server, app) {
   meetingSocket(io);
   documentSync(io);
   transcriptSocket(io);
+
+  initListeners(io);
 
   return io;
 }
