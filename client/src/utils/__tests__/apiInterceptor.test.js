@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import axios from "axios";
 import "../apiInterceptor"; // This attaches the interceptor
+
+// Reusable helper for mocking HTTP error responses
 function mockHttpError(status, data = {}) {
   axios.defaults.adapter = async () => {
     return Promise.reject({
@@ -12,8 +14,11 @@ function mockHttpError(status, data = {}) {
   };
 }
 
+// Reusable helper for mocking network failures
 function mockNetworkError() {
-  mockNetworkError();
+  axios.defaults.adapter = async () => {
+    return Promise.reject(new Error("Network Error"));
+  };
 }
 
 describe("apiInterceptor", () => {
@@ -30,11 +35,7 @@ describe("apiInterceptor", () => {
   });
 
   it("handles 401 Unauthorized", async () => {
-    axios.defaults.adapter = async () => {
-      return Promise.reject({
-        response: { status: 401, data: {} },
-      });
-    };
+    mockHttpError(401);
 
     try {
       await axios.get("/test");
@@ -59,7 +60,7 @@ describe("apiInterceptor", () => {
   });
 
   it("handles 404 Not Found", async () => {
-   mockHttpError(404);
+    mockHttpError(404);
 
     try {
       await axios.get("/test");
@@ -69,7 +70,7 @@ describe("apiInterceptor", () => {
   });
 
   it("handles Server Errors (500)", async () => {
-    mockHttpError(401);
+    mockHttpError(500);
 
     try {
       await axios.get("/test");
@@ -79,9 +80,7 @@ describe("apiInterceptor", () => {
   });
 
   it("handles Network Errors (no response)", async () => {
-    axios.defaults.adapter = async () => {
-      return Promise.reject(new Error("Network Error"));
-    };
+    mockNetworkError();
 
     try {
       await axios.get("/test");
