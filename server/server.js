@@ -79,6 +79,9 @@ await connectDB();
 // EXPRESS CONFIGURATION
 configureExpress(app);
 
+// GLOBAL RATE LIMITER — applied before all API routes to protect every endpoint
+app.use(globalLimiter);
+
 // ROUTES
 app.use("/api/auth", authRoutes);
 app.use(["/api/organization", "/api/organizations"], organizationRoutes);
