@@ -121,6 +121,30 @@ const getAllMeetingsQuerySchema = z.object({
     .transform((val) => val === "true"),
 });
 
+const AUDIO_MAGIC_BYTES = [
+  { bytes: [0x49, 0x44, 0x33], offset: 0 },       // MP3 (ID3 tag)
+  { bytes: [0xff, 0xfb], offset: 0 },              // MP3
+  { bytes: [0x52, 0x49, 0x46, 0x46], offset: 0 },  // WAV/RIFF
+  { bytes: [0x66, 0x4c, 0x61, 0x43], offset: 0 },  // FLAC
+  { bytes: [0x4f, 0x67, 0x67, 0x53], offset: 0 },  // OGG
+  { bytes: [0x1a, 0x45, 0xdf, 0xa3], offset: 0 },  // WEBM/EBML
+  { bytes: [0x66, 0x74, 0x79, 0x70], offset: 4 },  // M4A/MP4
+];
+
+const validateAudioMagicBytes = (filePath) => {
+  try {
+    const buf = Buffer.alloc(8);
+    const fd = fs.openSync(filePath, "r");
+    fs.readSync(fd, buf, 0, 8, 0);
+    fs.closeSync(fd);
+    return AUDIO_MAGIC_BYTES.some(({ bytes, offset }) =>
+      bytes.every((b, i) => buf[offset + i] === b),
+    );
+  } catch {
+    return false;
+  }
+};
+
 // Helper to prevent path traversal in manual file cleanup checks
 const validatePath = (filePath) => {
   if (!filePath) throw new Error("Path is required");
@@ -204,6 +228,17 @@ export const uploadMeeting = async (req, res, next) => {
     if (!req.file) {
       throw new ValidationError("No audio file uploaded.");
     }
+
+    if (!validateAudioMagicBytes(req.file.path)) {
+      if (uploadedFilePath) {
+        try {
+          const safePath = validatePath(uploadedFilePath);
+          if (fs.existsSync(safePath)) fs.unlinkSync(safePath);
+        } catch {}
+      }
+      throw new ValidationError("Invalid audio file: magic byte validation failed.");
+    }
+
     const uploaderId = getUserId(req);
 
     let validated;
@@ -254,6 +289,17 @@ export const uploadAudioForMeeting = async (req, res, next) => {
     if (!req.file) {
       throw new ValidationError("No audio file uploaded.");
     }
+
+    if (!validateAudioMagicBytes(req.file.path)) {
+      if (req.file?.path) {
+        try {
+          const safePath = validatePath(req.file.path);
+          if (fs.existsSync(safePath)) fs.unlinkSync(safePath);
+        } catch {}
+      }
+      throw new ValidationError("Invalid audio file: magic byte validation failed.");
+    }
+
     const uploaderId = getUserId(req);
     const { meetingId } = req.body;
 

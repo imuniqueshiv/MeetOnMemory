@@ -31,8 +31,39 @@ import {
 } from "../controllers/meetingController.js";
 import { exportMeeting } from "../controllers/exportController.js";
 
+const ALLOWED_MIME_TYPES = [
+  "audio/mpeg",
+  "audio/wav",
+  "audio/wave",
+  "audio/x-wav",
+  "audio/flac",
+  "audio/ogg",
+  "audio/webm",
+  "audio/mp4",
+  "audio/aac",
+  "audio/x-m4a",
+  "audio/x-aac",
+  "audio/vnd.wave",
+];
+
+const fileFilter = (_req, file, cb) => {
+  if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    return cb(
+      new Error(
+        `Invalid file type "${file.mimetype}". Only audio files are allowed.`,
+      ),
+    );
+  }
+  cb(null, true);
+};
+
+const upload = multer({
+  dest: "uploads/",
+  fileFilter,
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB
+});
+
 const router = express.Router();
-const upload = multer({ dest: "uploads/" }); // temporary upload directory
 
 // Apply rate limiting to all routes
 router.use(apiLimiter);
