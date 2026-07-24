@@ -60,7 +60,7 @@ const fileFilter = (_req, file, cb) => {
 const upload = multer({
   dest: "uploads/",
   fileFilter,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB max
 });
 
 const router = express.Router();
