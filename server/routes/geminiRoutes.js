@@ -31,9 +31,12 @@ Use formal, data-driven tone.
 `;
 
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL}:generateContent`,
       {
         contents: [{ parts: [{ text: prompt }] }],
+      },
+      {
+        headers: { "x-goog-api-key": process.env.GEMINI_API_KEY },
       },
     );
 
