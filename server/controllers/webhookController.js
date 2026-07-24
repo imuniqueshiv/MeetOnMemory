@@ -17,6 +17,9 @@ import { sendSuccess } from "../utils/responseHandler.js";
 import dns from "dns/promises";
 import ipaddr from "ipaddr.js";
 
+const maskSecret = (secret) =>
+  secret ? `***${secret.slice(-4)}` : undefined;
+
 const isSafeWebhookUrl = async (urlStr) => {
   try {
     const parsed = new URL(urlStr);
@@ -201,7 +204,7 @@ export const createWebhook = async (req, res, next) => {
           organizationId: webhook.organizationId,
           targetUrl: webhook.targetUrl,
           events: webhook.events,
-          secret: webhook.secret,
+          secret: maskSecret(webhook.secret),
           isActive: webhook.isActive,
         },
       },
@@ -239,7 +242,13 @@ export const getWebhooks = async (req, res, next) => {
       createdAt: -1,
     });
 
-    return sendSuccess(res, { webhooks });
+    const masked = webhooks.map((wh) => {
+      const obj = wh.toObject();
+      if (obj.secret) obj.secret = maskSecret(obj.secret);
+      return obj;
+    });
+
+    return sendSuccess(res, { webhooks: masked });
   } catch (error) {
     next(error);
   }
@@ -296,7 +305,10 @@ export const updateWebhook = async (req, res, next) => {
 
     await webhook.save();
 
-    return sendSuccess(res, { webhook }, "Webhook updated successfully.");
+    const masked = webhook.toObject();
+    if (masked.secret) masked.secret = maskSecret(masked.secret);
+
+    return sendSuccess(res, { webhook: masked }, "Webhook updated successfully.");
   } catch (error) {
     next(error);
   }
