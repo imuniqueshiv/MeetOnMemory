@@ -110,39 +110,53 @@ export const updateUserProfile = async (req, res) => {
 // @desc    Request data export
 // @route   POST /api/user/request-data-export
 // @access  Private
-export const requestDataExport = async (req, res) => {
+export const requestDataExport = async (req, res, next) => {
   try {
-    if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication error, user ID not found.");
-    }
+    const user = req.user;
 
-    const user = await userModel.findById(req.user.id);
     if (!user) {
-      return sendError(res, 404, "User not found.");
+      return sendError(res, 401, "Unauthorized");
     }
 
     if (dataExportQueue) {
-      await dataExportQueue.add("export", {
-        userId: user._id.toString(),
-        email: user.email,
-      });
+      const jobId = `data-export-${user._id}`;
+      const existingJob = await dataExportQueue.getJob(jobId);
+
+      if (
+        existingJob &&
+        (await existingJob.getState()) !== "completed" &&
+        (await existingJob.getState()) !== "failed"
+      ) {
+        return sendError(
+          res,
+          429,
+          "A data export request is already pending. Please wait until it completes.",
+        );
+      }
+
+      await dataExportQueue.add(
+        "export",
+        {
+          userId: user._id.toString(),
+          email: user.email,
+        },
+        {
+          jobId,
+          removeOnComplete: true,
+          removeOnFail: 50,
+        },
+      );
 
       return sendSuccess(
         res,
-        null,
-        "Data export request accepted. You will receive an email when it is ready.",
         202,
+        "Data export request queued successfully. You will receive an email once ready.",
       );
     } else {
-      return sendError(
-        res,
-        503,
-        "Background processing service is currently unavailable.",
-      );
+      return sendError(res, 503, "Queue service is currently unavailable.");
     }
   } catch (error) {
-    console.error("Error in requestDataExport:", error);
-    sendError(res, 500, "Server error");
+    next(error);
   }
 };
 

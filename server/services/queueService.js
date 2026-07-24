@@ -115,6 +115,13 @@ export const dataExportQueue = {
     }
     return await q.add(...args);
   },
+
+  getJob: async (jobId) => {
+    const q = getDataExportQueue();
+    if (!q) return null;
+    return await q.getJob(jobId);
+  },
+
   get isActive() {
     return getDataExportQueue() !== null;
   },
