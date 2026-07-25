@@ -4,6 +4,7 @@ import { createAdapter } from "@socket.io/redis-adapter";
 import { createClient } from "redis";
 import meetingSocket from "../socket/meetingSocket.js";
 import documentSync from "../socket/documentSync.js";
+import transcriptSocket from "../socket/transcriptSocket.js";
 
 export function configureSocket(server, app) {
   // SOCKET.IO
@@ -54,6 +55,7 @@ export function configureSocket(server, app) {
 
   meetingSocket(io);
   documentSync(io);
+  transcriptSocket(io);
 
   return io;
 }

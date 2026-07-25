@@ -25,7 +25,6 @@ import { pushMeetingToIntegrations, deleteMeetingFromIntegrations } from "../ser
  * server/services/MeetingService.js.
  */
 
-import fs from "fs";
 import path from "path";
 import { z } from "zod";
 import * as MeetingService from "../services/MeetingService.js";
@@ -133,8 +132,9 @@ const AUDIO_MAGIC_BYTES = [
 
 const validateAudioMagicBytes = (filePath) => {
   try {
+    const safePath = validatePath(filePath);
     const buf = Buffer.alloc(8);
-    const fd = fs.openSync(filePath, "r");
+    const fd = fs.openSync(safePath, "r");
     fs.readSync(fd, buf, 0, 8, 0);
     fs.closeSync(fd);
     return AUDIO_MAGIC_BYTES.some(({ bytes, offset }) =>
@@ -192,14 +192,6 @@ export const createMeeting = async (req, res, next) => {
       pushMeetingToIntegrations(uploaderId, meeting).catch(console.error);
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "Meeting scheduled successfully",
-      meeting: {
-        _id: meeting._id,
-        title: meeting.title,
-        meetingType: meeting.meetingType,
-        date: meeting.date,
     return sendSuccess(
       res,
       {
@@ -405,23 +397,8 @@ export const getAllMeetings = async (req, res, next) => {
    ───────────────────────────────────────────────────────────── */
 export const deleteMeeting = async (req, res, next) => {
   try {
-    const meeting = req.doc; // from requireOwnerOrAdmin middleware
-    if (!meeting) {
-      // Fallback if middleware isn't used
-      const meetingToDelete = await Meeting.findById(req.params.id);
-      if (!meetingToDelete) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Meeting not found" });
-      }
-      
-      deleteMeetingFromIntegrations(meetingToDelete.uploadedBy, meetingToDelete.externalCalendarRefs).catch(console.error);
-      await meetingToDelete.deleteOne();
-    } else {
-      deleteMeetingFromIntegrations(meeting.uploadedBy, meeting.externalCalendarRefs).catch(console.error);
-      await meeting.deleteOne();
     await MeetingService.deleteMeeting(
-      req.doc || null, // from requireOwnerOrAdmin middleware (may be undefined)
+      req.doc || null,
       req.params.id,
     );
 
@@ -511,8 +488,6 @@ export const searchMeetingsByText = async (req, res, next) => {
     } catch (zodErr) {
       return next(zodErr);
     }
-
-    pushMeetingToIntegrations(userId, meeting).catch(console.error);
 
     const result = await MeetingService.searchMeetings(
       validated,

@@ -28,6 +28,7 @@ import assistantRoutes from "./routes/assistantRoutes.js";
 import webhookRoutes from "./routes/webhookRoutes.js";
 import slackRoutes from "./routes/slackRoutes.js";
 import transcriptRoutes from "./routes/transcriptRoutes.js";
+import { slackWebhookParser } from "./middleware/slackWebhookParser.js";
 import { configureExpress, configureErrorHandling } from "./config/express.js";
 import { configureSocket } from "./config/socket.js";
 import { startWorkers } from "./config/workers.js";
@@ -41,19 +42,7 @@ import "./services/cacheInvalidationService.js";
 // organization whenever new decisions/action items are extracted.
 import "./services/conflictScanTrigger.js";
 
-import meetingSocket from "./socket/meetingSocket.js";
-import documentSync from "./socket/documentSync.js";
-import transcriptSocket from "./socket/transcriptSocket.js";
-import { initRedis, getRedisClient } from "./services/redisService.js";
-import { createAdapter } from "@socket.io/redis-adapter";
 import { startCalendarSyncJob } from "./jobs/calendarSyncJob.js";
-import { createClient } from "redis";
-import {
-  initAIWorker,
-  initDataExportWorker,
-  initConflictScanWorker,
-} from "./services/queueService.js";
-import { initWebhookWorker } from "./services/webhookDispatcherService.js";
 import { globalLimiter } from "./middleware/rateLimiter.js";
 import errorHandler from "./middleware/errorHandler.js";
 
@@ -99,7 +88,6 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/knowledge", knowledgeRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api/compliance", policyComplianceRoutes);
-import { slackWebhookParser } from "./middleware/slackWebhookParser.js";
 
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/assistant", assistantRoutes);
@@ -139,57 +127,6 @@ if (process.env.NODE_ENV !== "test") {
 
 // Init Calendar Sync Cron
 initCalendarSyncCron();
-
-// ================================
-// SOCKET.IO
-const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    credentials: true,
-    methods: ["GET", "POST"],
-  },
-});
-
-app.set("io", io);
-
-// REDIS PUB/SUB ADAPTER (Horizontal Scaling)
-// Enables collaborative editing to work across multiple server instances.
-// Gracefully skips if Redis is not configured.
-(async () => {
-  const redisUri = process.env.REDIS_URI || process.env.REDIS_URL;
-  if (redisUri) {
-    try {
-      const pubClient = createClient({ url: redisUri });
-      const subClient = pubClient.duplicate();
-
-      pubClient.on("error", (err) => {
-        console.error("❌ Redis PubClient Error:", err.message);
-      });
-      subClient.on("error", (err) => {
-        console.error("❌ Redis SubClient Error:", err.message);
-      });
-
-      await Promise.all([pubClient.connect(), subClient.connect()]);
-      io.adapter(createAdapter(pubClient, subClient));
-      console.log(
-        "✅ Socket.io Redis Pub/Sub adapter attached (horizontal scaling enabled)",
-      );
-    } catch (err) {
-      console.warn(
-        "⚠️  Redis adapter failed — running in single-instance mode:",
-        err.message,
-      );
-    }
-  } else {
-    console.log(
-      "ℹ️  No REDIS_URI/REDIS_URL set — Socket.io running in single-instance mode",
-    );
-  }
-})();
-
-meetingSocket(io);
-documentSync(io);
-transcriptSocket(io);
 
 // Start calendar sync job
 startCalendarSyncJob();
