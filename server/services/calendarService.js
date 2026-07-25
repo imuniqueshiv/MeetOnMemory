@@ -1,23 +1,24 @@
 import { google } from "googleapis";
 import CryptoJS from "crypto-js";
-import { ClientSecretCredential } from "@azure/identity";
+import { ClientSecretCredential } from "@azure/identity"; // eslint-disable-line no-unused-vars
 import { Client } from "@microsoft/microsoft-graph-client";
 import CalendarConnection from "../models/calendarConnectionModel.js";
 
 // Encryption key from environment (should be a long random string)
-const ENCRYPTION_KEY = process.env.CALENDAR_ENCRYPTION_KEY || "default-key-change-in-production";
+const ENCRYPTION_KEY =
+  process.env.CALENDAR_ENCRYPTION_KEY || "default-key-change-in-production";
 
 /**
  * Encrypt a token for storage
  */
-const encryptToken = (token) => {
+export const encryptToken = (token) => {
   return CryptoJS.AES.encrypt(token, ENCRYPTION_KEY).toString();
 };
 
 /**
  * Decrypt a token from storage
  */
-const decryptToken = (encryptedToken) => {
+export const decryptToken = (encryptedToken) => {
   if (!encryptedToken) return null;
   try {
     const bytes = CryptoJS.AES.decrypt(encryptedToken, ENCRYPTION_KEY);
@@ -72,7 +73,7 @@ const refreshGoogleToken = async (connection) => {
 /**
  * Get Google OAuth2 client with automatic token refresh
  */
-const getGoogleOAuth2Client = async (connection) => {
+export const getGoogleOAuth2Client = async (connection) => {
   const oAuth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
@@ -103,7 +104,7 @@ const getGoogleOAuth2Client = async (connection) => {
 /**
  * Get Microsoft Graph client with automatic token refresh
  */
-const getMicrosoftGraphClient = async (connection) => {
+export const getMicrosoftClient = async (connection) => {
   const accessToken = decryptToken(connection.accessToken);
 
   if (!accessToken) {
@@ -163,10 +164,11 @@ export const createGoogleEvent = async (userId, meetingDetails) => {
     const duration = meetingDetails.duration || 60;
     const endDateTime = new Date(startDateTime.getTime() + duration * 60000);
 
-    const attendees = meetingDetails.participants?.map((p) => ({
-      email: p.email,
-      displayName: p.name,
-    })) || [];
+    const attendees =
+      meetingDetails.participants?.map((p) => ({
+        email: p.email,
+        displayName: p.name,
+      })) || [];
 
     const event = {
       summary: meetingDetails.title,
@@ -189,7 +191,7 @@ export const createGoogleEvent = async (userId, meetingDetails) => {
     });
 
     console.log("✅ Google Calendar event created:", res.data.id);
-    
+
     // Update connection sync status
     connection.lastSyncAt = new Date();
     connection.syncStatus = "connected";
@@ -199,7 +201,7 @@ export const createGoogleEvent = async (userId, meetingDetails) => {
     return res.data.id;
   } catch (error) {
     console.error("❌ Error creating Google Calendar event:", error.message);
-    
+
     // Update connection with error
     const connection = await CalendarConnection.findOne({
       user: userId,
@@ -210,7 +212,7 @@ export const createGoogleEvent = async (userId, meetingDetails) => {
       connection.syncError = error.message;
       await connection.save();
     }
-    
+
     return null;
   }
 };
@@ -238,10 +240,11 @@ export const updateGoogleEvent = async (userId, meetingDetails, eventId) => {
     const duration = meetingDetails.duration || 60;
     const endDateTime = new Date(startDateTime.getTime() + duration * 60000);
 
-    const attendees = meetingDetails.participants?.map((p) => ({
-      email: p.email,
-      displayName: p.name,
-    })) || [];
+    const attendees =
+      meetingDetails.participants?.map((p) => ({
+        email: p.email,
+        displayName: p.name,
+      })) || [];
 
     const event = {
       summary: meetingDetails.title,
@@ -265,14 +268,14 @@ export const updateGoogleEvent = async (userId, meetingDetails, eventId) => {
     });
 
     console.log("✅ Google Calendar event updated:", eventId);
-    
+
     connection.lastSyncAt = new Date();
     connection.syncStatus = "connected";
     connection.syncError = null;
     await connection.save();
   } catch (error) {
     console.error("❌ Error updating Google Calendar event:", error.message);
-    
+
     const connection = await CalendarConnection.findOne({
       user: userId,
       provider: "google",
@@ -310,14 +313,14 @@ export const deleteGoogleEvent = async (userId, eventId) => {
     });
 
     console.log("✅ Google Calendar event deleted:", eventId);
-    
+
     connection.lastSyncAt = new Date();
     connection.syncStatus = "connected";
     connection.syncError = null;
     await connection.save();
   } catch (error) {
     console.error("❌ Error deleting Google Calendar event:", error.message);
-    
+
     const connection = await CalendarConnection.findOne({
       user: userId,
       provider: "google",
@@ -346,18 +349,19 @@ export const createMicrosoftEvent = async (userId, meetingDetails) => {
       return null;
     }
 
-    const client = await getMicrosoftGraphClient(connection);
+    const client = await getMicrosoftClient(connection);
 
     const startDateTime = parseMeetingDateTime(meetingDetails);
     const duration = meetingDetails.duration || 60;
     const endDateTime = new Date(startDateTime.getTime() + duration * 60000);
 
-    const attendees = meetingDetails.participants?.map((p) => ({
-      emailAddress: {
-        address: p.email,
-        name: p.name,
-      },
-    })) || [];
+    const attendees =
+      meetingDetails.participants?.map((p) => ({
+        emailAddress: {
+          address: p.email,
+          name: p.name,
+        },
+      })) || [];
 
     const event = {
       subject: meetingDetails.title,
@@ -382,7 +386,7 @@ export const createMicrosoftEvent = async (userId, meetingDetails) => {
     const res = await client.api("/me/events").post(event);
 
     console.log("✅ Microsoft Calendar event created:", res.id);
-    
+
     connection.lastSyncAt = new Date();
     connection.syncStatus = "connected";
     connection.syncError = null;
@@ -391,7 +395,7 @@ export const createMicrosoftEvent = async (userId, meetingDetails) => {
     return res.id;
   } catch (error) {
     console.error("❌ Error creating Microsoft Calendar event:", error.message);
-    
+
     const connection = await CalendarConnection.findOne({
       user: userId,
       provider: "microsoft",
@@ -401,7 +405,7 @@ export const createMicrosoftEvent = async (userId, meetingDetails) => {
       connection.syncError = error.message;
       await connection.save();
     }
-    
+
     return null;
   }
 };
@@ -422,18 +426,19 @@ export const updateMicrosoftEvent = async (userId, meetingDetails, eventId) => {
       return;
     }
 
-    const client = await getMicrosoftGraphClient(connection);
+    const client = await getMicrosoftClient(connection);
 
     const startDateTime = parseMeetingDateTime(meetingDetails);
     const duration = meetingDetails.duration || 60;
     const endDateTime = new Date(startDateTime.getTime() + duration * 60000);
 
-    const attendees = meetingDetails.participants?.map((p) => ({
-      emailAddress: {
-        address: p.email,
-        name: p.name,
-      },
-    })) || [];
+    const attendees =
+      meetingDetails.participants?.map((p) => ({
+        emailAddress: {
+          address: p.email,
+          name: p.name,
+        },
+      })) || [];
 
     const event = {
       subject: meetingDetails.title,
@@ -458,14 +463,14 @@ export const updateMicrosoftEvent = async (userId, meetingDetails, eventId) => {
     await client.api(`/me/events/${eventId}`).patch(event);
 
     console.log("✅ Microsoft Calendar event updated:", eventId);
-    
+
     connection.lastSyncAt = new Date();
     connection.syncStatus = "connected";
     connection.syncError = null;
     await connection.save();
   } catch (error) {
     console.error("❌ Error updating Microsoft Calendar event:", error.message);
-    
+
     const connection = await CalendarConnection.findOne({
       user: userId,
       provider: "microsoft",
@@ -494,19 +499,19 @@ export const deleteMicrosoftEvent = async (userId, eventId) => {
       return;
     }
 
-    const client = await getMicrosoftGraphClient(connection);
+    const client = await getMicrosoftClient(connection);
 
     await client.api(`/me/events/${eventId}`).delete();
 
     console.log("✅ Microsoft Calendar event deleted:", eventId);
-    
+
     connection.lastSyncAt = new Date();
     connection.syncStatus = "connected";
     connection.syncError = null;
     await connection.save();
   } catch (error) {
     console.error("❌ Error deleting Microsoft Calendar event:", error.message);
-    
+
     const connection = await CalendarConnection.findOne({
       user: userId,
       provider: "microsoft",
@@ -558,7 +563,7 @@ export const getGoogleTokens = async (code) => {
 /**
  * Get Microsoft OAuth authorization URL
  */
-export const getMicrosoftAuthUrl = () => {
+export const getMicrosoftAuthUrl = async () => {
   const msalConfig = {
     auth: {
       clientId: process.env.MICROSOFT_CLIENT_ID,
@@ -567,9 +572,9 @@ export const getMicrosoftAuthUrl = () => {
     },
   };
 
-  const pca = new (await import("@azure/msal-node")).ConfidentialClientApplication(
-    msalConfig,
-  );
+  const pca = new (
+    await import("@azure/msal-node")
+  ).ConfidentialClientApplication(msalConfig);
 
   const authCodeUrlParameters = {
     scopes: ["https://graph.microsoft.com/Calendars.ReadWrite"],
@@ -591,9 +596,9 @@ export const getMicrosoftTokens = async (code) => {
     },
   };
 
-  const pca = new (await import("@azure/msal-node")).ConfidentialClientApplication(
-    msalConfig,
-  );
+  const pca = new (
+    await import("@azure/msal-node")
+  ).ConfidentialClientApplication(msalConfig);
 
   const tokenRequest = {
     code: code,
@@ -651,22 +656,20 @@ export const getFreeBusy = async (userId, attendeeEmails, timeMin, timeMax) => {
 
   if (microsoftConnection) {
     try {
-      const client = await getMicrosoftGraphClient(microsoftConnection);
+      const client = await getMicrosoftClient(microsoftConnection);
 
-      const schedule = await client
-        .api("/me/calendar/getSchedule")
-        .post({
-          schedules: attendeeEmails,
-          startTime: {
-            dateTime: new Date(timeMin).toISOString(),
-            timeZone: "UTC",
-          },
-          endTime: {
-            dateTime: new Date(timeMax).toISOString(),
-            timeZone: "UTC",
-          },
-          availabilityViewInterval: 30,
-        });
+      const schedule = await client.api("/me/calendar/getSchedule").post({
+        schedules: attendeeEmails,
+        startTime: {
+          dateTime: new Date(timeMin).toISOString(),
+          timeZone: "UTC",
+        },
+        endTime: {
+          dateTime: new Date(timeMax).toISOString(),
+          timeZone: "UTC",
+        },
+        availabilityViewInterval: 30,
+      });
 
       freeBusyData.microsoft = schedule.value || [];
     } catch (error) {
@@ -721,7 +724,7 @@ export const fetchExternalEvents = async (userId, timeMin, timeMax) => {
 
   if (microsoftConnection) {
     try {
-      const client = await getMicrosoftGraphClient(microsoftConnection);
+      const client = await getMicrosoftClient(microsoftConnection);
 
       const response = await client
         .api("/me/calendarView")

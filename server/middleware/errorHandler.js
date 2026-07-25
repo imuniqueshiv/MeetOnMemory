@@ -1,6 +1,20 @@
-import { ZodError } from "zod";
 import { AppError } from "../utils/errors.js";
 import { sendCsrfInvalid } from "../utils/csrfErrors.js";
+
+/**
+ * Structural ZodError check (no `import "zod"`).
+ *
+ * Controllers still throw real ZodErrors from `zod`; we only need the public
+ * shape here. Skipping a static zod import keeps this middleware out of zod's
+ * large ESM graph under Jest's VM linker.
+ *
+ * @param {unknown} err
+ */
+function isZodError(err) {
+  return (
+    err instanceof Error && err.name === "ZodError" && Array.isArray(err.issues)
+  );
+}
 
 /**
  * Global Express error-handling middleware.
@@ -27,7 +41,7 @@ const errorHandler = (err, req, res, next) => {
   }
 
   // ── Zod schema validation errors ────────────────────────────
-  if (err instanceof ZodError) {
+  if (isZodError(err)) {
     const details = err.issues.map((issue) => ({
       field: issue.path.join("."),
       message: issue.message,

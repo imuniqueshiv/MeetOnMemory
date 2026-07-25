@@ -17,7 +17,6 @@
 // wrap invocations in try/catch and treat failures here as non-fatal.
 // ==============================================
 
-import axios from "axios";
 import dotenv from "dotenv";
 import Policy from "../models/policyModel.js";
 import PolicyCompliance from "../models/policyComplianceModel.js";
@@ -135,6 +134,9 @@ async function callGeminiClassifier(prompt) {
     throw new Error("GEMINI_API_KEY is not configured");
   }
 
+  // Deferred: axios's ESM graph is dense and trips Jest's VM linker when
+  // co-loaded with other large deps; Gemini calls only need it at runtime.
+  const { default: axios } = await import("axios");
   const response = await axios.post(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
     { contents: [{ parts: [{ text: prompt }] }] },

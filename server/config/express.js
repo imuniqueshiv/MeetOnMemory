@@ -4,7 +4,7 @@ import cookieParser from "cookie-parser";
 import { corsOptions } from "./corsOptions.js";
 import {
   csrfProtectionMiddleware,
-  csrfTokenProvider,
+  csrfTokenProvider, // eslint-disable-line no-unused-vars
   csrfErrorHandler,
 } from "../middleware/csrfProtection.js";
 import { globalLimiter } from "../middleware/rateLimiter.js";
@@ -14,6 +14,7 @@ import errorHandler from "../middleware/errorHandler.js";
 import webhookRoutes from "../routes/webhookRoutes.js";
 import slackRoutes from "../routes/slackRoutes.js";
 import { slackWebhookParser } from "../middleware/slackWebhookParser.js";
+import publicSharedRoutes from "../routes/publicSharedRoutes.js";
 
 export function configureExpress(app) {
   // Trust proxy for Render/Vercel
@@ -31,6 +32,7 @@ export function configureExpress(app) {
   // ==========================================
   app.use("/api/slack", slackWebhookParser, slackRoutes);
   app.use("/api/webhooks", webhookRoutes);
+  app.use("/api/public/shared", publicSharedRoutes);
 
   // ==========================================
   // 2. COOKIES & CSRF (Global for all remaining routes)

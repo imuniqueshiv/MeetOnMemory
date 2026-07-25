@@ -29,6 +29,14 @@ const transcriptSegmentSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  sentimentScore: {
+    type: Number,
+    default: 0,
+  },
+  emotionTags: {
+    type: [String],
+    default: [],
+  },
 });
 
 const transcriptSchema = new mongoose.Schema(
@@ -59,6 +67,14 @@ const transcriptSchema = new mongoose.Schema(
     language: {
       type: String,
       default: "en",
+    },
+    overallSentiment: {
+      type: Number,
+      default: 0,
+    },
+    overallEmotion: {
+      type: String,
+      default: "NEUTRAL",
     },
   },
   { timestamps: true },

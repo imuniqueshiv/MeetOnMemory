@@ -7,7 +7,6 @@ import {
   EMAIL_VERIFY_TEMPLATE,
   PASSWORD_RESET_TEMPLATE,
 } from "../config/emailTemplates.js";
-import { getTokens } from "./calendarService.js";
 import { AppError, NotFoundError } from "../utils/errors.js";
 
 const normalizeEmail = (email) => String(email).trim().toLowerCase();
@@ -35,14 +34,16 @@ class AuthService {
       expiresIn: "7d",
     });
 
-    transporter.sendMail({
-      from: process.env.SENDER_EMAIL,
-      to: cleanEmail,
-      subject: "Welcome to MeetOnMemory!",
-      text: `Welcome to MeetOnMemory, ${name}! Your account has been successfully created.`,
-    }).catch((err) => {
-      console.error(`Background email transmission failed [Register]:`, err);
-    });
+    transporter
+      .sendMail({
+        from: process.env.SENDER_EMAIL,
+        to: cleanEmail,
+        subject: "Welcome to MeetOnMemory!",
+        text: `Welcome to MeetOnMemory, ${name}! Your account has been successfully created.`,
+      })
+      .catch((err) => {
+        console.error(`Background email transmission failed [Register]:`, err);
+      });
 
     return { user, token };
   }
@@ -168,12 +169,15 @@ class AuthService {
   }
 
   static async googleCalendarCallback({ code, token }) {
-    const tokens = await getTokens(code);
+    // Deferred: calendarService pulls googleapis; keep it out of AuthService's
+    // eager ESM link graph (Jest VM linker diamond with shared deps like bcrypt).
+    const { getGoogleTokens } = await import("./calendarService.js");
+    const tokens = await getGoogleTokens(code);
 
     if (!token) {
       throw new AppError("Not authenticated", 401);
     }
-    
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
 

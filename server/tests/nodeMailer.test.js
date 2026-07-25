@@ -32,7 +32,9 @@ describe("nodeMailer lazy initialization test", () => {
   });
 
   test("should export a transporter object with sendMail and verify methods", async () => {
-    const { default: transporter } = await import(`../config/nodeMailer.js?test=1`);
+    const { default: transporter } = await import(
+      `../config/nodeMailer.js?test=1`
+    );
     expect(transporter).toBeDefined();
     expect(typeof transporter.sendMail).toBe("function");
     expect(typeof transporter.verify).toBe("function");
@@ -43,16 +45,22 @@ describe("nodeMailer lazy initialization test", () => {
     delete process.env.SMTP_USER;
     delete process.env.SMTP_PASS;
 
-    const { default: transporter } = await import(`../config/nodeMailer.js?test=2`);
+    const { default: transporter } = await import(
+      `../config/nodeMailer.js?test=2`
+    );
     const spyLog = jest.spyOn(console, "log").mockImplementation(() => {});
-    
+
     // Test verify
     const verifyCallback = jest.fn();
     transporter.verify(verifyCallback);
     expect(verifyCallback).toHaveBeenCalledWith(null, true);
 
     // Test sendMail
-    const mailOptions = { to: "test@example.com", subject: "Test", text: "Hello" };
+    const mailOptions = {
+      to: "test@example.com",
+      subject: "Test",
+      text: "Hello",
+    };
     const result = await transporter.sendMail(mailOptions);
     expect(result.messageId).toContain("mock-id-");
     expect(spyLog).toHaveBeenCalledWith("✉️ MOCK EMAIL SENT");
@@ -68,14 +76,20 @@ describe("nodeMailer lazy initialization test", () => {
     process.env.SMTP_PORT = "465";
     process.env.SMTP_SECURE = "true";
 
-    const { default: transporter } = await import(`../config/nodeMailer.js?test=3`);
+    const { default: transporter } = await import(
+      `../config/nodeMailer.js?test=3`
+    );
 
     // Re-verify that createTransport was NOT called simply by loading/setting env
     expect(nodemailerMock.createTransport).not.toHaveBeenCalled();
 
     // Call sendMail (which should trigger lazy initialization of real transporter)
-    const mailOptions = { to: "user@example.com", subject: "Real SMTP Test", text: "Real mail contents" };
-    const res = await transporter.sendMail(mailOptions);
+    const mailOptions = {
+      to: "user@example.com",
+      subject: "Real SMTP Test",
+      text: "Real mail contents",
+    };
+    const res = await transporter.sendMail(mailOptions); // eslint-disable-line no-unused-vars
 
     // Assert createTransport was called with correct configuration
     expect(nodemailerMock.createTransport).toHaveBeenCalledTimes(1);

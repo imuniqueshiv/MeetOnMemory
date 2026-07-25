@@ -1,4 +1,4 @@
-import { getAuthUrl } from "../services/calendarService.js";
+import { getGoogleAuthUrl } from "../services/calendarService.js";
 import AuthService from "../services/AuthService.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
 
@@ -163,7 +163,7 @@ export const getUserData = async (req, res) => {
 
 // --------------------------- GOOGLE CALENDAR AUTH ---------------------------
 export const googleCalendarAuth = (req, res) => {
-  const url = getAuthUrl();
+  const url = getGoogleAuthUrl();
   res.redirect(url);
 };
 

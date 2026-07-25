@@ -6,16 +6,15 @@ import Webhook from "../models/Webhook.js";
 import WebhookDelivery from "../models/WebhookDelivery.js";
 import eventBus from "./eventBus.js";
 
-const redisUri = process.env.REDIS_URI;
-
+// Redis connection management
 let _producerConnection = null;
 let _workerConnection = null;
 let _webhookQueueInstance = null;
 
 function getProducerConnection() {
-  if (!redisUri) return null;
+  if (!process.env.REDIS_URI) return null;
   if (!_producerConnection) {
-    _producerConnection = new Redis(redisUri, {
+    _producerConnection = new Redis(process.env.REDIS_URI, {
       maxRetriesPerRequest: 3, // Fail fast for requests adding tasks to queue
       family: 0,
     });
@@ -27,9 +26,9 @@ function getProducerConnection() {
 }
 
 function getWorkerConnection() {
-  if (!redisUri) return null;
+  if (!process.env.REDIS_URI) return null;
   if (!_workerConnection) {
-    _workerConnection = new Redis(redisUri, {
+    _workerConnection = new Redis(process.env.REDIS_URI, {
       maxRetriesPerRequest: null, // Unlimited retries for background workers
       family: 0,
     });
@@ -41,7 +40,7 @@ function getWorkerConnection() {
 }
 
 function getWebhookQueue() {
-  if (!redisUri) return null;
+  if (!process.env.REDIS_URI) return null;
   if (!_webhookQueueInstance) {
     const conn = getProducerConnection();
     if (conn) {
@@ -183,7 +182,7 @@ export const performDispatch = async (webhookId, payload, options = {}) => {
     const deliveryStatus = isFinalAttempt ? "dlq" : "failed";
 
     // Create failed/dlq delivery record
-    const delivery = await WebhookDelivery.create({
+    const _delivery = await WebhookDelivery.create({
       webhookId: webhook._id,
       organizationId: webhook.organizationId,
       event: payload.event || "custom",

@@ -1,10 +1,10 @@
-import request from "supertest";
+import request from "supertest"; // eslint-disable-line no-unused-vars
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import axios from "axios";
 import { jest } from "@jest/globals";
-import { app } from "../server.js";
-import { createCsrfAgent, refreshCsrfToken } from "./helpers/csrfHelper.js";
+import { app } from "../server.js"; // eslint-disable-line no-unused-vars
+import { createCsrfAgent, refreshCsrfToken } from "./helpers/csrfHelper.js"; // eslint-disable-line no-unused-vars
 import User from "../models/userModel.js";
 import Organization from "../models/organizationModel.js";
 import Membership from "../models/membershipModel.js";

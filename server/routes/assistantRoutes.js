@@ -6,12 +6,12 @@ import {
   listSessions, 
   processMessage 
 } from "../services/ragAssistantService.js";
-import requireAuth from "../middleware/requireAuth.js";
+import userAuth from "../middleware/userAuth.js";
 import rateLimit from "express-rate-limit";
 
 const router = express.Router();
 
-router.use(requireAuth);
+router.use(userAuth);
 
 const messageLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute

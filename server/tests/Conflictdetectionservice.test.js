@@ -474,3 +474,23 @@ describe("resolveConflictSet", () => {
     ).rejects.toThrow(/must reference one of this conflict set's members/);
   });
 });
+
+describe("listConflictSets input validation", () => {
+  test("ignores non-string status values", async () => {
+    await expect(
+      listConflictSets("decision", {
+        organization: organizationId,
+        status: { $ne: "open" },
+      }),
+    ).resolves.toEqual(expect.any(Array));
+  });
+
+  test("uses the default limit for invalid values", async () => {
+    await expect(
+      listConflictSets("decision", {
+        organization: organizationId,
+        limit: { $gt: 100 },
+      }),
+    ).resolves.toEqual(expect.any(Array));
+  });
+});

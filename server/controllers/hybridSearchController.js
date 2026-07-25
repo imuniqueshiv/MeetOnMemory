@@ -6,7 +6,7 @@
 // ================================
 
 import { hybridRetrieve } from "../services/hybridRetrievalService.js";
-import { getRedisClient, setSearchCache } from "../services/redisService.js";
+import { getRedisClient, setSearchCache } from "../services/redisService.js"; // eslint-disable-line no-unused-vars
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
 
 /**

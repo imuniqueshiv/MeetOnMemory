@@ -12,10 +12,40 @@ jest.unstable_mockModule("../models/meetingModel.js", () => ({
   },
 }));
 
+// meetingController eagerly imports zod + calendarSyncService; both have dense
+// ESM graphs that hit Jest's VM "module is already linked" on this runtime.
+// Passthrough mocks keep controller org-scoping behaviour under test without
+// pulling those graphs into the MeetingService Cluster C link set.
+const zodPassthroughSchema = {
+  parse: (value) => value,
+  safeParse: (value) => ({ success: true, data: value }),
+};
+const zodChain = new Proxy(zodPassthroughSchema, {
+  get(target, prop) {
+    if (prop in target) return target[prop];
+    return () => zodChain;
+  },
+});
+jest.unstable_mockModule("zod", () => ({
+  z: new Proxy(
+    {},
+    {
+      get() {
+        return (..._args) => zodChain;
+      },
+    },
+  ),
+}));
+jest.unstable_mockModule("../services/calendarSyncService.js", () => ({
+  pushMeetingToIntegrations: jest.fn().mockResolvedValue(undefined),
+}));
+
 const Meeting = (await import("../models/meetingModel.js")).default;
-const MeetingStorageService = await import("../services/MeetingStorageService.js");
+const MeetingStorageService =
+  await import("../services/MeetingStorageService.js");
 const MeetingService = await import("../services/MeetingService.js");
-const { searchMeetingsByText } = await import("../controllers/meetingController.js");
+const { searchMeetingsByText } =
+  await import("../controllers/meetingController.js");
 const { requireOrgMembership } = await import("../middleware/rbac.js");
 
 describe("Meeting Search Organization Scoping & Isolation (#387)", () => {

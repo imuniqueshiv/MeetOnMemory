@@ -9,10 +9,14 @@
   "scripts": {
     "start": "node server.js",
     "server": "nodemon server.js",
+    "lint": "eslint .",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit",
-    "test:unit": "vitest run tests/OrganizationService.test.js tests/InvitationService.test.js tests/organizationController.test.js"
+    "test:ci": "node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit --ci --runInBand --coverage",
+    "test:startup": "node tests/testStartup.js",
+    "test:unit": "vitest run tests/OrganizationService.test.js tests/InvitationService.test.js tests/organizationController.test.js tests/knowledgeController.test.js tests/transcriptController.test.js"
   },
   "dependencies": {
+    "@azure/identity": "^4.13.1",
     "@azure/msal-node": "^5.4.2",
     "@chroma-core/default-embed": "^0.1.8",
     "@google/generative-ai": "^0.24.1",
@@ -58,6 +62,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "eslint": "^10.7.0",
     "jest": "^30.4.2",
     "mongodb-memory-server": "^11.2.0",
     "nodemon": "^3.1.10",

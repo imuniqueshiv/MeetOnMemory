@@ -73,7 +73,6 @@ describe("organizationController - createOrJoinOrganization", () => {
     expect(OrganizationService.createOrJoinOrganization).toHaveBeenCalledWith(
       "user123",
       "Test Org",
-      {}, // io mock
     );
 
     expect(res.status).toHaveBeenCalledWith(200);

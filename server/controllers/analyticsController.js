@@ -2,6 +2,23 @@ import Meeting from "../models/meetingModel.js";
 import Policy from "../models/policyModel.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
 
+export const subtractMonthsClamped = (date, months) => {
+  const result = new Date(date);
+  const dayOfMonth = result.getDate();
+
+  result.setDate(1);
+  result.setMonth(result.getMonth() - months);
+
+  const lastDayOfTargetMonth = new Date(
+    result.getFullYear(),
+    result.getMonth() + 1,
+    0,
+  ).getDate();
+  result.setDate(Math.min(dayOfMonth, lastDayOfTargetMonth));
+
+  return result;
+};
+
 export const getAnalytics = async (req, res) => {
   try {
     const userId = req.user?.id || req.user?._id;
@@ -27,8 +44,7 @@ export const getAnalytics = async (req, res) => {
     });
 
     // Monthly trend (last 6 months)
-    const lastSixMonths = new Date();
-    lastSixMonths.setMonth(lastSixMonths.getMonth() - 5);
+    const lastSixMonths = subtractMonthsClamped(new Date(), 5);
     const monthlyMeetings = await Meeting.aggregate([
       { $match: { createdAt: { $gte: lastSixMonths }, ...matchQuery } },
       {

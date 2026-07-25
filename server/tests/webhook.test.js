@@ -343,7 +343,7 @@ describe("Webhook Endpoints & Dispatcher", () => {
           { event: "meeting.created" },
           { attempt: 5, isFinalAttempt: true },
         );
-      } catch (err) {
+      } catch (_err) {
         // Expected throw
       }
 
@@ -382,7 +382,7 @@ describe("Webhook Endpoints & Dispatcher", () => {
           { event: "meeting.created" },
           { attempt: 5, isFinalAttempt: true },
         );
-      } catch (err) {
+      } catch (_err) {
         // Expected throw
       }
 

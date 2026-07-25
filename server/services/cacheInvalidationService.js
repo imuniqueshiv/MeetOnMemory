@@ -30,9 +30,11 @@ export const invalidateOrgCache = async (organizationId) => {
   const orgId = extractOrgIdFromEntity(organizationId);
   try {
     const deletedCount = await clearOrgSetAndKeys(orgId);
-    console.log(
-      `🧹 [CacheInvalidation] Cleared ${deletedCount} search cache keys for org: "${orgId}"`,
-    );
+    if (process.env.NODE_ENV !== "test") {
+      console.log(
+        `🧹 [CacheInvalidation] Cleared ${deletedCount} search cache keys for org: "${orgId}"`,
+      );
+    }
     return { success: true, deletedCount, organizationId: orgId };
   } catch (error) {
     console.error(
@@ -63,14 +65,18 @@ export const registerCacheInvalidationListeners = () => {
 
   mutationEvents.forEach((eventType) => {
     eventBus.on(eventType, async (entityPayload) => {
-      console.log(`📡 [CacheInvalidation] Event triggered: "${eventType}"`);
+      if (process.env.NODE_ENV !== "test") {
+        console.log(`📡 [CacheInvalidation] Event triggered: "${eventType}"`);
+      }
       await invalidateOrgCache(entityPayload);
     });
   });
 
-  console.log(
-    `✅ [CacheInvalidation] Registered eventBus listeners for search cache eviction.`,
-  );
+  if (process.env.NODE_ENV !== "test") {
+    console.log(
+      `✅ [CacheInvalidation] Registered eventBus listeners for search cache eviction.`,
+    );
+  }
 };
 
 // Automatically register listeners upon module import

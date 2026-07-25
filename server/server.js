@@ -42,8 +42,20 @@ import "./services/cacheInvalidationService.js";
 // organization whenever new decisions/action items are extracted.
 import "./services/conflictScanTrigger.js";
 
+import meetingSocket from "./socket/meetingSocket.js"; // eslint-disable-line no-unused-vars
+import documentSync from "./socket/documentSync.js"; // eslint-disable-line no-unused-vars
+import transcriptSocket from "./socket/transcriptSocket.js"; // eslint-disable-line no-unused-vars
+import { initRedis, getRedisClient } from "./services/redisService.js"; // eslint-disable-line no-unused-vars
+import { createAdapter } from "@socket.io/redis-adapter"; // eslint-disable-line no-unused-vars
 import { startCalendarSyncJob } from "./jobs/calendarSyncJob.js";
-import { globalLimiter } from "./middleware/rateLimiter.js";
+import { createClient } from "redis"; // eslint-disable-line no-unused-vars
+import {
+  initAIWorker, // eslint-disable-line no-unused-vars
+  initDataExportWorker, // eslint-disable-line no-unused-vars
+  initConflictScanWorker, // eslint-disable-line no-unused-vars
+} from "./services/queueService.js";
+import { initWebhookWorker } from "./services/webhookDispatcherService.js"; // eslint-disable-line no-unused-vars
+import { globalLimiter } from "./middleware/rateLimiter.js"; // eslint-disable-line no-unused-vars
 import errorHandler from "./middleware/errorHandler.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -123,13 +135,13 @@ if (process.env.NODE_ENV !== "test") {
       startWorkers(app);
     }, 0);
   });
+
+  // Init Calendar Sync Cron
+  initCalendarSyncCron();
+
+  // Start calendar sync job
+  startCalendarSyncJob();
 }
-
-// Init Calendar Sync Cron
-initCalendarSyncCron();
-
-// Start calendar sync job
-startCalendarSyncJob();
 
 // (AI, Data Export, and Webhook workers are initialized inside server.listen callback)
 

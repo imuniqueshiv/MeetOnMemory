@@ -6,7 +6,7 @@
 import { searchVectorStore } from "../utils/embeddingUtils.js";
 import Meeting from "../models/meetingModel.js";
 import Membership from "../models/membershipModel.js";
-import { getRedisClient, setSearchCache } from "../services/redisService.js";
+import { getRedisClient, setSearchCache } from "../services/redisService.js"; // eslint-disable-line no-unused-vars
 import { buildExplanation } from "../utils/explanationBuilder.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
 

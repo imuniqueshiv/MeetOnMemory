@@ -1,10 +1,16 @@
-import Transcript from "../models/Transcript.js";
+import Transcript from "../models/transcriptModel.js";
 import Meeting from "../models/meetingModel.js";
 import { transcribeFileWithSegments } from "../services/TranscriptionService.js";
-import { indexTranscript } from "../utils/embeddingUtils.js";
+import {
+  indexTranscript,
+  searchVectorStore,
+  indexMeeting,
+} from "../utils/embeddingUtils.js";
+import { indexTranscriptChunks } from "../utils/transcriptEmbeddingUtils.js";
+import { sendSuccess, sendError } from "../utils/responseHandler.js";
 import fs from "fs";
-import path from "path";
-import { searchVectorStore } from "../utils/embeddingUtils.js";
+
+import { sentimentAnalysisQueue } from "../services/queueService.js";
 
 /**
  * @desc  Start a recording session for a meeting
@@ -427,7 +433,7 @@ async function processTranscription(transcriptId) {
 
     // Transcribe audio with segments
     const transcriptionResult = await transcribeFileWithSegments(
-      transcript.audioFilePath
+      transcript.audioFilePath,
     );
 
     // Update transcript with results
@@ -453,6 +459,14 @@ async function processTranscription(transcriptId) {
     });
 
     console.log(`✅ Transcript indexed and meeting updated`);
+
+    // Queue sentiment analysis job
+    if (sentimentAnalysisQueue.isActive) {
+      await sentimentAnalysisQueue.add("analyze-sentiment", { transcriptId });
+      console.log(
+        `✅ Sentiment analysis queued for transcript ${transcriptId}`,
+      );
+    }
   } catch (error) {
     console.error("❌ Transcription processing failed:", error);
 
@@ -464,17 +478,7 @@ async function processTranscription(transcriptId) {
       await transcript.save();
     }
   }
-/**
- * transcriptController.js
- * Handles transcript CRUD operations and export functionality
- */
-
-import Transcript from "../models/transcriptModel.js";
-import Meeting from "../models/meetingModel.js";
-import { indexMeeting } from "../utils/embeddingUtils.js";
-import { indexTranscriptChunks } from "../utils/transcriptEmbeddingUtils.js";
-import { sendSuccess, sendError } from "../utils/responseHandler.js";
-
+}
 /**
  * Get transcript by meeting ID
  */
@@ -484,7 +488,7 @@ export const getTranscriptByMeeting = async (req, res) => {
 
     const transcript = await Transcript.findOne({
       meeting: meetingId,
-    }).populate("meeting", "title date participants");
+    }).populate("meeting", "title date participants uploadedBy organization");
 
     if (!transcript) {
       return sendError(res, 404, "Transcript not found");
@@ -667,6 +671,13 @@ export const finalizeTranscript = async (req, res) => {
       await indexTranscriptChunks(transcript, meeting);
     }
 
+    // Queue sentiment analysis job
+    if (sentimentAnalysisQueue.isActive) {
+      await sentimentAnalysisQueue.add("analyze-sentiment", {
+        transcriptId: transcript._id,
+      });
+    }
+
     sendSuccess(res, null, "Transcript finalized and indexed successfully");
   } catch (error) {
     console.error("Error finalizing transcript:", error);
@@ -682,3 +693,90 @@ function formatTimestamp(seconds) {
   const secs = Math.floor(seconds % 60);
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 }
+
+/**
+ * Update speaker tags in a transcript
+ */
+export const updateSpeakers = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { oldSpeaker, newSpeaker, segmentIndex } = req.body;
+
+    if (!oldSpeaker || !newSpeaker) {
+      return sendError(res, 400, "Old speaker and new speaker are required");
+    }
+
+    const transcript = await Transcript.findById(id).populate("meeting");
+
+    if (!transcript) {
+      return sendError(res, 404, "Transcript not found");
+    }
+
+    const meeting = transcript.meeting;
+    const userId = req.user._id.toString();
+
+    const isOwner = meeting.uploadedBy?.toString() === userId;
+    const isAdminInSameOrg =
+      (req.user.role === "admin" || req.user.role === "owner") &&
+      meeting.organization &&
+      req.user.organization &&
+      meeting.organization.toString() === req.user.organization.toString();
+
+    if (!isOwner && !isAdminInSameOrg) {
+      return sendError(
+        res,
+        403,
+        "Forbidden: You don't have permission to edit this transcript",
+      );
+    }
+
+    let updatedCount = 0;
+
+    if (segmentIndex !== undefined && segmentIndex !== null) {
+      // Update specific segment
+      const parsedIndex = Number(segmentIndex);
+      if (
+        Number.isInteger(parsedIndex) &&
+        parsedIndex >= 0 &&
+        parsedIndex < transcript.segments.length
+      ) {
+        if (transcript.segments[parsedIndex].speaker === oldSpeaker) {
+          transcript.segments[parsedIndex].speaker = newSpeaker;
+          updatedCount = 1;
+        }
+      }
+    } else {
+      // Bulk update
+      transcript.segments.forEach((segment) => {
+        if (segment.speaker === oldSpeaker) {
+          segment.speaker = newSpeaker;
+          updatedCount++;
+        }
+      });
+    }
+
+    if (updatedCount > 0) {
+      await transcript.save();
+
+      // Optionally, regenerate fullText based on segments here if needed
+      // Currently, it seems we don't automatically regenerate fullText to avoid losing formatting.
+
+      // Update the meeting transcript text if required (optional)
+
+      sendSuccess(
+        res,
+        transcript,
+        `Successfully updated ${updatedCount} segment(s)`,
+      );
+    } else {
+      sendSuccess(
+        res,
+        transcript,
+        "No segments found matching the specified speaker",
+      );
+    }
+  } catch (error) {
+    console.error("Error updating speakers:", error);
+    sendError(res, 500, "Failed to update speakers");
+  }
+};

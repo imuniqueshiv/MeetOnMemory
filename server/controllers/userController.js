@@ -161,7 +161,7 @@ export const downloadExport = async (req, res) => {
     let decoded;
     try {
       decoded = jwt.verify(token, jwtSecret);
-    } catch (err) {
+    } catch (_err) {
       return sendError(res, 401, "Invalid or expired token.");
     }
 

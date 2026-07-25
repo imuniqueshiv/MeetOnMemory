@@ -3,7 +3,7 @@ import { google } from "googleapis";
 import axios from "axios";
 import cron from "node-cron";
 import CalendarIntegration from "../models/calendarIntegrationModel.js";
-import Meeting from "../models/meetingModel.js";
+import Meeting from "../models/meetingModel.js"; // eslint-disable-line no-unused-vars
 
 // Encryption setup
 const ALGORITHM = "aes-256-gcm";
@@ -194,7 +194,7 @@ export const pushMeetingToIntegrations = async (userId, meeting) => {
       }
       integration.lastSyncedAt = new Date();
       await integration.save();
-    } catch (err) {
+    } catch (_err) {
       console.error(`Failed to push to ${integration.provider}`);
     }
   }
@@ -232,6 +232,78 @@ export const deleteMeetingFromIntegrations = async (
         await deleteOutlookMeeting(integration, ref.eventId);
       }
     }
+  }
+};
+
+export const suggestFreeSlot = async (
+  userId,
+  targetDateIso,
+  durationMinutes = 30,
+) => {
+  try {
+    const integrations = await CalendarIntegration.find({
+      userId,
+      syncEnabled: true,
+    });
+
+    let suggestedDate = new Date(targetDateIso);
+    if (isNaN(suggestedDate.getTime())) {
+      suggestedDate = new Date();
+      suggestedDate.setDate(suggestedDate.getDate() + 1); // tomorrow as fallback
+      suggestedDate.setHours(14, 0, 0, 0); // 2 PM
+    }
+
+    const googleIntegration = integrations.find((i) => i.provider === "google");
+
+    if (googleIntegration) {
+      const accessToken = decrypt(googleIntegration.accessToken);
+      const refreshToken = decrypt(googleIntegration.refreshToken);
+      const calendar = getGoogleCalendarClient(accessToken, refreshToken);
+
+      const timeMin = new Date(suggestedDate);
+      timeMin.setHours(0, 0, 0, 0);
+
+      const timeMax = new Date(suggestedDate);
+      timeMax.setDate(timeMax.getDate() + 1);
+      timeMax.setHours(23, 59, 59, 999);
+
+      const calendarId = googleIntegration.externalCalendarId || "primary";
+
+      const res = await calendar.freebusy.query({
+        requestBody: {
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+          timeZone: "UTC",
+          items: [{ id: calendarId }],
+        },
+      });
+
+      const busySlots = res.data.calendars[calendarId].busy || [];
+
+      let currentTry = new Date(suggestedDate);
+
+      // Look for a slot within the next 24 tries (12 hours)
+      for (let i = 0; i < 24; i++) {
+        const tryEnd = new Date(currentTry.getTime() + durationMinutes * 60000);
+
+        const isBusy = busySlots.some((slot) => {
+          const busyStart = new Date(slot.start);
+          const busyEnd = new Date(slot.end);
+          return currentTry < busyEnd && tryEnd > busyStart;
+        });
+
+        if (!isBusy) {
+          suggestedDate = currentTry;
+          break;
+        }
+        currentTry = new Date(currentTry.getTime() + 30 * 60000); // add 30 mins
+      }
+    }
+
+    return suggestedDate.toISOString();
+  } catch (err) {
+    console.error("Error finding free slot:", err.message);
+    return targetDateIso;
   }
 };
 

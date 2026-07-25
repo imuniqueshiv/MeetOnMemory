@@ -39,7 +39,12 @@ export const getOrganizationAuditLogs = async (req, res) => {
 
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
-    if (!Number.isInteger(pageNum) || pageNum < 1 || !Number.isInteger(limitNum) || limitNum < 1) {
+    if (
+      !Number.isInteger(pageNum) ||
+      pageNum < 1 ||
+      !Number.isInteger(limitNum) ||
+      limitNum < 1
+    ) {
       return sendError(res, 400, "page and limit must be positive integers.");
     }
     const skip = (pageNum - 1) * limitNum;
@@ -50,7 +55,11 @@ export const getOrganizationAuditLogs = async (req, res) => {
       const filename = `audit-logs-${organizationId}.${format}`;
       if (total > LARGE_EXPORT_THRESHOLD) {
         if (!dataExportQueue.isActive) {
-          return sendError(res, 503, "Background export processing is unavailable.");
+          return sendError(
+            res,
+            503,
+            "Background export processing is unavailable.",
+          );
         }
         const exportRecord = await AuditLogExport.create({
           organization: organizationId,
@@ -63,19 +72,34 @@ export const getOrganizationAuditLogs = async (req, res) => {
           },
           expiresAt: new Date(Date.now() + EXPORT_TTL_MS),
         });
-        await dataExportQueue.add("audit-log-export", { exportId: exportRecord._id.toString() });
-        return sendSuccess(res, {
-          export: {
-            id: exportRecord._id,
-            status: exportRecord.status,
-            statusUrl: `/api/organizations/${organizationId}/audit-log-exports/${exportRecord._id}`,
-            downloadUrl: `/api/organizations/${organizationId}/audit-log-exports/${exportRecord._id}/download`,
+        await dataExportQueue.add("audit-log-export", {
+          exportId: exportRecord._id.toString(),
+        });
+        return sendSuccess(
+          res,
+          {
+            export: {
+              id: exportRecord._id,
+              status: exportRecord.status,
+              statusUrl: `/api/organizations/${organizationId}/audit-log-exports/${exportRecord._id}`,
+              downloadUrl: `/api/organizations/${organizationId}/audit-log-exports/${exportRecord._id}/download`,
+            },
           },
-        }, "Audit log export queued.", 202);
+          "Audit log export queued.",
+          202,
+        );
       }
 
-      res.setHeader("Content-Type", format === "csv" ? "text/csv; charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader(
+        "Content-Type",
+        format === "csv"
+          ? "text/csv; charset=utf-8"
+          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${filename}"`,
+      );
       if (format === "csv") return streamCsvExport(res, filter);
       return streamXlsxExport(res, filter);
     }
@@ -111,19 +135,22 @@ export const getAuditLogExport = async (req, res) => {
       _id: req.params.exportId,
       organization: req.params.id,
     }).lean();
-    if (!exportRecord) return sendError(res, 404, "Audit log export not found.");
+    if (!exportRecord)
+      return sendError(res, 404, "Audit log export not found.");
     return sendSuccess(res, {
       export: {
         id: exportRecord._id,
         status: exportRecord.status,
-        downloadUrl: exportRecord.status === "completed"
-          ? `/api/organizations/${req.params.id}/audit-log-exports/${exportRecord._id}/download`
-          : null,
+        downloadUrl:
+          exportRecord.status === "completed"
+            ? `/api/organizations/${req.params.id}/audit-log-exports/${exportRecord._id}/download`
+            : null,
         expiresAt: exportRecord.expiresAt,
-        error: exportRecord.status === "failed" ? exportRecord.error : undefined,
+        error:
+          exportRecord.status === "failed" ? exportRecord.error : undefined,
       },
     });
-  } catch (error) {
+  } catch (_error) {
     return sendError(res, 500, "Server error fetching audit log export.");
   }
 };
@@ -135,13 +162,21 @@ export const downloadAuditLogExport = async (req, res) => {
       organization: req.params.id,
       status: "completed",
     }).lean();
-    if (!exportRecord) return sendError(res, 404, "Completed audit log export not found.");
-    const filePath = path.join(AUDIT_EXPORT_DIRECTORY, exportRecord.fileName || "");
-    if (!exportRecord.fileName || !filePath.startsWith(AUDIT_EXPORT_DIRECTORY + path.sep) || !fs.existsSync(filePath)) {
+    if (!exportRecord)
+      return sendError(res, 404, "Completed audit log export not found.");
+    const filePath = path.join(
+      AUDIT_EXPORT_DIRECTORY,
+      exportRecord.fileName || "",
+    );
+    if (
+      !exportRecord.fileName ||
+      !filePath.startsWith(AUDIT_EXPORT_DIRECTORY + path.sep) ||
+      !fs.existsSync(filePath)
+    ) {
       return sendError(res, 404, "Audit log export file not found.");
     }
     return res.download(filePath, `audit-logs.${exportRecord.format}`);
-  } catch (error) {
+  } catch (_error) {
     return sendError(res, 500, "Server error downloading audit log export.");
   }
 };

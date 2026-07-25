@@ -29,6 +29,12 @@ vi.mock("../models/membershipModel.js", () => ({
   },
 }));
 
+vi.mock("../models/membershipRequestModel.js", () => ({
+  default: {
+    findOne: vi.fn(),
+  },
+}));
+
 vi.mock("../services/AuditService.js", () => ({
   default: {
     logAction: vi.fn(),
@@ -45,6 +51,7 @@ import * as OrganizationService from "../services/OrganizationService.js";
 import Organization from "../models/organizationModel.js";
 import userModel from "../models/userModel.js";
 import Membership from "../models/membershipModel.js";
+import MembershipRequest from "../models/membershipRequestModel.js";
 import AuditService from "../services/AuditService.js";
 
 describe("OrganizationService", () => {
@@ -94,12 +101,16 @@ describe("OrganizationService", () => {
       const mockOrg = {
         _id: "org123",
         name: "Acme",
+        visibility: "public",
         members: ["existingUser"],
         createdBy: "existingUser",
         save: vi.fn(),
       };
       mockOrg.members.some = Array.prototype.some.bind(mockOrg.members);
       Organization.findOne.mockResolvedValue(mockOrg);
+      Membership.findOne.mockResolvedValue(null);
+      MembershipRequest.findOne.mockResolvedValue(null);
+      Membership.create.mockResolvedValue({});
 
       userModel.findByIdAndUpdate.mockResolvedValue(true);
       userModel.findById.mockReturnValue({
@@ -120,6 +131,9 @@ describe("OrganizationService", () => {
       expect(result.success).toBe(true);
       expect(result.message).toBe("Joined existing organization successfully.");
       expect(Organization.create).not.toHaveBeenCalled();
+      expect(Membership.create).toHaveBeenCalledWith(
+        expect.objectContaining({ role: "member", status: "active" }),
+      );
     });
   });
 
@@ -159,6 +173,111 @@ describe("OrganizationService", () => {
           null,
         ),
       ).rejects.toThrow("Organization not found.");
+    });
+
+    it("allows direct joining of a public organization", async () => {
+      const organization = {
+        _id: "507f1f77bcf86cd799439011",
+        visibility: "public",
+        joinPolicy: "open",
+        members: [],
+        save: vi.fn(),
+      };
+      Organization.findById.mockResolvedValue(organization);
+      Membership.findOne.mockResolvedValue(null);
+      MembershipRequest.findOne.mockResolvedValue(null);
+      Membership.create.mockResolvedValue({});
+      userModel.findByIdAndUpdate.mockResolvedValue({});
+      userModel.findById.mockReturnValue({
+        populate: vi.fn().mockResolvedValue({ _id: "user1" }),
+      });
+
+      await expect(
+        OrganizationService.joinOrganizationById(
+          "user1",
+          "507f1f77bcf86cd799439011",
+        ),
+      ).resolves.toEqual(expect.objectContaining({ success: true }));
+    });
+
+    it("rejects direct joining of a private organization", async () => {
+      Organization.findById.mockResolvedValue({
+        _id: "507f1f77bcf86cd799439011",
+        visibility: "private",
+        members: [],
+      });
+
+      const joinAttempt = OrganizationService.joinOrganizationById(
+        "user1",
+        "507f1f77bcf86cd799439011",
+      );
+
+      await expect(joinAttempt).rejects.toMatchObject({ statusCode: 403 });
+      await expect(joinAttempt).rejects.toThrow(
+        "requires invitation or membership approval",
+      );
+      expect(Membership.create).not.toHaveBeenCalled();
+    });
+
+    it("keeps an existing member linked when the organization is private", async () => {
+      const organization = {
+        _id: "507f1f77bcf86cd799439011",
+        visibility: "private",
+        members: [],
+      };
+      Organization.findById.mockResolvedValue(organization);
+      Membership.findOne.mockResolvedValue({ role: "member" });
+      MembershipRequest.findOne.mockResolvedValue(null);
+      userModel.findByIdAndUpdate.mockResolvedValue({});
+      userModel.findById.mockReturnValue({
+        populate: vi.fn().mockResolvedValue({ _id: "user1" }),
+      });
+
+      await expect(
+        OrganizationService.joinOrganizationById(
+          "user1",
+          "507f1f77bcf86cd799439011",
+        ),
+      ).resolves.toEqual(expect.objectContaining({ success: true }));
+      expect(Membership.create).not.toHaveBeenCalled();
+      expect(userModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        "user1",
+        expect.objectContaining({ organization: organization._id }),
+      );
+    });
+
+    it("rejects direct joining of an invite-only organization", async () => {
+      Organization.findById.mockResolvedValue({
+        _id: "507f1f77bcf86cd799439011",
+        visibility: "invite-only",
+        members: [],
+      });
+
+      await expect(
+        OrganizationService.joinOrganizationById(
+          "user1",
+          "507f1f77bcf86cd799439011",
+        ),
+      ).rejects.toThrow("requires a valid invitation");
+      expect(Membership.create).not.toHaveBeenCalled();
+    });
+
+    it("does not bypass a pending membership request", async () => {
+      Organization.findById.mockResolvedValue({
+        _id: "507f1f77bcf86cd799439011",
+        visibility: "public",
+        members: [],
+      });
+      Membership.findOne.mockResolvedValue(null);
+      MembershipRequest.findOne.mockResolvedValue({ _id: "request1" });
+
+      await expect(
+        OrganizationService.joinOrganizationById(
+          "user1",
+          "507f1f77bcf86cd799439011",
+        ),
+      ).rejects.toThrow("already pending");
+      expect(Membership.create).not.toHaveBeenCalled();
     });
   });
 

@@ -1,16 +1,3 @@
-import fs from "fs";
-import axios from "axios";
-import FormData from "form-data";
-import Meeting from "../models/meetingModel.js";
-import User from "../models/userModel.js";
-import { indexMeeting } from "../utils/embeddingUtils.js";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import {
-  processStructuredMoM,
-  detectResolutions,
-} from "../services/knowledgeGraphService.js";
-import { createAndPushNotification } from "../services/notificationService.js";
-import { pushMeetingToIntegrations, deleteMeetingFromIntegrations } from "../services/calendarSyncService.js";
 /**
  * Meeting Controller — HTTP layer only.
  *
@@ -27,10 +14,16 @@ import { pushMeetingToIntegrations, deleteMeetingFromIntegrations } from "../ser
 
 import path from "path";
 import { z } from "zod";
+import Meeting from "../models/meetingModel.js"; // eslint-disable-line no-unused-vars
 import * as MeetingService from "../services/MeetingService.js";
 import { ValidationError, UnauthorizedError } from "../utils/errors.js";
 import AuditService from "../services/AuditService.js";
 import { sendSuccess } from "../utils/responseHandler.js";
+
+const pushMeetingToIntegrations = (...args) =>
+  import("../services/calendarSyncService.js").then((mod) =>
+    mod.pushMeetingToIntegrations(...args),
+  );
 // ═══════════════════════════════════════════════════════════════
 // Zod validation schemas
 // ═══════════════════════════════════════════════════════════════

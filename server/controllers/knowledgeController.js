@@ -16,17 +16,31 @@ const ALLOWED_SORT_FIELDS = {
   dueDate: { dueDate: 1 },
 };
 
+/**
+ * Ensures an organization value is either a string primitive or an ObjectId,
+ * preventing object-injection payloads in organization query filters.
+ */
+const sanitizeOrg = (org) => {
+  if (!org) return null;
+  if (typeof org === "string") return String(org);
+  if (org instanceof mongoose.Types.ObjectId) return org;
+  if (typeof org === "object" && org._id) return sanitizeOrg(org._id);
+  return String(org);
+};
+
 export const getDecisionLineageController = async (req, res) => {
   try {
     const { id } = req.params;
-    const organization = req.user.organization || null;
+    const organization = sanitizeOrg(req.user?.organization);
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
       return sendError(res, 400, "Invalid decision id");
     }
 
+    const cleanId = new mongoose.Types.ObjectId(id);
+
     // Verify the requested decision belongs to the user's organization
-    const startDecision = await Decision.findById(id).select("organization");
+    const startDecision = await Decision.findById(cleanId).select("organization");
 
     if (
       !startDecision ||
@@ -35,7 +49,7 @@ export const getDecisionLineageController = async (req, res) => {
       return sendError(res, 404, "Decision not found");
     }
 
-    const chain = await getDecisionLineage(id);
+    const chain = await getDecisionLineage(cleanId.toString());
 
     // Keep organization filtering as an additional safeguard
     const filteredChain = chain.filter(
@@ -45,7 +59,7 @@ export const getDecisionLineageController = async (req, res) => {
 
     // Viewing a decision's lineage counts as accessing that memory; refresh
     // its importance score in the background so it doesn't block the response.
-    recordMemoryAccess("decision", id);
+    recordMemoryAccess("decision", cleanId.toString());
 
     sendSuccess(res, { lineage: filteredChain });
   } catch (error) {
@@ -56,16 +70,8 @@ export const getDecisionLineageController = async (req, res) => {
 
 export const getOpenActionItems = async (req, res) => {
   try {
-    const { status = "open", sortBy = "createdAt" } = req.query;
-    const organization = req.user.organization;
-
-    if (!Object.prototype.hasOwnProperty.call(ALLOWED_SORT_FIELDS, sortBy)) {
-      return sendError(
-        res,
-        400,
-        `Invalid sortBy. Allowed values: ${Object.keys(ALLOWED_SORT_FIELDS).join(", ")}`,
-      );
-    }
+    const { status = "open", sortBy = "createdAt" } = req.query || {};
+    const organization = sanitizeOrg(req.user?.organization);
 
     const allowedStatuses = [
       "open",
@@ -75,8 +81,19 @@ export const getOpenActionItems = async (req, res) => {
       "all",
     ];
 
-    if (!allowedStatuses.includes(status)) {
+    if (typeof status !== "string" || !allowedStatuses.includes(status)) {
       return sendError(res, 400, "Invalid status");
+    }
+
+    if (
+      typeof sortBy !== "string" ||
+      !Object.prototype.hasOwnProperty.call(ALLOWED_SORT_FIELDS, sortBy)
+    ) {
+      return sendError(
+        res,
+        400,
+        `Invalid sortBy. Allowed values: ${Object.keys(ALLOWED_SORT_FIELDS).join(", ")}`,
+      );
     }
 
     let query;
@@ -124,10 +141,21 @@ export const getOpenActionItems = async (req, res) => {
 
 export const getDecisions = async (req, res) => {
   try {
-    const { status, sortBy = "createdAt" } = req.query;
-    const organization = req.user.organization;
+    const { status, sortBy = "createdAt" } = req.query || {};
+    const organization = sanitizeOrg(req.user?.organization);
 
-    if (!Object.prototype.hasOwnProperty.call(ALLOWED_SORT_FIELDS, sortBy)) {
+    const allowedStatuses = ["open", "in-progress", "resolved", "superseded"];
+
+    if (status !== undefined && status !== null) {
+      if (typeof status !== "string" || !allowedStatuses.includes(status)) {
+        return sendError(res, 400, "Invalid status");
+      }
+    }
+
+    if (
+      typeof sortBy !== "string" ||
+      !Object.prototype.hasOwnProperty.call(ALLOWED_SORT_FIELDS, sortBy)
+    ) {
       return sendError(
         res,
         400,
@@ -135,13 +163,16 @@ export const getDecisions = async (req, res) => {
       );
     }
 
-    const allowedStatuses = ["open", "in-progress", "resolved", "superseded"];
-    if (status && !allowedStatuses.includes(status)) {
-      return sendError(res, 400, "Invalid status");
-    }
-
     const filter = { organization };
-    if (status) filter.status = status;
+    if (status === "open") {
+      filter.status = "open";
+    } else if (status === "in-progress") {
+      filter.status = "in-progress";
+    } else if (status === "resolved") {
+      filter.status = "resolved";
+    } else if (status === "superseded") {
+      filter.status = "superseded";
+    }
 
     const sort =
       sortBy === "dueDate" ? { createdAt: -1 } : ALLOWED_SORT_FIELDS[sortBy];
@@ -171,9 +202,12 @@ export const submitMemoryFeedback = async (req, res) => {
   try {
     const { type, id } = req.params;
     const { rating } = req.body;
-    const organization = req.user.organization || null;
+    const organization = sanitizeOrg(req.user?.organization);
 
-    if (!["decision", "action-item"].includes(type)) {
+    if (
+      typeof type !== "string" ||
+      !["decision", "action-item"].includes(type)
+    ) {
       return sendError(
         res,
         400,
@@ -181,12 +215,14 @@ export const submitMemoryFeedback = async (req, res) => {
       );
     }
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
       return sendError(res, 400, "Invalid memory id");
     }
 
-    const Model = type === "decision" ? Decision : ActionItem;
-    const existing = await Model.findById(id).select("organization");
+    const safeType = type === "decision" ? "decision" : "action-item";
+    const Model = safeType === "decision" ? Decision : ActionItem;
+    const cleanId = new mongoose.Types.ObjectId(id);
+    const existing = await Model.findById(cleanId).select("organization");
 
     if (
       !existing ||
@@ -196,8 +232,8 @@ export const submitMemoryFeedback = async (req, res) => {
     }
 
     const updated = await recordMemoryFeedback(
-      type === "decision" ? "decision" : "actionItem",
-      id,
+      safeType === "decision" ? "decision" : "actionItem",
+      cleanId.toString(),
       rating,
     );
 
@@ -219,7 +255,7 @@ export const submitMemoryFeedback = async (req, res) => {
  */
 export const recalculateImportance = async (req, res) => {
   try {
-    const organization = req.user.organization || null;
+    const organization = sanitizeOrg(req.user?.organization);
     const results = await recalculateAllImportanceScores({ organization });
 
     sendSuccess(res, { ...results }, "Importance scores recalculated");
@@ -234,21 +270,29 @@ export const updateActionItemStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const organization = req.user.organization;
+    const organization = sanitizeOrg(req.user?.organization);
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
       return sendError(res, 400, "Invalid action item id");
     }
 
     const allowedStatuses = ["open", "in-progress", "resolved", "superseded"];
 
-    if (!allowedStatuses.includes(status)) {
+    if (typeof status !== "string" || !allowedStatuses.includes(status)) {
       return sendError(res, 400, "Invalid status");
     }
 
+    let safeStatus;
+    if (status === "open") safeStatus = "open";
+    else if (status === "in-progress") safeStatus = "in-progress";
+    else if (status === "resolved") safeStatus = "resolved";
+    else if (status === "superseded") safeStatus = "superseded";
+
+    const cleanId = new mongoose.Types.ObjectId(id);
+
     // Fetch first to satisfy CodeQL
     const item = await ActionItem.findOne({
-      _id: id,
+      _id: cleanId,
       organization,
     });
 
@@ -256,8 +300,8 @@ export const updateActionItemStatus = async (req, res) => {
       return sendError(res, 404, "Action item not found");
     }
 
-    item.status = status;
-    item.resolvedAt = status === "resolved" ? new Date() : null;
+    item.status = safeStatus;
+    item.resolvedAt = safeStatus === "resolved" ? new Date() : null;
 
     await item.save();
 

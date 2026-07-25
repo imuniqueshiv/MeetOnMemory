@@ -24,3 +24,8 @@ Thumbs.db
 
 # TLS keys
 *.pem
+
+# CI / lint artifacts
+eslint-output.json
+fix_lint*.mjs
+coverage/

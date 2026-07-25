@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import Transcript from "../models/Transcript.js";
+import Transcript from "../models/transcriptModel.js";
 import Meeting from "../models/meetingModel.js";
 import { hasPermission } from "../utils/rbacPermissions.js";
 

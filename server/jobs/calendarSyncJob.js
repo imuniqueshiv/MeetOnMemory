@@ -2,11 +2,11 @@ import CalendarConnection from "../models/calendarConnectionModel.js";
 import Meeting from "../models/meetingModel.js";
 import {
   fetchExternalEvents,
-  decryptToken,
-  getGoogleOAuth2Client,
-  getMicrosoftClient,
+  decryptToken, // eslint-disable-line no-unused-vars
+  getGoogleOAuth2Client, // eslint-disable-line no-unused-vars
+  getMicrosoftClient, // eslint-disable-line no-unused-vars
 } from "../services/calendarService.js";
-import { google } from "googleapis";
+import { google } from "googleapis"; // eslint-disable-line no-unused-vars
 
 /**
  * Background sync job for calendar reconciliation
@@ -37,15 +37,21 @@ const syncUserCalendar = async (userId, provider) => {
     // Calculate sync window (last 30 days to next 90 days)
     const timeMin = new Date();
     timeMin.setDate(timeMin.getDate() - 30);
-    
+
     const timeMax = new Date();
     timeMax.setDate(timeMax.getDate() + 90);
 
     // Fetch external events
-    const externalEvents = await fetchExternalEvents(userId, timeMin.toISOString(), timeMax.toISOString());
+    const externalEvents = await fetchExternalEvents(
+      userId,
+      timeMin.toISOString(),
+      timeMax.toISOString(),
+    );
 
     if (!externalEvents || !externalEvents[provider]) {
-      console.log(`No external events found for ${provider} for user ${userId}`);
+      console.log(
+        `No external events found for ${provider} for user ${userId}`,
+      );
       return;
     }
 
@@ -55,10 +61,14 @@ const syncUserCalendar = async (userId, provider) => {
 
     for (const externalEvent of events) {
       const externalEventId = externalEvent.id;
-      const externalEventTitle = externalEvent.summary || externalEvent.title || "External Event";
-      const externalEventStart = externalEvent.start?.dateTime || externalEvent.start?.date;
-      const externalEventEnd = externalEvent.end?.dateTime || externalEvent.end?.date;
-      const externalEventUpdated = externalEvent.updated || externalEvent.lastModifiedDateTime;
+      const externalEventTitle =
+        externalEvent.summary || externalEvent.title || "External Event";
+      const externalEventStart =
+        externalEvent.start?.dateTime || externalEvent.start?.date;
+      const externalEventEnd =
+        externalEvent.end?.dateTime || externalEvent.end?.date;
+      const externalEventUpdated =
+        externalEvent.updated || externalEvent.lastModifiedDateTime;
 
       // Check if this event is already synced
       const existingMeeting = await Meeting.findOne({
@@ -68,20 +78,25 @@ const syncUserCalendar = async (userId, provider) => {
 
       if (existingMeeting) {
         // Event already synced - check for updates
-        const lastSyncTime = existingMeeting.calendarEvents?.[provider]?.syncedAt;
-        
+        const lastSyncTime =
+          existingMeeting.calendarEvents?.[provider]?.syncedAt;
+
         if (lastSyncTime && externalEventUpdated) {
           const lastModifiedDate = new Date(externalEventUpdated);
           const syncDate = new Date(lastSyncTime);
 
           // If external event was modified after last sync, update the meeting
           if (lastModifiedDate > syncDate) {
-            console.log(`Updating meeting ${existingMeeting._id} from ${provider} calendar`);
-            
+            console.log(
+              `Updating meeting ${existingMeeting._id} from ${provider} calendar`,
+            );
+
             existingMeeting.title = externalEventTitle;
-            if (externalEventStart) existingMeeting.date = new Date(externalEventStart);
-            if (externalEvent.description) existingMeeting.description = externalEvent.description;
-            
+            if (externalEventStart)
+              existingMeeting.date = new Date(externalEventStart);
+            if (externalEvent.description)
+              existingMeeting.description = externalEvent.description;
+
             existingMeeting.calendarEvents[provider].syncedAt = new Date();
             await existingMeeting.save();
             syncedCount++;
@@ -89,17 +104,28 @@ const syncUserCalendar = async (userId, provider) => {
         }
       } else {
         // New external event - create a meeting record
-        console.log(`Creating new meeting from ${provider} event: ${externalEventTitle}`);
-        
-        const newMeeting = await Meeting.create({
+        console.log(
+          `Creating new meeting from ${provider} event: ${externalEventTitle}`,
+        );
+
+        const _newMeeting = await Meeting.create({
           uploadedBy: userId,
           title: externalEventTitle,
           description: externalEvent.description || "",
           date: externalEventStart ? new Date(externalEventStart) : new Date(),
-          time: externalEventStart ? new Date(externalEventStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "",
-          duration: externalEventStart && externalEventEnd 
-            ? Math.round((new Date(externalEventEnd) - new Date(externalEventStart)) / 60000) 
-            : null,
+          time: externalEventStart
+            ? new Date(externalEventStart).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "",
+          duration:
+            externalEventStart && externalEventEnd
+              ? Math.round(
+                  (new Date(externalEventEnd) - new Date(externalEventStart)) /
+                    60000,
+                )
+              : null,
           location: externalEvent.location || "",
           calendarEvents: {
             [provider]: {
@@ -121,11 +147,16 @@ const syncUserCalendar = async (userId, provider) => {
     connection.syncError = null;
     await connection.save();
 
-    console.log(`Synced ${syncedCount} events for ${provider} for user ${userId}`);
+    console.log(
+      `Synced ${syncedCount} events for ${provider} for user ${userId}`,
+    );
     return { syncedCount, conflictCount };
   } catch (error) {
-    console.error(`Error syncing ${provider} calendar for user ${userId}:`, error.message);
-    
+    console.error(
+      `Error syncing ${provider} calendar for user ${userId}:`,
+      error.message,
+    );
+
     // Update connection with error
     try {
       const connection = await CalendarConnection.findOne({
@@ -150,10 +181,12 @@ const syncUserCalendar = async (userId, provider) => {
  */
 const syncAllCalendars = async () => {
   console.log("Starting calendar sync job...");
-  
+
   try {
-    const connections = await CalendarConnection.find({ syncStatus: "connected" });
-    
+    const connections = await CalendarConnection.find({
+      syncStatus: "connected",
+    });
+
     if (connections.length === 0) {
       console.log("No active calendar connections to sync");
       return;
@@ -165,7 +198,10 @@ const syncAllCalendars = async () => {
       try {
         await syncUserCalendar(connection.user, connection.provider);
       } catch (error) {
-        console.error(`Failed to sync ${connection.provider} for user ${connection.user}:`, error.message);
+        console.error(
+          `Failed to sync ${connection.provider} for user ${connection.user}:`,
+          error.message,
+        );
       }
     }
 
@@ -185,10 +221,10 @@ export const startCalendarSyncJob = () => {
   }
 
   console.log("Starting calendar sync job (interval: 15 minutes)");
-  
+
   // Run immediately on start
   syncAllCalendars();
-  
+
   // Schedule recurring sync
   syncIntervalId = setInterval(syncAllCalendars, SYNC_INTERVAL_MS);
 };

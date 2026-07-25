@@ -16,6 +16,7 @@ import knowledgeRoutes from "./knowledgeRoutes.js";
 import policyComplianceRoutes from "./policyComplianceRoutes.js";
 import sessionRoutes from "./sessionRoutes.js";
 import transcriptRoutes from "./transcriptRoutes.js";
+import sharedLinkRoutes from "./sharedLinkRoutes.js";
 
 const router = express.Router();
 
@@ -39,5 +40,6 @@ router.use("/api/knowledge", knowledgeRoutes);
 router.use("/api/compliance", policyComplianceRoutes);
 router.use("/api/sessions", sessionRoutes);
 router.use("/api/transcripts", transcriptRoutes);
+router.use("/api/shared-links", sharedLinkRoutes);
 
 export default router;

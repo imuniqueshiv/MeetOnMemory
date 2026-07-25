@@ -5,9 +5,16 @@
 // dedupes against conflicts already under review, and applies a user's
 // resolution back onto the knowledge graph.
 // ==============================================
-
+import mongoose from "mongoose";
 import ConflictSet from "../../models/conflictModel.js";
 import { assertSupportedModel } from "../consolidation/consolidationRegistry.js";
+
+const VALID_CONFLICT_STATUSES = new Set([
+  "open",
+  "resolved",
+  "dismissed",
+  "all",
+]);
 
 function snapshotMember(record) {
   return {
@@ -218,13 +225,37 @@ export async function listConflictSets(
   modelType,
   { organization = null, status = "open", limit = 50 } = {},
 ) {
-  const query = { organization: organization || null };
-  if (modelType) query.modelType = modelType;
-  if (status && status !== "all") query.status = status;
+  const query = {};
+
+  if (organization === null) {
+    query.organization = null;
+  } else if (
+    typeof organization === "string" &&
+    mongoose.Types.ObjectId.isValid(organization)
+  ) {
+    query.organization = organization;
+  } else if (organization instanceof mongoose.Types.ObjectId) {
+    query.organization = organization;
+  }
+
+  if (typeof modelType === "string" && modelType.trim() !== "") {
+    query.modelType = modelType;
+  }
+
+  if (
+    typeof status === "string" &&
+    VALID_CONFLICT_STATUSES.has(status) &&
+    status !== "all"
+  ) {
+    query.status = status;
+  }
+
+  const safeLimit =
+    Number.isInteger(limit) && limit > 0 ? Math.min(limit, 200) : 50;
 
   return ConflictSet.find(query)
     .sort({ confidence: -1, detectedAt: -1 })
-    .limit(Math.min(limit, 200));
+    .limit(safeLimit);
 }
 
 export async function getConflictSetById(conflictId) {

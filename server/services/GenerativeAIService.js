@@ -1,7 +1,11 @@
-import axios from "axios";
+import axios from "axios"; // eslint-disable-line no-unused-vars
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { pipeline, env } from "@xenova/transformers";
 
-const HUGGINGFACE_API_KEY = process.env.HUGGINGFACE_API_KEY;
+env.useBrowserCache = false;
+let localSummarizer = null;
+
+const HUGGINGFACE_API_KEY = process.env.HUGGINGFACE_API_KEY; // eslint-disable-line no-unused-vars
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
@@ -36,7 +40,14 @@ Avoid repetition, filler words, and unnecessary phrases. Capture key insights, o
     "Extract 5-10 relevant keywords and topics discussed during the meeting."
   ],
   "attendees": ["List attendees if mentioned or infer from transcript"],
-  "notes": "Include any follow-up requirements, risks, or additional remarks worth noting."
+  "notes": "Include any follow-up requirements, risks, or additional remarks worth noting.",
+  "scheduling_intents": [
+    {
+      "topic": "Reason for follow up meeting",
+      "timeframe": "Suggested time (e.g., 'next week', 'tomorrow at 2 PM')",
+      "suggested_date_iso": "ISO 8601 date string for the suggested timeframe, relative to today's date."
+    }
+  ]
 }
 
 Transcript:
@@ -75,26 +86,22 @@ ${textToSummarize}
   }
 
   try {
-    const hfUrl =
-      "https://api-inference.huggingface.co/models/facebook/bart-large-cnn";
-    const hfResp = await axios.post(
-      hfUrl,
-      { inputs: textToSummarize.substring(0, 1024) },
-      {
-        headers: {
-          Authorization: `Bearer ${HUGGINGFACE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        timeout: 120000,
-      },
-    );
+    if (!localSummarizer) {
+      console.log("⏳ Loading local summarization model fallback...");
+      localSummarizer = await pipeline(
+        "summarization",
+        "Xenova/distilbart-cnn-6-6",
+      );
+      console.log("✅ Local model loaded");
+    }
 
-    const hfText =
-      Array.isArray(hfResp.data) && hfResp.data[0]?.summary_text
-        ? hfResp.data[0].summary_text
-        : hfResp.data?.generated_text || JSON.stringify(hfResp.data);
+    const result = await localSummarizer(textToSummarize.substring(0, 1024), {
+      max_new_tokens: 150,
+    });
 
-    console.log("✅ HuggingFace fallback completed");
+    const hfText = result[0].summary_text;
+
+    console.log("✅ Local fallback summarization completed");
     return {
       title: title || `Meeting on ${date}`,
       date,
@@ -106,11 +113,12 @@ ${textToSummarize}
       questions_raised: [],
       keywords: [],
       attendees: [],
-      notes: "Generated using fallback summarization model",
+      notes: "Generated using local fallback summarization model",
+      scheduling_intents: [],
     };
   } catch (hfErr) {
-    console.error("❌ HuggingFace also failed:", hfErr.message);
-    throw new Error("Both Gemini and HuggingFace summarization failed");
+    console.error("❌ Local fallback also failed:", hfErr.message);
+    throw new Error("Both Gemini and Local fallback summarization failed");
   }
 };
 
@@ -196,6 +204,7 @@ export const normalizeMoM = (structured, title, date) => ({
   keywords: structured.keywords || [],
   attendees: structured.attendees || [],
   notes: structured.notes || "",
+  scheduling_intents: structured.scheduling_intents || [],
 });
 
 export const buildHumanReadableMoM = (mom) => {
@@ -245,7 +254,14 @@ export const buildHumanReadableMoM = (mom) => {
     text += "🏷 Keywords: " + mom.keywords.join(", ") + "\n\n";
   }
   if (mom.notes) {
-    text += "🗒 Notes:\n" + mom.notes + "\n";
+    text += "🗒 Notes:\n" + mom.notes + "\n\n";
+  }
+  if (mom.scheduling_intents && mom.scheduling_intents.length) {
+    text += "📅 Follow-up Suggestions:\n";
+    mom.scheduling_intents.forEach((intent, i) => {
+      text += `${i + 1}. ${intent.topic} (Suggested: ${intent.timeframe})\n`;
+    });
+    text += "\n";
   }
   return text;
 };

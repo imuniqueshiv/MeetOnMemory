@@ -1,7 +1,7 @@
-import request from "supertest";
+import request from "supertest"; // eslint-disable-line no-unused-vars
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
-import { app } from "../server.js";
+import { app } from "../server.js"; // eslint-disable-line no-unused-vars
 import { createCsrfAgent } from "./helpers/csrfHelper.js";
 import User from "../models/userModel.js";
 import Organization from "../models/organizationModel.js";
