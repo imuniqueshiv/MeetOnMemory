@@ -53,8 +53,11 @@ export async function processClaimExpiration({ github, context, core }) {
       ) {
         await updateIssueMetadata(github, context, core, issue, (draft) => {
           draft.lastActivityAt = signalTime;
-          draft.reminder12SentAt = null;
-          draft.reminder18SentAt = null;
+          draft.reminder8SentAt = null;
+          draft.reminder16SentAt = null;
+          draft.reminder24SentAt = null;
+          draft.reminder32SentAt = null;
+          draft.reminder40SentAt = null;
           return draft;
         });
       }
@@ -74,7 +77,7 @@ export async function processClaimExpiration({ github, context, core }) {
         context,
         core,
         issue.number,
-        comments.expiration24h({ assignee }),
+        comments.expiration48h({ assignee }),
       );
       await updateIssueMetadata(github, context, core, freshIssue, (draft) =>
         clearAssignmentMetadata(draft),
@@ -83,38 +86,95 @@ export async function processClaimExpiration({ github, context, core }) {
     }
 
     if (
-      inactiveHours >= TIMERS.reminder18Hours &&
-      !freshMeta.reminder18SentAt &&
-      !issueComments.some((c) => hasMarker(c.body, "mom:reminder-18h"))
+      inactiveHours >= TIMERS.reminder40Hours &&
+      !freshMeta.reminder40SentAt &&
+      !issueComments.some((c) => hasMarker(c.body, "mom:reminder-40h"))
     ) {
       await createComment(
         github,
         context,
         core,
         issue.number,
-        comments.reminder18h({ assignee }),
+        comments.reminder40h({ assignee }),
       );
       await updateIssueMetadata(github, context, core, freshIssue, (draft) => {
-        draft.reminder18SentAt = nowIso();
+        draft.reminder40SentAt = nowIso();
         return draft;
       });
       continue;
     }
 
     if (
-      inactiveHours >= TIMERS.reminder12Hours &&
-      !freshMeta.reminder12SentAt &&
-      !issueComments.some((c) => hasMarker(c.body, "mom:reminder-12h"))
+      inactiveHours >= TIMERS.reminder32Hours &&
+      !freshMeta.reminder32SentAt &&
+      !issueComments.some((c) => hasMarker(c.body, "mom:reminder-32h"))
     ) {
       await createComment(
         github,
         context,
         core,
         issue.number,
-        comments.reminder12h({ assignee }),
+        comments.reminder32h({ assignee }),
       );
       await updateIssueMetadata(github, context, core, freshIssue, (draft) => {
-        draft.reminder12SentAt = nowIso();
+        draft.reminder32SentAt = nowIso();
+        return draft;
+      });
+      continue;
+    }
+
+    if (
+      inactiveHours >= TIMERS.reminder24Hours &&
+      !freshMeta.reminder24SentAt &&
+      !issueComments.some((c) => hasMarker(c.body, "mom:reminder-24h"))
+    ) {
+      await createComment(
+        github,
+        context,
+        core,
+        issue.number,
+        comments.reminder24h({ assignee }),
+      );
+      await updateIssueMetadata(github, context, core, freshIssue, (draft) => {
+        draft.reminder24SentAt = nowIso();
+        return draft;
+      });
+      continue;
+    }
+
+    if (
+      inactiveHours >= TIMERS.reminder16Hours &&
+      !freshMeta.reminder16SentAt &&
+      !issueComments.some((c) => hasMarker(c.body, "mom:reminder-16h"))
+    ) {
+      await createComment(
+        github,
+        context,
+        core,
+        issue.number,
+        comments.reminder16h({ assignee }),
+      );
+      await updateIssueMetadata(github, context, core, freshIssue, (draft) => {
+        draft.reminder16SentAt = nowIso();
+        return draft;
+      });
+      continue;
+    }
+
+    if (
+      inactiveHours >= TIMERS.reminder8Hours &&
+      !freshMeta.reminder8SentAt &&
+      !issueComments.some((c) => hasMarker(c.body, "mom:reminder-8h"))
+    ) {
+      await createComment(
+        github,
+        context,
+        core,
+        issue.number,
+        comments.reminder8h({ assignee }),
+      );
+      await updateIssueMetadata(github, context, core, freshIssue, (draft) => {
+        draft.reminder8SentAt = nowIso();
         return draft;
       });
     }
