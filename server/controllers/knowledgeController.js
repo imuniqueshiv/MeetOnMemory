@@ -9,6 +9,7 @@ import {
   recordMemoryFeedback,
 } from "../services/importanceScoringService.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
+import { recalculateImportanceQueue } from "../services/queueService.js";
 
 const ALLOWED_SORT_FIELDS = {
   importance: { importanceScore: -1 },
@@ -304,6 +305,20 @@ export const submitMemoryFeedback = async (req, res) => {
 export const recalculateImportance = async (req, res) => {
   try {
     const organization = sanitizeOrg(req.user?.organization);
+
+    if (recalculateImportanceQueue.isActive) {
+      await recalculateImportanceQueue.add("recalculate-importance", {
+        organization,
+      });
+      return sendSuccess(
+        res,
+        {},
+        "Importance scores recalculation started in the background",
+        202,
+      );
+    }
+
+    // Fallback to synchronous execution when Redis is not configured (e.g. testing / development)
     const results = await recalculateAllImportanceScores({ organization });
 
     sendSuccess(res, { ...results }, "Importance scores recalculated");

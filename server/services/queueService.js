@@ -4,6 +4,7 @@ import processAudioJob from "../jobs/processAudioJob.js";
 import exportDataJob from "../jobs/exportDataJob.js";
 import conflictScanJob from "./conflictDetection/conflictScanJob.js";
 import sentimentAnalysisJob from "../jobs/sentimentAnalysisJob.js";
+import recalculateImportanceJob from "../jobs/recalculateImportanceJob.js";
 
 // BullMQ requires maxRetriesPerRequest to be null
 let _producerConnection = null;
@@ -12,6 +13,7 @@ let _aiQueueInstance = null;
 let _dataExportQueueInstance = null;
 let _conflictScanQueueInstance = null;
 let _sentimentAnalysisQueueInstance = null;
+let _recalculateImportanceQueueInstance = null;
 
 function getProducerConnection() {
   if (!process.env.REDIS_URI) return null;
@@ -91,6 +93,22 @@ function getSentimentAnalysisQueue() {
   return _sentimentAnalysisQueueInstance;
 }
 
+function getRecalculateImportanceQueue() {
+  if (!process.env.REDIS_URI) return null;
+  if (!_recalculateImportanceQueueInstance) {
+    const conn = getProducerConnection();
+    if (conn) {
+      _recalculateImportanceQueueInstance = new Queue(
+        "recalculate-importance-queue",
+        {
+          connection: conn,
+        },
+      );
+    }
+  }
+  return _recalculateImportanceQueueInstance;
+}
+
 // Wrapper to preserve syntax compatibility
 export const aiQueue = {
   add: async (...args) => {
@@ -145,6 +163,20 @@ export const sentimentAnalysisQueue = {
   },
   get isActive() {
     return getSentimentAnalysisQueue() !== null;
+  },
+};
+
+export const recalculateImportanceQueue = {
+  add: async (...args) => {
+    const q = getRecalculateImportanceQueue();
+    if (!q) {
+      console.warn("⚠️ Queue operation ignored: Redis is not configured.");
+      return null;
+    }
+    return await q.add(...args);
+  },
+  get isActive() {
+    return getRecalculateImportanceQueue() !== null;
   },
 };
 
@@ -283,5 +315,42 @@ export const initSentimentWorker = (app) => {
 
   console.log(
     "✅ Sentiment Analysis Worker initialized and listening to sentiment-analysis-queue",
+  );
+};
+
+export const initRecalculateImportanceWorker = (app) => {
+  const connection = getWorkerConnection();
+  if (!connection) {
+    console.warn(
+      "⚠️ Redis not configured. Recalculate Importance Worker will not start.",
+    );
+    return;
+  }
+
+  const worker = new Worker(
+    "recalculate-importance-queue",
+    async (job) => await recalculateImportanceJob(job, app),
+    { connection, concurrency: 1 },
+  );
+
+  worker.on("completed", (job) => {
+    console.log(
+      `✅ Recalculate Importance Job ${job.id} completed successfully`,
+    );
+  });
+
+  worker.on("failed", (job, err) => {
+    console.error(
+      `❌ Recalculate Importance Job ${job.id} failed with error:`,
+      err.message,
+    );
+  });
+
+  worker.on("error", (err) => {
+    console.error("❌ Recalculate Importance Worker error:", err.message);
+  });
+
+  console.log(
+    "✅ Recalculate Importance Worker initialized and listening to recalculate-importance-queue",
   );
 };

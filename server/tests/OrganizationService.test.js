@@ -253,7 +253,9 @@ describe("OrganizationService", () => {
         members: [],
       });
       Membership.findOne.mockResolvedValue(null);
-      MembershipRequest.findOne.mockResolvedValue(null);
+      MembershipRequest.mockImplementation
+        ? MembershipRequest.findOne.mockResolvedValue(null)
+        : MembershipRequest.findOne.mockResolvedValue(null);
 
       await expect(
         OrganizationService.joinOrganizationById(
