@@ -323,18 +323,41 @@ test("issue lifecycle close clears metadata and preserves assignees", async () =
 
 test("expiration: reminder and expiration paths", async () => {
   process.env.GITHUB_REPOSITORY = "org/repo";
-  const oldDate = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
-  const github = createGithub((number, state) =>
+
+  // Test 8h reminder path
+  const eightHoursAgo = new Date(Date.now() - 9 * 60 * 60 * 1000).toISOString();
+  const githubReminder = createGithub((number, state) =>
     issueFactory(number, state, {
-      body: `<!-- mom:metadata:start -->\n{"assignedAt":"${oldDate}","lastActivityAt":"${oldDate}"}\n<!-- mom:metadata:end -->`,
+      body: `<!-- mom:metadata:start -->\n{"assignedAt":"${eightHoursAgo}","lastActivityAt":"${eightHoursAgo}"}\n<!-- mom:metadata:end -->`,
     }),
   );
-  github.state.assignees[50] = "assigned-user";
+  githubReminder.state.assignees[50] = "assigned-user";
   const context = {
     eventName: "schedule",
     repo: { owner: "org", repo: "repo" },
     payload: {},
   };
-  await processClaimExpiration({ github, context, core: createCore() });
-  assert.equal(github.state.assignees[50], undefined);
+  await processClaimExpiration({ github: githubReminder, context, core: createCore() });
+  // The user should still be assigned
+  assert.equal(githubReminder.state.assignees[50], "assigned-user");
+  // There should be a comment for 8h reminder
+  assert.ok(
+    githubReminder.state.comments.some((c) => c.body.includes("8 hours")),
+  );
+
+  // Test 48h expiration path
+  const oldDate = new Date(Date.now() - 49 * 60 * 60 * 1000).toISOString();
+  const githubExpiration = createGithub((number, state) =>
+    issueFactory(number, state, {
+      body: `<!-- mom:metadata:start -->\n{"assignedAt":"${oldDate}","lastActivityAt":"${oldDate}"}\n<!-- mom:metadata:end -->`,
+    }),
+  );
+  githubExpiration.state.assignees[50] = "assigned-user";
+  await processClaimExpiration({ github: githubExpiration, context, core: createCore() });
+  // User should be unassigned
+  assert.equal(githubExpiration.state.assignees[50], undefined);
+  // Expiration comment should be posted
+  assert.ok(
+    githubExpiration.state.comments.some((c) => c.body.includes("48-hour")),
+  );
 });

@@ -40,8 +40,11 @@ export async function processIssueLifecycle({ github, context, core }) {
 
   if (action === ISSUE_EVENTS.reopened) {
     await updateIssueMetadata(github, context, core, issue, (draft) => {
-      draft.reminder12SentAt = null;
-      draft.reminder18SentAt = null;
+      draft.reminder8SentAt = null;
+      draft.reminder16SentAt = null;
+      draft.reminder24SentAt = null;
+      draft.reminder32SentAt = null;
+      draft.reminder40SentAt = null;
       draft.expiredAt = null;
       draft.lastActivityAt = new Date().toISOString();
       return draft;

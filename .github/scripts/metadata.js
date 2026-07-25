@@ -5,8 +5,11 @@ function defaultMetadata() {
   return {
     assignedAt: null,
     lastActivityAt: null,
-    reminder12SentAt: null,
-    reminder18SentAt: null,
+    reminder8SentAt: null,
+    reminder16SentAt: null,
+    reminder24SentAt: null,
+    reminder32SentAt: null,
+    reminder40SentAt: null,
     expiredAt: null,
     welcomeSentAt: null,
     welcomeSource: null,
@@ -82,8 +85,11 @@ export function setAssignmentMetadata(metadata, source = "claim") {
   const timestamp = nowIso();
   metadata.assignedAt = timestamp;
   metadata.lastActivityAt = timestamp;
-  metadata.reminder12SentAt = null;
-  metadata.reminder18SentAt = null;
+  metadata.reminder8SentAt = null;
+  metadata.reminder16SentAt = null;
+  metadata.reminder24SentAt = null;
+  metadata.reminder32SentAt = null;
+  metadata.reminder40SentAt = null;
   metadata.expiredAt = null;
   metadata.welcomeSentAt = timestamp;
   metadata.welcomeSource = source;
@@ -93,8 +99,11 @@ export function setAssignmentMetadata(metadata, source = "claim") {
 export function clearAssignmentMetadata(metadata) {
   metadata.assignedAt = null;
   metadata.lastActivityAt = null;
-  metadata.reminder12SentAt = null;
-  metadata.reminder18SentAt = null;
+  metadata.reminder8SentAt = null;
+  metadata.reminder16SentAt = null;
+  metadata.reminder24SentAt = null;
+  metadata.reminder32SentAt = null;
+  metadata.reminder40SentAt = null;
   metadata.expiredAt = null;
   return metadata;
 }

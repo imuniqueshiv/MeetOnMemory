@@ -8,7 +8,7 @@ export const comments = {
       AUTOMATION.claimWelcomeMarker,
       `Hi @${user}, thanks so much for volunteering to take this on! 🎉\n\n` +
         `Issue #${issueNumber} is now officially assigned to you. Before you dive in, please take a moment to review **CONTRIBUTING.md**, and try to keep your PR focused on this issue so it's easy to review.\n\n` +
-        `⏳ Please open your PR within **24 hours**. If you need a bit more time, no worries — just leave a quick progress update here and you're good to continue.\n\n` +
+        `⏳ Please open your PR within **48 hours**. If you need a bit more time, no worries — just leave a quick progress update here and you're good to continue.\n\n` +
         `Excited to see what you build. Happy coding! 🚀`,
     ),
 
@@ -54,7 +54,7 @@ export const comments = {
     withMarker(
       AUTOMATION.assignmentWelcomeMarker,
       `Hi @${assignee}, welcome aboard! 🎉\n\n` +
-        `You are now assigned to issue #${issueNumber}. Please follow **CONTRIBUTING.md**, keep your PR focused on this issue, and aim to open it within **24 hours**.\n\n` +
+        `You are now assigned to issue #${issueNumber}. Please follow **CONTRIBUTING.md**, keep your PR focused on this issue, and aim to open it within **48 hours**.\n\n` +
         `If anything blocks you along the way, just leave a short update here — we're happy to help. Looking forward to your contribution! 🚀`,
     ),
 
@@ -67,27 +67,51 @@ export const comments = {
     `We're so glad to have you here. Start with **CONTRIBUTING.md**, and feel free to ask questions in Discussions anytime you need a hand getting started.\n\n` +
     `Excited to see what you'll bring to the project! 💙`,
 
-  reminder12h: ({ assignee }) =>
+  reminder8h: ({ assignee }) =>
     withMarker(
-      AUTOMATION.reminder12Marker,
+      AUTOMATION.reminder8Marker,
       `Hi @${assignee}, just a friendly check-in! 👋\n\n` +
-        `It's been about **12 hours** since this issue was assigned to you. If you're actively working on it, that's great — just leave a short progress update or open a draft PR to keep your claim active.\n\n` +
+        `It's been about **8 hours** since this issue was assigned to you. If you're actively working on it, that's great — just leave a short progress update or open a draft PR to keep your claim active.\n\n` +
         `No pressure, we just want to keep things moving smoothly for everyone. 😊`,
     ),
 
-  reminder18h: ({ assignee }) =>
+  reminder16h: ({ assignee }) =>
     withMarker(
-      AUTOMATION.reminder18Marker,
+      AUTOMATION.reminder16Marker,
       `Hi @${assignee}, another friendly reminder! ⏰\n\n` +
-        `It's been around **18 hours** without any activity on this claim. If you're still working on it, please leave a quick update so we can keep it assigned to you.\n\n` +
+        `It's been around **16 hours** without any activity on this claim. If you're still working on it, please leave a quick update so we can keep it assigned to you.\n\n` +
         `We'd hate to see you lose your spot — just a small update is all it takes! 💙`,
     ),
 
-  expiration24h: ({ assignee }) =>
+  reminder24h: ({ assignee }) =>
+    withMarker(
+      AUTOMATION.reminder24Marker,
+      `Hi @${assignee}, just a friendly check-in! 👋\n\n` +
+        `It's been about **24 hours** since this issue was assigned to you. If you're actively working on it, that's great — just leave a short progress update or open a draft PR to keep your claim active.\n\n` +
+        `No pressure, we just want to keep things moving smoothly for everyone. 😊`,
+    ),
+
+  reminder32h: ({ assignee }) =>
+    withMarker(
+      AUTOMATION.reminder32Marker,
+      `Hi @${assignee}, another friendly reminder! ⏰\n\n` +
+        `It's been around **32 hours** without any activity on this claim. If you're still working on it, please leave a quick update so we can keep it assigned to you.\n\n` +
+        `We'd hate to see you lose your spot — just a small update is all it takes! 💙`,
+    ),
+
+  reminder40h: ({ assignee }) =>
+    withMarker(
+      AUTOMATION.reminder40Marker,
+      `Hi @${assignee}, just a friendly check-in! 👋\n\n` +
+        `It's been about **40 hours** since this issue was assigned to you. If you're actively working on it, that's great — just leave a short progress update or open a draft PR to keep your claim active.\n\n` +
+        `No pressure, we just want to keep things moving smoothly for everyone. 😊`,
+    ),
+
+  expiration48h: ({ assignee }) =>
     withMarker(
       AUTOMATION.expiredMarker,
       `Hi @${assignee}, thank you again for your interest in this issue! 🙏\n\n` +
-        `Since there was no activity within the **24-hour** claim window, the issue has been released so other contributors can get a chance to work on it.\n\n` +
+        `Since there was no activity within the **48-hour** claim window, the issue has been released so other contributors can get a chance to work on it.\n\n` +
         `If it's still available and you'd like to continue, you're more than welcome to claim it again — we'd love to see you back! 😊`,
     ),
 

@@ -3,8 +3,11 @@ export const AUTOMATION = Object.freeze({
   metadataStart: "<!-- mom:metadata:start -->",
   metadataEnd: "<!-- mom:metadata:end -->",
   markerPrefix: "mom",
-  reminder12Marker: "mom:reminder-12h",
-  reminder18Marker: "mom:reminder-18h",
+  reminder8Marker: "mom:reminder-8h",
+  reminder16Marker: "mom:reminder-16h",
+  reminder24Marker: "mom:reminder-24h",
+  reminder32Marker: "mom:reminder-32h",
+  reminder40Marker: "mom:reminder-40h",
   expiredMarker: "mom:claim-expired",
   claimWelcomeMarker: "mom:claim-welcome",
   assignmentWelcomeMarker: "mom:manual-assignment-welcome",
@@ -26,9 +29,12 @@ export const LIMITS = Object.freeze({
 });
 
 export const TIMERS = Object.freeze({
-  reminder12Hours: 12,
-  reminder18Hours: 18,
-  expirationHours: 24,
+  reminder8Hours: 8,
+  reminder16Hours: 16,
+  reminder24Hours: 24,
+  reminder32Hours: 32,
+  reminder40Hours: 40,
+  expirationHours: 48,
 });
 
 export const IGNORE_BOTS = Object.freeze([
