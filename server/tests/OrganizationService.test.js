@@ -291,7 +291,8 @@ describe("OrganizationService", () => {
     });
 
     it("rejects direct joining of an invite-only organization", async () => {
-      const mockOrganization = {
+      Membership.findOne.mockResolvedValue(null);
+      Organization.findById.mockResolvedValue({
         _id: "507f1f77bcf86cd799439011",
         visibility: "invite-only",
         members: [],
@@ -520,6 +521,119 @@ describe("OrganizationService", () => {
           $or: expect.any(Array),
         }),
       );
+    });
+  });
+
+  // ── getOrganizationSettings ──────────────────────────────
+  describe("getOrganizationSettings", () => {
+    it("should return settings and set canEdit true for owner", async () => {
+      userModel.findById.mockResolvedValue({
+        _id: "ownerUser",
+        organization: "507f1f77bcf86cd799439011",
+      });
+
+      const mockOrg = {
+        _id: "507f1f77bcf86cd799439011",
+        name: "Acme Corp",
+        slug: "acme-corp",
+        description: "Leading enterprise",
+        about: "All about Acme",
+        website: "https://acme.com",
+        contactEmail: "info@acme.com",
+        industry: "Technology & Software",
+        location: "San Francisco, CA",
+        owner: { _id: "ownerUser", name: "Alice", email: "alice@acme.com" },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const mockQuery = {
+        populate: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue(mockOrg),
+        }),
+      };
+      Organization.findOne.mockReturnValue(mockQuery);
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue(null),
+      });
+      Membership.countDocuments.mockResolvedValue(5);
+
+      const result =
+        await OrganizationService.getOrganizationSettings("ownerUser");
+
+      expect(result.success).toBe(true);
+      expect(result.canEdit).toBe(true);
+      expect(result.userRole).toBe("owner");
+      expect(result.organization.name).toBe("Acme Corp");
+      expect(result.organization.memberCount).toBe(5);
+    });
+
+    it("should return settings and set canEdit false for regular member", async () => {
+      userModel.findById.mockResolvedValue({
+        _id: "memberUser",
+        organization: "507f1f77bcf86cd799439011",
+      });
+
+      const mockOrg = {
+        _id: "507f1f77bcf86cd799439011",
+        name: "Acme Corp",
+        owner: { _id: "ownerUser", name: "Alice", email: "alice@acme.com" },
+      };
+
+      const mockQuery = {
+        populate: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue(mockOrg),
+        }),
+      };
+      Organization.findOne.mockReturnValue(mockQuery);
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue({ role: "member", status: "active" }),
+      });
+      Membership.countDocuments.mockResolvedValue(5);
+
+      const result =
+        await OrganizationService.getOrganizationSettings("memberUser");
+
+      expect(result.success).toBe(true);
+      expect(result.canEdit).toBe(false);
+      expect(result.userRole).toBe("member");
+    });
+  });
+
+  // ── updateOrganization (enhanced validation) ──────────────
+  describe("updateOrganization validation", () => {
+    it("should reject invalid contact email format", async () => {
+      Organization.findById.mockResolvedValue({
+        _id: "507f1f77bcf86cd799439011",
+        owner: { toString: () => "ownerUser" },
+      });
+
+      await expect(
+        OrganizationService.updateOrganization(
+          "ownerUser",
+          "507f1f77bcf86cd799439011",
+          {
+            contactEmail: "invalid-email",
+          },
+        ),
+      ).rejects.toThrow("Invalid contact email format.");
+    });
+
+    it("should reject invalid website URL format", async () => {
+      Organization.findById.mockResolvedValue({
+        _id: "507f1f77bcf86cd799439011",
+        owner: { toString: () => "ownerUser" },
+      });
+
+      await expect(
+        OrganizationService.updateOrganization(
+          "ownerUser",
+          "507f1f77bcf86cd799439011",
+          {
+            website: "not a url",
+          },
+        ),
+      ).rejects.toThrow("Invalid website URL format.");
     });
   });
 });

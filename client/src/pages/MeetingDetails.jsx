@@ -11,6 +11,7 @@ import MeetingMetadata from "../components/meeting-details/MeetingMetadata";
 import MeetingActions from "../components/meeting-details/MeetingActions";
 import ShareModal from "../components/shared-links/ShareModal";
 import MeetingFollowUpBanner from "../components/meeting-details/MeetingFollowUpBanner";
+import PresentMode from "../components/meeting-details/PresentMode";
 
 const MeetingDetails = () => {
   const { id } = useParams();
@@ -19,6 +20,7 @@ const MeetingDetails = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [isPresentModeOpen, setIsPresentModeOpen] = useState(false);
 
   useEffect(() => {
     const fetchMeetingDetails = async () => {
@@ -159,6 +161,7 @@ const MeetingDetails = () => {
         <MeetingHeader
           meeting={meeting}
           onShare={() => setShareModalOpen(true)}
+          onPresent={() => setIsPresentModeOpen(true)}
         />
         <MeetingSummary meeting={meeting} />
         <MeetingCollaborativeNotes meeting={meeting} />
@@ -179,6 +182,13 @@ const MeetingDetails = () => {
         resourceType="Meeting"
         title={meeting.title}
       />
+
+      {isPresentModeOpen && (
+        <PresentMode
+          meeting={meeting}
+          onClose={() => setIsPresentModeOpen(false)}
+        />
+      )}
     </div>
   );
 };

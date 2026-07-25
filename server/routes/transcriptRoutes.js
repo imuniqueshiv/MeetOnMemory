@@ -23,12 +23,18 @@ import {
   exportTranscriptAsPDF,
   finalizeTranscript,
   updateSpeakers,
+  uploadTranscriptChunk,
 } from "../controllers/transcriptController.js";
 
 const router = express.Router();
 const upload = multer({
   dest: "uploads/transcripts/",
   limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+});
+
+const uploadMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit per chunk
 });
 
 // Apply rate limiting to all routes
@@ -66,6 +72,18 @@ router.post(
   requirePermission("meetings", "create"),
   upload.single("audio"),
   uploadTranscriptAudio,
+);
+
+// POST /api/meetings/:meetingId/transcript/chunk
+// Multer-based memory audio chunk upload for live recording
+router.post(
+  "/meetings/:meetingId/transcript/chunk",
+  userAuth,
+  uploadLimiter,
+  requireOrgMembership,
+  requirePermission("meetings", "create"),
+  uploadMemory.single("audio"),
+  uploadTranscriptChunk,
 );
 
 // GET /api/meetings/:meetingId/transcript

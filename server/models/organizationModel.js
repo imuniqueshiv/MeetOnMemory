@@ -25,6 +25,35 @@ const organizationSchema = new mongoose.Schema(
       maxlength: [500, "Description cannot exceed 500 characters"],
       default: "",
     },
+    about: {
+      type: String,
+      trim: true,
+      maxlength: [2000, "About bio cannot exceed 2000 characters"],
+      default: "",
+    },
+    website: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    contactEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "",
+    },
+    industry: {
+      type: String,
+      trim: true,
+      maxlength: [100, "Industry cannot exceed 100 characters"],
+      default: "",
+    },
+    location: {
+      type: String,
+      trim: true,
+      maxlength: [100, "Location cannot exceed 100 characters"],
+      default: "",
+    },
     logo: {
       type: String,
       default: "",

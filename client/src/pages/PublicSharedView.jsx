@@ -28,6 +28,7 @@ const PublicSharedView = () => {
 
   useEffect(() => {
     fetchResource();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hash]);
 
   const fetchResource = async () => {

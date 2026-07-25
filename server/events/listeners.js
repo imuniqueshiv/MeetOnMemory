@@ -1,5 +1,6 @@
 import eventBus from "../services/eventBus.js";
 import { createNotification } from "../services/notificationService.js";
+import { awardEngagementPoints } from "../services/OrganizationService.js";
 
 export const initListeners = (io) => {
   if (!io) {
@@ -38,6 +39,9 @@ export const initListeners = (io) => {
     // Notify the meeting uploader/owner if they exist on the object
     const userId = meeting.uploadedBy || meeting.owner;
     if (userId) {
+      if (meeting.organization) {
+        await awardEngagementPoints(userId, meeting.organization, 50);
+      }
       const formattedNotification = await createNotification(
         userId,
         "Minutes of Meeting Generated",
@@ -128,6 +132,23 @@ export const initListeners = (io) => {
       }
     },
   );
+
+  // ─────────────────────────────────────────────────────────────
+  // GAMIFICATION
+  // ─────────────────────────────────────────────────────────────
+
+  eventBus.on("policy.created", async (policy) => {
+    const userId = policy.uploadedBy;
+    if (userId && policy.organization) {
+      await awardEngagementPoints(userId, policy.organization, 20);
+    }
+  });
+
+  eventBus.on("actionItem.completed", async ({ userId, organizationId }) => {
+    if (userId && organizationId) {
+      await awardEngagementPoints(userId, organizationId, 10);
+    }
+  });
 
   console.log("✅ Event listeners initialized");
 };

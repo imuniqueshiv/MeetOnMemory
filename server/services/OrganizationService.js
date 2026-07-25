@@ -712,6 +712,90 @@ export const getOrganizations = async (visibility, page = 1, limit = 20) => {
 };
 
 /**
+ * ✅ Get Organization Settings for current user's org (or specified org)
+ */
+export const getOrganizationSettings = async (userId, orgIdOrSlug = null) => {
+  let targetOrgId = orgIdOrSlug;
+
+  if (!targetOrgId) {
+    const user = await userModel.findById(userId);
+    if (!user || !user.organization) {
+      throw new ValidationError("User is not part of an organization.");
+    }
+    targetOrgId = user.organization;
+  }
+
+  const isObjectIdVal = isValidObjectId(targetOrgId);
+  const query = isObjectIdVal
+    ? { _id: new mongoose.Types.ObjectId(String(targetOrgId)) }
+    : { slug: String(targetOrgId) };
+
+  const organization = await Organization.findOne(query)
+    .populate("owner", "name email profilePic")
+    .lean();
+
+  if (!organization) {
+    throw new NotFoundError("Organization not found.");
+  }
+
+  // Check user membership and role
+  const membership = await Membership.findOne({
+    user: userId,
+    organization: organization._id,
+    status: "active",
+  }).lean();
+
+  const isOwner = organization.owner?._id
+    ? organization.owner._id.toString() === userId.toString()
+    : organization.owner?.toString() === userId.toString();
+
+  if (!membership && !isOwner && !isLegacyMember(organization, userId)) {
+    throw new ForbiddenError(
+      "Not authorized to view settings for this organization.",
+    );
+  }
+
+  const userRole = isOwner
+    ? "owner"
+    : membership?.role
+      ? membership.role
+      : "member";
+
+  const canEdit = userRole === "owner" || userRole === "admin";
+
+  const memberCount = await Membership.countDocuments({
+    organization: organization._id,
+    status: "active",
+  });
+
+  return {
+    success: true,
+    organization: {
+      _id: organization._id,
+      name: organization.name,
+      slug: organization.slug,
+      description: organization.description || "",
+      about: organization.about || "",
+      website: organization.website || "",
+      contactEmail: organization.contactEmail || "",
+      industry: organization.industry || "",
+      location: organization.location || "",
+      logo: organization.logo || "",
+      visibility: organization.visibility || "private",
+      joinPolicy: organization.joinPolicy || "open",
+      owner: organization.owner,
+      memberCount:
+        memberCount || (organization.members ? organization.members.length : 1),
+      createdAt: organization.createdAt,
+      updatedAt: organization.updatedAt,
+      metadata: organization.metadata || {},
+    },
+    userRole,
+    canEdit,
+  };
+};
+
+/**
  * ✅ Get Organization by ID or Slug
  */
 export const getOrganizationById = async (idOrSlug) => {
@@ -728,7 +812,9 @@ export const getOrganizationById = async (idOrSlug) => {
     : { slug: String(idOrSlug) };
 
   const organization = await Organization.findOne(query)
-    .select("name slug description logo visibility owner createdAt")
+    .select(
+      "name slug description about website contactEmail industry location logo visibility joinPolicy owner createdAt updatedAt metadata",
+    )
     .populate("owner", "name email")
     .lean();
 
@@ -736,16 +822,40 @@ export const getOrganizationById = async (idOrSlug) => {
     throw new NotFoundError("Organization not found.");
   }
 
-  return { success: true, organization };
+  const memberCount = await Membership.countDocuments({
+    organization: organization._id,
+    status: "active",
+  });
+
+  return {
+    success: true,
+    organization: {
+      ...organization,
+      memberCount:
+        memberCount || (organization.members ? organization.members.length : 1),
+    },
+  };
 };
 
 /**
- * ✅ Update Organization
+ * ✅ Update Organization Settings
  */
 export const updateOrganization = async (
   userId,
   id,
-  { name, description, logo, visibility, joinPolicy, metadata },
+  {
+    name,
+    description,
+    about,
+    website,
+    contactEmail,
+    industry,
+    location,
+    logo,
+    visibility,
+    joinPolicy,
+    metadata,
+  },
 ) => {
   if (!isValidObjectId(id)) {
     throw new ValidationError("Invalid organization ID.");
@@ -777,21 +887,100 @@ export const updateOrganization = async (
   }
 
   // Check if user is owner or admin
+  const isOwner = organization.owner.toString() === userId.toString();
   const membership = await Membership.findOne({
     user: userId,
     organization: cleanId,
-    role: "admin",
+    role: { $in: ["admin", "owner"] },
     status: "active",
   }).lean();
 
-  if (!membership && organization.owner.toString() !== userId.toString()) {
+  if (!isOwner && !membership) {
     throw new ForbiddenError("Not authorized to update this organization.");
   }
 
-  // Update fields with sanitization
-  if (name) organization.name = String(name).trim().substring(0, 100);
-  if (description !== undefined)
-    organization.description = String(description).trim().substring(0, 500);
+  // Input validation & field updates
+  if (name !== undefined) {
+    const trimmedName = String(name).trim();
+    if (!trimmedName) {
+      throw new ValidationError("Organization name is required.");
+    }
+    if (trimmedName.length > 100) {
+      throw new ValidationError(
+        "Organization name cannot exceed 100 characters.",
+      );
+    }
+
+    // Check duplicate name
+    const escapedName = escapeRegex(trimmedName);
+    const existingOrg = await Organization.findOne({
+      _id: { $ne: cleanId },
+      name: { $regex: `^${escapedName}$`, $options: "i" },
+    });
+    if (existingOrg) {
+      throw new ConflictError("An organization with this name already exists.");
+    }
+    organization.name = trimmedName;
+  }
+
+  if (
+    contactEmail !== undefined &&
+    contactEmail !== null &&
+    contactEmail !== ""
+  ) {
+    const trimmedEmail = String(contactEmail).trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@.]+\.[^\s@.]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      throw new ValidationError("Invalid contact email format.");
+    }
+    organization.contactEmail = trimmedEmail;
+  } else if (contactEmail === "") {
+    organization.contactEmail = "";
+  }
+
+  if (website !== undefined && website !== null && website !== "") {
+    const trimmedWebsite = String(website).trim();
+    const urlPattern = /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/.*)?$/i;
+    if (!urlPattern.test(trimmedWebsite)) {
+      throw new ValidationError("Invalid website URL format.");
+    }
+    organization.website = trimmedWebsite;
+  } else if (website === "") {
+    organization.website = "";
+  }
+
+  if (description !== undefined) {
+    const trimmedDesc = String(description).trim();
+    if (trimmedDesc.length > 500) {
+      throw new ValidationError("Description cannot exceed 500 characters.");
+    }
+    organization.description = trimmedDesc;
+  }
+
+  if (about !== undefined) {
+    const trimmedAbout = String(about).trim();
+    if (trimmedAbout.length > 2000) {
+      throw new ValidationError("About bio cannot exceed 2000 characters.");
+    }
+    organization.about = trimmedAbout;
+  }
+
+  if (industry !== undefined) {
+    const trimmedInd = String(industry).trim();
+    if (trimmedInd.length > 100) {
+      throw new ValidationError("Industry cannot exceed 100 characters.");
+    }
+    organization.industry = trimmedInd;
+  }
+
+  if (location !== undefined) {
+    const trimmedLoc = String(location).trim();
+    if (trimmedLoc.length > 100) {
+      throw new ValidationError("Location cannot exceed 100 characters.");
+    }
+    organization.location = trimmedLoc;
+  }
+
   if (logo !== undefined)
     organization.logo = String(logo).trim().substring(0, 500);
   if (cleanVisibility) organization.visibility = cleanVisibility;
@@ -801,10 +990,41 @@ export const updateOrganization = async (
 
   await organization.save();
 
+  // Audit log
+  AuditService.logAction({
+    actorId: userId,
+    action: "ORGANIZATION_UPDATED",
+    entity: "Organization",
+    entityId: organization._id,
+    organizationId: organization._id,
+    details: { name: organization.name },
+  });
+
+  const memberCount = await Membership.countDocuments({
+    organization: organization._id,
+    status: "active",
+  });
+
+  let resultOrg = organization;
+  try {
+    const query = Organization.findById(organization._id);
+    if (query && typeof query.populate === "function") {
+      const pOrg = await query
+        .populate("owner", "name email profilePic")
+        .lean();
+      if (pOrg) resultOrg = pOrg;
+    }
+  } catch {
+    resultOrg = organization;
+  }
+
   return {
     success: true,
-    message: "Organization updated successfully.",
-    organization,
+    message: "Organization settings updated successfully.",
+    organization: {
+      ...resultOrg,
+      memberCount: memberCount || 1,
+    },
   };
 };
 
@@ -892,4 +1112,73 @@ export const getOrganizationMembersById = async (userId, id) => {
     members,
     organizationName: organization.name,
   };
+};
+
+/**
+ * ✅ Get Organization Leaderboard
+ */
+export const getOrganizationLeaderboard = async (userId, id) => {
+  if (!isValidObjectId(id)) {
+    throw new ValidationError("Invalid organization ID.");
+  }
+
+  const cleanId = new mongoose.Types.ObjectId(String(id));
+
+  const organization = await Organization.findById(cleanId);
+
+  if (!organization) {
+    throw new NotFoundError("Organization not found.");
+  }
+
+  // Check if user is a member
+  const membership = await Membership.findOne({
+    user: userId,
+    organization: cleanId,
+    status: "active",
+  }).lean();
+
+  if (!membership) {
+    throw new ForbiddenError("Not a member of this organization.");
+  }
+
+  // Get active memberships sorted by engagementScore descending
+  const memberships = await Membership.find({
+    organization: cleanId,
+    status: "active",
+  })
+    .populate("user", "name email profilePic isAccountVerified")
+    .sort({ engagementScore: -1 })
+    .limit(10)
+    .lean();
+
+  const topContributors = memberships.map((m) => ({
+    _id: m.user._id,
+    name: m.user.name,
+    email: m.user.email,
+    profilePic: m.user.profilePic,
+    engagementScore: m.engagementScore || 0,
+    role: m.role,
+  }));
+
+  return {
+    success: true,
+    topContributors,
+    organizationName: organization.name,
+  };
+};
+
+/**
+ * ✅ Award Gamification Points
+ */
+export const awardEngagementPoints = async (userId, organizationId, points) => {
+  if (!isValidObjectId(userId) || !isValidObjectId(organizationId)) return;
+
+  try {
+    await Membership.findOneAndUpdate(
+      { user: userId, organization: organizationId, status: "active" },
+      { $inc: { engagementScore: points } },
+    );
+  } catch (error) {
+    console.error("❌ Failed to award engagement points:", error);
+  }
 };

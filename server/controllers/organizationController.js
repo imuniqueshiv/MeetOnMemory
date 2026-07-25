@@ -310,6 +310,29 @@ export const getOrganizationById = async (req, res) => {
 };
 
 /**
+ * ✅ Get Organization Settings
+ * GET /api/organizations/current/settings
+ */
+export const getOrganizationSettings = async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return sendError(res, 401, "Authentication failed.");
+    }
+
+    const orgIdOrSlug = req.query.orgId || req.params.id || null;
+    const result = await OrganizationService.getOrganizationSettings(
+      req.user.id,
+      orgIdOrSlug,
+    );
+
+    sendSuccess(res, result);
+  } catch (error) {
+    console.error("❌ Error fetching organization settings:", error);
+    sendError(res, error.statusCode || 500, error.message || "Server error");
+  }
+};
+
+/**
  * ✅ Update Organization
  * PUT /api/organizations/:id
  */
@@ -372,6 +395,35 @@ export const getOrganizationMembersById = async (req, res) => {
     sendSuccess(res, result);
   } catch (error) {
     console.error("❌ Error fetching organization members:", error);
+    sendError(res, error.statusCode || 500, error.message || "Server error");
+  }
+};
+
+/**
+ * ✅ Get Organization Leaderboard
+ * GET /api/organizations/:id/leaderboard
+ */
+export const getOrganizationLeaderboard = async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return sendError(res, 401, "Authentication failed.");
+    }
+
+    const orgId =
+      req.params.id ||
+      (req.user.organization ? req.user.organization.toString() : null);
+    if (!orgId) {
+      return sendError(res, 400, "Organization ID is required.");
+    }
+
+    const result = await OrganizationService.getOrganizationLeaderboard(
+      req.user.id,
+      orgId,
+    );
+
+    sendSuccess(res, result);
+  } catch (error) {
+    console.error("❌ Error fetching organization leaderboard:", error);
     sendError(res, error.statusCode || 500, error.message || "Server error");
   }
 };

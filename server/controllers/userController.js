@@ -19,6 +19,7 @@ const formatUserResponse = (user) => {
     organization: user.organization,
     profilePic: user.profilePic || "",
     bio: user.bio || "",
+    dashboardPreferences: user.dashboardPreferences || null,
     createdAt: user.createdAt,
   };
 };
@@ -46,6 +47,69 @@ export const getUserData = async (req, res) => {
     }
   } catch (error) {
     console.error("Error in getUserData:", error);
+    sendError(res, 500, "Server error");
+  }
+};
+
+// @desc    Get dashboard preferences
+// @route   GET /api/user/preferences/dashboard
+// @access  Private
+export const getDashboardPreferences = async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return sendError(res, 401, "Authentication error, user ID not found.");
+    }
+    const userId = String(req.user.id);
+    const user = await userModel
+      .findById(userId)
+      .select("dashboardPreferences");
+
+    if (user) {
+      sendSuccess(res, {
+        dashboardPreferences: user.dashboardPreferences || null,
+      });
+    } else {
+      return sendError(res, 404, "User not found");
+    }
+  } catch (error) {
+    console.error("Error in getDashboardPreferences:", error);
+    sendError(res, 500, "Server error");
+  }
+};
+
+// @desc    Update dashboard preferences
+// @route   PUT /api/user/preferences/dashboard
+// @access  Private
+export const updateDashboardPreferences = async (req, res) => {
+  try {
+    const { dashboardPreferences } = req.body;
+
+    if (!req.user || !req.user.id) {
+      return sendError(res, 401, "Authentication error, user ID not found.");
+    }
+
+    const userId = String(req.user.id);
+    const updatedUser = await userModel.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          dashboardPreferences: dashboardPreferences,
+        },
+      },
+      { new: true },
+    );
+
+    if (!updatedUser) {
+      return sendError(res, 404, "User not found.");
+    }
+
+    sendSuccess(
+      res,
+      { dashboardPreferences: updatedUser.dashboardPreferences },
+      "Dashboard preferences updated successfully.",
+    );
+  } catch (error) {
+    console.error("Error in updateDashboardPreferences:", error);
     sendError(res, 500, "Server error");
   }
 };

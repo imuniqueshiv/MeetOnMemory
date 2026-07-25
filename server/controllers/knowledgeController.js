@@ -10,6 +10,7 @@ import {
 } from "../services/importanceScoringService.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
 import { recalculateImportanceQueue } from "../services/queueService.js";
+import eventBus from "../services/eventBus.js";
 
 const ALLOWED_SORT_FIELDS = {
   importance: { importanceScore: -1 },
@@ -367,6 +368,14 @@ export const updateActionItemStatus = async (req, res) => {
     item.resolvedAt = safeStatus === "resolved" ? new Date() : null;
 
     await item.save();
+
+    if (safeStatus === "resolved" && req.user?.id) {
+      eventBus.emit("actionItem.completed", {
+        userId: req.user.id,
+        organizationId: item.organization,
+        actionItemId: item._id,
+      });
+    }
 
     sendSuccess(res, { actionItem: item });
   } catch (error) {

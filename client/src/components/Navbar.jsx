@@ -628,6 +628,16 @@ const Navbar = () => {
                         <button
                           onClick={() => {
                             setOrgDropdownOpen(false);
+                            navigate("/organization/settings");
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"
+                        >
+                          <Settings className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+                          Organization Settings
+                        </button>
+                        <button
+                          onClick={() => {
+                            setOrgDropdownOpen(false);
                             navigate("/create-organization");
                           }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"

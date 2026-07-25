@@ -274,6 +274,7 @@ export const uploadAndProcessPolicy = async (
 
   // Webhook event
   try {
+    eventBus.emit("policy.created", policy);
     eventBus.emit("policy.updated", policy);
   } catch (evtErr) {
     console.error("⚠️ Failed to emit policy.updated event:", evtErr.message);

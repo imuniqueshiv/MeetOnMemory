@@ -9,8 +9,15 @@ import {
 import { indexTranscriptChunks } from "../utils/transcriptEmbeddingUtils.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
 import fs from "fs";
+import path from "path";
+import os from "os";
+import OpenAI from "openai";
 
 import { sentimentAnalysisQueue } from "../services/queueService.js";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || "dummy-key-for-tests",
+});
 
 /**
  * @desc  Start a recording session for a meeting
@@ -234,6 +241,111 @@ export const uploadTranscriptAudio = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || "Failed to upload audio",
+    });
+  }
+};
+
+/**
+ * @desc  Upload audio chunk for live transcript and append
+ * @route POST /api/meetings/:meetingId/transcript/chunk
+ * @access Private
+ */
+export const uploadTranscriptChunk = async (req, res) => {
+  let tempFilePath = null;
+  try {
+    const { meetingId } = req.params;
+    const userId = req.user.id;
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: "No audio chunk provided",
+      });
+    }
+
+    // Verify meeting exists and user has access
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({
+        success: false,
+        message: "Meeting not found",
+      });
+    }
+
+    // Check if user is owner or in same org
+    const isOwner = meeting.uploadedBy?.toString() === userId.toString();
+    const isInSameOrg =
+      meeting.organization &&
+      req.user.organization &&
+      meeting.organization.toString() === req.user.organization.toString();
+
+    if (!isOwner && !isInSameOrg) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You don't have access to this meeting",
+      });
+    }
+
+    let transcript = await Transcript.findOne({ meeting: meetingId });
+    if (!transcript) {
+      // Create transcript if it doesn't exist yet
+      transcript = new Transcript({
+        meeting: meetingId,
+        status: "active",
+        language: "en",
+      });
+    }
+
+    // Write buffer to temp file for OpenAI Whisper
+    const tempFileName = `chunk_${Date.now()}_${Math.floor(Math.random() * 1000)}.webm`;
+    tempFilePath = path.join(os.tmpdir(), tempFileName);
+    fs.writeFileSync(tempFilePath, req.file.buffer);
+
+    // Call OpenAI Whisper
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(tempFilePath),
+      model: "whisper-1",
+    });
+
+    const newText = transcription.text;
+
+    if (newText && newText.trim().length > 0) {
+      const segment = {
+        text: newText,
+        speaker: "Speaker", // Simple chunk logic might not diarize accurately
+        startTime: transcript.duration,
+        endTime: transcript.duration + 5, // Rough estimate
+        confidence: 1.0,
+      };
+
+      transcript.segments.push(segment);
+      transcript.fullText = (transcript.fullText + " " + newText).trim();
+      transcript.duration += 5; // Rough estimate of chunk duration
+      await transcript.save();
+
+      // Update Meeting
+      meeting.transcript = transcript.fullText;
+      await meeting.save();
+    }
+
+    // Clean up temp file
+    if (fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+
+    res.status(200).json({
+      success: true,
+      text: newText,
+      fullText: transcript.fullText,
+    });
+  } catch (error) {
+    console.error("Error processing transcript chunk:", error);
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to process audio chunk",
     });
   }
 };

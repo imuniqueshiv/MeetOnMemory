@@ -56,6 +56,8 @@ const meetingSchema = new mongoose.Schema(
     agendaItems: [
       {
         text: { type: String, required: true },
+        description: { type: String, default: "" },
+        duration: { type: Number, default: null },
       },
     ],
     policyDetails: {

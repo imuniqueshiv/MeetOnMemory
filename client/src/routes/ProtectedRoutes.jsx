@@ -10,6 +10,7 @@ import OrganizationHub from "../pages/OrganizationHub.jsx";
 import JoinOrganizationPage from "../pages/JoinOrganizationPage.jsx";
 import CreateOrganizationPage from "../pages/CreateOrganizationPage.jsx";
 import BrowseOrganizations from "../pages/BrowseOrganizations/BrowseOrganizations.jsx";
+import OrganizationSettings from "../pages/OrganizationSettings.jsx";
 import Dashboard from "../pages/Dashboard.jsx";
 
 // Feature Pages
@@ -98,6 +99,30 @@ const ProtectedRoutes = (
       element={
         <ProtectedRoute>
           <CreateOrganizationPage />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/organization/settings"
+      element={
+        <ProtectedRoute resource="organizations" action="view">
+          <OrganizationSettings />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/organizations/settings"
+      element={
+        <ProtectedRoute resource="organizations" action="view">
+          <OrganizationSettings />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/organization-settings"
+      element={
+        <ProtectedRoute resource="organizations" action="view">
+          <OrganizationSettings />
         </ProtectedRoute>
       }
     />
