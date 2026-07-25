@@ -247,11 +247,12 @@ describe("OrganizationService", () => {
     });
 
     it("rejects direct joining of an invite-only organization", async () => {
-      Organization.findById.mockResolvedValue({
+      const mockOrganization = {
         _id: "507f1f77bcf86cd799439011",
         visibility: "invite-only",
         members: [],
-      });
+      };
+      Organization.findById.mockResolvedValue(mockOrganization);
       Membership.findOne.mockResolvedValue(null);
       MembershipRequest.findOne.mockResolvedValue(null);
 
