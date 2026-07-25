@@ -37,6 +37,10 @@ async function makeMeeting(overrides = {}) {
 }
 
 describe("hybridRetrievalService", () => {
+  beforeAll(async () => {
+    await mongoose.connect(process.env.TEST_MONGODB_URI);
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockSearchVectorStore.mockResolvedValue([]); // no Pinecone in unit tests

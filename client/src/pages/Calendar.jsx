@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar.jsx";
 import { useCalendarEvents } from "../hooks/useCalendarEvents";
@@ -13,6 +13,7 @@ import {
   Plus,
   Loader2,
   Inbox,
+  Cloud,
 } from "lucide-react";
 
 const Calendar = () => {
@@ -32,9 +33,22 @@ const Calendar = () => {
     setTypeFilter,
     orgFilter,
     setOrgFilter,
+    showExternalEvents,
+    setShowExternalEvents,
     filteredMeetings,
     uniqueOrgs,
   } = useCalendarEvents();
+
+  // Handle outside click to close modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setSelectedMeeting(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [setSelectedMeeting]);
 
   // Navigation helpers
   const handlePrev = () => {
@@ -186,6 +200,19 @@ const Calendar = () => {
               <Filter className="w-3.5 h-3.5 text-slate-400" />
               <span>Filters:</span>
             </div>
+
+            {/* External events toggle */}
+            <button
+              onClick={() => setShowExternalEvents(!showExternalEvents)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                showExternalEvents
+                  ? "bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300"
+                  : "bg-slate-50 dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 text-slate-600 dark:text-slate-400"
+              }`}
+            >
+              <Cloud className="w-3.5 h-3.5" />
+              <span>External Events</span>
+            </button>
 
             {/* Date filter (Jump to Date) */}
             <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-lg px-2.5 py-1 text-slate-700 dark:text-slate-300 select-none">

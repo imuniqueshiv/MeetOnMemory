@@ -34,6 +34,11 @@ const organizationSchema = new mongoose.Schema(
       enum: ["public", "private", "invite-only"],
       default: "private",
     },
+    joinPolicy: {
+      type: String,
+      enum: ["open", "approval_required", "invite_only"],
+      default: "open",
+    },
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "user",
@@ -81,7 +86,7 @@ const organizationSchema = new mongoose.Schema(
 );
 
 // Indexes for performance
-organizationSchema.index({ slug: 1 });
+
 organizationSchema.index({ owner: 1 });
 organizationSchema.index({ visibility: 1 });
 organizationSchema.index({ createdAt: -1 });

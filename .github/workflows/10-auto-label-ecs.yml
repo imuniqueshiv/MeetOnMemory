@@ -1,0 +1,30 @@
+name: "10 Auto Label ECSoC26"
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
+
+concurrency:
+  group: label-ecs-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  auto-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Apply ECSoC26 label if eligible
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { autoLabelEcs } = await import(`${process.cwd()}/.github/scripts/label-ecs.js`);
+            await autoLabelEcs({ github, context, core });

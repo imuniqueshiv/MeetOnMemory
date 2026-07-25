@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { organizationApi } from "../../services";
 import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar.jsx";
 import {
   Search,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 
 const BrowseOrganizations = () => {
+  const navigate = useNavigate();
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -159,9 +161,8 @@ const BrowseOrganizations = () => {
   };
 
   // Handle view profile
-  const handleViewProfile = () => {
-    // Navigate to organization profile (to be implemented in separate issue)
-    toast.info("Organization profile page coming soon");
+  const handleViewProfile = (slug) => {
+    navigate(`/organizations/${slug}`);
   };
 
   return (
@@ -388,7 +389,7 @@ const BrowseOrganizations = () => {
 
                       {/* View Profile Button */}
                       <button
-                        onClick={handleViewProfile}
+                        onClick={() => handleViewProfile(org.slug)}
                         className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all hover:shadow-lg"
                       >
                         View Profile

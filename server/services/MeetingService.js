@@ -11,20 +11,9 @@
 import fs from "fs";
 import mongoose from "mongoose";
 import User from "../models/userModel.js";
-import {
-  indexMeeting,
-  deleteMeetingFromPinecone,
-} from "../utils/embeddingUtils.js";
-import {
-  processStructuredMoM,
-  detectResolutions,
-} from "./knowledgeGraphService.js";
+import Membership from "../models/membershipModel.js";
 import { captureSnapshot } from "./graphSnapshotService.js";
-import { checkMeetingDecisionsAgainstPolicies } from "./policyComplianceService.js";
-import { createAndPushNotification } from "./notificationService.js";
 import eventBus from "./eventBus.js";
-import * as calendarService from "./calendarService.js";
-import { aiQueue } from "./queueService.js";
 import {
   NotFoundError,
   ValidationError,
@@ -33,14 +22,36 @@ import {
 
 // Imported specific services and utils
 import { validatePath } from "../utils/fileUtils.js";
-import { transcribeFile, transcribeAudioUrl } from "./TranscriptionService.js";
-import {
-  generateMoMWithAI,
-  normalizeMoM,
-  buildHumanReadableMoM,
-} from "./GenerativeAIService.js";
 import * as MeetingStorageService from "./MeetingStorageService.js";
 
+// AI / calendar / queue / transcription stacks are loaded on demand. Static
+// imports pull @xenova/transformers, axios diamonds, and related graphs into
+// MeetingService's eager ESM link graph and trigger "module is already linked"
+// under Jest's VM linker.
+const loadEmbeddingUtils = () => import("../utils/embeddingUtils.js");
+const loadKnowledgeGraph = () => import("./knowledgeGraphService.js");
+const loadPolicyCompliance = () => import("./policyComplianceService.js");
+const loadGenerativeAI = () => import("./GenerativeAIService.js");
+const loadCalendarService = () => import("./calendarService.js");
+const loadQueueService = () => import("./queueService.js");
+const loadTranscriptionService = () => import("./TranscriptionService.js");
+const scheduleIndexMeeting = (meeting) => {
+  loadEmbeddingUtils()
+    .then(({ indexMeeting }) => indexMeeting(meeting))
+    .catch((err) =>
+      console.error("⚠️ indexMeeting error (continuing):", err.message),
+    );
+};
+
+const scheduleDeleteFromPinecone = (meetingId) => {
+  loadEmbeddingUtils()
+    .then(({ deleteMeetingFromPinecone }) =>
+      deleteMeetingFromPinecone(meetingId),
+    )
+    .catch((err) =>
+      console.error("⚠️ Pinecone deletion error (continuing):", err.message),
+    );
+};
 export const isValidObjectId = (id) =>
   typeof id === "string" && mongoose.Types.ObjectId.isValid(id);
 
@@ -52,6 +63,11 @@ const _runKnowledgeGraph = (meetingDoc, mom) => {
   if (!meetingDoc) return;
   (async () => {
     try {
+      const [
+        { detectResolutions, processStructuredMoM },
+        { checkMeetingDecisionsAgainstPolicies },
+      ] = await Promise.all([loadKnowledgeGraph(), loadPolicyCompliance()]);
+
       await detectResolutions(meetingDoc, mom);
       const kgResults = await processStructuredMoM(meetingDoc, mom);
       try {
@@ -94,7 +110,7 @@ const _runKnowledgeGraph = (meetingDoc, mom) => {
 // Public service methods
 // ═══════════════════════════════════════════════════════════════
 
-export const createMeeting = async (uploaderId, orgId, data, io) => {
+export const createMeeting = async (uploaderId, orgId, data) => {
   const meeting = await MeetingStorageService.createMeetingRecord({
     uploadedBy: uploaderId,
     organization: orgId || null,
@@ -116,43 +132,64 @@ export const createMeeting = async (uploaderId, orgId, data, io) => {
     status: "uploaded",
   });
 
-  indexMeeting(meeting).catch((err) =>
-    console.error("⚠️ indexMeeting error (continuing):", err.message),
-  );
+  scheduleIndexMeeting(meeting);
 
-  if (orgId && io) {
-    User.find({ organization: orgId, _id: { $ne: uploaderId } })
-      .then(async (members) => {
-        for (const member of members) {
-          await createAndPushNotification(
-            io,
-            member._id,
-            "New Meeting Scheduled",
-            `A new meeting "${meeting.title}" has been scheduled.`,
-            "meetings",
-            `/meeting/${meeting._id}`,
-            "View Details",
-          );
-        }
+  if (orgId) {
+    Membership.find({
+      organization: orgId,
+      status: "active",
+      user: { $ne: uploaderId },
+    })
+      .populate("user")
+      .then(async (memberships) => {
+        eventBus.emit("meeting.created", {
+          meeting,
+          membersToNotify: memberships,
+        });
       })
       .catch((err) =>
         console.error("⚠️ Notification error (continuing):", err.message),
       );
   }
 
-  User.findById(uploaderId)
-    .then(async (user) => {
-      if (user?.calendarSyncEnabled) {
-        const eventId = await calendarService.createEvent(user, meeting);
-        if (eventId) {
-          meeting.googleEventId = eventId;
-          await meeting.save();
-        }
+  // Sync with connected calendars (Google and Microsoft)
+  (async () => {
+    try {
+      const calendarService = await loadCalendarService();
+
+      // Sync with Google Calendar
+      const googleEventId = await calendarService.createGoogleEvent(
+        uploaderId,
+        meeting,
+      );
+      if (googleEventId) {
+        meeting.calendarEvents = meeting.calendarEvents || {};
+        meeting.calendarEvents.google = {
+          eventId: googleEventId,
+          syncedAt: new Date(),
+        };
+        // Update legacy field for backward compatibility
+        meeting.googleEventId = googleEventId;
+        await meeting.save();
       }
-    })
-    .catch((err) =>
-      console.error("⚠️ Google Calendar sync error (continuing):", err.message),
-    );
+
+      // Sync with Microsoft Calendar
+      const microsoftEventId = await calendarService.createMicrosoftEvent(
+        uploaderId,
+        meeting,
+      );
+      if (microsoftEventId) {
+        meeting.calendarEvents = meeting.calendarEvents || {};
+        meeting.calendarEvents.microsoft = {
+          eventId: microsoftEventId,
+          syncedAt: new Date(),
+        };
+        await meeting.save();
+      }
+    } catch (err) {
+      console.error("⚠️ Calendar sync error (continuing):", err.message);
+    }
+  })();
 
   try {
     eventBus.emit("meeting.created", meeting);
@@ -172,6 +209,7 @@ export const uploadAndTranscribeMeeting = async (
   const filePath = file.path;
   console.log("🎙️ Starting transcription...");
 
+  const { transcribeFile } = await loadTranscriptionService();
   const transcriptText = await transcribeFile(filePath);
   console.log("✅ Transcription completed");
 
@@ -188,9 +226,7 @@ export const uploadAndTranscribeMeeting = async (
     status: "completed",
   });
 
-  indexMeeting(meeting).catch((err) =>
-    console.error("⚠️ indexMeeting error (continuing):", err.message),
-  );
+  scheduleIndexMeeting(meeting);
 
   try {
     fs.unlinkSync(validatePath(filePath));
@@ -222,6 +258,7 @@ export const uploadAudioForExistingMeeting = async (
   const filePath = file.path;
   console.log("🎙️ Transcribing audio for existing meeting...");
 
+  const { transcribeFile } = await loadTranscriptionService();
   const transcriptText = await transcribeFile(filePath);
   console.log("✅ Transcription completed");
 
@@ -230,9 +267,7 @@ export const uploadAudioForExistingMeeting = async (
   meeting.status = "completed";
   await meeting.save();
 
-  indexMeeting(meeting).catch((err) =>
-    console.error("⚠️ indexMeeting error (continuing):", err.message),
-  );
+  scheduleIndexMeeting(meeting);
 
   try {
     fs.unlinkSync(validatePath(filePath));
@@ -249,7 +284,6 @@ export const generateMeetingMoM = async (
   transcript,
   date,
   title,
-  io,
 ) => {
   const user = await User.findById(userId);
   if (!user) throw new ForbiddenError("User not found");
@@ -269,11 +303,15 @@ export const generateMeetingMoM = async (
     if (!meeting) throw new NotFoundError("Meeting not found");
 
     const hasAccess =
-      (meeting.organization && meeting.organization.toString() === user.organization.toString()) ||
-      (meeting.uploadedBy && meeting.uploadedBy.toString() === userId.toString());
+      (meeting.organization &&
+        meeting.organization.toString() === user.organization.toString()) ||
+      (meeting.uploadedBy &&
+        meeting.uploadedBy.toString() === userId.toString());
 
     if (!hasAccess) {
-      throw new ForbiddenError("Forbidden: You do not have access to this meeting");
+      throw new ForbiddenError(
+        "Forbidden: You do not have access to this meeting",
+      );
     }
 
     if (!textToSummarize) {
@@ -285,22 +323,35 @@ export const generateMeetingMoM = async (
     throw new ValidationError("No transcript provided.");
   }
 
+  const { aiQueue } = await loadQueueService();
   if (aiQueue && aiQueue.isActive) {
     console.log(
       `🚀 Queueing MoM generation job for ${meetingId || "transcript-only"}...`,
     );
-    await aiQueue.add("generate-mom", {
-      meetingId,
-      transcript: textToSummarize,
-      date,
-      title,
-      userId,
-    });
+    await aiQueue.add(
+      "generate-mom",
+      {
+        meetingId,
+        transcript: textToSummarize,
+        date,
+        title,
+        userId,
+      },
+      {
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 5000, // Wait 5s, then 10s on retries
+        },
+      },
+    );
     return { queued: true };
   }
 
   console.log(`🧠 Generating MoM for ${meetingId || "transcript-only"}...`);
 
+  const { generateMoMWithAI, normalizeMoM, buildHumanReadableMoM } =
+    await loadGenerativeAI();
   const structured = await generateMoMWithAI(textToSummarize, date, title);
   if (!structured) throw new Error("No summary generated");
 
@@ -324,6 +375,7 @@ export const generateMeetingMoM = async (
       structuredMoM: mom,
       status: "completed",
     });
+    const { indexMeeting } = await loadEmbeddingUtils();
     await indexMeeting(meetingToUpdate);
   } else if (meetingToUpdate) {
     meetingToUpdate.title = mom.title;
@@ -336,27 +388,17 @@ export const generateMeetingMoM = async (
   console.log("✅ MoM saved to database");
 
   try {
-    if (!meetingId) eventBus.emit("meeting.created", meetingToUpdate);
+    if (!meetingId)
+      eventBus.emit("meeting.created", {
+        meeting: meetingToUpdate,
+        membersToNotify: [],
+      }); // Or we could pass actual members, but here it's an ad-hoc meeting
     eventBus.emit("mom.generated", meetingToUpdate);
   } catch (evtErr) {
     console.error("⚠️ Failed to emit webhook events:", evtErr.message);
   }
 
   _runKnowledgeGraph(meetingToUpdate, mom);
-
-  if (io && meetingToUpdate?.uploadedBy) {
-    createAndPushNotification(
-      io,
-      meetingToUpdate.uploadedBy,
-      "Minutes of Meeting Generated",
-      `MoM for "${meetingToUpdate.title}" is ready.`,
-      "ai_processing",
-      `/meeting/${meetingToUpdate._id}`,
-      "View MoM",
-    ).catch((err) =>
-      console.error("⚠️ Notification error (continuing):", err.message),
-    );
-  }
 
   return {
     queued: false,
@@ -367,7 +409,13 @@ export const generateMeetingMoM = async (
 };
 
 export const getAllMeetings = async (userId, orgId, queryParams = {}) => {
-  const { page = 1, limit = 10, startDate, endDate } = queryParams;
+  const {
+    page = 1,
+    limit = 10,
+    startDate,
+    endDate,
+    includeArchived,
+  } = queryParams;
 
   const queryOptions = [{ uploadedBy: userId }];
   if (orgId) {
@@ -375,6 +423,10 @@ export const getAllMeetings = async (userId, orgId, queryParams = {}) => {
   }
 
   const query = { $or: queryOptions };
+
+  if (!includeArchived) {
+    query.archived = { $ne: true };
+  }
 
   if (startDate || endDate) {
     query.date = {};
@@ -447,21 +499,39 @@ export const updateMeeting = async (userId, meetingId, data, doc = null) => {
 
   await meeting.save();
 
-  indexMeeting(meeting).catch((err) =>
-    console.error("⚠️ indexMeeting error (continuing):", err.message),
-  );
-
-  if (meeting.googleEventId) {
-    User.findById(userId)
-      .then(async (user) => {
-        if (user?.calendarSyncEnabled) {
-          await calendarService.updateEvent(user, meeting);
-        }
-      })
-      .catch((err) =>
-        console.error("⚠️ Google Calendar update sync error:", err.message),
-      );
+  try {
+    eventBus.emit("meeting.updated", meeting);
+  } catch (evtErr) {
+    console.error("⚠️ Failed to emit meeting.updated event:", evtErr.message);
   }
+
+  scheduleIndexMeeting(meeting);
+
+  // Sync updates with connected calendars
+  (async () => {
+    try {
+      const calendarService = await loadCalendarService();
+
+      // Update Google Calendar event
+      if (meeting.calendarEvents?.google?.eventId) {
+        await calendarService.updateGoogleEvent(
+          userId,
+          meeting,
+          meeting.calendarEvents.google.eventId,
+        );
+      }
+      // Update Microsoft Calendar event
+      if (meeting.calendarEvents?.microsoft?.eventId) {
+        await calendarService.updateMicrosoftEvent(
+          userId,
+          meeting,
+          meeting.calendarEvents.microsoft.eventId,
+        );
+      }
+    } catch (err) {
+      console.error("⚠️ Calendar update sync error:", err.message);
+    }
+  })();
 
   return meeting;
 };
@@ -470,27 +540,39 @@ export const deleteMeeting = async (doc, meetingId) => {
   let deleted;
 
   if (doc) {
-    const googleEventId = doc.googleEventId;
+    const googleEventId =
+      doc.calendarEvents?.google?.eventId || doc.googleEventId;
+    const microsoftEventId = doc.calendarEvents?.microsoft?.eventId;
     const uploadedBy = doc.uploadedBy;
     const meetingIdToDelete = doc._id.toString();
     await doc.deleteOne();
 
-    // Delete from Pinecone (fire-and-forget)
-    deleteMeetingFromPinecone(meetingIdToDelete).catch((err) =>
-      console.error("⚠️ Pinecone deletion error (continuing):", err.message),
-    );
-
-    if (googleEventId) {
-      User.findById(uploadedBy)
-        .then(async (user) => {
-          if (user?.calendarSyncEnabled) {
-            await calendarService.deleteEvent(user, googleEventId);
-          }
-        })
-        .catch((err) =>
-          console.error("⚠️ Calendar delete sync error:", err.message),
-        );
+    try {
+      eventBus.emit("meeting.deleted", doc);
+    } catch (evtErr) {
+      console.error("⚠️ Failed to emit meeting.deleted event:", evtErr.message);
     }
+
+    // Delete from Pinecone (fire-and-forget)
+    scheduleDeleteFromPinecone(meetingIdToDelete);
+
+    // Delete from connected calendars
+    (async () => {
+      try {
+        const calendarService = await loadCalendarService();
+        if (googleEventId) {
+          await calendarService.deleteGoogleEvent(uploadedBy, googleEventId);
+        }
+        if (microsoftEventId) {
+          await calendarService.deleteMicrosoftEvent(
+            uploadedBy,
+            microsoftEventId,
+          );
+        }
+      } catch (err) {
+        console.error("⚠️ Calendar delete sync error:", err.message);
+      }
+    })();
     return;
   }
 
@@ -501,22 +583,66 @@ export const deleteMeeting = async (doc, meetingId) => {
   deleted = await MeetingStorageService.deleteMeetingById(meetingId);
   if (!deleted) throw new NotFoundError("Meeting not found");
 
-  // Delete from Pinecone (fire-and-forget)
-  deleteMeetingFromPinecone(meetingId).catch((err) =>
-    console.error("⚠️ Pinecone deletion error (continuing):", err.message),
-  );
-
-  if (deleted.googleEventId) {
-    User.findById(deleted.uploadedBy)
-      .then(async (user) => {
-        if (user?.calendarSyncEnabled) {
-          await calendarService.deleteEvent(user, deleted.googleEventId);
-        }
-      })
-      .catch((err) =>
-        console.error("⚠️ Calendar delete sync error:", err.message),
-      );
+  try {
+    eventBus.emit("meeting.deleted", deleted);
+  } catch (evtErr) {
+    console.error("⚠️ Failed to emit meeting.deleted event:", evtErr.message);
   }
+
+  // Delete from Pinecone (fire-and-forget)
+  scheduleDeleteFromPinecone(meetingId);
+
+  // Delete from connected calendars
+  (async () => {
+    try {
+      const calendarService = await loadCalendarService();
+      const googleEventId =
+        deleted.calendarEvents?.google?.eventId || deleted.googleEventId;
+      const microsoftEventId = deleted.calendarEvents?.microsoft?.eventId;
+      if (googleEventId) {
+        await calendarService.deleteGoogleEvent(
+          deleted.uploadedBy,
+          googleEventId,
+        );
+      }
+      if (microsoftEventId) {
+        await calendarService.deleteMicrosoftEvent(
+          deleted.uploadedBy,
+          microsoftEventId,
+        );
+      }
+    } catch (err) {
+      console.error("⚠️ Calendar delete sync error:", err.message);
+    }
+  })();
+};
+
+export const archiveMeeting = async (meetingId) => {
+  if (!isValidObjectId(meetingId)) {
+    throw new ValidationError("Invalid meeting ID");
+  }
+
+  const meeting = await MeetingStorageService.findMeetingById(meetingId);
+  if (!meeting) throw new NotFoundError("Meeting not found");
+
+  meeting.archived = true;
+  await meeting.save();
+
+  return meeting;
+};
+
+export const restoreMeeting = async (meetingId) => {
+  if (!isValidObjectId(meetingId)) {
+    throw new ValidationError("Invalid meeting ID");
+  }
+
+  const meeting = await MeetingStorageService.findMeetingById(meetingId);
+  if (!meeting) throw new NotFoundError("Meeting not found");
+
+  meeting.archived = false;
+  await meeting.save();
+
+  return meeting;
 };
 
 export const searchMeetings = async (
@@ -528,6 +654,7 @@ export const searchMeetings = async (
 
   if (audioUrl && !searchQuery) {
     console.log("🎧 Transcribing audioUrl for voice search...");
+    const { transcribeAudioUrl } = await loadTranscriptionService();
     searchQuery = await transcribeAudioUrl(audioUrl);
     console.log("🔊 Voice transcribed to text:", searchQuery);
   }
@@ -548,14 +675,15 @@ export const searchMeetings = async (
     }
   }
 
-  const results =
-    await MeetingStorageService.searchMeetingsRecords(searchQuery, filter);
+  const results = await MeetingStorageService.searchMeetingsRecords(
+    searchQuery,
+    filter,
+  );
 
   return { query: searchQuery, count: results.length, results };
 };
 
 export const notifyLiveMeetingParticipants = async (
-  io,
   uploaderId,
   roomId,
   participants,
@@ -572,17 +700,12 @@ export const notifyLiveMeetingParticipants = async (
     _id: { $ne: uploaderId },
   });
 
-  for (const user of dbUsers) {
-    await createAndPushNotification(
-      io,
-      user._id,
-      "Live Meeting Started",
-      "You have been invited to join a live meeting.",
-      "meetings",
-      `/meeting-room/${roomId}`,
-      "Join Now",
-    );
-  }
+  eventBus.emit("live_meeting.notified", {
+    uploaderId,
+    roomId,
+    participants: dbUsers,
+    orgId,
+  });
 
   return { count: dbUsers.length };
 };

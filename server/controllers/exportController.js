@@ -1,5 +1,6 @@
 import Meeting from "../models/meetingModel.js";
 import ExportService from "../services/ExportService.js";
+import { sendError } from "../utils/responseHandler.js";
 
 export const exportMeeting = async (req, res) => {
   try {
@@ -9,9 +10,7 @@ export const exportMeeting = async (req, res) => {
     const meeting = await Meeting.findById(id);
 
     if (!meeting) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Meeting not found" });
+      return sendError(res, 404, "Meeting not found");
     }
 
     const title =
@@ -46,18 +45,12 @@ export const exportMeeting = async (req, res) => {
       );
       res.send(md);
     } else {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid format requested" });
+      return sendError(res, 400, "Invalid format requested");
     }
   } catch (error) {
     console.error("Export error:", error);
     if (!res.headersSent) {
-      res.status(500).json({
-        success: false,
-        message: "Export failed",
-        error: error.message,
-      });
+      sendError(res, 500, "Export failed", { error: error.message });
     } else {
       res.end();
     }

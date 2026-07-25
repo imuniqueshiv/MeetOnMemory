@@ -1,11 +1,12 @@
-import { getAuthUrl } from "../services/calendarService.js";
+import { getGoogleAuthUrl } from "../services/calendarService.js";
 import AuthService from "../services/AuthService.js";
+import { sendSuccess, sendError } from "../utils/responseHandler.js";
 
 // --------------------------- HELPERS ---------------------------
 const validateFields = (fields, res) => {
   const missing = Object.entries(fields).filter(([_, val]) => !val);
   if (missing.length > 0) {
-    res.json({ success: false, message: "Missing details" });
+    sendError(res, 400, "Missing details");
     return false;
   }
   return true;
@@ -26,12 +27,10 @@ export const register = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    return res
-      .status(201)
-      .json({ success: true, message: "Registration successful" });
+    return sendSuccess(res, {}, "Registration successful", 201);
   } catch (error) {
     console.error("Register error:", error);
-    res.json({ success: false, message: error.message });
+    sendError(res, 400, error.message);
   }
 };
 
@@ -50,10 +49,10 @@ export const login = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    return res.json({ success: true, message: "Login successful" });
+    return sendSuccess(res, {}, "Login successful");
   } catch (error) {
     console.error("Login error:", error);
-    res.json({ success: false, message: error.message });
+    sendError(res, 400, error.message);
   }
 };
 
@@ -65,9 +64,9 @@ export const logout = async (req, res) => {
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
     });
-    return res.json({ success: true, message: "Logged out successfully" });
+    return sendSuccess(res, {}, "Logged out successfully");
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    sendError(res, 400, error.message);
   }
 };
 
@@ -75,17 +74,20 @@ export const logout = async (req, res) => {
 export const sendVerifyOtp = async (req, res) => {
   try {
     const { userId } = req;
-    
+
     await AuthService.sendVerifyOtp(userId);
 
-    res.json({ success: true, message: "Verification OTP sent on email" });
+    sendSuccess(res, {}, "Verification OTP sent on email");
   } catch (error) {
     console.error("SendVerifyOtp error:", error);
     // Maintain old generic error for sendVerifyOtp to not break tests if it relies on exact string
-    if (error.message === "Authentication failed" || error.message === "Account already verified") {
-      res.json({ success: false, message: error.message });
+    if (
+      error.message === "Authentication failed" ||
+      error.message === "Account already verified"
+    ) {
+      sendError(res, 400, error.message);
     } else {
-      res.json({ success: false, message: "Failed to send verification OTP" });
+      sendError(res, 400, "Failed to send verification OTP");
     }
   }
 };
@@ -99,18 +101,18 @@ export const verifyEmail = async (req, res) => {
   try {
     await AuthService.verifyEmail({ userId, otp });
 
-    return res.json({ success: true, message: "Email verified successfully!" });
+    return sendSuccess(res, {}, "Email verified successfully!");
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    sendError(res, 400, error.message);
   }
 };
 
 // --------------------------- CHECK AUTH ---------------------------
 export const isAuthenticated = async (req, res) => {
   try {
-    return res.json({ success: true });
+    return sendSuccess(res);
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    sendError(res, 400, error.message);
   }
 };
 
@@ -122,13 +124,10 @@ export const sendResetOtp = async (req, res) => {
   try {
     await AuthService.sendResetOtp({ email });
 
-    res.json({ success: true, message: "OTP sent to your email" });
+    sendSuccess(res, {}, "OTP sent to your email");
   } catch (error) {
     console.error("SendResetOtp error:", error);
-    res.json({
-      success: false,
-      message: "Failed to process password reset request",
-    });
+    sendError(res, 400, "Failed to process password reset request");
   }
 };
 
@@ -140,12 +139,9 @@ export const resetPassword = async (req, res) => {
   try {
     await AuthService.resetPassword({ email, otp, newPassword });
 
-    return res.json({
-      success: true,
-      message: "Password has been reset successfully",
-    });
+    return sendSuccess(res, {}, "Password has been reset successfully");
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    sendError(res, 400, error.message);
   }
 };
 
@@ -154,20 +150,20 @@ export const getUserData = async (req, res) => {
   try {
     const user = await AuthService.getUserData(req.user.id);
 
-    res.status(200).json({ success: true, user });
+    sendSuccess(res, { user });
   } catch (error) {
     console.error("Error fetching user data:", error);
     if (error.statusCode === 404) {
-      res.status(404).json({ success: false, message: "User not found" });
+      sendError(res, 404, "User not found");
     } else {
-      res.status(500).json({ success: false, message: "Server error" });
+      sendError(res, 500, "Server error");
     }
   }
 };
 
 // --------------------------- GOOGLE CALENDAR AUTH ---------------------------
 export const googleCalendarAuth = (req, res) => {
-  const url = getAuthUrl();
+  const url = getGoogleAuthUrl();
   res.redirect(url);
 };
 
@@ -177,14 +173,18 @@ export const googleCalendarCallback = async (req, res) => {
     const token = req.cookies?.token;
     await AuthService.googleCalendarCallback({ code, token });
 
-    res.redirect(`${process.env.CLIENT_URL || "http://localhost:5173"}/profile?sync=success`);
+    res.redirect(
+      `${process.env.CLIENT_URL || "http://localhost:5173"}/profile?sync=success`,
+    );
   } catch (error) {
     console.error("Google Calendar Callback error:", error);
     if (error.statusCode === 401) {
-      return res.status(401).json({ success: false, message: "Not authenticated" });
+      return sendError(res, 401, "Not authenticated");
     } else if (error.statusCode === 404) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return sendError(res, 404, "User not found");
     }
-    res.redirect(`${process.env.CLIENT_URL || "http://localhost:5173"}/profile?sync=error`);
+    res.redirect(
+      `${process.env.CLIENT_URL || "http://localhost:5173"}/profile?sync=error`,
+    );
   }
 };

@@ -83,7 +83,11 @@ router.get(
   searchOrganizations,
 );
 
-import { getOrganizationAuditLogs } from "../controllers/auditLogController.js";
+import {
+  downloadAuditLogExport,
+  getAuditLogExport,
+  getOrganizationAuditLogs,
+} from "../controllers/auditLogController.js";
 import Organization from "../models/organizationModel.js";
 import { requireOrgAccess } from "../middleware/rbac.js";
 
@@ -94,6 +98,22 @@ router.get(
   requireOrgAccess(Organization),
   requirePermission("audit_logs", "view"),
   getOrganizationAuditLogs,
+);
+
+router.get(
+  "/:id/audit-log-exports/:exportId",
+  userAuth,
+  requireOrgAccess(Organization),
+  requirePermission("audit_logs", "view"),
+  getAuditLogExport,
+);
+
+router.get(
+  "/:id/audit-log-exports/:exportId/download",
+  userAuth,
+  requireOrgAccess(Organization),
+  requirePermission("audit_logs", "view"),
+  downloadAuditLogExport,
 );
 
 // New CRUD routes (consolidated from organizationRoutesNew.js)

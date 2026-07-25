@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import { URL } from "url";
 import { z } from "zod";
 import Webhook from "../models/Webhook.js";
+import WebhookDelivery from "../models/WebhookDelivery.js";
+import { redeliverWebhookDelivery } from "../services/webhookDispatcherService.js";
 import Membership from "../models/membershipModel.js";
 import Organization from "../models/organizationModel.js";
 import {
@@ -10,52 +12,59 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../utils/errors.js";
+import { sendSuccess } from "../utils/responseHandler.js";
 
-const isSafeWebhookUrl = (urlStr) => {
+import dns from "dns/promises";
+import ipaddr from "ipaddr.js";
+
+const isSafeWebhookUrl = async (urlStr) => {
   try {
     const parsed = new URL(urlStr);
     const hostname = parsed.hostname.toLowerCase();
 
-    // Block localhost names
+    // Block obvious localhosts immediately
     if (hostname === "localhost" || hostname === "localhost.localdomain") {
       return false;
     }
 
-    // Block IPv6 localhost
-    if (hostname === "[::1]" || hostname === "::1") {
+    // Resolve the hostname to an IP address
+    let resolvedIp;
+    try {
+      // dns.lookup checks /etc/hosts and DNS, returning the IP
+      const { address } = await dns.lookup(hostname);
+      resolvedIp = address;
+    } catch (_err) {
+      // If we can't resolve it, it's not a valid safe public URL
       return false;
     }
 
-    // Block IPv4 loopback, private, and link-local ranges
-    const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-    const match = hostname.match(ipv4Regex);
-    if (match) {
-      const parts = match.slice(1).map(Number);
-      if (parts.some((p) => p < 0 || p > 255)) return false;
+    // Parse the resolved IP using ipaddr.js
+    let addr;
+    try {
+      addr = ipaddr.parse(resolvedIp);
+    } catch (_err) {
+      return false;
+    }
 
-      const [p1, p2] = parts;
+    // Check if the address is in a private, loopback, link-local, or otherwise restricted range
+    const range = addr.range();
 
-      // 127.x.x.x (Loopback)
-      if (p1 === 127) return false;
+    // ipaddr.js classifies public addresses as 'unicast'
+    // Private ranges are classified as 'private', 'loopback', 'linkLocal', etc.
+    if (range !== "unicast") {
+      return false;
+    }
 
-      // 10.x.x.x (Private class A)
-      if (p1 === 10) return false;
-
-      // 172.16.x.x - 172.31.x.x (Private class B)
-      if (p1 === 172 && p2 >= 16 && p2 <= 31) return false;
-
-      // 192.168.x.x (Private class C)
-      if (p1 === 192 && p2 === 168) return false;
-
-      // 169.254.x.x (Link-local)
-      if (p1 === 169 && p2 === 254) return false;
-
-      // 0.x.x.x or broadcast/any
-      if (p1 === 0) return false;
+    // Explicitly block known IPv4 mapped IPv6 loopbacks just in case
+    if (addr.kind() === "ipv6" && addr.isIPv4MappedAddress()) {
+      const v4addr = addr.toIPv4Address();
+      if (v4addr.range() !== "unicast") {
+        return false;
+      }
     }
 
     return true;
-  } catch (err) {
+  } catch (_err) {
     return false;
   }
 };
@@ -155,7 +164,7 @@ export const createWebhook = async (req, res, next) => {
 
     let validated;
     try {
-      validated = createWebhookSchema.parse(req.body);
+      validated = await createWebhookSchema.parseAsync(req.body);
     } catch (zodErr) {
       return next(zodErr);
     }
@@ -184,19 +193,23 @@ export const createWebhook = async (req, res, next) => {
 
     const webhook = await Webhook.create(webhookData);
 
-    return res.status(201).json({
-      success: true,
-      message: "Webhook registered successfully.",
-      webhook: {
-        _id: webhook._id,
-        organizationId: webhook.organizationId,
-        targetUrl: webhook.targetUrl,
-        events: webhook.events,
-        secret: webhook.secret,
-        isActive: webhook.isActive,
+    return sendSuccess(
+      res,
+      {
+        webhook: {
+          _id: webhook._id,
+          organizationId: webhook.organizationId,
+          targetUrl: webhook.targetUrl,
+          events: webhook.events,
+          secret: webhook.secret,
+          isActive: webhook.isActive,
+        },
       },
-    });
+      "Webhook registered successfully.",
+      201,
+    );
   } catch (error) {
+    console.error("DEBUG WEBHOOK ERROR:", error);
     next(error);
   }
 };
@@ -226,7 +239,7 @@ export const getWebhooks = async (req, res, next) => {
       createdAt: -1,
     });
 
-    return res.status(200).json({ success: true, webhooks });
+    return sendSuccess(res, { webhooks });
   } catch (error) {
     next(error);
   }
@@ -263,7 +276,7 @@ export const updateWebhook = async (req, res, next) => {
 
     let validated;
     try {
-      validated = updateWebhookSchema.parse(req.body);
+      validated = await updateWebhookSchema.parseAsync(req.body);
     } catch (zodErr) {
       return next(zodErr);
     }
@@ -283,11 +296,7 @@ export const updateWebhook = async (req, res, next) => {
 
     await webhook.save();
 
-    return res.status(200).json({
-      success: true,
-      message: "Webhook updated successfully.",
-      webhook,
-    });
+    return sendSuccess(res, { webhook }, "Webhook updated successfully.");
   } catch (error) {
     next(error);
   }
@@ -324,10 +333,135 @@ export const deleteWebhook = async (req, res, next) => {
 
     await webhook.deleteOne();
 
-    return res.status(200).json({
-      success: true,
-      message: "Webhook deleted successfully.",
+    return sendSuccess(res, null, "Webhook deleted successfully.");
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getDeliveriesQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  status: z.enum(["success", "failed", "dlq"]).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+});
+
+/**
+ * 🟢 Get delivery audit logs for a specific webhook subscription
+ * GET /api/webhooks/:id/deliveries?page=1&limit=20&status=failed&startDate=...&endDate=...
+ */
+export const getWebhookDeliveries = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = getUserId(req);
+
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      throw new ValidationError("Valid Webhook ID is required.");
+    }
+
+    const webhook = await Webhook.findById(id);
+    if (!webhook) {
+      throw new NotFoundError("Webhook subscription not found.");
+    }
+
+    // Authorization check
+    const isAuthorized = await hasAdminPermission(
+      userId,
+      webhook.organizationId,
+    );
+    if (!isAuthorized) {
+      throw new ForbiddenError(
+        "Forbidden. Only organization owners and admins can view webhook delivery logs.",
+      );
+    }
+
+    const { page, limit, status, startDate, endDate } =
+      getDeliveriesQuerySchema.parse(req.query);
+
+    // Build typed query object avoiding taint flags for static analysis (CodeQL)
+    const cleanWebhookId = new mongoose.Types.ObjectId(id);
+    const query = { webhookId: cleanWebhookId };
+
+    if (status) {
+      query.status = String(status);
+    }
+
+    if (startDate || endDate) {
+      const dateFilter = {};
+      if (startDate && !isNaN(Date.parse(startDate))) {
+        dateFilter.$gte = new Date(startDate);
+      }
+      if (endDate && !isNaN(Date.parse(endDate))) {
+        dateFilter.$lte = new Date(endDate);
+      }
+      if (Object.keys(dateFilter).length > 0) {
+        query.createdAt = dateFilter;
+      }
+    }
+
+    const total = await WebhookDelivery.countDocuments(query);
+    const deliveries = await WebhookDelivery.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    return sendSuccess(res, {
+      deliveries,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 🟢 Manually redeliver a past webhook delivery payload
+ * POST /api/webhooks/deliveries/:deliveryId/redeliver
+ */
+export const redeliverWebhookPayload = async (req, res, next) => {
+  try {
+    const { deliveryId } = req.params;
+    const userId = getUserId(req);
+
+    if (!deliveryId || !mongoose.Types.ObjectId.isValid(deliveryId)) {
+      throw new ValidationError("Valid Webhook Delivery ID is required.");
+    }
+
+    const deliveryRecord = await WebhookDelivery.findById(deliveryId);
+    if (!deliveryRecord) {
+      throw new NotFoundError("Webhook delivery log record not found.");
+    }
+
+    // Authorization check
+    const isAuthorized = await hasAdminPermission(
+      userId,
+      deliveryRecord.organizationId,
+    );
+    if (!isAuthorized) {
+      throw new ForbiddenError(
+        "Forbidden. Only organization owners and admins can trigger webhook redeliveries.",
+      );
+    }
+
+    const newDelivery = await redeliverWebhookDelivery(deliveryId);
+
+    if (!newDelivery) {
+      throw new ValidationError(
+        "Redelivery skipped: the target webhook is inactive or paused.",
+      );
+    }
+
+    return sendSuccess(
+      res,
+      { delivery: newDelivery },
+      "Webhook payload redelivered successfully.",
+    );
   } catch (error) {
     next(error);
   }

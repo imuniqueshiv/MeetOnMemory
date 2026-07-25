@@ -12,6 +12,7 @@ export const useScheduleMeeting = () => {
     duration: "",
     location: "",
     venue: "",
+    syncToCalendar: true,
   });
   const [participants, setParticipants] = useState([]);
   const [newParticipant, setNewParticipant] = useState({ name: "", email: "" });
@@ -101,6 +102,7 @@ export const useScheduleMeeting = () => {
           duration: "",
           location: "",
           venue: "",
+          syncToCalendar: true,
         });
         setParticipants([]);
         setAgendaItems([]);

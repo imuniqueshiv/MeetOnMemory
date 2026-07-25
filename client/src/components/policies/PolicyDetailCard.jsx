@@ -12,8 +12,10 @@ import {
   ChevronUp,
   ChevronDown,
   Clock,
+  Share2,
 } from "lucide-react";
 import { StatusBadge, Pill, formatDate } from "./PolicyUtils";
+import ShareModal from "../shared-links/ShareModal";
 
 export const PolicyDetailModal = ({
   policy: p,
@@ -22,6 +24,8 @@ export const PolicyDetailModal = ({
   onReanalyze,
   onCompare,
 }) => {
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+
   const authorName = p?.uploadedBy?.name || "Unknown";
   const editorName = p?.lastEditedBy?.name;
   const hasAiContent =
@@ -165,7 +169,21 @@ export const PolicyDetailModal = ({
         >
           Close
         </button>
+        <button
+          onClick={() => setShareModalOpen(true)}
+          className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-lg text-sm font-medium transition"
+        >
+          <Share2 className="w-4 h-4" /> Share
+        </button>
       </div>
+
+      <ShareModal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        resourceId={p._id}
+        resourceType="Policy"
+        title={p.name}
+      />
     </div>
   );
 };

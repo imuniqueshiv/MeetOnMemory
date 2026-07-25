@@ -3,14 +3,14 @@
 // Handles AI Embeddings + Pinecone Vector Search (Offline + Free)
 // ==============================================
 
-import { pipeline } from "@xenova/transformers";
-import { Pinecone } from "@pinecone-database/pinecone";
 import dotenv from "dotenv";
 import Meeting from "../models/meetingModel.js";
 
 dotenv.config();
 
 // ======= 🌐 Global Singletons =======
+// Transformers + Pinecone are loaded on first use so importing this module
+// does not eagerly initialize the AI runtime (Jest ESM linker / cold start).
 let pineconeClient = null;
 let pineconeIndex = null;
 let embedder = null;
@@ -34,6 +34,7 @@ export const initVectorStore = async () => {
 
   try {
     if (!pineconeClient) {
+      const { Pinecone } = await import("@pinecone-database/pinecone");
       pineconeClient = new Pinecone({ apiKey: PINECONE_API_KEY });
       console.log("✅ Pinecone client initialized.");
     }
@@ -51,11 +52,25 @@ export const initVectorStore = async () => {
 };
 
 // ===================================================
+// ⚙️ 1.5️⃣ Pre-warm Pinecone (for workers)
+// ===================================================
+export const preWarmPinecone = async () => {
+  try {
+    await initVectorStore();
+    await getEmbedder();
+    console.log("🔥 Pinecone and Embedder pre-warmed.");
+  } catch (err) {
+    console.error("❌ Failed to pre-warm Pinecone:", err);
+  }
+};
+
+// ===================================================
 // 🧠 2️⃣ Load Local Hugging Face Embedding Model
 // ===================================================
 async function getEmbedder() {
   if (!embedder) {
     console.log("⏳ Loading local Hugging Face model (MiniLM-L6-v2)...");
+    const { pipeline } = await import("@xenova/transformers");
     embedder = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
     console.log("✅ Local Hugging Face model loaded");
   }
@@ -157,6 +172,7 @@ export const indexMeeting = async (meeting) => {
           summary,
           transcript: meeting.transcript,
           createdAt: meeting.createdAt || new Date(),
+          organization: meeting.organization?.toString() || null,
         },
       });
     }
@@ -164,7 +180,9 @@ export const indexMeeting = async (meeting) => {
     // ✅ FIXED FORMAT — direct array (Pinecone v3.x+)
     await indexInstance.upsert(vectors);
 
-    console.log(`✅ Indexed meeting: ${title} (${transcriptChunks.length} chunks)`);
+    console.log(
+      `✅ Indexed meeting: ${title} (${transcriptChunks.length} chunks)`,
+    );
   } catch (error) {
     console.error("❌ Failed to index meeting:", error);
   }
@@ -312,7 +330,7 @@ export const deleteMeetingFromPinecone = async (meetingId) => {
 // ===================================================
 export const reindexAllMeetings = async () => {
   try {
-    const indexInstance = await initVectorStore();
+    const indexInstance = await initVectorStore(); // eslint-disable-line no-unused-vars
 
     const allMeetings = await Meeting.find({
       transcript: { $exists: true, $ne: "" },
@@ -328,5 +346,74 @@ export const reindexAllMeetings = async () => {
     console.log("🎉 Reindexing completed successfully!");
   } catch (error) {
     console.error("❌ Failed to reindex all meetings:", error);
+  }
+};
+
+// ===================================================
+// 🎙️ 8️⃣ Index Transcript in Pinecone (for live meeting transcripts)
+// ===================================================
+export const indexTranscript = async (transcript) => {
+  try {
+    const indexInstance = await initVectorStore();
+
+    if (!transcript || !transcript.fullText) {
+      console.warn("⚠️ Skipping empty transcript embedding");
+      return;
+    }
+
+    const vectors = [];
+
+    // Chunk the full transcript text
+    const transcriptChunks = chunkText(transcript.fullText);
+
+    for (let i = 0; i < transcriptChunks.length; i++) {
+      const chunkText = transcriptChunks[i];
+      const embedding = await embedText(chunkText);
+
+      vectors.push({
+        id: `transcript-${transcript._id.toString()}-chunk-${i}`,
+        values: embedding,
+        metadata: {
+          meetingId: transcript.meetingId.toString(),
+          organizationId: transcript.organizationId.toString(),
+          type: "transcript",
+          segmentIndex: i,
+          startTime: transcript.segments[i]?.startTime || 0,
+          text: chunkText,
+          createdAt: transcript.createdAt || new Date(),
+        },
+      });
+    }
+
+    await indexInstance.upsert(vectors);
+
+    console.log(
+      `✅ Indexed transcript: ${transcript._id} (${transcriptChunks.length} chunks)`,
+    );
+  } catch (error) {
+    console.error("❌ Failed to index transcript:", error);
+  }
+};
+
+// ===================================================
+// 🗑️ 9️⃣ Delete Transcript from Pinecone
+// ===================================================
+export const deleteTranscriptFromPinecone = async (transcriptId) => {
+  try {
+    const indexInstance = await initVectorStore();
+
+    if (!transcriptId) {
+      console.warn("⚠️ No transcriptId provided for Pinecone deletion");
+      return;
+    }
+
+    await indexInstance.deleteMany({
+      filter: {
+        id: { $eq: `transcript-${transcriptId.toString()}` },
+      },
+    });
+    console.log(`✅ Deleted transcript chunks from Pinecone: ${transcriptId}`);
+  } catch (error) {
+    console.error("❌ Failed to delete transcript from Pinecone:", error);
   }
 };

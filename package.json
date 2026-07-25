@@ -12,7 +12,8 @@
     "@xenova/transformers": "^2.17.2",
     "axios": "^1.13.1",
     "dotenv": "^17.4.2",
-    "openai": "^6.8.0"
+    "openai": "^6.8.0",
+    "protobufjs": "^7.5.5"
   },
   "devDependencies": {
     "eslint": "^10.7.0",

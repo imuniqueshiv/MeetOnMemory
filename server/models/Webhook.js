@@ -29,6 +29,19 @@ const webhookSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    consecutiveFailures: {
+      type: Number,
+      default: 0,
+    },
+    healthStatus: {
+      type: String,
+      enum: ["healthy", "degraded", "paused"],
+      default: "healthy",
+    },
+    lastDeliveredAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true },
 );

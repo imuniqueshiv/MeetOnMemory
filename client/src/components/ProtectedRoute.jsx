@@ -33,6 +33,7 @@ const ProtectedRoute = ({
     "/organizations",
     "/create-organization",
     "/join-organization",
+    "/browse-organizations",
   ];
   const isOnboardingPage = onboardingPages.includes(location.pathname);
 
@@ -40,7 +41,16 @@ const ProtectedRoute = ({
     return <Navigate to="/organizations" replace />;
   }
 
-  if (userData && userData.hasCompletedOnboarding && isOnboardingPage) {
+  const onboardingOnlyPages = [
+    "/organizations",
+    "/create-organization",
+    "/join-organization",
+  ];
+  if (
+    userData &&
+    userData.hasCompletedOnboarding &&
+    onboardingOnlyPages.includes(location.pathname)
+  ) {
     return <Navigate to="/dashboard" replace />;
   }
 

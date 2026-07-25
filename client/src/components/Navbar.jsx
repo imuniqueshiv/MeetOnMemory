@@ -36,6 +36,7 @@ import {
   Plus,
   Compass,
   Check,
+  MessageSquare,
 } from "lucide-react";
 
 const NAV_LINK_KEYS = [
@@ -363,6 +364,11 @@ const Navbar = () => {
       href: "/ai-search",
       icon: Search,
       permission: { resource: "ai_search", action: "search" },
+    },
+    {
+      label: "AI Assistant",
+      href: "/assistant",
+      icon: MessageSquare,
     },
   ].filter(
     (link) =>

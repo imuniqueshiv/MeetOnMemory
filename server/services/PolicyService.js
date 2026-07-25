@@ -27,7 +27,18 @@ import { NotFoundError } from "../utils/errors.js";
 
 // ── pdf-parse (CJS module — requires dynamic require) ──────────
 const require = createRequire(import.meta.url);
+const originalWarn = console.warn;
+console.warn = (...args) => {
+  if (
+    args[0] &&
+    typeof args[0] === "string" &&
+    args[0].includes("@napi-rs/canvas")
+  )
+    return;
+  originalWarn(...args);
+};
 const pdf = require("pdf-parse");
+console.warn = originalWarn;
 
 // ── Config ─────────────────────────────────────────────────────
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -410,6 +421,12 @@ export const deletePolicy = async (policy) => {
   }
 
   await policy.deleteOne();
+
+  try {
+    eventBus.emit("policy.deleted", policy);
+  } catch (evtErr) {
+    console.error("⚠️ Failed to emit policy.deleted event:", evtErr.message);
+  }
 
   // Cleanup Pinecone vectors and compliance records (fire-and-forget)
   removePolicyFromIndex(policy._id).catch((err) =>

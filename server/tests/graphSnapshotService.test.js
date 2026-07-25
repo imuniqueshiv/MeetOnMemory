@@ -28,6 +28,9 @@ async function makeMeeting(overrides = {}) {
 }
 
 describe("services/graphSnapshotService", () => {
+  beforeAll(async () => {
+    await mongoose.connect(process.env.TEST_MONGODB_URI);
+  });
   describe("captureSnapshot", () => {
     it("persists a snapshot with node/edge counts matching the live graph", async () => {
       const meeting = await makeMeeting();

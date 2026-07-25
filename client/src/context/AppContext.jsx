@@ -87,12 +87,12 @@ export const AppContextProvider = ({ children }) => {
 
   const logoutUser = async () => {
     try {
-      toast.success("Logged out successfully");
-      navigate("/");
-
       await authApi.logout();
       clearAuthState();
       csrfService.clearToken();
+
+      toast.success("Logged out successfully");
+      navigate("/");
     } catch {
       toast.error("Failed to logout");
     }

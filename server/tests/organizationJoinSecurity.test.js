@@ -7,6 +7,7 @@ const mockUserFindById = jest.fn();
 const mockUserFindByIdAndUpdate = jest.fn();
 const mockMembershipCreate = jest.fn();
 const mockMembershipFindOneAndUpdate = jest.fn();
+const mockMembershipFindOne = jest.fn();
 const mockInvitationFindOne = jest.fn();
 const mockMembershipRequestFindOne = jest.fn();
 
@@ -29,6 +30,7 @@ jest.unstable_mockModule("../models/membershipModel.js", () => ({
   default: {
     create: mockMembershipCreate,
     findOneAndUpdate: mockMembershipFindOneAndUpdate,
+    findOne: mockMembershipFindOne,
   },
 }));
 
@@ -58,12 +60,34 @@ const { createOrJoinOrganization, joinOrganization } = await import(
   "../controllers/organizationController.js"
 );
 
+const makeUserMockQuery = (userData) => {
+  const query = {
+    populate: jest.fn().mockReturnThis(),
+    then: (resolve) => resolve(userData),
+  };
+  return query;
+};
+
 describe("Organization Join Security & Authorization Checks (#384)", () => {
   let req;
   let res;
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    mockOrgFindOne.mockReset();
+    mockOrgFindById.mockReset();
+    mockOrgCreate.mockReset();
+    mockUserFindById.mockReset();
+    mockUserFindByIdAndUpdate.mockReset();
+    mockMembershipCreate.mockReset();
+    mockMembershipFindOneAndUpdate.mockReset();
+    mockMembershipFindOne.mockReset();
+    mockInvitationFindOne.mockReset();
+    mockMembershipRequestFindOne.mockReset();
+
+    mockMembershipFindOne.mockResolvedValue(null);
+    mockMembershipRequestFindOne.mockResolvedValue(null);
 
     req = {
       user: { id: "user_123" },
@@ -117,14 +141,14 @@ describe("Organization Join Security & Authorization Checks (#384)", () => {
 
       mockOrgFindOne.mockResolvedValue(mockPublicOrg);
       mockUserFindByIdAndUpdate.mockResolvedValue(true);
-      mockUserFindById.mockReturnValue({
-        populate: jest.fn().mockResolvedValue({
-          _id: "user_123",
-          role: "member",
-          organization: mockPublicOrg,
-          _doc: { name: "User 123" },
-        }),
-      });
+      
+      const userData = {
+        _id: "user_123",
+        role: "member",
+        organization: mockPublicOrg,
+        _doc: { name: "User 123" },
+      };
+      mockUserFindById.mockReturnValue(makeUserMockQuery(userData));
 
       await createOrJoinOrganization(req, res);
 
@@ -151,10 +175,12 @@ describe("Organization Join Security & Authorization Checks (#384)", () => {
       };
 
       mockOrgFindOne.mockResolvedValue(mockPrivateOrg);
-      mockUserFindById.mockResolvedValue({
+      
+      const userData = {
         _id: "user_123",
         email: "user@example.com",
-      });
+      };
+      mockUserFindById.mockReturnValue(makeUserMockQuery(userData));
       mockInvitationFindOne.mockResolvedValue(null);
       mockMembershipRequestFindOne.mockResolvedValue(null);
 
@@ -164,7 +190,7 @@ describe("Organization Join Security & Authorization Checks (#384)", () => {
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         message:
-          "Forbidden: Private or invite-only organization cannot be joined without a valid invitation.",
+          "This private organization requires invitation or membership approval.",
       });
     });
 
@@ -180,10 +206,12 @@ describe("Organization Join Security & Authorization Checks (#384)", () => {
       };
 
       mockOrgFindById.mockResolvedValue(mockInviteOnlyOrg);
-      mockUserFindById.mockResolvedValue({
+      
+      const userData = {
         _id: "user_123",
         email: "user@example.com",
-      });
+      };
+      mockUserFindById.mockReturnValue(makeUserMockQuery(userData));
       mockInvitationFindOne.mockResolvedValue(null);
       mockMembershipRequestFindOne.mockResolvedValue(null);
 
@@ -193,7 +221,7 @@ describe("Organization Join Security & Authorization Checks (#384)", () => {
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         message:
-          "Forbidden: Private or invite-only organization cannot be joined without a valid invitation.",
+          "This organization requires a valid invitation to join.",
       });
     });
   });
@@ -217,21 +245,17 @@ describe("Organization Join Security & Authorization Checks (#384)", () => {
       };
 
       mockOrgFindOne.mockResolvedValue(mockPrivateOrg);
-      mockUserFindById.mockResolvedValue({
+      
+      const userData = {
         _id: "user_123",
         email: "user@example.com",
-      });
+        role: "member",
+        organization: mockPrivateOrg,
+        _doc: { name: "User 123" },
+      };
+      mockUserFindById.mockReturnValue(makeUserMockQuery(userData));
       mockInvitationFindOne.mockResolvedValue(mockInvitation);
       mockUserFindByIdAndUpdate.mockResolvedValue(true);
-
-      mockUserFindById.mockReturnValue({
-        populate: jest.fn().mockResolvedValue({
-          _id: "user_123",
-          role: "member",
-          organization: mockPrivateOrg,
-          _doc: { name: "User 123" },
-        }),
-      });
 
       await createOrJoinOrganization(req, res);
 
@@ -259,10 +283,12 @@ describe("Organization Join Security & Authorization Checks (#384)", () => {
       };
 
       mockOrgFindOne.mockResolvedValue(mockPrivateOrg);
-      mockUserFindById.mockResolvedValue({
+      
+      const userData = {
         _id: "user_123",
         email: "user@example.com",
-      });
+      };
+      mockUserFindById.mockReturnValue(makeUserMockQuery(userData));
       mockInvitationFindOne.mockResolvedValue(null);
       mockMembershipRequestFindOne.mockResolvedValue({
         _id: "req_1",
@@ -274,7 +300,7 @@ describe("Organization Join Security & Authorization Checks (#384)", () => {
       expect(res.status).toHaveBeenCalledWith(409);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: "Membership request is already pending approval.",
+        message: "A membership request for this organization is already pending.",
       });
     });
   });
@@ -291,6 +317,7 @@ describe("Organization Join Security & Authorization Checks (#384)", () => {
       };
 
       mockOrgFindOne.mockResolvedValue(mockOrg);
+      mockMembershipFindOne.mockResolvedValue({ role: "member" });
 
       await createOrJoinOrganization(req, res);
 

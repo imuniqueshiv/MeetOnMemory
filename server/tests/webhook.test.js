@@ -8,6 +8,7 @@ import User from "../models/userModel.js";
 import Organization from "../models/organizationModel.js";
 import Membership from "../models/membershipModel.js";
 import Webhook from "../models/Webhook.js";
+import WebhookDelivery from "../models/WebhookDelivery.js";
 import eventBus from "../services/eventBus.js";
 
 // Mock nodemailer to prevent SMTP verification during tests
@@ -116,7 +117,8 @@ describe("Webhook Endpoints & Dispatcher", () => {
           organizationId: organization._id.toString(),
           secret: "test_secret_key",
         });
-
+      if (res.statusCode !== 201)
+        console.log("CREATE WEBHOOK FAILED:", res.body);
       expect(res.statusCode).toEqual(201);
       expect(res.body.success).toBe(true);
       expect(res.body.webhook.targetUrl).toBe("https://example.com/webhook");
@@ -146,7 +148,7 @@ describe("Webhook Endpoints & Dispatcher", () => {
           events: ["meeting.created"],
           organizationId: organization._id.toString(),
         });
-
+      if (res.statusCode !== 400) console.log("VALIDATE URL FAILED:", res.body);
       expect(res.statusCode).toEqual(400);
     });
   });
@@ -186,7 +188,8 @@ describe("Webhook Endpoints & Dispatcher", () => {
           targetUrl: "https://example.com/new",
           isActive: false,
         });
-
+      if (res.statusCode !== 200)
+        console.log("UPDATE WEBHOOK FAILED:", res.body);
       expect(res.statusCode).toEqual(200);
       expect(res.body.webhook.targetUrl).toBe("https://example.com/new");
       expect(res.body.webhook.isActive).toBe(false);
@@ -245,6 +248,192 @@ describe("Webhook Endpoints & Dispatcher", () => {
       expect(callArgs[1].event).toBe("meeting.created");
       expect(callArgs[1].data.title).toBe("Test Webhook Meeting");
       expect(callArgs[2].headers["x-meetonmemory-signature"]).toBeDefined();
+      expect(
+        callArgs[2].headers["x-meetonmemory-request-timestamp"],
+      ).toBeDefined();
+
+      // Verify WebhookDelivery log record created
+      const logs = await WebhookDelivery.find({ webhookId: hook._id });
+      expect(logs.length).toBe(1);
+      expect(logs[0].status).toBe("success");
+      expect(logs[0].event).toBe("meeting.created");
+    });
+  });
+
+  describe("GET /api/webhooks/:id/deliveries & Redelivery", () => {
+    it("should retrieve delivery logs for admin", async () => {
+      const hook = await Webhook.create({
+        organizationId: organization._id,
+        targetUrl: "https://example.com/logs",
+        events: ["meeting.created"],
+        secret: "s_log",
+      });
+
+      await WebhookDelivery.create({
+        webhookId: hook._id,
+        organizationId: organization._id,
+        event: "meeting.created",
+        payload: { event: "meeting.created", data: {} },
+        responseStatus: 200,
+        status: "success",
+        attempt: 1,
+      });
+
+      const res = await request(app)
+        .get(`/api/webhooks/${hook._id}/deliveries`)
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.statusCode).toEqual(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.deliveries.length).toBe(1);
+      expect(res.body.deliveries[0].status).toBe("success");
+    });
+
+    it("should allow admin to manually redeliver a payload", async () => {
+      const hook = await Webhook.create({
+        organizationId: organization._id,
+        targetUrl: "https://example.com/retry",
+        events: ["meeting.created"],
+        secret: "s_retry",
+      });
+
+      const failedLog = await WebhookDelivery.create({
+        webhookId: hook._id,
+        organizationId: organization._id,
+        event: "meeting.created",
+        payload: {
+          event: "meeting.created",
+          data: { title: "Replay Meeting" },
+        },
+        responseStatus: 500,
+        status: "failed",
+        attempt: 1,
+      });
+
+      axiosSpy.mockClear();
+
+      const res = await request(app)
+        .post(`/api/webhooks/deliveries/${failedLog._id}/redeliver`)
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.statusCode).toEqual(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.delivery).toBeDefined();
+      expect(axiosSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("should classify persistent failure as DLQ and update health status", async () => {
+      const hook = await Webhook.create({
+        organizationId: organization._id,
+        targetUrl: "https://example.com/dead",
+        events: ["meeting.created"],
+        secret: "s_dead",
+      });
+
+      axiosSpy.mockImplementationOnce(() =>
+        Promise.reject({
+          response: { status: 500, data: { error: "Internal Error" } },
+          message: "Request failed with status code 500",
+        }),
+      );
+
+      try {
+        await dispatcher.performDispatch(
+          hook._id,
+          { event: "meeting.created" },
+          { attempt: 5, isFinalAttempt: true },
+        );
+      } catch (_err) {
+        // Expected throw
+      }
+
+      const dlqLog = await WebhookDelivery.findOne({
+        webhookId: hook._id,
+        status: "dlq",
+      });
+      expect(dlqLog).not.toBeNull();
+      expect(dlqLog.responseStatus).toBe(500);
+
+      const updatedHook = await Webhook.findById(hook._id);
+      expect(updatedHook.consecutiveFailures).toBe(1);
+    });
+
+    it("should auto-pause subscription when consecutive failures reach 15 (Circuit Breaker)", async () => {
+      const hook = await Webhook.create({
+        organizationId: organization._id,
+        targetUrl: "https://example.com/circuit-break",
+        events: ["meeting.created"],
+        secret: "s_break",
+        consecutiveFailures: 14,
+        healthStatus: "degraded",
+        isActive: true,
+      });
+
+      axiosSpy.mockImplementationOnce(() =>
+        Promise.reject({
+          response: { status: 503, data: { error: "Service Unavailable" } },
+          message: "Request failed with status code 503",
+        }),
+      );
+
+      try {
+        await dispatcher.performDispatch(
+          hook._id,
+          { event: "meeting.created" },
+          { attempt: 5, isFinalAttempt: true },
+        );
+      } catch (_err) {
+        // Expected throw
+      }
+
+      const updatedHook = await Webhook.findById(hook._id);
+      expect(updatedHook.consecutiveFailures).toBe(15);
+      expect(updatedHook.healthStatus).toBe("paused");
+      expect(updatedHook.isActive).toBe(false);
+    });
+
+    it("should reject non-admin users from viewing delivery logs or triggering redeliveries", async () => {
+      const hook = await Webhook.create({
+        organizationId: organization._id,
+        targetUrl: "https://example.com/rbac",
+        events: ["meeting.created"],
+        secret: "s_rbac",
+      });
+
+      const delivery = await WebhookDelivery.create({
+        webhookId: hook._id,
+        organizationId: organization._id,
+        event: "meeting.created",
+        payload: { event: "meeting.created" },
+        responseStatus: 200,
+        status: "success",
+        attempt: 1,
+      });
+
+      const logsRes = await request(app)
+        .get(`/api/webhooks/${hook._id}/deliveries`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(logsRes.statusCode).toBe(403);
+
+      const redeliverRes = await request(app)
+        .post(`/api/webhooks/deliveries/${delivery._id}/redeliver`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(redeliverRes.statusCode).toBe(403);
+    });
+  });
+
+  describe("HMAC Signature Utility", () => {
+    it("should generate deterministic sha256 HMAC signature using timestamp", () => {
+      const payload = { event: "meeting.created", id: "123" };
+      const timestamp = "2026-07-20T20:00:00.000Z";
+      const secret = "test_secret_123";
+
+      const sig1 = dispatcher.generateSignature(payload, timestamp, secret);
+      const sig2 = dispatcher.generateSignature(payload, timestamp, secret);
+
+      expect(sig1).toBe(sig2);
+      expect(typeof sig1).toBe("string");
+      expect(sig1.length).toBe(64); // 64 hex characters for SHA-256
     });
   });
 });

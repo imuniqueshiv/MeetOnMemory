@@ -17,7 +17,6 @@
 // wrap invocations in try/catch and treat failures here as non-fatal.
 // ==============================================
 
-import axios from "axios";
 import dotenv from "dotenv";
 import Policy from "../models/policyModel.js";
 import PolicyCompliance from "../models/policyComplianceModel.js";
@@ -39,6 +38,11 @@ const MATCH_SIMILARITY_THRESHOLD = 0.55;
 
 // Cap how many candidate policies get sent to the (costlier) LLM pass per decision.
 const MAX_MATCHES_PER_DECISION = 5;
+
+export const isPolicyEffectiveForDecision = (policy, decision) => {
+  if (!policy?.createdAt || !decision?.createdAt) return true;
+  return new Date(policy.createdAt) <= new Date(decision.createdAt);
+};
 
 // ─────────────────────────────────────────────────────────────
 // Helper — strip markdown code fences Gemini sometimes adds
@@ -130,6 +134,9 @@ async function callGeminiClassifier(prompt) {
     throw new Error("GEMINI_API_KEY is not configured");
   }
 
+  // Deferred: axios's ESM graph is dense and trips Jest's VM linker when
+  // co-loaded with other large deps; Gemini calls only need it at runtime.
+  const { default: axios } = await import("axios");
   const response = await axios.post(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
     { contents: [{ parts: [{ text: prompt }] }] },
@@ -276,9 +283,10 @@ async function evaluateCandidate(candidate, decision, meeting, organizationId) {
   const policy = await Policy.findById(candidate.policyId);
   if (
     !policy ||
-    policy.organization?.toString() !== organizationId.toString()
+    policy.organization?.toString() !== organizationId.toString() ||
+    !isPolicyEffectiveForDecision(policy, decision)
   ) {
-    return null; // stale vector or cross-org leak guard
+    return null; // stale vector, cross-org leak guard, or future policy
   }
 
   const [{ classification, reasoning }, existing] = await Promise.all([

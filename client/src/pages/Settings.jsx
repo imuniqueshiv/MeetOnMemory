@@ -3,6 +3,7 @@ import Navbar from "../components/Navbar.jsx";
 import AppContent from "../context/AppContent";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import axios from "axios";
 import {
   User,
   Mail,
@@ -16,13 +17,27 @@ import {
   Lock,
   ChevronRight,
   Loader2,
+  Calendar,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+  Zap,
 } from "lucide-react";
+import CalendarIntegrations from "../components/CalendarIntegrations.jsx";
 import useTheme from "../context/useTheme.jsx";
+import WebhooksManager from "../components/WebhooksManager.jsx";
 
 const Settings = () => {
   const { userData, logoutUser } = useContext(AppContent);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+
+  // Calendar connection state
+  const [calendarStatus, setCalendarStatus] = useState({
+    google: null,
+    microsoft: null,
+  });
+  const [calendarLoading, setCalendarLoading] = useState(false);
 
   // Notification preferences state (UI only - no backend support)
   const [notificationPrefs, setNotificationPrefs] = useState({
@@ -33,6 +48,25 @@ const Settings = () => {
   });
 
   const { theme, toggleTheme } = useTheme();
+
+  // Fetch calendar connection status
+  useEffect(() => {
+    const fetchCalendarStatus = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.get("/api/calendar/status", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setCalendarStatus(response.data.status);
+      } catch (error) {
+        console.error("Error fetching calendar status:", error);
+      }
+    };
+
+    if (userData) {
+      fetchCalendarStatus();
+    }
+  }, [userData]);
 
   // Appearance preferences state (UI only - no backend support)
   const [appearancePrefs, setAppearancePrefs] = useState({
@@ -92,6 +126,130 @@ const Settings = () => {
     if (newTheme !== theme) {
       toggleTheme();
     }
+  };
+
+  // Calendar connection handlers
+  const handleConnectGoogle = async () => {
+    try {
+      setCalendarLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await axios.get("/api/calendar/google/auth-url", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      // Open OAuth popup
+      const authWindow = window.open(response.data.authUrl, "_blank", "width=500,height=600");
+      
+      // Poll for callback (in production, use a proper OAuth flow with redirect)
+      const pollForCallback = setInterval(() => {
+        if (authWindow.closed) {
+          clearInterval(pollForCallback);
+          setCalendarLoading(false);
+          // Refresh status
+          fetchCalendarStatus();
+        }
+      }, 500);
+    } catch (error) {
+      console.error("Error connecting Google Calendar:", error);
+      toast.error("Failed to connect Google Calendar");
+      setCalendarLoading(false);
+    }
+  };
+
+  const handleConnectMicrosoft = async () => {
+    try {
+      setCalendarLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await axios.get("/api/calendar/microsoft/auth-url", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      // Open OAuth popup
+      const authWindow = window.open(response.data.authUrl, "_blank", "width=500,height=600");
+      
+      // Poll for callback
+      const pollForCallback = setInterval(() => {
+        if (authWindow.closed) {
+          clearInterval(pollForCallback);
+          setCalendarLoading(false);
+          // Refresh status
+          fetchCalendarStatus();
+        }
+      }, 500);
+    } catch (error) {
+      console.error("Error connecting Microsoft Calendar:", error);
+      toast.error("Failed to connect Microsoft Calendar");
+      setCalendarLoading(false);
+    }
+  };
+
+  const handleDisconnect = async (provider) => {
+    try {
+      setCalendarLoading(true);
+      const token = localStorage.getItem("token");
+      await axios.delete(`/api/calendar/${provider}/disconnect`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} Calendar disconnected`);
+      // Refresh status
+      const statusResponse = await axios.get("/api/calendar/status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCalendarStatus(statusResponse.data.status);
+    } catch (error) {
+      console.error("Error disconnecting calendar:", error);
+      toast.error("Failed to disconnect calendar");
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  const handleResync = async (provider) => {
+    try {
+      setCalendarLoading(true);
+      const token = localStorage.getItem("token");
+      await axios.post(`/api/calendar/${provider}/resync`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} Calendar synced`);
+      // Refresh status
+      const statusResponse = await axios.get("/api/calendar/status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCalendarStatus(statusResponse.data.status);
+    } catch (error) {
+      console.error("Error resyncing calendar:", error);
+      toast.error("Failed to sync calendar");
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  const fetchCalendarStatus = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get("/api/calendar/status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCalendarStatus(response.data.status);
+    } catch (error) {
+      console.error("Error fetching calendar status:", error);
+    }
+  };
+
+  const getConnectionStatusIcon = (connection) => {
+    if (!connection) return <XCircle className="w-4 h-4 text-slate-400" />;
+    if (connection.syncStatus === "connected") return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+    if (connection.syncStatus === "needs_reauth") return <XCircle className="w-4 h-4 text-amber-500" />;
+    return <XCircle className="w-4 h-4 text-red-500" />;
+  };
+
+  const getConnectionStatusText = (connection) => {
+    if (!connection) return "Not connected";
+    if (connection.syncStatus === "connected") return "Connected";
+    if (connection.syncStatus === "needs_reauth") return "Re-authentication required";
+    if (connection.syncStatus === "syncing") return "Syncing...";
+    return "Error";
   };
 
   return (
@@ -382,6 +540,119 @@ const Settings = () => {
             </div>
           </div>
 
+          {/* Calendar Integrations */}
+          <CalendarIntegrations />
+          {/* Calendar Integrations Section */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm fade-in-up stagger-5">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-green-50 dark:bg-green-900/30 rounded-xl">
+                <Calendar className="w-5 h-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Calendar Integrations
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Connect your calendars for two-way sync
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Google Calendar */}
+              <div className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    {getConnectionStatusIcon(calendarStatus.google)}
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                        Google Calendar
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {getConnectionStatusText(calendarStatus.google)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {calendarStatus.google?.syncStatus === "connected" && (
+                    <button
+                      onClick={() => handleResync("google")}
+                      disabled={calendarLoading}
+                      className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                      title="Resync"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${calendarLoading ? "animate-spin" : ""}`} />
+                    </button>
+                  )}
+                  {calendarStatus.google ? (
+                    <button
+                      onClick={() => handleDisconnect("google")}
+                      disabled={calendarLoading}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors cursor-pointer"
+                    >
+                      Disconnect
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleConnectGoogle}
+                      disabled={calendarLoading}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer"
+                    >
+                      Connect
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Microsoft Calendar */}
+              <div className="flex items-center justify-between py-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    {getConnectionStatusIcon(calendarStatus.microsoft)}
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                        Microsoft Outlook
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {getConnectionStatusText(calendarStatus.microsoft)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {calendarStatus.microsoft?.syncStatus === "connected" && (
+                    <button
+                      onClick={() => handleResync("microsoft")}
+                      disabled={calendarLoading}
+                      className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                      title="Resync"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${calendarLoading ? "animate-spin" : ""}`} />
+                    </button>
+                  )}
+                  {calendarStatus.microsoft ? (
+                    <button
+                      onClick={() => handleDisconnect("microsoft")}
+                      disabled={calendarLoading}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors cursor-pointer"
+                    >
+                      Disconnect
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleConnectMicrosoft}
+                      disabled={calendarLoading}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer"
+                    >
+                      Connect
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Security Section */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm fade-in-up stagger-5">
             <div className="flex items-center gap-3 mb-6">
@@ -560,6 +831,19 @@ const Settings = () => {
               </div>
             </div>
           </div>
+
+          {/* Webhooks Management Section */}
+          {userData.organization && (
+            <div className="pt-2 fade-in-up stagger-6">
+              <WebhooksManager
+                organizationId={
+                  typeof userData.organization === "object"
+                    ? userData.organization._id
+                    : userData.organization
+                }
+              />
+            </div>
+          )}
         </div>
       </main>
     </div>

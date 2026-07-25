@@ -96,6 +96,30 @@ const meetingSchema = new mongoose.Schema(
       default: "uploaded",
     },
     tags: [String], // e.g., ["policy", "finance", "staff"]
+    externalCalendarRefs: [
+      {
+        provider: { type: String, enum: ["google", "outlook"], required: true },
+        eventId: { type: String, required: true },
+      },
+    ],
+
+    // Calendar integration - store external event IDs for both providers
+    calendarEvents: {
+      google: {
+        eventId: { type: String, default: null },
+        syncedAt: { type: Date, default: null },
+      },
+      microsoft: {
+        eventId: { type: String, default: null },
+        syncedAt: { type: Date, default: null },
+      },
+    },
+
+    // Legacy field for backward compatibility
+    archived: {
+      type: Boolean,
+      default: false,
+    },
 
     // Google Calendar integration
     googleEventId: {

@@ -103,7 +103,7 @@ const MeetingInformationForm = ({
         </div>
       </div>
 
-      {/* Location */}
+    {/* Location */}
       <div className="grid md:grid-cols-2 gap-4 mb-6">
         <div>
           <label className="block mb-2 font-semibold text-gray-700">
@@ -131,6 +131,29 @@ const MeetingInformationForm = ({
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
           />
         </div>
+      </div>
+
+      {/* Sync to Calendar */}
+      <div className="mb-6 flex items-center gap-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+        <input
+          type="checkbox"
+          id="syncToCalendar"
+          name="syncToCalendar"
+          checked={scheduleData.syncToCalendar !== false}
+          onChange={(e) =>
+            setScheduleData({
+              ...scheduleData,
+              syncToCalendar: e.target.checked,
+            })
+          }
+          className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+        />
+        <label
+          htmlFor="syncToCalendar"
+          className="text-sm font-medium text-slate-800 cursor-pointer"
+        >
+          Sync to my connected calendars (Google/Outlook)
+        </label>
       </div>
     </>
   );

@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const isMock =
   !process.env.SMTP_USER ||
@@ -22,7 +22,9 @@ const mockTransporter = {
   },
   sendMail: async (options) => {
     if (process.env.NODE_ENV === "production") {
-      throw new Error("SMTP credentials are not configured. Email cannot be sent in production.");
+      throw new Error(
+        "SMTP credentials are not configured. Email cannot be sent in production.",
+      );
     }
     console.log("=========================================");
     console.log("✉️ MOCK EMAIL SENT");
@@ -43,7 +45,10 @@ function getTransporter() {
   if (!_realTransporter) {
     let host = process.env.SMTP_HOST;
     if (!host) {
-      if (process.env.SMTP_USER && process.env.SMTP_USER.endsWith("@gmail.com")) {
+      if (
+        process.env.SMTP_USER &&
+        process.env.SMTP_USER.endsWith("@gmail.com")
+      ) {
         host = "smtp.gmail.com";
       } else {
         host = "smtp-relay.brevo.com";
@@ -67,8 +72,8 @@ function getTransporter() {
         pass: process.env.SMTP_PASS,
       },
       connectionTimeout: 5000, // 5 seconds connection timeout
-      greetingTimeout: 5000,   // 5 seconds greeting timeout
-      socketTimeout: 10000,    // 10 seconds socket idle timeout
+      greetingTimeout: 5000, // 5 seconds greeting timeout
+      socketTimeout: 10000, // 10 seconds socket idle timeout
     });
   }
   return _realTransporter;
@@ -79,7 +84,7 @@ if (isMock && process.env.NODE_ENV === "production") {
   console.warn(
     "⚠️ CRITICAL WARNING: SMTP is running in mock mode in PRODUCTION! Real emails will NOT be sent.",
   );
-} else if (isMock) {
+} else if (isMock && process.env.NODE_ENV !== "test") {
   console.log("ℹ️ SMTP is in mock mode (console logging for emails)");
 }
 

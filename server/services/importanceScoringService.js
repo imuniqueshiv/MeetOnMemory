@@ -63,7 +63,6 @@ export async function recalculateAllImportanceScores({
 
   for (const [key, Model] of Object.entries(MODELS)) {
     let skip = 0;
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       const batch = await Model.find(filter).skip(skip).limit(batchSize);
       if (batch.length === 0) break;

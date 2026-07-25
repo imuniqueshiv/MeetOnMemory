@@ -1,8 +1,9 @@
-import request from "supertest";
+import request from "supertest"; // eslint-disable-line no-unused-vars
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { jest } from "@jest/globals";
-import { app } from "../server.js";
+import { app } from "../server.js"; // eslint-disable-line no-unused-vars
+import { createCsrfAgent } from "./helpers/csrfHelper.js";
 import User from "../models/userModel.js";
 import Organization from "../models/organizationModel.js";
 import Membership from "../models/membershipModel.js";
@@ -23,6 +24,8 @@ describe("Organization Invitations & Member Onboarding", () => {
   let organization;
   let inviteUser;
   let inviteToken;
+  let agent;
+  let csrfToken;
 
   beforeEach(async () => {
     // 1. Create Organization
@@ -90,13 +93,17 @@ describe("Organization Invitations & Member Onboarding", () => {
       { id: inviteUser._id },
       process.env.JWT_SECRET || "fallback_secret",
     );
+
+    // Create CSRF-enabled agent
+    ({ agent, csrfToken } = await createCsrfAgent());
   });
 
   describe("POST /api/invitation (Create Invitation)", () => {
     it("should allow admin to create an invitation", async () => {
-      const res = await request(app)
+      const res = await agent
         .post("/api/invitation")
         .set("Authorization", `Bearer ${adminToken}`)
+        .set("X-CSRF-Token", csrfToken)
         .send({
           organizationId: organization._id,
           email: inviteUser.email,
@@ -113,9 +120,10 @@ describe("Organization Invitations & Member Onboarding", () => {
     });
 
     it("should reject invitation if email is already active member", async () => {
-      const res = await request(app)
+      const res = await agent
         .post("/api/invitation")
         .set("Authorization", `Bearer ${adminToken}`)
+        .set("X-CSRF-Token", csrfToken)
         .send({
           organizationId: organization._id,
           email: normalUser.email,
@@ -128,9 +136,10 @@ describe("Organization Invitations & Member Onboarding", () => {
     });
 
     it("should prevent normal member from creating invitations", async () => {
-      const res = await request(app)
+      const res = await agent
         .post("/api/invitation")
         .set("Authorization", `Bearer ${normalToken}`)
+        .set("X-CSRF-Token", csrfToken)
         .send({
           organizationId: organization._id,
           email: inviteUser.email,
@@ -156,9 +165,10 @@ describe("Organization Invitations & Member Onboarding", () => {
     });
 
     it("should allow admin to list pending organization invitations", async () => {
-      const res = await request(app)
+      const res = await agent
         .get(`/api/invitation/organization/${organization._id}`)
-        .set("Authorization", `Bearer ${adminToken}`);
+        .set("Authorization", `Bearer ${adminToken}`)
+        .set("X-CSRF-Token", csrfToken);
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.success).toBe(true);
@@ -167,9 +177,10 @@ describe("Organization Invitations & Member Onboarding", () => {
     });
 
     it("should restrict listing invitations to admins only", async () => {
-      const res = await request(app)
+      const res = await agent
         .get(`/api/invitation/organization/${organization._id}`)
-        .set("Authorization", `Bearer ${normalToken}`);
+        .set("Authorization", `Bearer ${normalToken}`)
+        .set("X-CSRF-Token", csrfToken);
 
       expect(res.statusCode).toEqual(403);
     });
@@ -191,9 +202,10 @@ describe("Organization Invitations & Member Onboarding", () => {
     });
 
     it("should allow invitee to accept invitation and join organization", async () => {
-      const res = await request(app)
+      const res = await agent
         .post(`/api/invitation/${invitation.token}/accept`)
-        .set("Authorization", `Bearer ${inviteToken}`);
+        .set("Authorization", `Bearer ${inviteToken}`)
+        .set("X-CSRF-Token", csrfToken);
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.success).toBe(true);
@@ -210,13 +222,16 @@ describe("Organization Invitations & Member Onboarding", () => {
 
       // Verify user model is updated
       const updatedUser = await User.findById(inviteUser._id);
-      expect(updatedUser.organization.toString()).toBe(organization._id.toString());
+      expect(updatedUser.organization.toString()).toBe(
+        organization._id.toString(),
+      );
     });
 
     it("should reject accept requests from other users", async () => {
-      const res = await request(app)
+      const res = await agent
         .post(`/api/invitation/${invitation.token}/accept`)
-        .set("Authorization", `Bearer ${normalToken}`); // normalUser has different email
+        .set("Authorization", `Bearer ${normalToken}`)
+        .set("X-CSRF-Token", csrfToken); // normalUser has different email
 
       expect(res.statusCode).toEqual(403);
     });
@@ -238,9 +253,10 @@ describe("Organization Invitations & Member Onboarding", () => {
     });
 
     it("should allow invitee to decline invitation", async () => {
-      const res = await request(app)
+      const res = await agent
         .post(`/api/invitation/${invitation.token}/reject`)
-        .set("Authorization", `Bearer ${inviteToken}`);
+        .set("Authorization", `Bearer ${inviteToken}`)
+        .set("X-CSRF-Token", csrfToken);
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.success).toBe(true);
@@ -264,9 +280,10 @@ describe("Organization Invitations & Member Onboarding", () => {
     });
 
     it("should allow admin to cancel invitation", async () => {
-      const res = await request(app)
+      const res = await agent
         .delete(`/api/invitation/${invitation._id}`)
-        .set("Authorization", `Bearer ${adminToken}`);
+        .set("Authorization", `Bearer ${adminToken}`)
+        .set("X-CSRF-Token", csrfToken);
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.success).toBe(true);
@@ -290,9 +307,10 @@ describe("Organization Invitations & Member Onboarding", () => {
     });
 
     it("should allow admin to resend invitation and update token/expiry", async () => {
-      const res = await request(app)
+      const res = await agent
         .post(`/api/invitation/${invitation._id}/resend`)
-        .set("Authorization", `Bearer ${adminToken}`);
+        .set("Authorization", `Bearer ${adminToken}`)
+        .set("X-CSRF-Token", csrfToken);
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.success).toBe(true);
@@ -318,9 +336,10 @@ describe("Organization Invitations & Member Onboarding", () => {
     });
 
     it("should allow admin to manually expire invitation", async () => {
-      const res = await request(app)
+      const res = await agent
         .post(`/api/invitation/${invitation._id}/expire`)
-        .set("Authorization", `Bearer ${adminToken}`);
+        .set("Authorization", `Bearer ${adminToken}`)
+        .set("X-CSRF-Token", csrfToken);
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.success).toBe(true);

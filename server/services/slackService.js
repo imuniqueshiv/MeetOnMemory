@@ -35,7 +35,10 @@ export const verifySlackSignature = (req) => {
   // Reject requests older than 5 minutes to prevent replay attacks
   const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 5 * 60;
   if (parseInt(slackTimestamp, 10) < fiveMinutesAgo) {
-    return { valid: false, reason: "Request timestamp is too old (possible replay attack)" };
+    return {
+      valid: false,
+      reason: "Request timestamp is too old (possible replay attack)",
+    };
   }
 
   const rawBody = req.rawBody
@@ -58,7 +61,10 @@ export const verifySlackSignature = (req) => {
       return { valid: false, reason: "Signature length mismatch" };
     }
     const isValid = crypto.timingSafeEqual(a, b);
-    return { valid: isValid, reason: isValid ? undefined : "Signature mismatch" };
+    return {
+      valid: isValid,
+      reason: isValid ? undefined : "Signature mismatch",
+    };
   } catch {
     return { valid: false, reason: "Signature comparison failed" };
   }
@@ -95,7 +101,7 @@ export const exchangeSlackCodeForToken = async (code) => {
     {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       timeout: 10000,
-    }
+    },
   );
 
   if (!response.data.ok) {
@@ -116,7 +122,12 @@ export const exchangeSlackCodeForToken = async (code) => {
  * @param {string} [fallbackText] - Plain-text fallback for notifications
  * @returns {Promise<object>} Slack API response
  */
-export const postBlockMessage = async (botToken, channelId, blocks, fallbackText = "") => {
+export const postBlockMessage = async (
+  botToken,
+  channelId,
+  blocks,
+  fallbackText = "",
+) => {
   const response = await axios.post(
     "https://slack.com/api/chat.postMessage",
     {
@@ -130,7 +141,7 @@ export const postBlockMessage = async (botToken, channelId, blocks, fallbackText
         "Content-Type": "application/json",
       },
       timeout: 10000,
-    }
+    },
   );
 
   if (!response.data.ok) {
@@ -172,16 +183,22 @@ export const buildMeetingCreatedBlocks = (meeting, createdBy) => {
           type: "mrkdwn",
           text: `*Date:*\n${meeting.date ? new Date(meeting.date).toDateString() : "TBD"}`,
         },
-        { type: "mrkdwn", text: `*Type:*\n${meeting.meetingType || "General"}` },
+        {
+          type: "mrkdwn",
+          text: `*Type:*\n${meeting.meetingType || "General"}`,
+        },
       ],
     },
     ...(meeting.description
       ? [
-        {
-          type: "section",
-          text: { type: "mrkdwn", text: `*Description:*\n${meeting.description}` },
-        },
-      ]
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `*Description:*\n${meeting.description}`,
+            },
+          },
+        ]
       : []),
     { type: "divider" },
     {
@@ -235,7 +252,10 @@ export const buildMoMSummaryBlocks = (meeting) => {
   if (decisions.length > 0) {
     const decisionList = decisions
       .slice(0, 5)
-      .map((d) => `• ${typeof d === "string" ? d : d.description || d.decision || JSON.stringify(d)}`)
+      .map(
+        (d) =>
+          `• ${typeof d === "string" ? d : d.description || d.decision || JSON.stringify(d)}`,
+      )
       .join("\n");
     blocks.push({
       type: "section",
@@ -249,7 +269,10 @@ export const buildMoMSummaryBlocks = (meeting) => {
     const actionList = actionItems
       .slice(0, 5)
       .map((a) => {
-        const task = typeof a === "string" ? a : a.task || a.description || JSON.stringify(a);
+        const task =
+          typeof a === "string"
+            ? a
+            : a.task || a.description || JSON.stringify(a);
         const assignee = a.assignee ? ` _(${a.assignee})_` : "";
         return `• ${task}${assignee}`;
       })
@@ -273,7 +296,7 @@ export const buildMoMSummaryBlocks = (meeting) => {
           style: "primary",
         },
       ],
-    }
+    },
   );
 
   return blocks;
@@ -287,13 +310,15 @@ export const buildMoMSummaryBlocks = (meeting) => {
  * configured. If yes, posts a formatted Block Kit summary to their channel.
  */
 eventBus.on("mom.generated", async (meeting) => {
-  const orgId = meeting.organization;
+  const orgId = meeting?.organization;
   if (!orgId) return;
 
   try {
     // Explicitly select slackIntegration.botToken since it's select:false by default
     const org = await Organization.findById(orgId)
-      .select("+slackIntegration.botToken slackIntegration.channelId slackIntegration.teamId")
+      .select(
+        "+slackIntegration.botToken slackIntegration.channelId slackIntegration.teamId",
+      )
       .lean();
 
     const slack = org?.slackIntegration;
@@ -307,12 +332,17 @@ eventBus.on("mom.generated", async (meeting) => {
       slack.botToken,
       slack.channelId,
       blocks,
-      `AI Meeting Summary ready for "${meeting.title}"`
+      `AI Meeting Summary ready for "${meeting.title}"`,
     );
 
-    console.log(`[Slack] MoM summary posted to channel ${slack.channelId} for org ${orgId}`);
+    console.log(
+      `[Slack] MoM summary posted to channel ${slack.channelId} for org ${orgId}`,
+    );
   } catch (err) {
     // Non-fatal: Slack posting failure should never crash the main AI pipeline
-    console.error(`[Slack] Failed to post MoM summary to Slack for org ${orgId}:`, err.message);
+    console.error(
+      `[Slack] Failed to post MoM summary to Slack for org ${orgId}:`,
+      err.message,
+    );
   }
 });

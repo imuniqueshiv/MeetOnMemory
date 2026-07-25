@@ -1,27 +1,32 @@
-import { jest } from '@jest/globals';
+import { jest } from "@jest/globals";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import userModel from "../models/userModel.js";
 import transporter from "../config/nodeMailer.js";
-import AuthService from "../services/AuthService.js";
 import { AppError } from "../utils/errors.js";
+
+// AuthService statically re-imports bcryptjs (and the other mocks above).
+// Importing AuthService as a static sibling of those modules creates a Jest/Node
+// ESM diamond that triggers "module is already linked". Load it only after the
+// shared leaves are already linked/evaluated.
+const { default: AuthService } = await import("../services/AuthService.js");
 
 describe("AuthService", () => {
   beforeEach(() => {
     jest.restoreAllMocks();
-    jest.spyOn(transporter, 'sendMail').mockResolvedValue(true);
-    jest.spyOn(jwt, 'sign').mockReturnValue("mockJwtToken");
+    jest.spyOn(transporter, "sendMail").mockResolvedValue(true);
+    jest.spyOn(jwt, "sign").mockReturnValue("mockJwtToken");
   });
 
   describe("register", () => {
     it("should successfully register a new user and return user and token", async () => {
-      jest.spyOn(userModel, 'findOne').mockReturnValue({
+      jest.spyOn(userModel, "findOne").mockReturnValue({
         select: jest.fn().mockReturnValue({
           lean: jest.fn().mockResolvedValue(null),
         }),
       });
-      jest.spyOn(bcrypt, 'hash').mockResolvedValue("hashedPassword123");
-      jest.spyOn(userModel.prototype, 'save').mockResolvedValue(true);
+      jest.spyOn(bcrypt, "hash").mockResolvedValue("hashedPassword123");
+      jest.spyOn(userModel.prototype, "save").mockResolvedValue(true);
 
       const result = await AuthService.register({
         name: "Test User",
@@ -29,7 +34,9 @@ describe("AuthService", () => {
         password: "password123",
       });
 
-      expect(userModel.findOne).toHaveBeenCalledWith({ email: "test@example.com" });
+      expect(userModel.findOne).toHaveBeenCalledWith({
+        email: "test@example.com",
+      });
       expect(bcrypt.hash).toHaveBeenCalledWith("password123", 10);
       expect(userModel.prototype.save).toHaveBeenCalled();
       expect(jwt.sign).toHaveBeenCalled();
@@ -39,7 +46,7 @@ describe("AuthService", () => {
     });
 
     it("should throw AppError if user already exists", async () => {
-      jest.spyOn(userModel, 'findOne').mockReturnValue({
+      jest.spyOn(userModel, "findOne").mockReturnValue({
         select: jest.fn().mockReturnValue({
           lean: jest.fn().mockResolvedValue({ _id: "existingUserId" }),
         }),
@@ -50,7 +57,7 @@ describe("AuthService", () => {
           name: "Test User",
           email: "existing@example.com",
           password: "password123",
-        })
+        }),
       ).rejects.toThrow(new AppError("User already exists", 400));
     });
   });
@@ -62,24 +69,29 @@ describe("AuthService", () => {
         email: "test@example.com",
         password: "hashedPassword123",
       };
-      jest.spyOn(userModel, 'findOne').mockReturnValue({
+      jest.spyOn(userModel, "findOne").mockReturnValue({
         lean: jest.fn().mockResolvedValue(mockUser),
       });
-      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
+      jest.spyOn(bcrypt, "compare").mockResolvedValue(true);
 
       const result = await AuthService.login({
         email: "test@example.com",
         password: "password123",
       });
 
-      expect(userModel.findOne).toHaveBeenCalledWith({ email: "test@example.com" });
-      expect(bcrypt.compare).toHaveBeenCalledWith("password123", "hashedPassword123");
+      expect(userModel.findOne).toHaveBeenCalledWith({
+        email: "test@example.com",
+      });
+      expect(bcrypt.compare).toHaveBeenCalledWith(
+        "password123",
+        "hashedPassword123",
+      );
       expect(jwt.sign).toHaveBeenCalled();
       expect(result).toEqual({ user: mockUser, token: "mockJwtToken" });
     });
 
     it("should throw AppError if user is not found", async () => {
-      jest.spyOn(userModel, 'findOne').mockReturnValue({
+      jest.spyOn(userModel, "findOne").mockReturnValue({
         lean: jest.fn().mockResolvedValue(null),
       });
 
@@ -87,21 +99,21 @@ describe("AuthService", () => {
         AuthService.login({
           email: "nonexistent@example.com",
           password: "password123",
-        })
+        }),
       ).rejects.toThrow(new AppError("Invalid Email", 400));
     });
 
     it("should throw AppError if password does not match", async () => {
-      jest.spyOn(userModel, 'findOne').mockReturnValue({
+      jest.spyOn(userModel, "findOne").mockReturnValue({
         lean: jest.fn().mockResolvedValue({ password: "hashedPassword123" }),
       });
-      jest.spyOn(bcrypt, 'compare').mockResolvedValue(false);
+      jest.spyOn(bcrypt, "compare").mockResolvedValue(false);
 
       await expect(
         AuthService.login({
           email: "test@example.com",
           password: "wrongPassword",
-        })
+        }),
       ).rejects.toThrow(new AppError("Invalid Password", 400));
     });
   });
@@ -115,8 +127,8 @@ describe("AuthService", () => {
         resetOtpExpireAt: Date.now() + 10000,
         save: mockSave,
       };
-      jest.spyOn(userModel, 'findOne').mockResolvedValue(mockUser);
-      jest.spyOn(bcrypt, 'hash').mockResolvedValue("newHashedPassword123");
+      jest.spyOn(userModel, "findOne").mockResolvedValue(mockUser);
+      jest.spyOn(bcrypt, "hash").mockResolvedValue("newHashedPassword123");
 
       await AuthService.resetPassword({
         email: "test@example.com",
@@ -124,7 +136,9 @@ describe("AuthService", () => {
         newPassword: "newPassword123",
       });
 
-      expect(userModel.findOne).toHaveBeenCalledWith({ email: "test@example.com" });
+      expect(userModel.findOne).toHaveBeenCalledWith({
+        email: "test@example.com",
+      });
       expect(bcrypt.hash).toHaveBeenCalledWith("newPassword123", 10);
       expect(mockUser.password).toBe("newHashedPassword123");
       expect(mockUser.resetOtp).toBe("");
@@ -133,19 +147,19 @@ describe("AuthService", () => {
     });
 
     it("should throw AppError if user not found", async () => {
-      jest.spyOn(userModel, 'findOne').mockResolvedValue(null);
+      jest.spyOn(userModel, "findOne").mockResolvedValue(null);
 
       await expect(
         AuthService.resetPassword({
           email: "nonexistent@example.com",
           otp: "123456",
           newPassword: "newPassword123",
-        })
+        }),
       ).rejects.toThrow(new AppError("Invalid request or expired token", 400));
     });
 
     it("should throw AppError if OTP is invalid", async () => {
-      jest.spyOn(userModel, 'findOne').mockResolvedValue({
+      jest.spyOn(userModel, "findOne").mockResolvedValue({
         email: "test@example.com",
         resetOtp: "123456",
         resetOtpExpireAt: Date.now() + 10000,
@@ -156,12 +170,12 @@ describe("AuthService", () => {
           email: "test@example.com",
           otp: "wrongOtp",
           newPassword: "newPassword123",
-        })
+        }),
       ).rejects.toThrow(new AppError("Invalid OTP", 400));
     });
 
     it("should throw AppError if OTP is expired", async () => {
-      jest.spyOn(userModel, 'findOne').mockResolvedValue({
+      jest.spyOn(userModel, "findOne").mockResolvedValue({
         email: "test@example.com",
         resetOtp: "123456",
         resetOtpExpireAt: Date.now() - 10000,
@@ -172,7 +186,7 @@ describe("AuthService", () => {
           email: "test@example.com",
           otp: "123456",
           newPassword: "newPassword123",
-        })
+        }),
       ).rejects.toThrow(new AppError("OTP expired", 400));
     });
   });

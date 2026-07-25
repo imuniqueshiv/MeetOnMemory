@@ -5,7 +5,7 @@ import AppContent from "../context/AppContent";
 import { toast } from "react-toastify";
 import { assets } from "../assets/assets";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { authApi } from "../services";
+import { authApi, csrfService } from "../services";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -62,6 +62,9 @@ const Login = () => {
     setIsLoading(true);
 
     try {
+      // Ensure we have a valid CSRF token before any auth POST
+      await csrfService.fetchToken();
+
       if (state === "Sign Up") {
         const { data } = await authApi.register({
           name,

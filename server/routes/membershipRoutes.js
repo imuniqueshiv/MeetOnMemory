@@ -8,7 +8,7 @@ import {
   leaveOrganization,
 } from "../controllers/membershipController.js";
 import userAuth from "../middleware/userAuth.js";
-import { requireAdmin } from "../middleware/rbac.js";
+import { requireAdmin } from "../middleware/rbac.js"; // eslint-disable-line no-unused-vars
 import { apiLimiter, writeLimiter } from "../middleware/rateLimiter.js";
 import { requirePermission, requireOrgMembership } from "../middleware/rbac.js";
 
@@ -30,7 +30,6 @@ router.get(
   requirePermission("team_members", "view"),
   getOrganizationMemberships,
 );
-
 
 // Membership management
 router.patch(

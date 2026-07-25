@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar.jsx";
 import {
@@ -39,183 +39,189 @@ const CookiePolicy = () => {
   const [clearedLogs, setClearedLogs] = useState(false);
 
   // References for scrollspy/scroll tracking
-  const sectionRefs = {
-    introduction: useRef(null),
-    whatAreCookies: useRef(null),
-    howWeUseCookies: useRef(null),
-    typesOfCookies: useRef(null),
-    cookieInventory: useRef(null),
-    aiProcessingCookies: useRef(null),
-    preferenceCenter: useRef(null),
-    browserSettings: useRef(null),
-    legalCompliance: useRef(null),
-    policyChanges: useRef(null),
-    contactUs: useRef(null),
-  };
+  const sectionRefs = useMemo(
+    () => ({
+      introduction: React.createRef(),
+      whatAreCookies: React.createRef(),
+      howWeUseCookies: React.createRef(),
+      typesOfCookies: React.createRef(),
+      cookieInventory: React.createRef(),
+      aiProcessingCookies: React.createRef(),
+      preferenceCenter: React.createRef(),
+      browserSettings: React.createRef(),
+      legalCompliance: React.createRef(),
+      policyChanges: React.createRef(),
+      contactUs: React.createRef(),
+    }),
+    [],
+  );
 
-  const sections = [
-    {
-      id: "introduction",
-      title: "1. Introduction & Scope",
-      icon: Globe,
-      content: `Welcome to the MeetOnMemory Cookie Policy. This policy explains how MeetOnMemory ("we", "us", or "our") uses cookies, web beacons, local storage, and similar tracking technologies when you visit our web application, access our transcription dashboard, or interact with any associated services (collectively, the "Service").
-      
-      We believe in absolute transparency regarding how we handle your data. In line with modern privacy standards (such as GDPR, CCPA, and the ePrivacy Directive), this policy outlines what cookies are, why we use them, and the granular controls you possess to manage your browser storage configuration at any time.
-      
-      Please read this policy alongside our primary Privacy Policy and Terms of Service to understand our comprehensive approach to data protection, Pinecone vector workspace isolation, and zero-retention Google Gemini API data processing guidelines.`,
-    },
-    {
-      id: "whatAreCookies",
-      title: "2. What Are Cookies?",
-      icon: Cookie,
-      content: `Cookies are small text files containing a string of alphanumeric characters that are downloaded to your computer or mobile device when you visit a website or web application. They allow the website to recognize your device, maintain security, remember preferences, and optimize load speeds.
-      
-      Depending on their origin and duration, cookies can be categorized as follows:
-      
-      - First-Party Cookies: Set directly by MeetOnMemory. These are primarily used to keep you securely signed in and to preserve user settings like dark mode and language preferences.
-      - Third-Party Cookies: Placed by domain partners (such as analytics providers or cloud infrastructure tools) to track usage metrics or run external assets.
-      - Session Cookies: Temporary cookies that expire and are automatically erased when you close your web browser.
-      - Persistent Cookies: Remain on your device's storage for a specified period or until you manually delete them. These help us remember you when you return.`,
-    },
-    {
-      id: "howWeUseCookies",
-      title: "3. How We Use Cookies",
-      icon: Sliders,
-      content: `MeetOnMemory utilizes cookies and local storage parameters to ensure our AI meeting workspace is fast, secure, and intuitive. We do not sell cookie data, nor do we use tracking cookies for intrusive advertising campaigns.
-      
-      Our cookies serve the following core categories of operational functionality:
-      
-      A. Authentication & Security:
-      Verifying your login sessions, preventing cross-site request forgery (CSRF) attacks, and identifying active organization memberships.
-      
-      B. User Experience & Customization:
-      Remembering your interface preferences, such as light vs. dark mode, active dashboard layouts, language filters (English/Hindi), and sidebar visibility states.
-      
-      C. Performance & Scale:
-      Distributing incoming API request traffic across our cloud server clusters to prevent service disruption and slow loading times during high-volume transcription queues.
-      
-      D. Usage Analytics:
-      Aggregating anonymous, de-identified statistics on page interaction speeds, feature popularity, and browser compatibility to refine our platform.`,
-    },
-    {
-      id: "typesOfCookies",
-      title: "4. Categories of Tracking Technologies",
-      icon: Settings,
-      content: `We classify the tracking technologies used in our system into four logical groups. You can restrict or opt-out of functional, analytical, and targeting configurations via the interactive Preference Console on this page:
-      
-      1. Strictly Necessary Cookies (Always Active):
-      These cookies are essential for you to browse our site and use its secure features. Without them, features like user authentication, multi-tenant workspace isolation, and session maintenance will fail.
-      
-      2. Functional Cookies:
-      These allow our web application to remember choices you make (such as your sidebar navigation state, dark mode preferences, or customized meeting dashboard filters) to deliver a highly personalized experience.
-      
-      3. Performance & Analytics Cookies:
-      These collect information about how visitors use MeetOnMemory—for example, which pages are visited most often and if any server errors occur. The data collected is aggregated and anonymous.
-      
-      4. Targeted Contextual Cookies:
-      Used to manage customized product notifications, feature tour guides, or feedback popups. We do not serve third-party behavioral advertisements on MeetOnMemory.`,
-    },
-    {
-      id: "cookieInventory",
-      title: "5. Detailed Cookie Inventory",
-      icon: Database,
-      content: `The following is an audited list of the specific cookies and browser local storage variables utilized within the MeetOnMemory platform:
-      
-      - token (Local Storage / Cookie):
-        - Purpose: Stores your encrypted JSON Web Token (JWT) session token to verify credentials for secure API calls.
-        - Expiration: 7 days or upon logout.
-        - Type: Essential First-Party.
+  const sections = useMemo(
+    () => [
+      {
+        id: "introduction",
+        title: "1. Introduction & Scope",
+        icon: Globe,
+        content: `Welcome to the MeetOnMemory Cookie Policy. This policy explains how MeetOnMemory ("we", "us", or "our") uses cookies, web beacons, local storage, and similar tracking technologies when you visit our web application, access our transcription dashboard, or interact with any associated services (collectively, the "Service").
         
-      - mom_theme (Local Storage):
-        - Purpose: Retains your visual theme selection (light, dark, or system default) to prevent screen flickering on page load.
-        - Expiration: Persistent.
-        - Type: Functional First-Party.
+        We believe in absolute transparency regarding how we handle your data. In line with modern privacy standards (such as GDPR, CCPA, and the ePrivacy Directive), this policy outlines what cookies are, why we use them, and the granular controls you possess to manage your browser storage configuration at any time.
         
-      - mom_lang (Local Storage):
-        - Purpose: Saves your active localization language (e.g., 'en' for English or 'hi' for Hindi).
-        - Expiration: Persistent.
-        - Type: Functional First-Party.
+        Please read this policy alongside our primary Privacy Policy and Terms of Service to understand our comprehensive approach to data protection, Pinecone vector workspace isolation, and zero-retention Google Gemini API data processing guidelines.`,
+      },
+      {
+        id: "whatAreCookies",
+        title: "2. What Are Cookies?",
+        icon: Cookie,
+        content: `Cookies are small text files containing a string of alphanumeric characters that are downloaded to your computer or mobile device when you visit a website or web application. They allow the website to recognize your device, maintain security, remember preferences, and optimize load speeds.
         
-      - _ga / _gid (Cookie):
-        - Purpose: Set by Google Analytics to distinguish users and compile aggregated, non-personally identifiable site usage statistics.
-        - Expiration: 2 years / 24 hours.
-        - Type: Analytics Third-Party.
+        Depending on their origin and duration, cookies can be categorized as follows:
         
-      - mom_sidebar_collapsed (Local Storage):
-        - Purpose: Stores the visual state of the workspace navigation panel.
-        - Expiration: Persistent.
-        - Type: Functional First-Party.`,
-    },
-    {
-      id: "aiProcessingCookies",
-      title: "6. AI Processing & Storage Rules",
-      icon: Fingerprint,
-      content: `Because MeetOnMemory processes highly confidential meeting audio, video recordings, and transcripts, we maintain strict isolation standards regarding browser storage and AI services:
-      
-      A. Zero-Retention Gemini API Calls:
-      When you submit transcripts or request meeting summaries via Google Gemini, no browser cookies are forwarded to Google. All communication with AI endpoints is managed securely via our backend servers using secure, server-side API keys.
-      
-      B. Pinecone Vector Isolation:
-      Your organization's vector search embeddings are indexed using logical Organization ID keys on our cloud database. Browser cookies are only used to authenticate your authorization to query these indexes. No search history or query vectors are stored in persistent browser cookies.
-      
-      C. Local Media Uploads:
-      Audio and video files chosen for transcription are streamed directly to our secure storage buckets. We do not cache or store temporary media files in browser local storage or IndexedDB.`,
-    },
-    {
-      id: "preferenceCenter",
-      title: "7. Cookie Settings Console",
-      icon: Sliders,
-      content: `Use this interactive preference center to control how MeetOnMemory handles cookies and local storage on your current browser. Toggling off analytical, functional, or AI-context cookies will instantly adjust our application parameters.`,
-    },
-    {
-      id: "browserSettings",
-      title: "8. Browser Controls & Deletion",
-      icon: Trash2,
-      content: `In addition to our Preference Settings Console, you can manage, block, or delete cookies directly through your web browser's configuration panel:
-      
-      - Google Chrome: Go to Settings > Privacy and Security > Cookies and other site data.
-      - Mozilla Firefox: Go to Settings > Privacy & Security > Cookies and Site Data.
-      - Apple Safari: Go to Preferences > Privacy > Block all cookies.
-      - Microsoft Edge: Go to Settings > Cookies and site permissions > Manage and delete cookies and site data.
-      
-      Please note that if you choose to completely block all cookies in your browser settings, key features of the MeetOnMemory application (such as keeping you logged in) will cease to function correctly.`,
-    },
-    {
-      id: "legalCompliance",
-      title: "9. Global Regulatory Compliance",
-      icon: Shield,
-      content: `Our cookie practices are aligned with international privacy frameworks:
-      
-      A. GDPR & ePrivacy Directive (EEA/UK):
-      We require explicit, opt-in consent for all non-essential cookies (such as analytics and functional trackers) before they are set on your device. You have the right to withdraw this consent at any time.
-      
-      B. CCPA & CPRA (California):
-      Under the California Consumer Privacy Act, users have the right to opt-out of the "sale or sharing" of personal data. MeetOnMemory does not sell your information. Toggling off analytical cookies ensures no sharing of tracking indicators.
-      
-      C. Organization Security Polices:
-      Enterprise workspaces can enforce global cookie policies that disable third-party analytics across all organization member accounts.`,
-    },
-    {
-      id: "policyChanges",
-      title: "10. Cookie Mandate Updates",
-      icon: RefreshCw,
-      content: `We may revise this Cookie Policy periodically to reflect changes in our tech stack, cloud infrastructure, or legal requirements.
-      
-      Whenever updates are implemented, we will revise the "Last Updated" date at the top of this page. If the changes are material, we will display a notification banner within your dashboard or send an email update to registered workspace administrators. We encourage you to review this page regularly to stay informed.`,
-    },
-    {
-      id: "contactUs",
-      title: "11. Cookie Support & Queries",
-      icon: Info,
-      content: `If you have questions regarding our use of cookies, local storage variables, or our security protocols, please reach out to our privacy compliance team:
-      
-      - Email: privacy@meetonmemory.com
-      - Security Desk: security@meetonmemory.com
-      - Address: MeetOnMemory Legal Dept, 548 Market St, Suite 4839, San Francisco, CA 94104
-      
-      We are committed to responding to all privacy inquiries within 30 days.`,
-    },
-  ];
+        - First-Party Cookies: Set directly by MeetOnMemory. These are primarily used to keep you securely signed in and to preserve user settings like dark mode and language preferences.
+        - Third-Party Cookies: Placed by domain partners (such as analytics providers or cloud infrastructure tools) to track usage metrics or run external assets.
+        - Session Cookies: Temporary cookies that expire and are automatically erased when you close your web browser.
+        - Persistent Cookies: Remain on your device's storage for a specified period or until you manually delete them. These help us remember you when you return.`,
+      },
+      {
+        id: "howWeUseCookies",
+        title: "3. How We Use Cookies",
+        icon: Sliders,
+        content: `MeetOnMemory utilizes cookies and local storage parameters to ensure our AI meeting workspace is fast, secure, and intuitive. We do not sell cookie data, nor do we use tracking cookies for intrusive advertising campaigns.
+        
+        Our cookies serve the following core categories of operational functionality:
+        
+        A. Authentication & Security:
+        Verifying your login sessions, preventing cross-site request forgery (CSRF) attacks, and identifying active organization memberships.
+        
+        B. User Experience & Customization:
+        Remembering your interface preferences, such as light vs. dark mode, active dashboard layouts, language filters (English/Hindi), and sidebar visibility states.
+        
+        C. Performance & Scale:
+        Distributing incoming API request traffic across our cloud server clusters to prevent service disruption and slow loading times during high-volume transcription queues.
+        
+        D. Usage Analytics:
+        Aggregating anonymous, de-identified statistics on page interaction speeds, feature popularity, and browser compatibility to refine our platform.`,
+      },
+      {
+        id: "typesOfCookies",
+        title: "4. Categories of Tracking Technologies",
+        icon: Settings,
+        content: `We classify the tracking technologies used in our system into four logical groups. You can restrict or opt-out of functional, analytical, and targeting configurations via the interactive Preference Console on this page:
+        
+        1. Strictly Necessary Cookies (Always Active):
+        These cookies are essential for you to browse our site and use its secure features. Without them, features like user authentication, multi-tenant workspace isolation, and session maintenance will fail.
+        
+        2. Functional Cookies:
+        These allow our web application to remember choices you make (such as your sidebar navigation state, dark mode preferences, or customized meeting dashboard filters) to deliver a highly personalized experience.
+        
+        3. Performance & Analytics Cookies:
+        These collect information about how visitors use MeetOnMemory—for example, which pages are visited most often and if any server errors occur. The data collected is aggregated and anonymous.
+        
+        4. Targeted Contextual Cookies:
+        Used to manage customized product notifications, feature tour guides, or feedback popups. We do not serve third-party behavioral advertisements on MeetOnMemory.`,
+      },
+      {
+        id: "cookieInventory",
+        title: "5. Detailed Cookie Inventory",
+        icon: Database,
+        content: `The following is an audited list of the specific cookies and browser local storage variables utilized within the MeetOnMemory platform:
+        
+        - token (Local Storage / Cookie):
+          - Purpose: Stores your encrypted JSON Web Token (JWT) session token to verify credentials for secure API calls.
+          - Expiration: 7 days or upon logout.
+          - Type: Essential First-Party.
+          
+        - mom_theme (Local Storage):
+          - Purpose: Retains your visual theme selection (light, dark, or system default) to prevent screen flickering on page load.
+          - Expiration: Persistent.
+          - Type: Functional First-Party.
+          
+        - mom_lang (Local Storage):
+          - Purpose: Saves your active localization language (e.g., 'en' for English or 'hi' for Hindi).
+          - Expiration: Persistent.
+          - Type: Functional First-Party.
+          
+        - _ga / _gid (Cookie):
+          - Purpose: Set by Google Analytics to distinguish users and compile aggregated, non-personally identifiable site usage statistics.
+          - Expiration: 2 years / 24 hours.
+          - Type: Analytics Third-Party.
+          
+        - mom_sidebar_collapsed (Local Storage):
+          - Purpose: Stores the visual state of the workspace navigation panel.
+          - Expiration: Persistent.
+          - Type: Functional First-Party.`,
+      },
+      {
+        id: "aiProcessingCookies",
+        title: "6. AI Processing & Storage Rules",
+        icon: Fingerprint,
+        content: `Because MeetOnMemory processes highly confidential meeting audio, video recordings, and transcripts, we maintain strict isolation standards regarding browser storage and AI services:
+        
+        A. Zero-Retention Gemini API Calls:
+        When you submit transcripts or request meeting summaries via Google Gemini, no browser cookies are forwarded to Google. All communication with AI endpoints is managed securely via our backend servers using secure, server-side API keys.
+        
+        B. Pinecone Vector Isolation:
+        Your organization's vector search embeddings are indexed using logical Organization ID keys on our cloud database. Browser cookies are only used to authenticate your authorization to query these indexes. No search history or query vectors are stored in persistent browser cookies.
+        
+        C. Local Media Uploads:
+        Audio and video files chosen for transcription are streamed directly to our secure storage buckets. We do not cache or store temporary media files in browser local storage or IndexedDB.`,
+      },
+      {
+        id: "preferenceCenter",
+        title: "7. Cookie Settings Console",
+        icon: Sliders,
+        content: `Use this interactive preference center to control how MeetOnMemory handles cookies and local storage on your current browser. Toggling off analytical, functional, or AI-context cookies will instantly adjust our application parameters.`,
+      },
+      {
+        id: "browserSettings",
+        title: "8. Browser Controls & Deletion",
+        icon: Trash2,
+        content: `In addition to our Preference Settings Console, you can manage, block, or delete cookies directly through your web browser's configuration panel:
+        
+        - Google Chrome: Go to Settings > Privacy and Security > Cookies and other site data.
+        - Mozilla Firefox: Go to Settings > Privacy & Security > Cookies and Site Data.
+        - Apple Safari: Go to Preferences > Privacy > Block all cookies.
+        - Microsoft Edge: Go to Settings > Cookies and site permissions > Manage and delete cookies and site data.
+        
+        Please note that if you choose to completely block all cookies in your browser settings, key features of the MeetOnMemory application (such as keeping you logged in) will cease to function correctly.`,
+      },
+      {
+        id: "legalCompliance",
+        title: "9. Global Regulatory Compliance",
+        icon: Shield,
+        content: `Our cookie practices are aligned with international privacy frameworks:
+        
+        A. GDPR & ePrivacy Directive (EEA/UK):
+        We require explicit, opt-in consent for all non-essential cookies (such as analytics and functional trackers) before they are set on your device. You have the right to withdraw this consent at any time.
+        
+        B. CCPA & CPRA (California):
+        Under the California Consumer Privacy Act, users have the right to opt-out of the "sale or sharing" of personal data. MeetOnMemory does not sell your information. Toggling off analytical cookies ensures no sharing of tracking indicators.
+        
+        C. Organization Security Polices:
+        Enterprise workspaces can enforce global cookie policies that disable third-party analytics across all organization member accounts.`,
+      },
+      {
+        id: "policyChanges",
+        title: "10. Cookie Mandate Updates",
+        icon: RefreshCw,
+        content: `We may revise this Cookie Policy periodically to reflect changes in our tech stack, cloud infrastructure, or legal requirements.
+        
+        Whenever updates are implemented, we will revise the "Last Updated" date at the top of this page. If the changes are material, we will display a notification banner within your dashboard or send an email update to registered workspace administrators. We encourage you to review this page regularly to stay informed.`,
+      },
+      {
+        id: "contactUs",
+        title: "11. Cookie Support & Queries",
+        icon: Info,
+        content: `If you have questions regarding our use of cookies, local storage variables, or our security protocols, please reach out to our privacy compliance team:
+        
+        - Email: privacy@meetonmemory.com
+        - Security Desk: security@meetonmemory.com
+        - Address: MeetOnMemory Legal Dept, 548 Market St, Suite 4839, San Francisco, CA 94104
+        
+        We are committed to responding to all privacy inquiries within 30 days.`,
+      },
+    ],
+    [],
+  );
 
   const faqs = [
     {
@@ -243,7 +249,7 @@ const CookiePolicy = () => {
 
       for (let i = 0; i < sections.length; i++) {
         const secId = sections[i].id;
-        const element = sectionRefs[secId].current;
+        const element = sectionRefs[secId]?.current;
         if (element) {
           const top = element.offsetTop;
           const height = element.offsetHeight;
@@ -257,7 +263,7 @@ const CookiePolicy = () => {
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [sections]);
+  }, [sections, sectionRefs]);
 
   // Smooth scroll offset click handler
   const scrollToSection = (id) => {
