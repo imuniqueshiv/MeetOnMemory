@@ -135,6 +135,50 @@ describe("OrganizationService", () => {
         expect.objectContaining({ role: "member", status: "active" }),
       );
     });
+    it("rejects joining an existing private organization", async () => {
+      const mockOrg = {
+        _id: "org123",
+        name: "Acme",
+        visibility: "private",
+        members: ["existingUser"],
+        createdBy: "existingUser",
+      };
+      Organization.findOne.mockResolvedValue(mockOrg);
+
+      const joinAttempt = OrganizationService.createOrJoinOrganization(
+        "newUser",
+        "Acme",
+        null,
+      );
+
+      await expect(joinAttempt).rejects.toMatchObject({ statusCode: 403 });
+      await expect(joinAttempt).rejects.toThrow(
+        "requires invitation or membership approval",
+      );
+      expect(Membership.create).not.toHaveBeenCalled();
+    });
+
+    it("rejects joining an existing invite-only organization", async () => {
+      const mockOrg = {
+        _id: "org123",
+        name: "Acme",
+        visibility: "invite-only",
+        members: ["existingUser"],
+        createdBy: "existingUser",
+      };
+      Organization.findOne.mockResolvedValue(mockOrg);
+      Membership.findOne.mockResolvedValue(null);
+      MembershipRequest.findOne.mockResolvedValue(null);
+
+      const joinAttempt = OrganizationService.createOrJoinOrganization(
+        "newUser",
+        "Acme",
+        null,
+      );
+
+      await expect(joinAttempt).rejects.toThrow("requires a valid invitation");
+      expect(Membership.create).not.toHaveBeenCalled();
+    });
   });
 
   // ── getAllOrganizations ────────────────────────────────────
