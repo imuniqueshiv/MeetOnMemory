@@ -12,6 +12,7 @@
  * server/services/MeetingService.js.
  */
 
+import fs from "fs";
 import path from "path";
 import { z } from "zod";
 import Meeting from "../models/meetingModel.js"; // eslint-disable-line no-unused-vars
