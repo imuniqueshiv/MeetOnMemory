@@ -26,7 +26,6 @@ router.use(userAuth);
 router.post(
   "/",
   writeLimiter,
-  requirePermission("team_members", "invite"),
   createMembershipRequest,
 );
 
@@ -59,7 +58,6 @@ router.patch(
 router.patch(
   "/:id/cancel",
   writeLimiter,
-  requirePermission("team_members", "invite"),
   cancelMembershipRequest,
 );
 
