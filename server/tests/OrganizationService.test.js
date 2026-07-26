@@ -591,4 +591,178 @@ describe("OrganizationService", () => {
       ).rejects.toThrow("Invalid website URL format.");
     });
   });
+
+  // ── getPublicOrganizationBySlug ─────────────────────────────
+  describe("getPublicOrganizationBySlug", () => {
+    it("should return public organization when it is public", async () => {
+      const mockOrg = {
+        _id: "org1",
+        name: "Public Org",
+        slug: "public-org",
+        visibility: "public",
+        metadata: { website: "https://example.com" },
+      };
+      Organization.findOne.mockResolvedValue(mockOrg);
+      Membership.countDocuments.mockResolvedValue(3);
+
+      const result = await OrganizationService.getPublicOrganizationBySlug("public-org");
+      expect(result.success).toBe(true);
+      expect(result.organization.name).toBe("Public Org");
+      expect(result.organization.memberCount).toBe(3);
+    });
+
+    it("should throw ForbiddenError when organization is private", async () => {
+      const mockOrg = {
+        _id: "org2",
+        name: "Private Org",
+        slug: "private-org",
+        visibility: "private",
+      };
+      Organization.findOne.mockResolvedValue(mockOrg);
+
+      await expect(
+        OrganizationService.getPublicOrganizationBySlug("private-org")
+      ).rejects.toThrow("Not authorized to access this organization.");
+    });
+  });
+
+  // ── getOrganizations (Paginated) ───────────────────────────
+  describe("getOrganizations", () => {
+    it("should return public organizations for unauthorized/anonymous access", async () => {
+      const mockOrgs = [{ _id: "org1", name: "Public Org", visibility: "public" }];
+      const mockQueryChain = {
+        sort: vi.fn().mockReturnThis(),
+        skip: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue(mockOrgs),
+      };
+      Organization.find.mockReturnValue(mockQueryChain);
+      Organization.countDocuments.mockResolvedValue(1);
+
+      const result = await OrganizationService.getOrganizations(null, "public", 1, 20);
+      expect(result.success).toBe(true);
+      expect(result.organizations).toHaveLength(1);
+      expect(Organization.find).toHaveBeenCalledWith(expect.objectContaining({ visibility: "public" }));
+    });
+
+    it("should filter by user memberships when requesting private/invite-only organizations", async () => {
+      const mockOrgs = [{ _id: "org2", name: "My Private Org", visibility: "private" }];
+      const mockQueryChain = {
+        sort: vi.fn().mockReturnThis(),
+        skip: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue(mockOrgs),
+      };
+      Organization.find.mockReturnValue(mockQueryChain);
+      Organization.countDocuments.mockResolvedValue(1);
+      Membership.find.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue([{ organization: "org2" }]),
+      });
+
+      const result = await OrganizationService.getOrganizations("user123", "private", 1, 20);
+      expect(result.success).toBe(true);
+      expect(result.organizations).toHaveLength(1);
+      expect(Membership.find).toHaveBeenCalledWith({ user: "user123", status: "active" });
+      expect(Organization.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          visibility: "private",
+          $or: expect.any(Array),
+        })
+      );
+    });
+  });
+
+  // ── getOrganizationById ─────────────────────────────────────
+  describe("getOrganizationById", () => {
+    it("should return public organization metadata to any user", async () => {
+      const mockOrg = {
+        _id: "org1",
+        name: "Public Org",
+        visibility: "public",
+        members: ["user1"],
+      };
+      const mockQuery = {
+        select: vi.fn().mockReturnThis(),
+        populate: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue(mockOrg),
+      };
+      Organization.findOne.mockReturnValue(mockQuery);
+      Membership.countDocuments.mockResolvedValue(1);
+
+      const result = await OrganizationService.getOrganizationById("org1", "user2");
+      expect(result.success).toBe(true);
+      expect(result.organization.name).toBe("Public Org");
+    });
+
+    it("should return private organization metadata to its owner", async () => {
+      const mockOrg = {
+        _id: "org2",
+        name: "Private Org",
+        visibility: "private",
+        owner: { _id: "owner123", name: "Owner" },
+        members: ["owner123"],
+      };
+      const mockQuery = {
+        select: vi.fn().mockReturnThis(),
+        populate: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue(mockOrg),
+      };
+      Organization.findOne.mockReturnValue(mockQuery);
+      Membership.countDocuments.mockResolvedValue(1);
+
+      const result = await OrganizationService.getOrganizationById("org2", "owner123");
+      expect(result.success).toBe(true);
+      expect(result.organization.name).toBe("Private Org");
+    });
+
+    it("should return private organization metadata to its member", async () => {
+      const mockOrg = {
+        _id: "org2",
+        name: "Private Org",
+        visibility: "private",
+        owner: "owner123",
+        members: [],
+      };
+      const mockQuery = {
+        select: vi.fn().mockReturnThis(),
+        populate: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue(mockOrg),
+      };
+      Organization.findOne.mockReturnValue(mockQuery);
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue({ user: "member123", status: "active" }),
+      });
+      Membership.countDocuments.mockResolvedValue(2);
+
+      const result = await OrganizationService.getOrganizationById("org2", "member123");
+      expect(result.success).toBe(true);
+      expect(result.organization.name).toBe("Private Org");
+    });
+
+    it("should throw ForbiddenError when non-member requests private organization", async () => {
+      const mockOrg = {
+        _id: "org2",
+        name: "Private Org",
+        visibility: "private",
+        owner: "owner123",
+        members: [],
+      };
+      const mockQuery = {
+        select: vi.fn().mockReturnThis(),
+        populate: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue(mockOrg),
+      };
+      Organization.findOne.mockReturnValue(mockQuery);
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue(null),
+      });
+
+      await expect(
+        OrganizationService.getOrganizationById("org2", "intruder123")
+      ).rejects.toThrow("Not authorized to access this organization.");
+    });
+  });
 });

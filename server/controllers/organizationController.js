@@ -278,8 +278,10 @@ export const createOrganization = async (req, res) => {
 export const getOrganizations = async (req, res) => {
   try {
     const { visibility, page = 1, limit = 20 } = req.query;
+    const userId = req.user?.id || null;
 
     const result = await OrganizationService.getOrganizations(
+      userId,
       visibility,
       page,
       limit,
@@ -298,8 +300,10 @@ export const getOrganizations = async (req, res) => {
  */
 export const getOrganizationById = async (req, res) => {
   try {
+    const userId = req.user?.id || null;
     const result = await OrganizationService.getOrganizationById(
       req.params.idOrSlug,
+      userId,
     );
 
     sendSuccess(res, result);

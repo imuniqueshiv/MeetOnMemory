@@ -400,6 +400,10 @@ export const getPublicOrganizationBySlug = async (slug) => {
     throw new NotFoundError("Organization not found.");
   }
 
+  if (organization.visibility !== "public") {
+    throw new ForbiddenError("Not authorized to access this organization.");
+  }
+
   // Get member count from Membership model (without exposing member details)
   const memberCount = await Membership.countDocuments({
     organization: organization._id,
@@ -670,7 +674,7 @@ export const createOrganization = async (
 /**
  * ✅ Get All Organizations (Paginated)
  */
-export const getOrganizations = async (visibility, page = 1, limit = 20) => {
+export const getOrganizations = async (userId, visibility, page = 1, limit = 20) => {
   // Validate visibility value
   const validVisibility =
     visibility && isValidVisibility(visibility)
@@ -684,10 +688,43 @@ export const getOrganizations = async (visibility, page = 1, limit = 20) => {
   const pageNum = Math.max(1, parseInt(page) || 1);
   const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
 
-  // Build safe query filter with only validated values
+  const userOrgIds = [];
+  if (userId) {
+    const userMemberships = await Membership.find({
+      user: userId,
+      status: "active",
+    }).select("organization").lean();
+    userOrgIds.push(...userMemberships.map((m) => m.organization));
+  }
+
+  // Build safe query filter with only validated values and authorized access
   const safeFilter = {};
   if (validVisibility) {
-    safeFilter.visibility = validVisibility;
+    if (validVisibility === "public") {
+      safeFilter.visibility = "public";
+    } else {
+      if (!userId) {
+        safeFilter._id = null;
+      } else {
+        safeFilter.visibility = validVisibility;
+        safeFilter.$or = [
+          { owner: userId },
+          { _id: { $in: userOrgIds } },
+          { members: userId },
+        ];
+      }
+    }
+  } else {
+    if (!userId) {
+      safeFilter.visibility = "public";
+    } else {
+      safeFilter.$or = [
+        { visibility: "public" },
+        { owner: userId },
+        { _id: { $in: userOrgIds } },
+        { members: userId },
+      ];
+    }
   }
 
   const organizations = await Organization.find(safeFilter)
@@ -798,7 +835,7 @@ export const getOrganizationSettings = async (userId, orgIdOrSlug = null) => {
 /**
  * ✅ Get Organization by ID or Slug
  */
-export const getOrganizationById = async (idOrSlug) => {
+export const getOrganizationById = async (idOrSlug, userId) => {
   // Validate input - only allow alphanumeric, hyphens, and underscores for slug
   const slugRegex = /^[a-zA-Z0-9-_]+$/;
   if (!slugRegex.test(idOrSlug)) {
@@ -813,7 +850,7 @@ export const getOrganizationById = async (idOrSlug) => {
 
   const organization = await Organization.findOne(query)
     .select(
-      "name slug description about website contactEmail industry location logo visibility joinPolicy owner createdAt updatedAt metadata",
+      "name slug description about website contactEmail industry location logo visibility joinPolicy owner members createdAt updatedAt metadata",
     )
     .populate("owner", "name email")
     .lean();
@@ -822,17 +859,42 @@ export const getOrganizationById = async (idOrSlug) => {
     throw new NotFoundError("Organization not found.");
   }
 
+  // Authorize access to private/invite-only organizations
+  if (organization.visibility !== "public") {
+    if (!userId) {
+      throw new ForbiddenError("Not authorized to access this organization.");
+    }
+
+    const isOwner = organization.owner?._id
+      ? organization.owner._id.toString() === userId.toString()
+      : organization.owner?.toString() === userId.toString();
+
+    const membership = await Membership.findOne({
+      user: userId,
+      organization: organization._id,
+      status: "active",
+    }).lean();
+
+    const isLegacy = isLegacyMember(organization, userId);
+
+    if (!isOwner && !membership && !isLegacy) {
+      throw new ForbiddenError("Not authorized to access this organization.");
+    }
+  }
+
   const memberCount = await Membership.countDocuments({
     organization: organization._id,
     status: "active",
   });
 
+  const { members, ...organizationData } = organization;
+
   return {
     success: true,
     organization: {
-      ...organization,
+      ...organizationData,
       memberCount:
-        memberCount || (organization.members ? organization.members.length : 1),
+        memberCount || (members ? members.length : 1),
     },
   };
 };

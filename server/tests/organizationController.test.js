@@ -3,6 +3,8 @@ import {
   createOrJoinOrganization,
   getOrganizationSettings,
   updateOrganization,
+  getOrganizations,
+  getOrganizationById,
 } from "../controllers/organizationController.js";
 import * as OrganizationService from "../services/OrganizationService.js";
 
@@ -11,6 +13,8 @@ vi.mock("../services/OrganizationService.js", () => ({
   createOrJoinOrganization: vi.fn(),
   getOrganizationSettings: vi.fn(),
   updateOrganization: vi.fn(),
+  getOrganizations: vi.fn(),
+  getOrganizationById: vi.fn(),
 }));
 
 describe("organizationController - createOrJoinOrganization", () => {
@@ -211,5 +215,45 @@ describe("organizationController - getOrganizationSettings & updateOrganization"
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: true }),
     );
+  });
+
+  describe("organizationController - getOrganizations & getOrganizationById", () => {
+    it("getOrganizations should fetch user's accessible organizations", async () => {
+      req.query = { visibility: "private", page: "1", limit: "10" };
+      const mockResult = {
+        success: true,
+        organizations: [{ _id: "org1", name: "Org 1" }],
+      };
+      OrganizationService.getOrganizations.mockResolvedValue(mockResult);
+
+      await getOrganizations(req, res);
+
+      expect(OrganizationService.getOrganizations).toHaveBeenCalledWith(
+        "user123",
+        "private",
+        "1",
+        "10"
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining(mockResult));
+    });
+
+    it("getOrganizationById should fetch organization by ID passing user context", async () => {
+      req.params.idOrSlug = "org123";
+      const mockResult = {
+        success: true,
+        organization: { _id: "org123", name: "Org 1" },
+      };
+      OrganizationService.getOrganizationById.mockResolvedValue(mockResult);
+
+      await getOrganizationById(req, res);
+
+      expect(OrganizationService.getOrganizationById).toHaveBeenCalledWith(
+        "org123",
+        "user123"
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining(mockResult));
+    });
   });
 });
