@@ -56,7 +56,7 @@ export async function processStructuredMoM(meeting, mom) {
     if (!text.trim()) continue;
 
     const embedding = await embedText(text);
-    const match = await findBestMatch(Decision, text, embedding, organization);
+    const match = await findBestMatch(Decision, embedding, organization);
     const existingDecision = await Decision.findOne({
       text,
       sourceMeetingId: meeting._id,
@@ -77,9 +77,13 @@ export async function processStructuredMoM(meeting, mom) {
     if (match) {
   match.relatesTo = match.relatesTo || [];
 
-  if (!match.relatesTo.includes(decision._id)) {
-    match.relatesTo.push(decision._id);
-  }
+  if (
+  !match.relatesTo.some(
+    (id) => id.toString() === actionItem._id.toString(),
+  )
+) {
+  match.relatesTo.push(actionItem._id);
+}
 
   await match.save();
 }
@@ -108,7 +112,6 @@ export async function processStructuredMoM(meeting, mom) {
     const embedding = await embedText(text);
     const match = await findBestMatch(
       ActionItem,
-      text,
       embedding,
       organization,
     );
