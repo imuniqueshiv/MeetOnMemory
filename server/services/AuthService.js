@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { randomInt } from "node:crypto";
+import { authenticateGoogleUser } from "./googleAuthService.js";
+import { randomInt, randomUUID } from "node:crypto";
 import userModel from "../models/userModel.js";
 import transporter from "../config/nodeMailer.js";
 import {
@@ -168,6 +169,57 @@ class AuthService {
     return user;
   }
 
+  static async googleLogin(code) {
+    const googleUser = await authenticateGoogleUser(code);
+
+    const { googleId, email, name, picture } = googleUser;
+
+    let user = await userModel.findOne({ googleId });
+
+    if (user) {
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+        expiresIn: "7d",
+      });
+
+      return { user, token };
+    }
+
+    user = await userModel.findOne({ email });
+
+    if (user) {
+      user.googleId = googleId;
+
+      if (!user.profilePic && picture) {
+        user.profilePic = picture;
+      }
+
+      await user.save();
+
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+        expiresIn: "7d",
+      });
+
+      return { user, token };
+    }
+
+    const randomPassword = randomUUID();
+
+    const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+    user = await userModel.create({
+      name,
+      email,
+      password: hashedPassword,
+      googleId,
+      profilePic: picture,
+    });
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    return { user, token };
+  }
   static async googleCalendarCallback({ code, token }) {
     // Deferred: calendarService pulls googleapis; keep it out of AuthService's
     // eager ESM link graph (Jest VM linker diamond with shared deps like bcrypt).

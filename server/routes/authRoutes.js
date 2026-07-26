@@ -11,6 +11,8 @@ import {
   getUserData,
   googleCalendarAuth,
   googleCalendarCallback,
+  googleLogin,
+  googleCallback,
 } from "../controllers/authControllers.js";
 import userAuth from "../middleware/userAuth.js";
 import {
@@ -42,5 +44,9 @@ router.get("/is-auth", userAuth, isAuthenticated);
 router.get("/test-123", (req, res) => res.send("working"));
 router.get("/google-calendar", userAuth, googleCalendarAuth);
 router.get("/google-calendar/callback", googleCalendarCallback);
+
+// ✅ Google OAuth Login
+router.get("/google", googleLogin);
+router.get("/google/callback", googleCallback);
 
 export default router;

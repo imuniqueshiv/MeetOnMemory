@@ -1,5 +1,8 @@
 import apiClient from "./apiClient";
 
+const backendUrl =
+  import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
+
 export const authApi = {
   login: (credentials) => apiClient.post("/api/auth/login", credentials),
   register: (userData) => apiClient.post("/api/auth/register", userData),
@@ -10,4 +13,7 @@ export const authApi = {
   verifyAccount: (data) => apiClient.post("/api/auth/verify-email", data),
   sendResetOtp: (data) => apiClient.post("/api/auth/send-reset-otp", data),
   resetPassword: (data) => apiClient.post("/api/auth/reset-password", data),
+  googleLogin: () => {
+    window.location.href = `${backendUrl}/api/auth/google`;
+  },
 };

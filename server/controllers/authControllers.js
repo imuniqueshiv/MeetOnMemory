@@ -1,3 +1,4 @@
+import { getGoogleLoginUrl } from "../services/googleAuthService.js";
 import { getGoogleAuthUrl } from "../services/calendarService.js";
 import AuthService from "../services/AuthService.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
@@ -185,6 +186,51 @@ export const googleCalendarCallback = async (req, res) => {
     }
     res.redirect(
       `${process.env.CLIENT_URL || "http://localhost:5173"}/profile?sync=error`,
+    );
+  }
+};
+
+export const googleLogin = async (req, res) => {
+  try {
+    const url = getGoogleLoginUrl();
+
+    return res.redirect(url);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to initiate Google login.",
+    });
+  }
+};
+
+export const googleCallback = async (req, res) => {
+  try {
+    const { code } = req.query;
+
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        message: "Authorization code is required.",
+      });
+    }
+
+    const { user, token } = await AuthService.googleLogin(code);
+
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.redirect(
+      `${process.env.CLIENT_URL || "http://localhost:5173"
+      }/login?google=success`,
+    );
+  } catch (error) {
+    return res.redirect(
+      `${process.env.CLIENT_URL || "http://localhost:5173"
+      }/login?google=error`,
     );
   }
 };

@@ -6,6 +6,7 @@ import { toast } from "react-toastify";
 import { assets } from "../assets/assets";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { authApi, csrfService } from "../services";
+import googleIcon from "../assets/google.svg";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -27,6 +28,22 @@ const Login = () => {
     if (mode === "signup") {
       setState("Sign Up");
     }
+  }, [location.search]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+
+    if (params.get("google") !== "success") return;
+
+    const completeGoogleLogin = async () => {
+      try {
+        await finishAuth();
+      } catch (error) {
+        toast.error("Google login failed.");
+      }
+    };
+
+    completeGoogleLogin();
   }, [location.search]);
 
   // Already signed in — leave the login page
@@ -275,6 +292,32 @@ const Login = () => {
             ) : (
               t("login.loginBtn")
             )}
+          </button>
+          {/* Divider */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-700/40"></div>
+            </div>
+
+            <div className="relative flex justify-center">
+              <span className="bg-slate-900 px-4 text-sm text-slate-400">
+                OR
+              </span>
+            </div>
+          </div>
+
+          {/* Google Login */}
+          <button
+            type="button"
+            onClick={authApi.googleLogin}
+            className="w-full py-3 rounded-xl border border-slate-600/40 bg-slate-800/40 hover:bg-slate-800/70 transition-all duration-200 flex items-center justify-center gap-3 text-white font-medium"
+          >
+            <img
+              src={googleIcon}
+              alt="Google"
+              className="w-5 h-5"
+            />
+            Continue with Google
           </button>
         </form>
 
