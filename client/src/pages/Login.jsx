@@ -31,9 +31,14 @@ const Login = () => {
   }, [location.search]);
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
+    const googleStatus = new URLSearchParams(location.search).get("google");
 
-    if (params.get("google") !== "success") return;
+    if (googleStatus === "error") {
+      toast.error("Google login failed.");
+      return;
+    }
+
+    if (googleStatus !== "success") return;
 
     const completeGoogleLogin = async () => {
       try {
@@ -301,7 +306,7 @@ const Login = () => {
 
             <div className="relative flex justify-center">
               <span className="bg-slate-900 px-4 text-sm text-slate-400">
-                OR
+                {t("login.or")}
               </span>
             </div>
           </div>
@@ -317,7 +322,7 @@ const Login = () => {
               alt="Google"
               className="w-5 h-5"
             />
-            Continue with Google
+            {t("login.continueWithGoogle")}
           </button>
         </form>
 

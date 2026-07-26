@@ -1,7 +1,16 @@
 import apiClient from "./apiClient";
 
 const backendUrl =
-  import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
+  import.meta.env.VITE_BACKEND_URL ||
+  (import.meta.env.DEV ? "http://localhost:4000" : null);
+
+const googleLogin = () => {
+  if (!backendUrl) {
+    throw new Error("VITE_BACKEND_URL is not configured.");
+  }
+
+  window.location.href = `${backendUrl}/api/auth/google`;
+};
 
 export const authApi = {
   login: (credentials) => apiClient.post("/api/auth/login", credentials),

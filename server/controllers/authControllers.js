@@ -205,7 +205,11 @@ export const googleLogin = async (req, res) => {
 
 export const googleCallback = async (req, res) => {
   try {
-    const { code } = req.query;
+    const { code, error } = req.query;
+
+    if (error) {
+      return res.redirect(`${CLIENT_URL}/login?google=error`);
+    }
 
     if (!code) {
       return res.status(400).json({
@@ -219,7 +223,10 @@ export const googleCallback = async (req, res) => {
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite:
+        process.env.NODE_ENV === "production"
+          ? "none"
+          : "strict",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 

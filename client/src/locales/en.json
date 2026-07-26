@@ -254,7 +254,9 @@
     "dontHaveAccount": "Don't have an account?",
     "signUpLink": "Sign up",
     "hidePassword": "Hide password",
-    "showPassword": "Show password"
+    "showPassword": "Show password",
+    "or": "OR",
+    "continueWithGoogle": "Continue with Google"
   },
   "reports": {
     "title": "Reports & Analytics",
