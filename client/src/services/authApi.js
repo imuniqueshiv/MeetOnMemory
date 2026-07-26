@@ -22,7 +22,5 @@ export const authApi = {
   verifyAccount: (data) => apiClient.post("/api/auth/verify-email", data),
   sendResetOtp: (data) => apiClient.post("/api/auth/send-reset-otp", data),
   resetPassword: (data) => apiClient.post("/api/auth/reset-password", data),
-  googleLogin: () => {
-    window.location.href = `${backendUrl}/api/auth/google`;
-  },
+  googleLogin,
 };

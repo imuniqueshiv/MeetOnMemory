@@ -22,6 +22,24 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  const finishAuth = async (welcomeName) => {
+    const user = await initializeAuth();
+    if (!user) {
+      toast.error("Could not restore your session. Please try again.");
+      return;
+    }
+
+    toast.success(`Welcome, ${welcomeName || user.name}!`);
+
+    const from = location.state?.from?.pathname;
+    if (from) {
+      navigate(from, { replace: true });
+      return;
+    }
+
+    navigate(user.hasCompletedOnboarding ? "/dashboard" : "/organizations");
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const mode = params.get("mode");
@@ -44,12 +62,13 @@ const Login = () => {
       try {
         await finishAuth();
       } catch (error) {
+        console.error(error);
         toast.error("Google login failed.");
       }
     };
 
     completeGoogleLogin();
-  }, [location.search]);
+  }, [location.search, finishAuth]);
 
   // Already signed in — leave the login page
   useEffect(() => {
@@ -60,24 +79,6 @@ const Login = () => {
       );
     }
   }, [loading, isLoggedin, userData, navigate]);
-
-  const finishAuth = async (welcomeName) => {
-    const user = await initializeAuth();
-    if (!user) {
-      toast.error("Could not restore your session. Please try again.");
-      return;
-    }
-
-    toast.success(`Welcome, ${welcomeName || user.name}!`);
-
-    const from = location.state?.from?.pathname;
-    if (from) {
-      navigate(from, { replace: true });
-      return;
-    }
-
-    navigate(user.hasCompletedOnboarding ? "/dashboard" : "/organizations");
-  };
 
   const onSubmitHandler = async (e) => {
     e.preventDefault();
