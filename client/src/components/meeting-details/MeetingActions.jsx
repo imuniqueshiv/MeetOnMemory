@@ -1,7 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import AppContent from "../../context/AppContent.js";
 import useExport from "../../hooks/useExport.js";
+import { Mic, MicOff, Loader2 } from "lucide-react";
+import { toast } from "react-toastify";
+import axios from "axios";
 
 const MeetingActions = ({ meeting, onDelete, onRename }) => {
   const navigate = useNavigate();
@@ -10,8 +13,13 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
   const [newTitle, setNewTitle] = useState("");
   const [showExportMenu, setShowExportMenu] = useState(false);
   const { exportMeeting, isExporting } = useExport();
-
-  if (!meeting) return null;
+  
+  // Recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const recordingIntervalRef = useRef(null);
 
   const handleDownloadTranscript = () => {
     if (!meeting.transcript) {
@@ -60,6 +68,160 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
     navigate("/summaries");
   };
 
+  // Recording handlers
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Start recording session on server
+      const { data } = await axios.post(
+        `/api/meetings/${meeting._id}/recording/start`,
+        {},
+        { withCredentials: true }
+      );
+
+      if (!data.success) {
+        throw new Error(data.message || "Failed to start recording");
+      }
+
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      chunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+      toast.success("Recording started");
+
+      // Upload chunks every 10 seconds
+      recordingIntervalRef.current = setInterval(async () => {
+        if (chunksRef.current.length > 0) {
+          const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+          const formData = new FormData();
+          formData.append("audio", blob, "audio.webm");
+          
+          try {
+            await axios.post(
+              `/api/meetings/${meeting._id}/transcript/upload`,
+              formData,
+              { withCredentials: true }
+            );
+            chunksRef.current = [];
+          } catch (error) {
+            console.error("Error uploading audio chunk:", error);
+          }
+        }
+      }, 10000);
+
+    } catch (error) {
+      console.error("Error starting recording:", error);
+      toast.error(error.message || "Failed to start recording");
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!mediaRecorderRef.current) return;
+
+    // Stop media recorder
+    mediaRecorderRef.current.stop();
+    mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    
+    // Clear upload interval
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+    }
+
+    // Upload final chunk
+    if (chunksRef.current.length > 0) {
+      const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+      const formData = new FormData();
+      formData.append("audio", blob, "audio.webm");
+      
+      try {
+        await axios.post(
+          `/api/meetings/${meeting._id}/transcript/upload`,
+          formData,
+          { withCredentials: true }
+        );
+      } catch (error) {
+        console.error("Error uploading final audio chunk:", error);
+      }
+    }
+
+    // Stop recording on server
+    try {
+      const { data } = await axios.post(
+        `/api/meetings/${meeting._id}/recording/stop`,
+        {},
+        { withCredentials: true }
+      );
+
+      if (!data.success) {
+        throw new Error(data.message || "Failed to stop recording");
+      }
+
+      setIsRecording(false);
+      setIsProcessing(true);
+      toast.success("Recording stopped, transcription started");
+
+      // Poll for transcript completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const { data: transcriptData } = await axios.get(
+            `/api/meetings/${meeting._id}/transcript`,
+            { withCredentials: true }
+          );
+
+          if (transcriptData.success && transcriptData.transcript.status === "completed") {
+            clearInterval(pollInterval);
+            setIsProcessing(false);
+            toast.success("Transcription completed!");
+            // Refresh meeting data to show updated transcript
+            window.location.reload();
+          } else if (transcriptData.success && transcriptData.transcript.status === "failed") {
+            clearInterval(pollInterval);
+            setIsProcessing(false);
+            toast.error("Transcription failed. Please try again.");
+          }
+        } catch (error) {
+          console.error("Error polling transcript status:", error);
+        }
+      }, 5000);
+
+    } catch (error) {
+      console.error("Error stopping recording:", error);
+      toast.error(error.message || "Failed to stop recording");
+      setIsRecording(false);
+    }
+  };
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
+      if (mediaRecorderRef.current && isRecording) {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [isRecording]);
+
+  if (!meeting) return null;
+
   return (
     <>
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -81,6 +243,35 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <button
+            onClick={toggleRecording}
+            disabled={isProcessing}
+            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+              isRecording
+                ? "bg-red-500 hover:bg-red-600 text-white"
+                : isProcessing
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700 text-white"
+            }`}
+          >
+            {isProcessing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Processing...
+              </>
+            ) : isRecording ? (
+              <>
+                <MicOff className="w-4 h-4" />
+                Stop Recording
+              </>
+            ) : (
+              <>
+                <Mic className="w-4 h-4" />
+                Start Recording
+              </>
+            )}
+          </button>
+
           <button
             onClick={handleDownloadTranscript}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium"

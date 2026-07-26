@@ -46,7 +46,7 @@ const membershipRequestSchema = new mongoose.Schema(
 // Compound index to prevent duplicate pending requests
 membershipRequestSchema.index(
   { user: 1, organization: 1, status: 1 },
-  { unique: true, partialFilterExpression: { status: "pending" } }
+  { unique: true, partialFilterExpression: { status: "pending" } },
 );
 membershipRequestSchema.index({ organization: 1, status: 1 });
 membershipRequestSchema.index({ user: 1, status: 1 });

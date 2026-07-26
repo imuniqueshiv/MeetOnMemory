@@ -3,22 +3,14 @@
 // Handles AI Embeddings + Pinecone Vector Search (Offline + Free)
 // ==============================================
 
-import { pipeline } from "@xenova/transformers";
-import { Pinecone } from "@pinecone-database/pinecone";
 import dotenv from "dotenv";
 import Meeting from "../models/meetingModel.js";
 
 dotenv.config();
 
-// ======= 🔑 Configuration =======
-const PINECONE_API_KEY = process.env.PINECONE_API_KEY;
-const PINECONE_INDEX = process.env.INDEX_NAME || process.env.PINECONE_INDEX;
-
-if (!PINECONE_API_KEY) {
-  console.error("❌ Missing PINECONE_API_KEY in .env");
-}
-
 // ======= 🌐 Global Singletons =======
+// Transformers + Pinecone are loaded on first use so importing this module
+// does not eagerly initialize the AI runtime (Jest ESM linker / cold start).
 let pineconeClient = null;
 let pineconeIndex = null;
 let embedder = null;
@@ -27,8 +19,22 @@ let embedder = null;
 // ⚙️ 1️⃣ Initialize Pinecone Client (Singleton)
 // ===================================================
 export const initVectorStore = async () => {
+  const PINECONE_API_KEY = process.env.PINECONE_API_KEY;
+  const PINECONE_INDEX = process.env.INDEX_NAME || process.env.PINECONE_INDEX;
+
+  if (!PINECONE_API_KEY) {
+    console.error("❌ Missing PINECONE_API_KEY in .env");
+    throw new Error("Missing PINECONE_API_KEY in .env");
+  }
+
+  if (!PINECONE_INDEX) {
+    console.error("❌ Missing INDEX_NAME/PINECONE_INDEX in .env");
+    throw new Error("Missing INDEX_NAME/PINECONE_INDEX in .env");
+  }
+
   try {
     if (!pineconeClient) {
+      const { Pinecone } = await import("@pinecone-database/pinecone");
       pineconeClient = new Pinecone({ apiKey: PINECONE_API_KEY });
       console.log("✅ Pinecone client initialized.");
     }
@@ -46,11 +52,25 @@ export const initVectorStore = async () => {
 };
 
 // ===================================================
+// ⚙️ 1.5️⃣ Pre-warm Pinecone (for workers)
+// ===================================================
+export const preWarmPinecone = async () => {
+  try {
+    await initVectorStore();
+    await getEmbedder();
+    console.log("🔥 Pinecone and Embedder pre-warmed.");
+  } catch (err) {
+    console.error("❌ Failed to pre-warm Pinecone:", err);
+  }
+};
+
+// ===================================================
 // 🧠 2️⃣ Load Local Hugging Face Embedding Model
 // ===================================================
 async function getEmbedder() {
   if (!embedder) {
     console.log("⏳ Loading local Hugging Face model (MiniLM-L6-v2)...");
+    const { pipeline } = await import("@xenova/transformers");
     embedder = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
     console.log("✅ Local Hugging Face model loaded");
   }
@@ -65,11 +85,47 @@ export const embedText = async (text) => {
     if (!text || text.trim().length === 0) return [];
     const model = await getEmbedder();
     const output = await model(text, { pooling: "mean", normalize: true });
-    return Array.from(output.data);
+    let arr = Array.from(output.data);
+
+    // Pinecone index is 1024 dimensions, but MiniLM outputs 384.
+    // Pad with zeros to match the index dimension. Cosine similarity will still work correctly.
+    if (arr.length < 1024) {
+      const padded = new Array(1024).fill(0);
+      for (let i = 0; i < arr.length; i++) {
+        padded[i] = arr[i];
+      }
+      arr = padded;
+    }
+
+    return arr;
   } catch (error) {
     console.error("❌ Local embedding creation failed:", error);
     throw new Error("Embedding creation failed");
   }
+};
+
+// ===================================================
+// ✂️ 3.5️⃣ Chunk Text for Embedding
+// ===================================================
+// Splits text into overlapping chunks to avoid truncation by the embedding model
+// MiniLM-L6-v2 has a max sequence length of 256 tokens (~150-200 words)
+const chunkText = (text, maxWords = 180, overlapWords = 30) => {
+  if (!text || text.trim().length === 0) return [];
+
+  const words = text.split(/\s+/);
+  if (words.length <= maxWords) return [text];
+
+  const chunks = [];
+  let startIndex = 0;
+
+  while (startIndex < words.length) {
+    const endIndex = Math.min(startIndex + maxWords, words.length);
+    const chunk = words.slice(startIndex, endIndex).join(" ");
+    chunks.push(chunk);
+    startIndex += maxWords - overlapWords;
+  }
+
+  return chunks;
 };
 
 // ===================================================
@@ -96,30 +152,37 @@ export const indexMeeting = async (meeting) => {
       summary = meeting.transcript.split(" ").slice(0, 50).join(" ") + "...";
     }
 
-    const combinedText = `
-      ${title}
-      ${summary}
-      ${meeting.transcript}
-    `;
+    // Combine title and summary with each chunk for context
+    const contextPrefix = `${title}\n${summary}\n`;
+    const transcriptChunks = chunkText(meeting.transcript);
 
-    const embedding = await embedText(combinedText);
+    const vectors = [];
 
-    // ✅ FIXED FORMAT — direct array (Pinecone v3.x+)
-    await indexInstance.upsert([
-      {
-        id: meeting._id.toString(),
+    for (let i = 0; i < transcriptChunks.length; i++) {
+      const chunkText = contextPrefix + transcriptChunks[i];
+      const embedding = await embedText(chunkText);
+
+      vectors.push({
+        id: `${meeting._id.toString()}-chunk-${i}`,
         values: embedding,
         metadata: {
           meetingId: meeting._id.toString(),
+          chunkIndex: i,
           title,
           summary,
           transcript: meeting.transcript,
           createdAt: meeting.createdAt || new Date(),
+          organization: meeting.organization?.toString() || null,
         },
-      },
-    ]);
+      });
+    }
 
-    console.log(`✅ Indexed meeting: ${title}`);
+    // ✅ FIXED FORMAT — direct array (Pinecone v3.x+)
+    await indexInstance.upsert(vectors);
+
+    console.log(
+      `✅ Indexed meeting: ${title} (${transcriptChunks.length} chunks)`,
+    );
   } catch (error) {
     console.error("❌ Failed to index meeting:", error);
   }
@@ -178,8 +241,21 @@ export const searchVectorStore = async (query, filters = {}) => {
       };
     });
 
+    // De-duplicate results by meetingId (keep highest score)
+    const deduplicatedResults = [];
+    const meetingIdMap = new Map();
+
+    for (const result of formattedResults) {
+      const existing = meetingIdMap.get(result.meetingId);
+      if (!existing || result.similarityScore > existing.similarityScore) {
+        meetingIdMap.set(result.meetingId, result);
+      }
+    }
+
+    deduplicatedResults.push(...meetingIdMap.values());
+
     // Apply filters if provided
-    let filteredResults = formattedResults;
+    let filteredResults = deduplicatedResults;
 
     if (filters.resultType && filters.resultType !== "all") {
       filteredResults = filteredResults.filter(
@@ -225,11 +301,36 @@ export const searchVectorStore = async (query, filters = {}) => {
 };
 
 // ===================================================
-// 🚀 6️⃣ Bulk Reindex All Meetings (Manual / Script)
+// �️ 6️⃣ Delete Meeting from Pinecone
+// ===================================================
+export const deleteMeetingFromPinecone = async (meetingId) => {
+  try {
+    const indexInstance = await initVectorStore();
+
+    if (!meetingId) {
+      console.warn("⚠️ No meetingId provided for Pinecone deletion");
+      return;
+    }
+
+    // Delete all chunks for this meeting using prefix filter
+    await indexInstance.deleteMany({
+      filter: {
+        meetingId: { $eq: meetingId.toString() },
+      },
+    });
+    console.log(`✅ Deleted meeting chunks from Pinecone: ${meetingId}`);
+  } catch (error) {
+    console.error("❌ Failed to delete meeting from Pinecone:", error);
+    // Don't throw - allow deletion to proceed even if Pinecone fails
+  }
+};
+
+// ===================================================
+// �🚀 7️⃣ Bulk Reindex All Meetings (Manual / Script)
 // ===================================================
 export const reindexAllMeetings = async () => {
   try {
-    const indexInstance = await initVectorStore();
+    const indexInstance = await initVectorStore(); // eslint-disable-line no-unused-vars
 
     const allMeetings = await Meeting.find({
       transcript: { $exists: true, $ne: "" },
@@ -245,5 +346,74 @@ export const reindexAllMeetings = async () => {
     console.log("🎉 Reindexing completed successfully!");
   } catch (error) {
     console.error("❌ Failed to reindex all meetings:", error);
+  }
+};
+
+// ===================================================
+// 🎙️ 8️⃣ Index Transcript in Pinecone (for live meeting transcripts)
+// ===================================================
+export const indexTranscript = async (transcript) => {
+  try {
+    const indexInstance = await initVectorStore();
+
+    if (!transcript || !transcript.fullText) {
+      console.warn("⚠️ Skipping empty transcript embedding");
+      return;
+    }
+
+    const vectors = [];
+
+    // Chunk the full transcript text
+    const transcriptChunks = chunkText(transcript.fullText);
+
+    for (let i = 0; i < transcriptChunks.length; i++) {
+      const chunkText = transcriptChunks[i];
+      const embedding = await embedText(chunkText);
+
+      vectors.push({
+        id: `transcript-${transcript._id.toString()}-chunk-${i}`,
+        values: embedding,
+        metadata: {
+          meetingId: transcript.meetingId.toString(),
+          organizationId: transcript.organizationId.toString(),
+          type: "transcript",
+          segmentIndex: i,
+          startTime: transcript.segments[i]?.startTime || 0,
+          text: chunkText,
+          createdAt: transcript.createdAt || new Date(),
+        },
+      });
+    }
+
+    await indexInstance.upsert(vectors);
+
+    console.log(
+      `✅ Indexed transcript: ${transcript._id} (${transcriptChunks.length} chunks)`,
+    );
+  } catch (error) {
+    console.error("❌ Failed to index transcript:", error);
+  }
+};
+
+// ===================================================
+// 🗑️ 9️⃣ Delete Transcript from Pinecone
+// ===================================================
+export const deleteTranscriptFromPinecone = async (transcriptId) => {
+  try {
+    const indexInstance = await initVectorStore();
+
+    if (!transcriptId) {
+      console.warn("⚠️ No transcriptId provided for Pinecone deletion");
+      return;
+    }
+
+    await indexInstance.deleteMany({
+      filter: {
+        id: { $eq: `transcript-${transcriptId.toString()}` },
+      },
+    });
+    console.log(`✅ Deleted transcript chunks from Pinecone: ${transcriptId}`);
+  } catch (error) {
+    console.error("❌ Failed to delete transcript from Pinecone:", error);
   }
 };

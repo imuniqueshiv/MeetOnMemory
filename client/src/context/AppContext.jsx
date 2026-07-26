@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import AppContent from "./AppContent.js";
+import { RBACProvider } from "./RBACContext.jsx";
 import { useNavigate } from "react-router-dom";
-import { authApi } from "../services";
-import apiClient from "../services/apiClient.js";
+import { authApi, csrfService } from "../services";
 
 export const AppContextProvider = ({ children }) => {
   const backendUrl =
@@ -12,8 +12,13 @@ export const AppContextProvider = ({ children }) => {
   const [isLoggedin, setIsLoggedin] = useState(false);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const navigate = useNavigate();
+
+  const clearAuthState = useCallback(() => {
+    setIsLoggedin(false);
+    setUserData(null);
+    localStorage.removeItem("userData");
+  }, []);
 
   const getUserData = useCallback(async () => {
     try {
@@ -36,66 +41,60 @@ export const AppContextProvider = ({ children }) => {
     }
   }, []);
 
-  const getAuthState = useCallback(async () => {
-    try {
-      // Fetch CSRF token first
+  // Single bootstrap path for refresh, login, and registration
+  const initializeAuth = useCallback(
+    async ({ quiet = false } = {}) => {
       try {
-        const { data: csrfData } = await authApi.getCsrfToken();
-        if (csrfData && csrfData.csrfToken) {
-          apiClient.defaults.headers.common["X-CSRF-Token"] =
-            csrfData.csrfToken;
+        try {
+          await csrfService.fetchToken();
+        } catch (csrfErr) {
+          console.error("Failed to fetch CSRF token", csrfErr);
+          if (!quiet) {
+            toast.error(
+              "Failed to initialize secure session. Please check your connection and refresh.",
+            );
+          }
         }
-      } catch (csrfErr) {
-        console.error("Failed to fetch CSRF token", csrfErr);
-        toast.error(
-          "Failed to initialize secure session. Please check your connection and refresh.",
-        );
-      }
 
-      const { data } = await authApi.getAuthState();
+        const { data } = await authApi.getAuthState();
+        if (!data.success) {
+          clearAuthState();
+          return null;
+        }
 
-      if (data.success) {
+        const user = await getUserData();
+        if (!user) {
+          clearAuthState();
+          return null;
+        }
+
         setIsLoggedin(true);
-        await getUserData();
-      } else {
-        setIsLoggedin(false);
-        setUserData(null);
-        localStorage.removeItem("userData");
-      }
-    } catch {
-      setIsLoggedin(false);
-      setUserData(null);
-      localStorage.removeItem("userData");
-
-      if (!isLoggingOut) {
+        return user;
+      } catch {
         console.log("User not authenticated");
+        clearAuthState();
+        return null;
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [getUserData, isLoggingOut]);
+    },
+    [clearAuthState, getUserData],
+  );
 
   useEffect(() => {
-    getAuthState();
-  }, [getAuthState]);
+    initializeAuth({ quiet: true });
+  }, [initializeAuth]);
 
   const logoutUser = async () => {
     try {
-      setIsLoggingOut(true);
+      await authApi.logout();
+      clearAuthState();
+      csrfService.clearToken();
 
       toast.success("Logged out successfully");
-
-      navigate("/"); //FORCE REDIRECT TO LANDING PAGE (Prevents the 404 page)
-
-      await authApi.logout();
-
-      setIsLoggedin(false);
-      setUserData(null);
-      localStorage.removeItem("userData");
+      navigate("/");
     } catch {
       toast.error("Failed to logout");
-    } finally {
-      setIsLoggingOut(false);
     }
   };
 
@@ -106,9 +105,14 @@ export const AppContextProvider = ({ children }) => {
     userData,
     setUserData,
     getUserData,
+    initializeAuth,
     logoutUser,
     loading,
   };
 
-  return <AppContent.Provider value={value}>{children}</AppContent.Provider>;
+  return (
+    <AppContent.Provider value={value}>
+      <RBACProvider userRole={userData?.role || null}>{children}</RBACProvider>
+    </AppContent.Provider>
+  );
 };

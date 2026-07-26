@@ -1,4 +1,11 @@
-import React, { useContext, useEffect, useRef } from "react";
+import React, {
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import AppContent from "../context/AppContent";
 import {
@@ -13,6 +20,14 @@ import {
   Shield,
 } from "lucide-react";
 import Navbar from "../components/Navbar.jsx";
+import {
+  Responsive as ResponsiveGridLayout,
+  useContainerWidth,
+} from "react-grid-layout";
+import "react-grid-layout/css/styles.css";
+import "react-resizable/css/styles.css";
+import { userApi } from "../services/userApi";
+import TopContributorsWidget from "../components/organization/TopContributorsWidget";
 
 /* ─── Role Badge ──────────────────────────────────────────────────────────── */
 const ROLE_STYLES = {
@@ -21,70 +36,6 @@ const ROLE_STYLES = {
   member: "bg-sky-50 text-sky-700 border-sky-200",
   guest: "bg-slate-100 text-slate-600 border-slate-200",
 };
-
-/* ─── Feature Card Config ─────────────────────────────────────────────────── */
-const FEATURE_CARDS = [
-  {
-    id: "upload-meeting",
-    icon: Upload,
-    title: "Upload Recorded Meetings",
-    description:
-      "Upload and transcribe past meetings automatically using AI-powered speech-to-text.",
-    iconBg: "bg-blue-50",
-    iconColor: "text-blue-600",
-    tag: "Transcription",
-    tagColor: "bg-blue-50 text-blue-700 border-blue-100",
-    accentRing: "group-hover:ring-blue-100",
-  },
-  {
-    id: "create-meeting",
-    icon: FileText,
-    title: "Meeting & Event Hub",
-    description:
-      "Schedule, upload, and organise events or sessions for instant AI-driven summaries.",
-    iconBg: "bg-emerald-50",
-    iconColor: "text-emerald-600",
-    tag: "Scheduling",
-    tagColor: "bg-emerald-50 text-emerald-700 border-emerald-100",
-    accentRing: "group-hover:ring-emerald-100",
-  },
-  {
-    id: "summaries",
-    icon: Brain,
-    title: "AI Summarization",
-    description:
-      "Generate professional Minutes of Meeting with decisions, action points, and key insights.",
-    iconBg: "bg-violet-50",
-    iconColor: "text-violet-600",
-    tag: "AI-Powered",
-    tagColor: "bg-violet-50 text-violet-700 border-violet-100",
-    accentRing: "group-hover:ring-violet-100",
-  },
-  {
-    id: "policies",
-    icon: Shield,
-    title: "Policies & Rules Repository",
-    description:
-      "Upload, version, and audit organisational policies with AI-powered insights and search.",
-    iconBg: "bg-amber-50",
-    iconColor: "text-amber-600",
-    tag: "Compliance",
-    tagColor: "bg-amber-50 text-amber-700 border-amber-100",
-    accentRing: "group-hover:ring-amber-100",
-  },
-  {
-    id: "reports",
-    icon: BarChart3,
-    title: "Reports & Analytics",
-    description:
-      "Visualise organisational metrics — meetings, updates, and performance trends at a glance.",
-    iconBg: "bg-indigo-50",
-    iconColor: "text-indigo-600",
-    tag: "Analytics",
-    tagColor: "bg-indigo-50 text-indigo-700 border-indigo-100",
-    accentRing: "group-hover:ring-indigo-100",
-  },
-];
 
 const ROUTE_MAP = {
   "upload-meeting": "/upload-meeting",
@@ -96,9 +47,13 @@ const ROUTE_MAP = {
 
 /* ─── Dashboard ───────────────────────────────────────────────────────────── */
 const Dashboard = () => {
+  const { t } = useTranslation();
   const { userData } = useContext(AppContent);
   const navigate = useNavigate();
-  const gridRef = useRef(null);
+  const [containerWidth, containerRef] = useContainerWidth();
+
+  const [layouts, setLayouts] = useState(null);
+  const saveTimeoutRef = useRef(null);
 
   const organizationName =
     userData?.organization?.name?.toUpperCase() || "ORGANIZATION";
@@ -108,22 +63,134 @@ const Dashboard = () => {
     rawRole.charAt(0).toUpperCase() + rawRole.slice(1).toLowerCase();
   const roleStyle = ROLE_STYLES[rawRole.toLowerCase()] || ROLE_STYLES.member;
 
+  const isAdmin = userData?.role === "admin" || userData?.role === "owner";
+
+  const FEATURE_CARDS = [
+    {
+      id: "upload-meeting",
+      icon: Upload,
+      title: t("dashboard.uploadMeetings"),
+      description: t("dashboard.uploadMeetingsDesc"),
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue-600",
+      tag: t("dashboard.transcription"),
+      tagColor: "bg-blue-50 text-blue-700 border-blue-100",
+      accentRing: "group-hover:ring-blue-100",
+      adminOnly: true,
+    },
+    {
+      id: "create-meeting",
+      icon: FileText,
+      title: t("dashboard.meetingEventHub"),
+      description: t("dashboard.meetingEventHubDesc"),
+      iconBg: "bg-emerald-50",
+      iconColor: "text-emerald-600",
+      tag: t("dashboard.scheduling"),
+      tagColor: "bg-emerald-50 text-emerald-700 border-emerald-100",
+      accentRing: "group-hover:ring-emerald-100",
+      adminOnly: true,
+    },
+    {
+      id: "summaries",
+      icon: Brain,
+      title: t("dashboard.aiSummarization"),
+      description: t("dashboard.aiSummarizationDesc"),
+      iconBg: "bg-violet-50",
+      iconColor: "text-violet-600",
+      tag: t("dashboard.aiPowered"),
+      tagColor: "bg-violet-50 text-violet-700 border-violet-100",
+      accentRing: "group-hover:ring-violet-100",
+    },
+    {
+      id: "policies",
+      icon: Shield,
+      title: t("dashboard.policiesRepository"),
+      description: t("dashboard.policiesRepositoryDesc"),
+      iconBg: "bg-amber-50",
+      iconColor: "text-amber-600",
+      tag: t("dashboard.complianceTag"),
+      tagColor: "bg-amber-50 text-amber-700 border-amber-100",
+      accentRing: "group-hover:ring-amber-100",
+    },
+    {
+      id: "reports",
+      icon: BarChart3,
+      title: t("dashboard.reportsAnalytics"),
+      description: t("dashboard.reportsAnalyticsDesc"),
+      iconBg: "bg-indigo-50",
+      iconColor: "text-indigo-600",
+      tag: t("dashboard.analytics"),
+      tagColor: "bg-indigo-50 text-indigo-700 border-indigo-100",
+      accentRing: "group-hover:ring-indigo-100",
+    },
+  ];
+
+  const visibleCards = FEATURE_CARDS.filter(
+    (card) => !card.adminOnly || isAdmin,
+  );
+
   useEffect(() => {
-    if (!gridRef.current) return;
-    const cards = gridRef.current.querySelectorAll(".dash-card");
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("visible");
-            observer.unobserve(entry.target);
+    let mounted = true;
+    const fetchPreferences = async () => {
+      try {
+        const res = await userApi.getDashboardPreferences();
+        if (mounted) {
+          if (res.data.success && res.data.dashboardPreferences) {
+            setLayouts(res.data.dashboardPreferences);
+          } else {
+            // Generate default layout
+            const defaultL = visibleCards.map((card, index) => ({
+              i: card.id,
+              x: index % 3,
+              y: Math.floor(index / 3),
+              w: 1,
+              h: 1,
+            }));
+            setLayouts({ lg: defaultL });
           }
+        }
+      } catch (err) {
+        console.error("Failed to load dashboard preferences", err);
+        if (mounted) {
+          const defaultL = visibleCards.map((card, index) => ({
+            i: card.id,
+            x: index % 3,
+            y: Math.floor(index / 3),
+            w: 1,
+            h: 1,
+          }));
+          setLayouts({ lg: defaultL });
+        }
+      }
+    };
+
+    // Only fetch if userData is loaded somewhat, to avoid pre-auth calls if any
+    if (userData) {
+      fetchPreferences();
+    }
+
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userData, visibleCards.length]);
+
+  const handleLayoutChange = useCallback((layout, allLayouts) => {
+    // Only save if layouts are actually set and changed
+    // react-grid-layout triggers on mount, so we compare if needed, or just debounce
+    setLayouts(allLayouts);
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await userApi.updateDashboardPreferences({
+          dashboardPreferences: allLayouts,
         });
-      },
-      { threshold: 0.1 },
-    );
-    cards.forEach((card) => observer.observe(card));
-    return () => observer.disconnect();
+      } catch (err) {
+        console.error("Failed to save dashboard preferences", err);
+      }
+    }, 1000);
   }, []);
 
   const handleAISearch = () => navigate("/ai-search");
@@ -181,11 +248,11 @@ const Dashboard = () => {
                       </span>
                     </div>
                     <p className="max-w-xl text-sm leading-relaxed text-slate-500 dark:text-gray-400 sm:text-base">
-                      Welcome back,{" "}
+                      {t("dashboard.welcomeBack")}{" "}
                       <span className="font-semibold text-slate-800 dark:text-gray-200">
-                        {userData?.name || "there"}
+                        {userData?.name || t("dashboard.there")}
                       </span>
-                      . Everything you need is right here.
+                      {t("dashboard.everythingHere")}
                     </p>
                   </div>
                 </div>
@@ -208,16 +275,15 @@ const Dashboard = () => {
                     <div className="space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-base font-semibold text-slate-900 dark:text-gray-100 sm:text-lg">
-                          Smart Search
+                          {t("dashboard.smartSearch")}
                         </h2>
                         <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300">
                           <Sparkles className="h-3 w-3" aria-hidden="true" />
-                          AI-Powered
+                          {t("dashboard.aiPowered")}
                         </span>
                       </div>
                       <p className="max-w-lg text-sm leading-relaxed text-slate-500 dark:text-gray-400">
-                        Instantly find insights across your meetings, summaries,
-                        and policies — powered by AI.
+                        {t("dashboard.searchDescription")}
                       </p>
                     </div>
                   </div>
@@ -229,7 +295,7 @@ const Dashboard = () => {
                     aria-label="Open AI Smart Search"
                     className="group/btn inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:shadow-blue-600/25 active:translate-y-0 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:w-auto"
                   >
-                    Open AI Search
+                    {t("dashboard.openAiSearch")}
                     <ArrowRight
                       className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5"
                       aria-hidden="true"
@@ -245,71 +311,118 @@ const Dashboard = () => {
         <section aria-label="Dashboard features">
           <header className="mb-6 sm:mb-8 fade-in-up stagger-2">
             <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-gray-500">
-              Features
+              {t("dashboard.features")}
             </p>
-            <h2 className="mt-1 text-xl font-semibold text-slate-900 dark:text-gray-100 sm:text-2xl">
-              Everything you need, in one place
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="mt-1 text-xl font-semibold text-slate-900 dark:text-gray-100 sm:text-2xl">
+                {t("dashboard.everythingInOnePlace")}
+              </h2>
+              <span className="text-xs text-slate-400 dark:text-gray-500 hidden sm:inline-block">
+                Drag cards to reorder
+              </span>
+            </div>
           </header>
 
-          <div
-            ref={gridRef}
-            className="grid grid-cols-1 auto-rows-fr gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3"
-          >
-            {FEATURE_CARDS.map((card, index) => {
-              const Icon = card.icon;
-              const staggerClass = `stagger-${Math.min(index + 1, 6)}`;
-              return (
-                <article
-                  key={card.id}
-                  id={`dashboard-card-${card.id}`}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Navigate to ${card.title}`}
-                  onClick={() => handleCardClick(card.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      handleCardClick(card.id);
-                    }
-                  }}
-                  className={`dash-card fade-in-up ${staggerClass} group relative flex min-h-[220px] cursor-pointer flex-col rounded-xl border border-slate-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm ring-1 ring-transparent transition-all duration-200 hover:-translate-y-1 hover:border-slate-300/80 dark:hover:border-gray-600 hover:shadow-md focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:p-6 ${card.accentRing}`}
-                >
-                  <div className="mb-4 flex items-start justify-between gap-3">
+          {layouts ? (
+            <div ref={containerRef} className="w-full">
+              <ResponsiveGridLayout
+                width={containerWidth}
+                className="layout"
+                layouts={layouts}
+                breakpoints={{ lg: 1024, md: 768, sm: 640, xs: 480, xxs: 0 }}
+                cols={{ lg: 3, md: 2, sm: 2, xs: 1, xxs: 1 }}
+                rowHeight={220}
+                onLayoutChange={handleLayoutChange}
+                isDraggable={true}
+                isResizable={true}
+                containerPadding={[0, 0]}
+                margin={[20, 20]}
+                draggableHandle=".drag-handle"
+              >
+                {visibleCards.map((card, index) => {
+                  const Icon = card.icon;
+                  const staggerClass = `stagger-${Math.min(index + 1, 6)}`;
+                  return (
                     <div
-                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${card.iconBg} transition-transform duration-200 group-hover:scale-105`}
+                      key={card.id}
+                      className={`dash-card fade-in-up ${staggerClass} group relative flex cursor-pointer flex-col rounded-xl border border-slate-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm ring-1 ring-transparent transition-all duration-200 hover:border-slate-300/80 dark:hover:border-gray-600 hover:shadow-md focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:p-6 ${card.accentRing} h-full w-full`}
                     >
-                      <Icon
-                        className={`h-5 w-5 ${card.iconColor}`}
-                        aria-hidden="true"
+                      {/* Drag Handle Layer */}
+                      <div
+                        className="drag-handle absolute top-0 left-0 right-0 h-10 z-10 cursor-move opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-b from-slate-100/50 to-transparent dark:from-slate-700/50 rounded-t-xl"
+                        title="Drag to move"
                       />
+
+                      {/* Content Wrapper */}
+                      <div
+                        className="flex flex-col h-full flex-1 z-0 relative"
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Navigate to ${card.title}`}
+                        onClick={() => handleCardClick(card.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleCardClick(card.id);
+                          }
+                        }}
+                      >
+                        <div className="mb-4 flex items-start justify-between gap-3 pointer-events-none">
+                          <div
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${card.iconBg} transition-transform duration-200 group-hover:scale-105`}
+                          >
+                            <Icon
+                              className={`h-5 w-5 ${card.iconColor}`}
+                              aria-hidden="true"
+                            />
+                          </div>
+                          <span
+                            className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${card.tagColor}`}
+                          >
+                            {card.tag}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-1 flex-col pointer-events-none">
+                          <h3 className="mb-2 text-base font-semibold leading-snug text-slate-900 dark:text-gray-100">
+                            {card.title}
+                          </h3>
+                          <p className="flex-1 text-sm leading-relaxed text-slate-500 dark:text-gray-400">
+                            {card.description}
+                          </p>
+                        </div>
+
+                        <div className="mt-5 flex items-center gap-1.5 border-t border-slate-100 dark:border-gray-700 pt-4 text-xs font-semibold text-slate-400 dark:text-gray-500 transition-colors duration-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                          <span>{t("dashboard.open")}</span>
+                          <ArrowRight
+                            className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                            aria-hidden="true"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <span
-                      className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${card.tagColor}`}
-                    >
-                      {card.tag}
-                    </span>
-                  </div>
+                  );
+                })}
+              </ResponsiveGridLayout>
+            </div>
+          ) : (
+            <div className="min-h-[220px] flex items-center justify-center">
+              {/* Skeleton or loading state could go here, for now it's just empty string while fetching */}
+            </div>
+          )}
+        </section>
 
-                  <div className="flex flex-1 flex-col">
-                    <h3 className="mb-2 text-base font-semibold leading-snug text-slate-900 dark:text-gray-100">
-                      {card.title}
-                    </h3>
-                    <p className="flex-1 text-sm leading-relaxed text-slate-500 dark:text-gray-400">
-                      {card.description}
-                    </p>
-                  </div>
-
-                  <div className="mt-5 flex items-center gap-1.5 border-t border-slate-100 dark:border-gray-700 pt-4 text-xs font-semibold text-slate-400 dark:text-gray-500 transition-colors duration-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                    <span>Open</span>
-                    <ArrowRight
-                      className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
-                      aria-hidden="true"
-                    />
-                  </div>
-                </article>
-              );
-            })}
+        {/* ── Gamification ── */}
+        <section
+          aria-label="Organization Engagement"
+          className="mt-8 sm:mt-12 fade-in-up stagger-3"
+        >
+          <div className="max-w-md">
+            <TopContributorsWidget
+              organizationId={
+                userData?.organization?._id || userData?.organization
+              }
+            />
           </div>
         </section>
       </main>

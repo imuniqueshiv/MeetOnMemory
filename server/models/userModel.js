@@ -15,7 +15,7 @@ const userSchema = new mongoose.Schema(
     // --- NEW FIELDS ADDED ---
     role: {
       type: String,
-      enum: ["admin", "member"],
+      enum: ["owner", "admin", "moderator", "member", "guest"],
       default: null, // Will be null until they complete onboarding
     },
     organization: {
@@ -35,10 +35,33 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    googleAccessToken: {
+      type: String,
+      default: null,
+    },
+    googleRefreshToken: {
+      type: String,
+      default: null,
+    },
+    calendarSyncEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    dashboardPreferences: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    lastExportRequestedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true },
 );
 
 const userModel = mongoose.models.user || mongoose.model("user", userSchema);
+if (!mongoose.models.User) {
+  mongoose.model("User", userSchema);
+}
 
 export default userModel;

@@ -1,0 +1,51 @@
+name: Keep-Alive Health Check
+
+on:
+  schedule:
+    # Every 10 minutes — Render free tier sleeps after ~15 mins of inactivity
+    - cron: "*/10 * * * *"
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+
+jobs:
+  ping-backend:
+    runs-on: ubuntu-latest
+    env:
+      BACKEND_URL: ${{ secrets.RENDER_BACKEND_URL }}
+
+    steps:
+      - name: Ping /api/health
+        run: |
+          # Use backend URL from env; default to a placeholder if not configured
+          if [ -z "$BACKEND_URL" ]; then
+            echo "⚠️ RENDER_BACKEND_URL is not set. Defaulting to https://meetonmemory.onrender.com"
+            BACKEND_URL="https://meetonmemory.onrender.com"
+          fi
+
+          # Remove trailing slash if present
+          BACKEND_URL=$(echo "$BACKEND_URL" | sed 's/\/$//')
+
+          echo "📡 Sending keep-alive request to $BACKEND_URL/api/health..."
+
+          # Cold starts can take 13–15s; allow retries and a longer overall timeout
+          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --connect-timeout 20 \
+            --max-time 45 \
+            --retry 3 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            "$BACKEND_URL/api/health")
+          CURL_EXIT=$?
+
+          if [ "$CURL_EXIT" -ne 0 ]; then
+            echo "❌ Timeout/network failure (curl exit code: $CURL_EXIT, http_code: $STATUS_CODE)"
+            exit 1
+          fi
+
+          echo "📥 Response Status Code: $STATUS_CODE"
+
+          if [ "$STATUS_CODE" -eq 200 ]; then
+            echo "✅ Render backend is active and responded successfully."
+          else
+            echo "❌ HTTP failure — backend responded with status $STATUS_CODE (expected 200)."
+            exit 1
+          fi

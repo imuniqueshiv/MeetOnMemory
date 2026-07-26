@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   FaMicrophone,
@@ -10,62 +11,6 @@ import {
 } from "react-icons/fa";
 import { FaArrowRight } from "react-icons/fa6";
 
-const featuresData = [
-  {
-    id: 1,
-    icon: <FaRobot />,
-    title: "AI Meeting Summaries",
-    description:
-      "Automatically generate intelligent meeting summaries and Minutes of Meeting (MoM) using advanced AI.",
-    gradient: "from-indigo-500 to-purple-500",
-    iconBg: "bg-linear-to-br from-indigo-500 to-purple-500",
-  },
-  {
-    id: 2,
-    icon: <FaSearch />,
-    title: "Smart Search",
-    description:
-      "Perform semantic search across all meeting records and documents using vector embeddings and AI.",
-    gradient: "from-pink-500 to-rose-400",
-    iconBg: "bg-linear-to-br from-pink-500 to-rose-400",
-  },
-  {
-    id: 3,
-    icon: <FaMicrophone />,
-    title: "Meeting Recording & Upload",
-    description:
-      "Upload meeting recordings or transcripts for AI-powered processing and storage.",
-    gradient: "from-blue-500 to-cyan-400",
-    iconBg: "bg-linear-to-br from-blue-500 to-cyan-400",
-  },
-  {
-    id: 4,
-    icon: <FaChartBar />,
-    title: "Reports & Analytics",
-    description:
-      "Generate insightful reports and visualize meeting activity and organizational trends.",
-    gradient: "from-purple-500 to-pink-400",
-    iconBg: "bg-linear-to-br from-purple-500 to-pink-400",
-  },
-  {
-    id: 5,
-    icon: <FaFolderOpen />,
-    title: "Policy Management",
-    description:
-      "Store, organize, version, and search organizational policies in one centralized location.",
-    gradient: "from-green-500 to-emerald-400",
-    iconBg: "bg-linear-to-br from-green-500 to-emerald-400",
-  },
-  {
-    id: 6,
-    icon: <FaDatabase />,
-    title: "Institutional Memory",
-    description:
-      "Preserve valuable organizational knowledge so information remains accessible even when team members change.",
-    gradient: "from-orange-500 to-amber-400",
-    iconBg: "bg-linear-to-br from-orange-500 to-amber-400",
-  },
-];
 
 const FeatureCard = ({ icon, title, description, iconBg, index }) => {
   const ref = useRef(null);
@@ -126,6 +71,58 @@ const FeatureCard = ({ icon, title, description, iconBg, index }) => {
 const Features = () => {
   const navigate = useNavigate();
   const headingRef = useRef(null);
+  const { t } = useTranslation();
+
+  const featuresData = [
+    {
+      id: 1,
+      icon: <FaRobot />,
+      title: t("features.aiMeetingSummaries"),
+      description: t("features.aiMeetingSummariesDesc"),
+      gradient: "from-indigo-500 to-purple-500",
+      iconBg: "bg-linear-to-br from-indigo-500 to-purple-500",
+    },
+    {
+      id: 2,
+      icon: <FaSearch />,
+      title: t("features.smartSearch"),
+      description: t("features.smartSearchDesc"),
+      gradient: "from-pink-500 to-rose-400",
+      iconBg: "bg-linear-to-br from-pink-500 to-rose-400",
+    },
+    {
+      id: 3,
+      icon: <FaMicrophone />,
+      title: t("features.meetingRecording"),
+      description: t("features.meetingRecordingDesc"),
+      gradient: "from-blue-500 to-cyan-400",
+      iconBg: "bg-linear-to-br from-blue-500 to-cyan-400",
+    },
+    {
+      id: 4,
+      icon: <FaChartBar />,
+      title: t("features.reportsAnalytics"),
+      description: t("features.reportsAnalyticsDesc"),
+      gradient: "from-purple-500 to-pink-400",
+      iconBg: "bg-linear-to-br from-purple-500 to-pink-400",
+    },
+    {
+      id: 5,
+      icon: <FaFolderOpen />,
+      title: t("features.policyManagement"),
+      description: t("features.policyManagementDesc"),
+      gradient: "from-green-500 to-emerald-400",
+      iconBg: "bg-linear-to-br from-green-500 to-emerald-400",
+    },
+    {
+      id: 6,
+      icon: <FaDatabase />,
+      title: t("features.institutionalMemory"),
+      description: t("features.institutionalMemoryDesc"),
+      gradient: "from-orange-500 to-amber-400",
+      iconBg: "bg-linear-to-br from-orange-500 to-amber-400",
+    },
+  ];
 
   useEffect(() => {
     const el = headingRef.current;
@@ -152,17 +149,16 @@ const Features = () => {
           className="fade-in-up text-center mb-16 max-w-2xl mx-auto"
         >
           <span className="inline-flex items-center px-4 py-1 rounded-full text-xs font-semibold tracking-wider uppercase bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 mb-5">
-            Features
+            {t("features.badge")}
           </span>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-100 leading-tight">
-            Powerful Features for{" "}
+            {t("features.heading1")}{" "}
             <span className="bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Modern Organizations
+              {t("features.heading2")}
             </span>
           </h2>
           <p className="text-gray-500 dark:text-gray-400 mt-4 text-base leading-relaxed">
-            Everything you need to capture, organize, and retrieve institutional
-            knowledge — all in one place.
+            {t("features.subtitle")}
           </p>
         </div>
 
@@ -181,7 +177,7 @@ const Features = () => {
             className="group inline-flex items-center gap-2 px-8 py-3.5 bg-linear-to-r from-blue-600 to-violet-600 text-white rounded-xl font-semibold hover:shadow-xl hover:shadow-blue-500/30 hover:scale-105 active:scale-100 transition-all duration-300 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             aria-label="Start using MeetOnMemory for free"
           >
-            Start for Free
+            {t("features.startForFree")}
             <FaArrowRight className="group-hover:translate-x-1 transition-transform duration-300" />
           </button>
         </div>
@@ -191,3 +187,4 @@ const Features = () => {
 };
 
 export default Features;
+

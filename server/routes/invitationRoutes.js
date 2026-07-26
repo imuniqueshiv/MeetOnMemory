@@ -8,9 +8,12 @@ import {
   rejectInvitation,
   revokeInvitation,
   getInvitationByToken,
+  resendInvitation,
+  expireInvitation,
 } from "../controllers/invitationController.js";
 import userAuth from "../middleware/userAuth.js";
-import { apiLimiter } from "../middleware/rateLimiter.js";
+import { apiLimiter, writeLimiter } from "../middleware/rateLimiter.js";
+import { requirePermission, requireOrgMembership } from "../middleware/rbac.js";
 
 const router = express.Router();
 
@@ -18,12 +21,61 @@ const router = express.Router();
 router.use(apiLimiter);
 
 // All routes except getInvitationByToken require authentication
-router.post("/", userAuth, createInvitation);
-router.get("/organization/:organizationId", userAuth, getOrganizationInvitations);
-router.get("/user", userAuth, getUserInvitations);
-router.post("/:token/accept", userAuth, acceptInvitation);
-router.post("/:token/reject", userAuth, rejectInvitation);
-router.delete("/:id", userAuth, revokeInvitation);
+router.post(
+  "/",
+  userAuth,
+  writeLimiter,
+  requirePermission("team_members", "invite"),
+  createInvitation,
+);
+router.get(
+  "/organization/:organizationId",
+  userAuth,
+  requireOrgMembership,
+  requirePermission("team_members", "view"),
+  getOrganizationInvitations,
+);
+router.get(
+  "/user",
+  userAuth,
+  requirePermission("team_members", "view"),
+  getUserInvitations,
+);
+router.post(
+  "/:token/accept",
+  userAuth,
+  writeLimiter,
+  requirePermission("organizations", "leave"),
+  acceptInvitation,
+);
+router.post(
+  "/:token/reject",
+  userAuth,
+  writeLimiter,
+  requirePermission("organizations", "leave"),
+  rejectInvitation,
+);
+router.delete(
+  "/:id",
+  userAuth,
+  writeLimiter,
+  requirePermission("team_members", "remove"),
+  revokeInvitation,
+);
+router.post(
+  "/:id/resend",
+  userAuth,
+  writeLimiter,
+  requirePermission("team_members", "invite"),
+  resendInvitation,
+);
+router.post(
+  "/:id/expire",
+  userAuth,
+  writeLimiter,
+  requirePermission("team_members", "invite"),
+  expireInvitation,
+);
 router.get("/:token", getInvitationByToken);
 
 export default router;

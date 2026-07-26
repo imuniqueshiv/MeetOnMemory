@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   FaArrowRight,
@@ -44,6 +45,7 @@ const StatItem = ({ emoji, label, sub }) => (
 
 const Hero = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const contentRef = useFadeIn();
   const mockupRef = useFadeIn();
 
@@ -77,23 +79,21 @@ const Hero = () => {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
               </span>
-              AI-Powered Knowledge Management
+              {t("hero.badge")}
             </div>
 
             {/* Headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 dark:text-gray-100 leading-[1.1] tracking-tight mb-6">
-              Never Lose{" "}
+              {t("hero.headline1")}{" "}
               <span className="bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Meeting Knowledge
+                {t("hero.headline2")}
               </span>{" "}
-              Again
+              {t("hero.headline3")}
             </h1>
 
             {/* Description */}
             <p className="text-base sm:text-lg text-gray-600 dark:text-gray-300 mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-              MeetOnMemory is an AI-powered platform that transforms meeting
-              recordings and transcripts into searchable, structured knowledge.
-              Preserve institutional memory and make every conversation count.
+              {t("hero.description")}
             </p>
 
             {/* CTA Buttons */}
@@ -104,7 +104,7 @@ const Hero = () => {
                 className="group inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-linear-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold text-base hover:shadow-xl hover:shadow-blue-500/30 hover:scale-105 active:scale-100 transition-all duration-300 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                 aria-label="Get Started with MeetOnMemory"
               >
-                Get Started
+                {t("hero.getStarted")}
                 <FaArrowRight className="group-hover:translate-x-1 transition-transform duration-300" />
               </button>
               <button
@@ -114,7 +114,7 @@ const Hero = () => {
                 aria-label="Learn more about MeetOnMemory features"
               >
                 <FaPlay className="text-blue-600 dark:text-blue-400 text-sm" />
-                Learn More
+                {t("hero.learnMore")}
               </button>
             </div>
 
@@ -122,20 +122,20 @@ const Hero = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
               <StatItem
                 emoji="⚡"
-                label="AI-Powered"
-                sub="Intelligent Processing"
+                label={t("hero.statAiPowered")}
+                sub={t("hero.statAiPoweredSub")}
               />
               <StatItem
                 emoji="🔍"
-                label="Instant Search"
-                sub="Semantic Retrieval"
+                label={t("hero.statInstantSearch")}
+                sub={t("hero.statInstantSearchSub")}
               />
               <StatItem
                 emoji="📝"
-                label="Auto-Summaries"
-                sub="Meeting Minutes"
+                label={t("hero.statAutoSummaries")}
+                sub={t("hero.statAutoSummariesSub")}
               />
-              <StatItem emoji="🏢" label="500+ Orgs" sub="Trust MeetOnMemory" />
+              <StatItem emoji="🏢" label={t("hero.statOrgs")} sub={t("hero.statOrgsSub")} />
             </div>
           </div>
 
@@ -169,33 +169,33 @@ const Hero = () => {
                     {
                       icon: <FaRobot className="text-blue-600 text-lg" />,
                       bg: "bg-blue-50",
-                      label: "AI Meeting Summary",
-                      sub: "Q4 Planning Meeting",
-                      badge: "New",
+                      label: t("hero.mockupAiSummary"),
+                      sub: t("hero.mockupAiSummarySub"),
+                      badge: t("hero.mockupNew"),
                       badgeColor: "bg-blue-100 text-blue-700",
                     },
                     {
                       icon: <FaSearch className="text-purple-600 text-lg" />,
                       bg: "bg-purple-50",
-                      label: "Smart Search",
-                      sub: '"budget 2025"',
-                      badge: "3 results",
+                      label: t("hero.mockupSmartSearch"),
+                      sub: t("hero.mockupSmartSearchSub"),
+                      badge: t("hero.mockupResults"),
                       badgeColor: "bg-purple-100 text-purple-700",
                     },
                     {
                       icon: <FaFileAlt className="text-green-600 text-lg" />,
                       bg: "bg-green-50",
-                      label: "Policy Document",
-                      sub: "v2.3 • Updated today",
-                      badge: "Updated",
+                      label: t("hero.mockupPolicyDoc"),
+                      sub: t("hero.mockupPolicyDocSub"),
+                      badge: t("hero.mockupUpdated"),
                       badgeColor: "bg-green-100 text-green-700",
                     },
                     {
                       icon: <FaBuilding className="text-orange-600 text-lg" />,
                       bg: "bg-orange-50",
-                      label: "Institutional Memory",
-                      sub: "1,847 records stored",
-                      badge: "Active",
+                      label: t("hero.mockupInstitutional"),
+                      sub: t("hero.mockupInstitutionalSub"),
+                      badge: t("hero.mockupActive"),
                       badgeColor: "bg-orange-100 text-orange-700",
                     },
                   ].map(({ icon, bg, label, sub, badge, badgeColor }) => (
@@ -226,10 +226,10 @@ const Hero = () => {
                 {/* Subtle footer */}
                 <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
                   <span className="text-xs text-gray-400">
-                    Last synced: just now
+                    {t("hero.lastSynced")}
                   </span>
                   <span className="text-xs font-medium text-blue-600 cursor-pointer hover:underline">
-                    View all →
+                    {t("hero.viewAll")}
                   </span>
                 </div>
               </div>

@@ -1,5 +1,8 @@
 # environment variables
 .env
+.env.local
+.env.*
+server/.env.local
 
 # node modules
 node_modules/
@@ -21,3 +24,8 @@ Thumbs.db
 
 # TLS keys
 *.pem
+
+# CI / lint artifacts
+eslint-output.json
+fix_lint*.mjs
+coverage/

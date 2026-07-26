@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import Navbar from "../components/Navbar.jsx";
 import { meetingApi } from "../services";
 import AppContent from "../context/AppContent";
@@ -27,6 +28,7 @@ import {
  */
 
 const Summaries = () => {
+  const { t } = useTranslation();
   const [summaries, setSummaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -95,18 +97,18 @@ const Summaries = () => {
         if (res.data?.success) {
           setSummaries(res.data.meetings || []);
         } else {
-          toast.error(res.data?.message || "Failed to load summaries");
+          toast.error(res.data?.message || t("summaries.loadFailed"));
         }
       } catch (error) {
         console.error("Error fetching summaries:", error);
-        toast.error("Unable to fetch meeting summaries.");
+        toast.error(t("summaries.loadFailed"));
       } finally {
         setLoading(false);
       }
     };
 
     fetchSummaries();
-  }, []);
+  }, [t]);
 
   // 🔍 Filter meetings by title or summary
   const filteredSummaries = summaries.filter(
@@ -166,8 +168,8 @@ const Summaries = () => {
   };
 
   const handleCopy = (summary) => {
-    navigator.clipboard.writeText(summary.summary);
-    toast.success("Summary copied!");
+    navigator.clipboard.writeText(summary.summary || summary.transcript || "");
+    toast.success(t("aiSearch.copiedToClipboard"));
   };
 
   const handleExport = (meeting, format) => {
@@ -185,12 +187,11 @@ const Summaries = () => {
           <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-center gap-2">
             🧠{" "}
             <span className="bg-gradient-to-r from-purple-600 to-blue-500 bg-clip-text text-transparent">
-              AI Meeting Summaries
+              {t("dashboard.aiSummarization")}
             </span>
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mb-8">
-            Review automatically generated <b>Minutes of Meeting</b>, action
-            items, and insights from all recorded sessions.
+            {t("dashboard.aiSummarizationDesc")}
           </p>
 
           {/* 🔍 Search Bar with Voice + Text */}
@@ -198,10 +199,10 @@ const Summaries = () => {
             <div className="flex items-center w-full sm:w-[30rem] bg-white dark:bg-gray-800 shadow-sm border border-gray-200 dark:border-gray-700 rounded-full overflow-hidden hover:ring-2 hover:ring-blue-300 transition">
               <input
                 type="text"
-                placeholder="Search meetings by title or keyword..."
+                placeholder={t("summaries.searchPlaceholder")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="flex-grow px-4 py-2 text-sm text-gray-700 focus:outline-none"
+                className="flex-grow px-4 py-2 text-sm text-gray-700 focus:outline-none bg-transparent dark:text-gray-200"
               />
               {/* 🎤 Voice Search Button */}
               <button
@@ -221,7 +222,7 @@ const Summaries = () => {
                 className="bg-blue-600 text-white px-4 py-2 rounded-r-full hover:bg-blue-700 transition flex items-center gap-2"
                 onClick={() => toast.info("Search updated")}
               >
-                <Search size={16} /> Search
+                <Search size={16} /> {t("common.search")}
               </button>
             </div>
           </div>
@@ -229,21 +230,20 @@ const Summaries = () => {
           {/* Main Section */}
           {loading ? (
             <div className="flex justify-center items-center py-10 text-gray-500">
-              <Loader2 className="animate-spin w-6 h-6 mr-2" /> Loading
-              summaries...
+              <Loader2 className="animate-spin w-6 h-6 mr-2" /> {t("summaries.loading")}
             </div>
           ) : sortedSummaries.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center">
               {sortedSummaries.map((summary) => (
                 <div
                   key={summary._id}
-                  className="bg-white w-full max-w-sm rounded-2xl shadow-md hover:shadow-lg border border-gray-100 transition-all duration-300 p-6 text-left hover:-translate-y-1 relative"
+                  className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-md hover:shadow-lg border border-gray-100 dark:border-gray-700 transition-all duration-300 p-6 text-left hover:-translate-y-1 relative"
                 >
                   {/* Top indicators */}
                   <div className="absolute top-3 left-3 flex gap-2">
                     {pinnedIds.includes(summary._id) && (
                       <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                        <Pin size={12} /> Pinned
+                        <Pin size={12} /> {t("summaries.pin")}
                       </span>
                     )}
                     {starredIds.includes(summary._id) && (
@@ -261,44 +261,44 @@ const Summaries = () => {
                           openMenuId === summary._id ? null : summary._id,
                         )
                       }
-                      className="p-1 hover:bg-gray-100 rounded-full transition"
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition"
                     >
-                      <MoreVertical size={20} className="text-gray-600" />
+                      <MoreVertical size={20} className="text-gray-600 dark:text-gray-400" />
                     </button>
 
                     {openMenuId === summary._id && (
-                      <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                      <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 z-10">
                         <button
                           onClick={() => setViewModal(summary)}
-                          className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm text-gray-700"
+                          className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
                         >
-                          <FileText size={16} /> View
+                          <FileText size={16} /> {t("summaries.view")}
                         </button>
                         <button
                           onClick={() => handleCopy(summary)}
-                          className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm text-gray-700"
+                          className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
                         >
-                          <Copy size={16} /> Copy
+                          <Copy size={16} /> {t("summaries.copy")}
                         </button>
                         <button
                           onClick={() => toggleStar(summary._id)}
-                          className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm text-gray-700"
+                          className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
                         >
                           <Star size={16} />{" "}
-                          {starredIds.includes(summary._id) ? "Unstar" : "Star"}
+                          {starredIds.includes(summary._id) ? t("summaries.unstar") : t("summaries.star")}
                         </button>
                         <button
                           onClick={() => togglePin(summary._id)}
-                          className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm text-gray-700"
+                          className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
                         >
                           <Pin size={16} />{" "}
-                          {pinnedIds.includes(summary._id) ? "Unpin" : "Pin"}
+                          {pinnedIds.includes(summary._id) ? t("summaries.unpin") : t("summaries.pin")}
                         </button>
                         <button
                           onClick={() => handleDelete(summary._id)}
-                          className="w-full text-left px-4 py-2 hover:bg-red-50 flex items-center gap-2 text-sm text-red-600 rounded-b-lg"
+                          className="w-full text-left px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2 text-sm text-red-600 dark:text-red-400 rounded-b-lg"
                         >
-                          <Trash2 size={16} /> Delete
+                          <Trash2 size={16} /> {t("summaries.delete")}
                         </button>
                       </div>
                     )}
@@ -306,26 +306,28 @@ const Summaries = () => {
 
                   <div className="flex items-center gap-3 mb-3 mt-8">
                     <FileText className="w-6 h-6 text-indigo-600" />
-                    <h3 className="text-lg font-semibold text-gray-900 truncate">
-                      {summary.title || "Untitled Meeting"}
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
+                      {summary.title || t("aiSearch.untitledMeeting")}
                     </h3>
                   </div>
                   <p className="text-sm text-gray-500 mb-3">
                     {summary.createdAt
                       ? new Date(summary.createdAt).toLocaleString()
-                      : "Unknown date"}
+                      : t("aiSearch.unknown")}
                   </p>
-                  <p className="text-gray-700 text-sm line-clamp-5 whitespace-pre-wrap">
+                  <p className="text-gray-700 dark:text-gray-300 text-sm line-clamp-5 whitespace-pre-wrap">
                     {summary.summary ||
-                      summary.transcript?.slice(0, 200) + "..."}
+                      (summary.transcript
+                        ? `${summary.transcript.slice(0, 200)}...`
+                        : t("aiSearch.noSummary"))}
                   </p>
 
                   <div className="flex gap-3 mt-4">
                     <button
                       onClick={() => setViewModal(summary)}
-                      className="text-sm px-4 py-1.5 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+                      className="text-sm px-4 py-1.5 rounded-md border border-gray-300 text-gray-700 dark:text-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
                     >
-                      View
+                      {t("summaries.view")}
                     </button>
 
                     <div
@@ -347,17 +349,17 @@ const Summaries = () => {
                         <Download size={16} />{" "}
                         {isExporting && openExportMenuId === summary._id
                           ? "Exporting..."
-                          : "Export"}
+                          : t("summaries.export")}
                       </button>
 
                       {openExportMenuId === summary._id && (
-                        <div className="absolute right-0 bottom-full mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20 min-w-[140px]">
+                        <div className="absolute right-0 bottom-full mb-2 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-1 z-20 min-w-[140px]">
                           <button
                             onClick={() => {
                               handleExport(summary, "pdf");
                               setOpenExportMenuId(null);
                             }}
-                            className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-2 text-sm text-gray-700"
+                            className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
                           >
                             Export as PDF
                           </button>
@@ -366,7 +368,7 @@ const Summaries = () => {
                               handleExport(summary, "docx");
                               setOpenExportMenuId(null);
                             }}
-                            className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-2 text-sm text-gray-700"
+                            className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
                           >
                             Export as DOCX
                           </button>
@@ -375,7 +377,7 @@ const Summaries = () => {
                               handleExport(summary, "md");
                               setOpenExportMenuId(null);
                             }}
-                            className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-2 text-sm text-gray-700"
+                            className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
                           >
                             Export as MD
                           </button>
@@ -387,10 +389,9 @@ const Summaries = () => {
               ))}
             </div>
           ) : (
-            <div className="bg-white p-10 rounded-2xl shadow-md border border-gray-100">
-              <p className="text-gray-500">
-                No meeting summaries found. Upload and transcribe your first
-                meeting to get started!
+            <div className="bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-md border border-gray-100 dark:border-gray-700">
+              <p className="text-gray-500 dark:text-gray-400">
+                {t("summaries.noSummaries")}
               </p>
             </div>
           )}
@@ -400,46 +401,46 @@ const Summaries = () => {
       {/* View Modal */}
       {viewModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-3">
                 <FileText className="w-6 h-6 text-indigo-600" />
-                {viewModal.title || "Untitled Meeting"}
+                {viewModal.title || t("aiSearch.untitledMeeting")}
               </h2>
               <button
                 onClick={() => setViewModal(null)}
-                className="p-2 hover:bg-gray-100 rounded-full transition"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition"
               >
-                <X size={24} className="text-gray-600" />
+                <X size={24} className="text-gray-600 dark:text-gray-400" />
               </button>
             </div>
             <div className="p-6 overflow-y-auto flex-grow">
               <p className="text-sm text-gray-500 mb-4">
-                <strong>Date:</strong>{" "}
+                <strong>{t("aiSearch.date")}:</strong>{" "}
                 {viewModal.createdAt
                   ? new Date(viewModal.createdAt).toLocaleString()
-                  : "Unknown date"}
+                  : t("aiSearch.unknown")}
               </p>
               <div className="prose max-w-none">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                  Summary:
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                  {t("aiSearch.summary")}:
                 </h3>
-                <p className="text-gray-700 whitespace-pre-wrap">
+                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                   {viewModal.summary ||
                     viewModal.transcript ||
-                    "No content available"}
+                    t("aiSearch.noSummary")}
                 </p>
               </div>
             </div>
-            <div className="flex gap-3 p-6 border-t border-gray-200">
+            <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(viewModal.summary);
-                  toast.success("Summary copied!");
+                  navigator.clipboard.writeText(viewModal.summary || viewModal.transcript || "");
+                  toast.success(t("aiSearch.copiedToClipboard"));
                 }}
-                className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
               >
-                <Copy size={16} /> Copy
+                <Copy size={16} /> {t("summaries.copy")}
               </button>
               <button
                 onClick={() => {
@@ -456,7 +457,7 @@ const Summaries = () => {
                 }}
                 className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 flex items-center gap-2 ml-auto"
               >
-                Download
+                {t("summaries.download", "Download")}
               </button>
             </div>
           </div>

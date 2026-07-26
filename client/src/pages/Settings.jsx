@@ -3,6 +3,7 @@ import Navbar from "../components/Navbar.jsx";
 import AppContent from "../context/AppContent";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import axios from "axios";
 import {
   User,
   Mail,
@@ -16,13 +17,27 @@ import {
   Lock,
   ChevronRight,
   Loader2,
+  Calendar,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+  Zap,
 } from "lucide-react";
+import CalendarIntegrations from "../components/CalendarIntegrations.jsx";
 import useTheme from "../context/useTheme.jsx";
+import WebhooksManager from "../components/WebhooksManager.jsx";
 
 const Settings = () => {
   const { userData, logoutUser } = useContext(AppContent);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+
+  // Calendar connection state
+  const [calendarStatus, setCalendarStatus] = useState({
+    google: null,
+    microsoft: null,
+  });
+  const [calendarLoading, setCalendarLoading] = useState(false);
 
   // Notification preferences state (UI only - no backend support)
   const [notificationPrefs, setNotificationPrefs] = useState({
@@ -33,6 +48,25 @@ const Settings = () => {
   });
 
   const { theme, toggleTheme } = useTheme();
+
+  // Fetch calendar connection status
+  useEffect(() => {
+    const fetchCalendarStatus = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.get("/api/calendar/status", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setCalendarStatus(response.data.status);
+      } catch (error) {
+        console.error("Error fetching calendar status:", error);
+      }
+    };
+
+    if (userData) {
+      fetchCalendarStatus();
+    }
+  }, [userData]);
 
   // Appearance preferences state (UI only - no backend support)
   const [appearancePrefs, setAppearancePrefs] = useState({
@@ -52,11 +86,11 @@ const Settings = () => {
 
   if (!userData) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col">
         <Navbar />
         <div className="flex-1 flex justify-center items-center">
-          <Loader2 className="animate-spin w-8 h-8 text-blue-500" />
-          <span className="ml-3 text-slate-500 font-medium">
+          <Loader2 className="animate-spin w-8 h-8 text-blue-500 dark:text-blue-400" />
+          <span className="ml-3 text-slate-500 dark:text-slate-400 font-medium">
             Loading settings...
           </span>
         </div>
@@ -94,6 +128,149 @@ const Settings = () => {
     }
   };
 
+  // Calendar connection handlers
+  const handleConnectGoogle = async () => {
+    try {
+      setCalendarLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await axios.get("/api/calendar/google/auth-url", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      // Open OAuth popup
+      const authWindow = window.open(
+        response.data.authUrl,
+        "_blank",
+        "width=500,height=600",
+      );
+
+      // Poll for callback (in production, use a proper OAuth flow with redirect)
+      const pollForCallback = setInterval(() => {
+        if (authWindow.closed) {
+          clearInterval(pollForCallback);
+          setCalendarLoading(false);
+          // Refresh status
+          fetchCalendarStatus();
+        }
+      }, 500);
+    } catch (error) {
+      console.error("Error connecting Google Calendar:", error);
+      toast.error("Failed to connect Google Calendar");
+      setCalendarLoading(false);
+    }
+  };
+
+  const handleConnectMicrosoft = async () => {
+    try {
+      setCalendarLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await axios.get("/api/calendar/microsoft/auth-url", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      // Open OAuth popup
+      const authWindow = window.open(
+        response.data.authUrl,
+        "_blank",
+        "width=500,height=600",
+      );
+
+      // Poll for callback
+      const pollForCallback = setInterval(() => {
+        if (authWindow.closed) {
+          clearInterval(pollForCallback);
+          setCalendarLoading(false);
+          // Refresh status
+          fetchCalendarStatus();
+        }
+      }, 500);
+    } catch (error) {
+      console.error("Error connecting Microsoft Calendar:", error);
+      toast.error("Failed to connect Microsoft Calendar");
+      setCalendarLoading(false);
+    }
+  };
+
+  const handleDisconnect = async (provider) => {
+    try {
+      setCalendarLoading(true);
+      const token = localStorage.getItem("token");
+      await axios.delete(`/api/calendar/${provider}/disconnect`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      toast.success(
+        `${provider.charAt(0).toUpperCase() + provider.slice(1)} Calendar disconnected`,
+      );
+      // Refresh status
+      const statusResponse = await axios.get("/api/calendar/status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCalendarStatus(statusResponse.data.status);
+    } catch (error) {
+      console.error("Error disconnecting calendar:", error);
+      toast.error("Failed to disconnect calendar");
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  const handleResync = async (provider) => {
+    try {
+      setCalendarLoading(true);
+      const token = localStorage.getItem("token");
+      await axios.post(
+        `/api/calendar/${provider}/resync`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      toast.success(
+        `${provider.charAt(0).toUpperCase() + provider.slice(1)} Calendar synced`,
+      );
+      // Refresh status
+      const statusResponse = await axios.get("/api/calendar/status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCalendarStatus(statusResponse.data.status);
+    } catch (error) {
+      console.error("Error resyncing calendar:", error);
+      toast.error("Failed to sync calendar");
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  const fetchCalendarStatus = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get("/api/calendar/status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCalendarStatus(response.data.status);
+    } catch (error) {
+      console.error("Error fetching calendar status:", error);
+    }
+  };
+
+  const getConnectionStatusIcon = (connection) => {
+    if (!connection) return <XCircle className="w-4 h-4 text-slate-400" />;
+    if (connection.syncStatus === "connected")
+      return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+    if (connection.syncStatus === "needs_reauth")
+      return <XCircle className="w-4 h-4 text-amber-500" />;
+    return <XCircle className="w-4 h-4 text-red-500" />;
+  };
+
+  const getConnectionStatusText = (connection) => {
+    if (!connection) return "Not connected";
+    if (connection.syncStatus === "connected") return "Connected";
+    if (connection.syncStatus === "needs_reauth")
+      return "Re-authentication required";
+    if (connection.syncStatus === "syncing") return "Syncing...";
+    return "Error";
+  };
+
   return (
     <div className="min-h-screen bg-linear-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-200 flex flex-col font-sans select-none">
       <Navbar />
@@ -115,7 +292,7 @@ const Settings = () => {
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm fade-in-up stagger-2">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-xl">
-                <User className="w-5 h-5 text-blue-600" />
+                <User className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -175,6 +352,15 @@ const Settings = () => {
                     </p>
                   </div>
                 </div>
+                {userData.organization && (
+                  <button
+                    onClick={() => navigate("/organization/settings")}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    Org Settings
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                )}
               </div>
 
               <div className="flex items-center justify-between py-3">
@@ -197,10 +383,12 @@ const Settings = () => {
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm fade-in-up stagger-3">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-purple-50 dark:bg-purple-900/30 rounded-xl">
-                <Palette className="w-5 h-5 text-purple-600" />
+                <Palette className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Appearance</h2>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Appearance
+                </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Customize your application theme
                 </p>
@@ -210,7 +398,9 @@ const Settings = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between py-3">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">Theme</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                    Theme
+                  </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Choose your preferred theme
                   </p>
@@ -245,7 +435,7 @@ const Settings = () => {
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm fade-in-up stagger-4">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-amber-50 dark:bg-amber-900/30 rounded-xl">
-                <Bell className="w-5 h-5 text-amber-600" />
+                <Bell className="w-5 h-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -274,7 +464,7 @@ const Settings = () => {
                   className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
                     notificationPrefs.meetingNotifications
                       ? "bg-blue-600"
-                      : "bg-slate-200"
+                      : "bg-slate-200 dark:bg-slate-700"
                   }`}
                   aria-pressed={notificationPrefs.meetingNotifications}
                 >
@@ -304,7 +494,7 @@ const Settings = () => {
                   className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
                     notificationPrefs.organizationUpdates
                       ? "bg-blue-600"
-                      : "bg-slate-200"
+                      : "bg-slate-200 dark:bg-slate-700"
                   }`}
                   aria-pressed={notificationPrefs.organizationUpdates}
                 >
@@ -378,14 +568,133 @@ const Settings = () => {
             </div>
           </div>
 
+          {/* Calendar Integrations */}
+          <CalendarIntegrations />
+          {/* Calendar Integrations Section */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm fade-in-up stagger-5">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-green-50 dark:bg-green-900/30 rounded-xl">
+                <Calendar className="w-5 h-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Calendar Integrations
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Connect your calendars for two-way sync
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Google Calendar */}
+              <div className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    {getConnectionStatusIcon(calendarStatus.google)}
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                        Google Calendar
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {getConnectionStatusText(calendarStatus.google)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {calendarStatus.google?.syncStatus === "connected" && (
+                    <button
+                      onClick={() => handleResync("google")}
+                      disabled={calendarLoading}
+                      className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                      title="Resync"
+                    >
+                      <RefreshCw
+                        className={`w-4 h-4 ${calendarLoading ? "animate-spin" : ""}`}
+                      />
+                    </button>
+                  )}
+                  {calendarStatus.google ? (
+                    <button
+                      onClick={() => handleDisconnect("google")}
+                      disabled={calendarLoading}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors cursor-pointer"
+                    >
+                      Disconnect
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleConnectGoogle}
+                      disabled={calendarLoading}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer"
+                    >
+                      Connect
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Microsoft Calendar */}
+              <div className="flex items-center justify-between py-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    {getConnectionStatusIcon(calendarStatus.microsoft)}
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                        Microsoft Outlook
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {getConnectionStatusText(calendarStatus.microsoft)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {calendarStatus.microsoft?.syncStatus === "connected" && (
+                    <button
+                      onClick={() => handleResync("microsoft")}
+                      disabled={calendarLoading}
+                      className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                      title="Resync"
+                    >
+                      <RefreshCw
+                        className={`w-4 h-4 ${calendarLoading ? "animate-spin" : ""}`}
+                      />
+                    </button>
+                  )}
+                  {calendarStatus.microsoft ? (
+                    <button
+                      onClick={() => handleDisconnect("microsoft")}
+                      disabled={calendarLoading}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors cursor-pointer"
+                    >
+                      Disconnect
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleConnectMicrosoft}
+                      disabled={calendarLoading}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer"
+                    >
+                      Connect
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Security Section */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm fade-in-up stagger-5">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-red-50 dark:bg-red-900/30 rounded-xl">
-                <Shield className="w-5 h-5 text-red-600" />
+                <Shield className="w-5 h-5 text-red-600 dark:text-red-400" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Security</h2>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Security
+                </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Manage your account security settings
                 </p>
@@ -398,7 +707,7 @@ const Settings = () => {
                 className="w-full flex items-center justify-between py-3 px-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer group"
               >
                 <div className="flex items-center gap-3">
-                  <Lock className="w-4 h-4 text-slate-400 group-hover:text-slate-600" />
+                  <Lock className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300" />
                   <div className="text-left">
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
                       Change Password
@@ -408,7 +717,7 @@ const Settings = () => {
                     </p>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600" />
+                <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300" />
               </button>
 
               <div className="w-full flex items-center justify-between py-3 px-4 rounded-xl opacity-50 cursor-not-allowed">
@@ -418,10 +727,12 @@ const Settings = () => {
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
                       Two-Factor Authentication
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Coming soon</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Coming soon
+                    </p>
                   </div>
                 </div>
-                <span className="text-xs font-semibold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full">
+                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full">
                   Soon
                 </span>
               </div>
@@ -438,7 +749,7 @@ const Settings = () => {
                     </p>
                   </div>
                 </div>
-                <span className="text-xs font-semibold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full">
+                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full">
                   Soon
                 </span>
               </div>
@@ -469,7 +780,7 @@ const Settings = () => {
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm fade-in-up stagger-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-green-50 dark:bg-green-900/30 rounded-xl">
-                <Globe className="w-5 h-5 text-green-600" />
+                <Globe className="w-5 h-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -552,6 +863,19 @@ const Settings = () => {
               </div>
             </div>
           </div>
+
+          {/* Webhooks Management Section */}
+          {userData.organization && (
+            <div className="pt-2 fade-in-up stagger-6">
+              <WebhooksManager
+                organizationId={
+                  typeof userData.organization === "object"
+                    ? userData.organization._id
+                    : userData.organization
+                }
+              />
+            </div>
+          )}
         </div>
       </main>
     </div>

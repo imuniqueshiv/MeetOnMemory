@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Building,
   Video,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 
 const HowItWorks = () => {
+  const { t, i18n } = useTranslation();
   const [activeStep, setActiveStep] = useState(0);
   const [resetNonce, setResetNonce] = useState(0);
   const [simulationState, setSimulationState] = useState({
@@ -48,9 +50,8 @@ const HowItWorks = () => {
     {
       id: 0,
       number: "01",
-      title: "Create Organization",
-      description:
-        "Allow users to create or join an organization to centralize meetings, documents, and team collaboration.",
+      title: t("howItWorks.step1Title"),
+      description: t("howItWorks.step1Desc"),
       icon: Building,
       color: "from-blue-500 to-cyan-500",
       accent: "text-blue-600",
@@ -60,9 +61,8 @@ const HowItWorks = () => {
     {
       id: 1,
       number: "02",
-      title: "Upload Meeting",
-      description:
-        "Upload meeting recordings, transcripts, or notes for AI-powered processing and storage.",
+      title: t("howItWorks.step2Title"),
+      description: t("howItWorks.step2Desc"),
       icon: Video,
       color: "from-indigo-500 to-purple-500",
       accent: "text-indigo-600",
@@ -72,9 +72,8 @@ const HowItWorks = () => {
     {
       id: 2,
       number: "03",
-      title: "AI Processing",
-      description:
-        "AI automatically transcribes, summarizes, extracts key insights, and organizes meeting content into structured knowledge.",
+      title: t("howItWorks.step3Title"),
+      description: t("howItWorks.step3Desc"),
       icon: Cpu,
       color: "from-violet-500 to-fuchsia-500",
       accent: "text-violet-600",
@@ -84,9 +83,8 @@ const HowItWorks = () => {
     {
       id: 3,
       number: "04",
-      title: "Search Knowledge",
-      description:
-        "Use semantic search to instantly find meeting discussions, policies, action items, or organizational decisions.",
+      title: t("howItWorks.step4Title"),
+      description: t("howItWorks.step4Desc"),
       icon: Search,
       color: "from-fuchsia-500 to-pink-500",
       accent: "text-fuchsia-600",
@@ -96,9 +94,8 @@ const HowItWorks = () => {
     {
       id: 4,
       number: "05",
-      title: "Generate Reports",
-      description:
-        "Generate AI-powered reports, summaries, analytics, and insights for better decision-making and long-term knowledge management.",
+      title: t("howItWorks.step5Title"),
+      description: t("howItWorks.step5Desc"),
       icon: BarChart3,
       color: "from-pink-500 to-rose-500",
       accent: "text-pink-600",
@@ -151,12 +148,23 @@ const HowItWorks = () => {
         aiSummary: null,
       }));
 
-      const fullTrans = [
+      const isHindi = i18n.language === "hi";
+
+      const enTrans = [
         "[00:04] Emma: Welcome everyone to our Q3 Strategic Review. Let's discuss the product roadmap.",
         "[00:15] Alex: We should prioritize the integration of semantic search. Users want instant Q&A.",
         "[00:27] Emma: Agreed. Let's set the launch target for late August. John will take the lead on backend integrations.",
         "[00:40] Alex: Excellent. I will sync with marketing to announce it.",
       ];
+
+      const hiTrans = [
+        "[00:04] एम्मा: हमारी Q3 रणनीतिक समीक्षा में आप सभी का स्वागत है। आइए उत्पाद रोडमैप पर चर्चा करें।",
+        "[00:15] एलेक्स: हमें सिमेंटिक खोज के एकीकरण को प्राथमिकता देनी चाहिए। उपयोगकर्ता तत्काल प्रश्नोत्तर चाहते हैं।",
+        "[00:27] एम्मा: सहमत हूँ। आइए अगस्त के अंत के लिए लॉन्च लक्ष्य निर्धारित करें। जॉन बैकएंड एकीकरण का नेतृत्व करेंगे।",
+        "[00:40] एलेक्स: उत्कृष्ट। मैं घोषणा करने के लिए विपणन के साथ समन्वय करूँगा।",
+      ];
+
+      const fullTrans = isHindi ? hiTrans : enTrans;
 
       let currentIndex = 0;
       const interval = setInterval(() => {
@@ -175,17 +183,28 @@ const HowItWorks = () => {
             ...prev,
             transcribing: false,
             aiSummary: {
-              title: "Product Strategy & Roadmap Sync",
-              summary:
-                "The team aligned on prioritizing semantic search functionality with a target release date in late August.",
-              decisions: [
-                "Prioritize semantic search feature for late August release.",
-                "John leads backend integration.",
-              ],
-              actionItems: [
-                { task: "Draft semantic search API schema", owner: "John" },
-                { task: "Prepare announcement campaign", owner: "Alex" },
-              ],
+              title: isHindi ? "उत्पाद रणनीति और रोडमैप सिंक" : "Product Strategy & Roadmap Sync",
+              summary: isHindi
+                ? "टीम ने अगस्त के अंत में लक्षित रिलीज तिथि के साथ सिमेंटिक खोज कार्यक्षमता को प्राथमिकता देने पर सहमति व्यक्त की।"
+                : "The team aligned on prioritizing semantic search functionality with a target release date in late August.",
+              decisions: isHindi
+                ? [
+                    "अगस्त के अंत में रिलीज के लिए सिमेंटिक खोज सुविधा को प्राथमिकता दें।",
+                    "जॉन बैकएंड एकीकरण का नेतृत्व करेंगे।",
+                  ]
+                : [
+                    "Prioritize semantic search feature for late August release.",
+                    "John leads backend integration.",
+                  ],
+              actionItems: isHindi
+                ? [
+                    { task: "सिमेंटिक खोज एपीआई स्कीमा का मसौदा तैयार करें", owner: "जॉन" },
+                    { task: "घोषणा अभियान तैयार करें", owner: "एलेक्स" },
+                  ]
+                : [
+                    { task: "Draft semantic search API schema", owner: "John" },
+                    { task: "Prepare announcement campaign", owner: "Alex" },
+                  ],
             },
           }));
         }
@@ -200,7 +219,8 @@ const HowItWorks = () => {
         searchResults: [],
       }));
 
-      const queryStr = "When is semantic search launching?";
+      const isHindi = i18n.language === "hi";
+      const queryStr = isHindi ? "सिमेंटिक खोज कब लॉन्च हो रही है?" : "When is semantic search launching?";
       let charIdx = 0;
       let resultTimeout;
       const typingInterval = setInterval(() => {
@@ -217,22 +237,39 @@ const HowItWorks = () => {
             setSimulationState((prev) => ({
               ...prev,
               searchFinished: true,
-              searchResults: [
-                {
-                  title: "Q3 Strategic Review",
-                  date: "July 2, 2026",
-                  snippet:
-                    "Emma: Agreed. Let's set the launch target for late August.",
-                  matchScore: 98,
-                },
-                {
-                  title: "Weekly Sync",
-                  date: "June 25, 2026",
-                  snippet:
-                    "We discussed starting the planning phase for semantic search integration next month.",
-                  matchScore: 84,
-                },
-              ],
+              searchResults: isHindi
+                ? [
+                    {
+                      title: "Q3 रणनीतिक समीक्षा",
+                      date: "जुलाई 2, 2026",
+                      snippet:
+                        "एम्मा: सहमत हूँ। आइए अगस्त के अंत के लिए लॉन्च लक्ष्य निर्धारित करें।",
+                      matchScore: 98,
+                    },
+                    {
+                      title: "साप्ताहिक सिंक",
+                      date: "जून 25, 2026",
+                      snippet:
+                        "हमने अगले महीने सिमेंटिक खोज एकीकरण के लिए नियोजन चरण शुरू करने पर चर्चा की।",
+                      matchScore: 84,
+                    },
+                  ]
+                : [
+                    {
+                      title: "Q3 Strategic Review",
+                      date: "July 2, 2026",
+                      snippet:
+                        "Emma: Agreed. Let's set the launch target for late August.",
+                      matchScore: 98,
+                    },
+                    {
+                      title: "Weekly Sync",
+                      date: "June 25, 2026",
+                      snippet:
+                        "We discussed starting the planning phase for semantic search integration next month.",
+                      matchScore: 84,
+                    },
+                  ],
             }));
           }, 400);
         }
@@ -249,7 +286,7 @@ const HowItWorks = () => {
         generatingReport: false,
       }));
     }
-  }, [activeStep, resetNonce]);
+  }, [activeStep, resetNonce, i18n.language]);
 
   // Restart simulation helper
   const restartSimulation = () => {
@@ -265,19 +302,17 @@ const HowItWorks = () => {
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16 sm:mb-20">
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wider text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200/50 dark:border-blue-800 uppercase">
-            <Sparkles className="w-3.5 h-3.5" /> Core Workflow
+            <Sparkles className="w-3.5 h-3.5" /> {t("howItWorks.coreWorkflow")}
           </span>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white mt-4 mb-6 leading-tight">
-            How{" "}
+            {t("howItWorks.howWorksPrefix")}
             <span className="bg-linear-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent">
               MeetOnMemory
-            </span>{" "}
-            Works
+            </span>
+            {t("howItWorks.howWorksSuffix")}
           </h2>
           <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed font-medium">
-            Transform meeting voice and transcripts into searchable structured
-            knowledge. Learn how we capture and preserve your organization's
-            memory in 5 steps.
+            {t("howItWorks.howWorksDesc")}
           </p>
         </div>
 
@@ -328,7 +363,7 @@ const HowItWorks = () => {
                       </h3>
                       {isActive && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 animate-pulse">
-                          Live Demo
+                          {t("howItWorks.liveDemo")}
                         </span>
                       )}
                     </div>
@@ -363,10 +398,10 @@ const HowItWorks = () => {
                   </div>
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-slate-500">
-                      Interactive Sandbox
+                      {t("howItWorks.interactiveSandbox")}
                     </p>
                     <h4 className="text-base font-bold text-gray-800 dark:text-gray-200">
-                      {steps[activeStep].title} Simulation
+                      {steps[activeStep].title} {t("howItWorks.simulation")}
                     </h4>
                   </div>
                 </div>
@@ -374,10 +409,10 @@ const HowItWorks = () => {
                 <button
                   onClick={restartSimulation}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg transition-colors border border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900"
-                  title="Restart Simulation"
+                  title={t("howItWorks.reset")}
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Reset</span>
+                  <span className="hidden sm:inline">{t("howItWorks.reset")}</span>
                 </button>
               </div>
 
@@ -387,15 +422,14 @@ const HowItWorks = () => {
                 {activeStep === 0 && (
                   <div className="max-w-md mx-auto w-full bg-slate-50 dark:bg-slate-950/40 border border-gray-100 dark:border-slate-800/60 rounded-2xl p-5 shadow-inner">
                     <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-blue-600" /> Create
-                      Workspace
+                      <Users className="w-4 h-4 text-blue-600" /> {t("howItWorks.createWorkspace")}
                     </h5>
 
                     {!simulationState.orgCreated ? (
                       <div className="space-y-4">
                         <div>
                           <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
-                            Organization Name
+                            {t("howItWorks.orgName")}
                           </label>
                           <input
                             type="text"
@@ -407,12 +441,12 @@ const HowItWorks = () => {
                               }))
                             }
                             className="w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:border-blue-500 dark:focus:border-blue-500 transition-colors"
-                            placeholder="Enter org name..."
+                            placeholder={t("howItWorks.enterOrgName")}
                           />
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
-                            Add Members
+                            {t("howItWorks.addMembers")}
                           </label>
                           <div className="flex gap-2">
                             <input
@@ -425,7 +459,7 @@ const HowItWorks = () => {
                                 }))
                               }
                               className="flex-1 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:border-blue-500 dark:focus:border-blue-500"
-                              placeholder="e.g. John Doe"
+                              placeholder={t("howItWorks.egMember")}
                               onKeyDown={(e) => {
                                 if (
                                   e.key === "Enter" &&
@@ -484,7 +518,7 @@ const HowItWorks = () => {
                           disabled={!simulationState.orgName.trim()}
                           className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white py-2 rounded-lg text-sm font-semibold transition-colors shadow-md shadow-blue-500/15"
                         >
-                          Create Organization
+                          {t("howItWorks.createOrgBtn")}
                         </button>
                       </div>
                     ) : (
@@ -494,10 +528,10 @@ const HowItWorks = () => {
                         </div>
                         <div>
                           <h6 className="font-bold text-gray-800 dark:text-gray-200 text-base">
-                            Organization Created!
+                            {t("howItWorks.orgCreated")}
                           </h6>
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            Welcome to your organization dashboard for{" "}
+                            {t("howItWorks.welcomeOrg")}{" "}
                             <strong className="text-blue-600">
                               {simulationState.orgName}
                             </strong>
@@ -517,7 +551,7 @@ const HowItWorks = () => {
                           }
                           className="text-xs text-blue-600 font-bold hover:underline"
                         >
-                          Reset & Try Again
+                          {t("howItWorks.resetTry")}
                         </button>
                       </div>
                     )}
@@ -539,7 +573,7 @@ const HowItWorks = () => {
                           {simulationState.uploading ? (
                             <div className="w-full space-y-2">
                               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                Uploading Product_Review.mp4...
+                                {t("howItWorks.uploadingFile")}
                               </p>
                               <div className="w-full bg-gray-200 dark:bg-slate-800 rounded-full h-2 max-w-xs mx-auto overflow-hidden">
                                 <div
@@ -556,17 +590,16 @@ const HowItWorks = () => {
                           ) : (
                             <div>
                               <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
-                                Upload meeting file
+                                {t("howItWorks.uploadMeetingFile")}
                               </p>
                               <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 max-w-xs">
-                                Drag and drop audio/video file here, or click to
-                                browse
+                                {t("howItWorks.uploadDesc")}
                               </p>
                               <button
                                 onClick={restartSimulation}
                                 className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 text-gray-700 dark:text-gray-300 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-50 dark:hover:bg-slate-800 shadow-sm"
                               >
-                                Select File
+                                {t("howItWorks.selectFile")}
                               </button>
                             </div>
                           )}
@@ -581,12 +614,12 @@ const HowItWorks = () => {
                               Q3_Strategic_Review.mp4
                             </p>
                             <p className="text-xs text-emerald-600 font-semibold mt-0.5">
-                              Upload complete • 45.2 MB
+                              {t("howItWorks.uploadCompleted")}
                             </p>
                           </div>
                           <div className="flex gap-2 max-w-xs mx-auto justify-center">
                             <span className="px-2 py-1 rounded bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300">
-                              Ready for AI processing
+                              {t("howItWorks.readyProcessing")}
                             </span>
                           </div>
                         </div>
@@ -605,18 +638,18 @@ const HowItWorks = () => {
                         <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                         <span className="text-[10px] font-bold text-slate-500 ml-1.5">
-                          AI Engine Stream
+                          {t("howItWorks.aiEngineStream")}
                         </span>
                       </div>
 
                       {simulationState.transcribing ? (
                         <span className="flex items-center gap-1 text-[10px] font-bold text-violet-400">
                           <Loader2 className="w-3 h-3 animate-spin" />{" "}
-                          Processing Audio...
+                          {t("howItWorks.processingAudio")}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">
-                          <Sparkles className="w-3 h-3" /> Synthesis Done
+                          <Sparkles className="w-3 h-3" /> {t("howItWorks.synthesisDone")}
                         </span>
                       )}
                     </div>
@@ -634,7 +667,7 @@ const HowItWorks = () => {
 
                       {simulationState.transcribing && (
                         <div className="flex gap-1 items-center text-slate-500 animate-pulse text-[11px] pl-2 border-l-2 border-slate-700">
-                          <span>Scanning voice waveforms</span>
+                          <span>{t("howItWorks.scanningWaveforms")}</span>
                           <span className="flex gap-0.5">
                             <span className="h-1.5 w-1 bg-slate-500 rounded animate-bounce" />
                             <span className="h-1.5 w-1 bg-slate-500 rounded animate-bounce [animation-delay:0.2s]" />
@@ -650,7 +683,7 @@ const HowItWorks = () => {
                         <div className="flex items-center gap-1.5 text-violet-400 font-bold">
                           <Sparkles className="w-3.5 h-3.5" />
                           <span>
-                            Generated Insights:{" "}
+                            {t("howItWorks.generatedInsights")}:{" "}
                             {simulationState.aiSummary.title}
                           </span>
                         </div>
@@ -662,7 +695,7 @@ const HowItWorks = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-700/50">
                           <div>
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                              Decisions
+                              {t("howItWorks.decisions")}
                             </span>
                             <ul className="list-disc list-inside mt-1 space-y-1 text-slate-300">
                               {simulationState.aiSummary.decisions.map(
@@ -676,7 +709,7 @@ const HowItWorks = () => {
                           </div>
                           <div>
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                              Action Items
+                              {t("howItWorks.actionItems")}
                             </span>
                             <ul className="mt-1 space-y-1 text-slate-300">
                               {simulationState.aiSummary.actionItems.map(
@@ -725,12 +758,12 @@ const HowItWorks = () => {
                     <div className="min-h-[160px] space-y-3">
                       {!simulationState.searchFinished ? (
                         <div className="text-center py-8 text-gray-400 text-xs italic">
-                          Type query above to scan workspace meetings...
+                          {t("howItWorks.typeQuery")}
                         </div>
                       ) : (
                         <div className="space-y-2.5">
                           <p className="text-[11px] font-bold text-gray-500">
-                            2 matching results found:
+                            {simulationState.searchResults.length} {t("howItWorks.matchingResults")}:
                           </p>
                           {simulationState.searchResults.map((result, idx) => (
                             <div
@@ -751,7 +784,7 @@ const HowItWorks = () => {
                                 </p>
                               </div>
                               <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900 flex-shrink-0">
-                                {result.matchScore}% match
+                                {result.matchScore}% {t("howItWorks.matchScore")}
                               </span>
                             </div>
                           ))}
@@ -766,17 +799,17 @@ const HowItWorks = () => {
                   <div className="max-w-md mx-auto w-full space-y-5 bg-slate-50 dark:bg-slate-950/40 border border-gray-100 dark:border-slate-800/60 rounded-2xl p-5 shadow-inner">
                     <div className="flex justify-between items-center pb-2 border-b border-gray-200/60 dark:border-slate-800">
                       <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
-                        Analytics Briefing
+                        {t("howItWorks.analyticsBriefing")}
                       </span>
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                        Current Month
+                        {t("howItWorks.currentMonth")}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-3 gap-3">
                       <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-2.5 rounded-xl text-center">
                         <span className="text-[10px] text-gray-400 font-bold uppercase block">
-                          Meetings
+                          {t("howItWorks.meetings")}
                         </span>
                         <span className="text-lg font-bold text-gray-800 dark:text-gray-200">
                           42
@@ -784,7 +817,7 @@ const HowItWorks = () => {
                       </div>
                       <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-2.5 rounded-xl text-center">
                         <span className="text-[10px] text-gray-400 font-bold uppercase block">
-                          Hours
+                          {t("howItWorks.hours")}
                         </span>
                         <span className="text-lg font-bold text-gray-800 dark:text-gray-200">
                           84h
@@ -792,7 +825,7 @@ const HowItWorks = () => {
                       </div>
                       <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-2.5 rounded-xl text-center">
                         <span className="text-[10px] text-gray-400 font-bold uppercase block">
-                          Decisions
+                          {t("howItWorks.decisions")}
                         </span>
                         <span className="text-lg font-bold text-gray-800 dark:text-gray-200">
                           12
@@ -802,7 +835,7 @@ const HowItWorks = () => {
 
                     <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl p-3.5 space-y-2">
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">
-                        Recent AI Briefings
+                        {t("howItWorks.recentAiBriefings")}
                       </span>
                       <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-350 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer">
                         <span className="flex items-center gap-1.5 font-medium">
@@ -836,12 +869,12 @@ const HowItWorks = () => {
                         {simulationState.generatingReport ? (
                           <>
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            Compiling Dashboard Data...
+                            {t("howItWorks.compilingData")}
                           </>
                         ) : (
                           <>
                             <Sparkles className="w-4 h-4" />
-                            Generate AI Summary Report
+                            {t("howItWorks.generateReportBtn")}
                           </>
                         )}
                       </button>
@@ -851,7 +884,7 @@ const HowItWorks = () => {
                           <div className="p-1 rounded-full bg-emerald-100 text-emerald-600">
                             <FileCheck className="w-4 h-4" />
                           </div>
-                          <span>Report compiled & downloaded!</span>
+                          <span>{t("howItWorks.reportCompiled")}</span>
                         </div>
                         <button
                           onClick={() =>
@@ -862,7 +895,7 @@ const HowItWorks = () => {
                           }
                           className="text-[10px] text-emerald-700 hover:underline font-bold"
                         >
-                          Generate another
+                          {t("howItWorks.generateAnother")}
                         </button>
                       </div>
                     )}
@@ -872,7 +905,7 @@ const HowItWorks = () => {
 
               {/* Progress Stepper indicator under showcase */}
               <div className="pt-6 border-t border-gray-100 dark:border-slate-800 flex justify-between items-center text-xs text-gray-500 mt-6 flex-wrap gap-2">
-                <span>Step {steps[activeStep].number} of 5</span>
+                <span>{t("howItWorks.stepCount", { step: steps[activeStep].number })}</span>
 
                 <div className="flex gap-1">
                   {steps.map((_, i) => (
@@ -893,7 +926,7 @@ const HowItWorks = () => {
                   onClick={() => setActiveStep((activeStep + 1) % 5)}
                   className="font-bold text-blue-600 hover:text-blue-700 inline-flex items-center gap-0.5 group/btn"
                 >
-                  Next Step
+                  {t("howItWorks.nextStep")}
                   <ChevronRight className="w-4 h-4 group-hover/btn:translate-x-0.5 transition-transform" />
                 </button>
               </div>

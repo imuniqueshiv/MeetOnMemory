@@ -8,6 +8,9 @@ import Policy from "../models/policyModel.js";
 import {
   requireOwnerOrAdmin,
   requireOrgMembership,
+  requireAdmin,
+  requirePermission,
+  requireOrgAccess,
 } from "../middleware/rbac.js";
 import {
   uploadPolicy,
@@ -18,6 +21,19 @@ import {
 } from "../controllers/policyController.js";
 
 const router = express.Router();
+// Apply rate limiting to all routes
+router.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100,
+    message: {
+      success: false,
+      message: "Too many requests, please try again after 15 minutes.",
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  }),
+);
 
 // ──────────────────────────────────────────────
 // Rate Limiters
@@ -133,14 +149,16 @@ const handleMulterUpload = (req, res, next) => {
 // ──────────────────────────────────────────────
 
 // Protected (read-only)
-router.get("/", userAuth, getPolicies);
+router.get("/", userAuth, requirePermission("policies", "view"), getPolicies);
 
-// Protected — require authentication & rate limiting
+// Protected — require authentication & rate limiting (admin only for upload)
 router.post(
   "/upload",
   uploadLimiter,
   userAuth,
+  requireAdmin,
   requireOrgMembership,
+  requirePermission("policies", "create"),
   handleMulterUpload,
   uploadPolicy,
 );
@@ -149,13 +167,15 @@ router.post(
   analyzeLimiter,
   userAuth,
   requireOwnerOrAdmin(Policy),
+  requirePermission("policies", "approve"),
   analyzePolicy,
 );
 router.get(
   "/download/:id",
   downloadLimiter,
   userAuth,
-  requireOwnerOrAdmin(Policy),
+  requireOrgAccess(Policy),
+  requirePermission("policies", "view"),
   downloadPolicy,
 );
 router.delete(
@@ -163,6 +183,7 @@ router.delete(
   deleteLimiter,
   userAuth,
   requireOwnerOrAdmin(Policy),
+  requirePermission("policies", "delete"),
   deletePolicy,
 );
 

@@ -1,37 +1,8 @@
 import React, { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Brain, Search, BarChart3, Users, ArrowRight } from "lucide-react";
 
-const features = [
-  {
-    icon: Brain,
-    title: "AI Meeting Intelligence",
-    description:
-      "Automatically transcribe meetings, generate summaries, and capture action items.",
-    gradient: "from-blue-600 to-violet-600",
-  },
-  {
-    icon: Search,
-    title: "Semantic Search",
-    description:
-      "Quickly find discussions, decisions, and information from past meetings.",
-    gradient: "from-pink-500 to-rose-500",
-  },
-  {
-    icon: BarChart3,
-    title: "Smart Reports",
-    description:
-      "Generate AI-powered reports and insights to support better decisions.",
-    gradient: "from-green-500 to-emerald-500",
-  },
-  {
-    icon: Users,
-    title: "Team Collaboration",
-    description:
-      "Collaborate with your organization in one centralized knowledge hub.",
-    gradient: "from-orange-500 to-amber-500",
-  },
-];
 
 const useIntersectionFade = (threshold = 0.15) => {
   const ref = useRef(null);
@@ -56,6 +27,34 @@ const useIntersectionFade = (threshold = 0.15) => {
 const About = () => {
   const navigate = useNavigate();
   const headingRef = useIntersectionFade();
+  const { t } = useTranslation();
+
+  const features = [
+    {
+      icon: Brain,
+      title: t("about.aiMeetingIntelligence"),
+      description: t("about.aiMeetingIntelligenceDesc"),
+      gradient: "from-blue-600 to-violet-600",
+    },
+    {
+      icon: Search,
+      title: t("about.semanticSearch"),
+      description: t("about.semanticSearchDesc"),
+      gradient: "from-pink-500 to-rose-500",
+    },
+    {
+      icon: BarChart3,
+      title: t("about.smartReports"),
+      description: t("about.smartReportsDesc"),
+      gradient: "from-green-500 to-emerald-500",
+    },
+    {
+      icon: Users,
+      title: t("about.teamCollaboration"),
+      description: t("about.teamCollaborationDesc"),
+      gradient: "from-orange-500 to-amber-500",
+    },
+  ];
 
   return (
     <section
@@ -69,21 +68,19 @@ const About = () => {
           className="fade-in-up text-center max-w-3xl mx-auto mb-16"
         >
           <span className="inline-flex items-center px-4 py-1 rounded-full text-xs font-semibold tracking-wider uppercase bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700">
-            About Us
+            {t("about.badge")}
           </span>
 
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-gray-100 mt-5 leading-tight">
-            About{" "}
+            {t("about.heading1_prefix")}
             <span className="bg-linear-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent">
               MeetOnMemory
             </span>
+            {t("about.heading1_suffix")}
           </h2>
 
           <p className="mt-5 text-base sm:text-lg text-gray-600 dark:text-gray-300 leading-relaxed">
-            MeetOnMemory is an AI-powered knowledge management platform that
-            transforms meetings into searchable, structured knowledge. Instead
-            of losing valuable discussions, teams can instantly access
-            summaries, action items, and key decisions whenever they need them.
+            {t("about.description")}
           </p>
         </div>
 
@@ -111,7 +108,7 @@ const About = () => {
             className="group inline-flex items-center gap-2 px-8 py-3.5 bg-linear-to-r from-blue-600 to-violet-600 text-white rounded-xl font-semibold hover:shadow-xl hover:shadow-blue-500/30 hover:scale-105 active:scale-100 transition-all duration-300 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             aria-label="Join MeetOnMemory today"
           >
-            Join MeetOnMemory Today
+            {t("about.joinToday")}
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" />
           </button>
         </div>

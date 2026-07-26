@@ -1,0 +1,74 @@
+[
+  {
+    "id": "conflict-expense-cap",
+    "decisionText": "Approved reimbursing the vendor purchase of $1,200 for new laptops without requiring pre-approval, since the team lead signed off after the fact.",
+    "policy": {
+      "name": "Expense Reimbursement Policy",
+      "version": "2.0",
+      "summary": "All employee expense reimbursements above $500 require written pre-approval from a department head before the purchase is made. Reimbursements submitted without pre-approval will be denied regardless of amount.",
+      "key_changes": ["Raised pre-approval threshold from $250 to $500"]
+    },
+    "expectedClassification": "potential_conflict",
+    "notes": "Exceeds the $500 threshold and explicitly skips the required pre-approval step."
+  },
+  {
+    "id": "aligned-remote-work-days",
+    "decisionText": "Confirmed that engineering staff will continue working from home on Mondays and Fridays, consistent with the existing hybrid schedule.",
+    "policy": {
+      "name": "Remote Work Policy",
+      "version": "1.3",
+      "summary": "Employees may work remotely up to two days per week, subject to manager approval, provided core collaboration hours (10am-3pm local time) are maintained.",
+      "key_changes": []
+    },
+    "expectedClassification": "aligned",
+    "notes": "Two remote days matches the policy's stated allowance exactly."
+  },
+  {
+    "id": "references-onboarding-checklist",
+    "decisionText": "Agreed that new hires will go through the standard onboarding checklist as defined in the Onboarding Policy before receiving system access.",
+    "policy": {
+      "name": "Onboarding Policy",
+      "version": "1.0",
+      "summary": "Defines the mandatory checklist new hires must complete, including equipment provisioning, security training, and manager introductions, before systems access is granted.",
+      "key_changes": []
+    },
+    "expectedClassification": "references",
+    "notes": "Explicitly invokes the policy by name without adding a new rule or conflicting with it."
+  },
+  {
+    "id": "unrelated-lunch-vendor",
+    "decisionText": "Switched the office catering vendor for Friday lunches from Vendor A to Vendor B starting next month.",
+    "policy": {
+      "name": "Data Retention Policy",
+      "version": "3.1",
+      "summary": "Customer data must be retained for no longer than 24 months after account closure, after which it must be permanently deleted from all production and backup systems.",
+      "key_changes": []
+    },
+    "expectedClassification": "unrelated",
+    "notes": "No subject-matter overlap between catering logistics and data retention rules."
+  },
+  {
+    "id": "conflict-data-retention-extension",
+    "decisionText": "Decided to retain all closed customer account data indefinitely for 'historical analysis purposes' rather than deleting it.",
+    "policy": {
+      "name": "Data Retention Policy",
+      "version": "3.1",
+      "summary": "Customer data must be retained for no longer than 24 months after account closure, after which it must be permanently deleted from all production and backup systems.",
+      "key_changes": []
+    },
+    "expectedClassification": "potential_conflict",
+    "notes": "Directly contradicts the mandatory 24-month deletion requirement."
+  },
+  {
+    "id": "aligned-despite-lexical-overlap",
+    "decisionText": "Approved a budget of $500 for team-building snacks for the quarterly offsite.",
+    "policy": {
+      "name": "Expense Reimbursement Policy",
+      "version": "2.0",
+      "summary": "All employee expense reimbursements above $500 require written pre-approval from a department head before the purchase is made.",
+      "key_changes": ["Raised pre-approval threshold from $250 to $500"]
+    },
+    "expectedClassification": "aligned",
+    "notes": "At exactly the $500 threshold and pre-approved by the meeting itself — should not be flagged as a conflict despite lexical overlap with 'expense' and '$500'. Tests conservative-bias behavior against false positives from surface-level keyword matches."
+  }
+]

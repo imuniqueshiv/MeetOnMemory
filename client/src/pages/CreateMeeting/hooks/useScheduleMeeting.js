@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "react-toastify";
-import { meetingApi } from "../../../services";
+import { meetingApi, meetingTemplateApi } from "../../../services";
+import { useEffect } from "react";
 
 export const useScheduleMeeting = () => {
   const [scheduleData, setScheduleData] = useState({
@@ -12,6 +13,7 @@ export const useScheduleMeeting = () => {
     duration: "",
     location: "",
     venue: "",
+    syncToCalendar: true,
   });
   const [participants, setParticipants] = useState([]);
   const [newParticipant, setNewParticipant] = useState({ name: "", email: "" });
@@ -19,6 +21,41 @@ export const useScheduleMeeting = () => {
   const [newAgenda, setNewAgenda] = useState("");
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const res = await meetingTemplateApi.getTemplates();
+        if (res.data?.success) {
+          setTemplates(res.data.templates);
+        }
+      } catch (error) {
+        console.error("Failed to fetch templates:", error);
+      }
+    };
+    fetchTemplates();
+  }, []);
+
+  const handleTemplateSelect = (e) => {
+    const templateId = e.target.value;
+    setSelectedTemplateId(templateId);
+
+    if (templateId) {
+      const template = templates.find((t) => t._id === templateId);
+      if (template) {
+        const newBlocks = template.agendaBlocks.map((block) => ({
+          text: block.title,
+          description: block.description,
+          duration: block.duration,
+          id: Date.now().toString() + Math.random(),
+        }));
+        setAgendaItems(newBlocks);
+        toast.info("Template agenda applied");
+      }
+    }
+  };
 
   const handleScheduleChange = (e) => {
     const { name, value } = e.target;
@@ -101,6 +138,7 @@ export const useScheduleMeeting = () => {
           duration: "",
           location: "",
           venue: "",
+          syncToCalendar: true,
         });
         setParticipants([]);
         setAgendaItems([]);
@@ -129,6 +167,9 @@ export const useScheduleMeeting = () => {
     setNewAgenda,
     attachments,
     loading,
+    templates,
+    selectedTemplateId,
+    handleTemplateSelect,
     handleScheduleChange,
     addParticipant,
     removeParticipant,

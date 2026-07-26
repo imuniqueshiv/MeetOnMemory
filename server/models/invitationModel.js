@@ -31,7 +31,7 @@ const invitationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "accepted", "rejected", "revoked", "expired"],
+      enum: ["pending", "accepted", "declined", "cancelled", "expired"],
       default: "pending",
     },
     expiresAt: {
@@ -66,7 +66,6 @@ invitationSchema.index({ expiresAt: 1 });
 invitationSchema.index({ createdAt: -1 });
 
 const Invitation =
-  mongoose.models.Invitation ||
-  mongoose.model("Invitation", invitationSchema);
+  mongoose.models.Invitation || mongoose.model("Invitation", invitationSchema);
 
 export default Invitation;

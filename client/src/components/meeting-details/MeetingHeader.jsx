@@ -1,7 +1,9 @@
 import React from "react";
 import { format } from "date-fns";
+import CalendarSyncBadge from "../CalendarSyncBadge.jsx";
+import { Share2, Presentation } from "lucide-react";
 
-const MeetingHeader = ({ meeting }) => {
+const MeetingHeader = ({ meeting, onShare, onPresent }) => {
   if (!meeting) return null;
 
   const formatDate = (dateString) => {
@@ -94,12 +96,27 @@ const MeetingHeader = ({ meeting }) => {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <CalendarSyncBadge
+            externalCalendarRefs={meeting.externalCalendarRefs}
+          />
           <span
             className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${getStatusColor(meeting.status)}`}
           >
             {meeting.status || "uploaded"}
           </span>
+          <button
+            onClick={onPresent}
+            className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 rounded-lg text-sm font-medium transition-colors"
+          >
+            <Presentation className="w-4 h-4" /> Present
+          </button>
+          <button
+            onClick={onShare}
+            className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50 rounded-lg text-sm font-medium transition-colors"
+          >
+            <Share2 className="w-4 h-4" /> Share
+          </button>
         </div>
       </div>
 

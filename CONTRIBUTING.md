@@ -176,6 +176,9 @@ npm run dev
 
 # 🧹 Before You Commit & CI/CD Pipeline
 
+To ensure code quality, we use **Husky** and **lint-staged** to automatically run ESLint and Prettier on your staged files before a commit is created. This ensures unformatted or lint-error-prone code never gets committed.
+If the linting or formatting fails, the commit will be aborted until the errors are fixed.
+
 To ensure code quality and avoid PR checklist failures, we run quality checks on every Pull Request via **GitHub Actions**.
 
 ### ⚙️ CI/CD Pipeline Checks

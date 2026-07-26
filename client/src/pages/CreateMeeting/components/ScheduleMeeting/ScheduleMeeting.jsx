@@ -1,4 +1,4 @@
-import { Calendar, Loader2, Send } from "lucide-react";
+import { Calendar, Loader2, Send, FileText } from "lucide-react";
 import MeetingInformationForm from "./MeetingInformationForm";
 import ParticipantsSection from "./ParticipantsSection";
 import AgendaSection from "./AgendaSection";
@@ -17,6 +17,9 @@ const ScheduleMeeting = ({ hookProps }) => {
     setNewAgenda,
     attachments,
     loading,
+    templates,
+    selectedTemplateId,
+    handleTemplateSelect,
     handleScheduleChange,
     addParticipant,
     removeParticipant,
@@ -54,6 +57,28 @@ const ScheduleMeeting = ({ hookProps }) => {
           addParticipant={addParticipant}
           removeParticipant={removeParticipant}
         />
+
+        {templates && templates.length > 0 && (
+          <div className="mb-6 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+            <label className="flex items-center gap-2 text-sm font-semibold text-blue-900 mb-2">
+              <FileText size={16} /> Load Meeting Template
+            </label>
+            <select
+              value={selectedTemplateId}
+              onChange={handleTemplateSelect}
+              className="w-full px-4 py-2 bg-white border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none text-sm text-gray-700"
+            >
+              <option value="">
+                -- Select a template to populate agenda --
+              </option>
+              {templates.map((t) => (
+                <option key={t._id} value={t._id}>
+                  {t.title} ({t.agendaBlocks?.length || 0} items)
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <AgendaSection
           agendaItems={agendaItems}

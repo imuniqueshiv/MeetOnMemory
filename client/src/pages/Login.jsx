@@ -1,15 +1,18 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import React, { useContext, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import AppContent from "../context/AppContent";
 import { toast } from "react-toastify";
 import { assets } from "../assets/assets";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { authApi } from "../services";
+import { authApi, csrfService } from "../services";
 
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setIsLoggedin, getUserData, setUserData } = useContext(AppContent);
+  const { initializeAuth, isLoggedin, userData, loading } =
+    useContext(AppContent);
+  const { t } = useTranslation();
 
   const [state, setState] = useState("Login");
   const [name, setName] = useState("");
@@ -26,11 +29,42 @@ const Login = () => {
     }
   }, [location.search]);
 
+  // Already signed in — leave the login page
+  useEffect(() => {
+    if (!loading && isLoggedin && userData) {
+      navigate(
+        userData.hasCompletedOnboarding ? "/dashboard" : "/organizations",
+        { replace: true },
+      );
+    }
+  }, [loading, isLoggedin, userData, navigate]);
+
+  const finishAuth = async (welcomeName) => {
+    const user = await initializeAuth();
+    if (!user) {
+      toast.error("Could not restore your session. Please try again.");
+      return;
+    }
+
+    toast.success(`Welcome, ${welcomeName || user.name}!`);
+
+    const from = location.state?.from?.pathname;
+    if (from) {
+      navigate(from, { replace: true });
+      return;
+    }
+
+    navigate(user.hasCompletedOnboarding ? "/dashboard" : "/organizations");
+  };
+
   const onSubmitHandler = async (e) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
+      // Ensure we have a valid CSRF token before any auth POST
+      await csrfService.fetchToken();
+
       if (state === "Sign Up") {
         const { data } = await authApi.register({
           name,
@@ -38,9 +72,15 @@ const Login = () => {
           password,
         });
 
-        if (!data.success)
-          return toast.error(data.message || "Register failed");
+        if (!data.success) {
+          toast.error(data.message || "Register failed");
+          return;
+        }
+
         toast.success("Account created successfully!");
+        // Register already sets the session cookie
+        await finishAuth(name);
+        return;
       }
 
       const { data: loginData } = await authApi.login({
@@ -49,16 +89,7 @@ const Login = () => {
       });
 
       if (loginData.success) {
-        const user = await getUserData();
-
-        if (user) {
-          setUserData(user);
-          setIsLoggedin(true);
-          localStorage.setItem("userData", JSON.stringify(user));
-          toast.success(`Welcome, ${user.name}!`);
-        }
-
-        navigate("/organizations");
+        await finishAuth();
       } else {
         toast.error(loginData.message || "Login failed");
       }
@@ -95,12 +126,14 @@ const Login = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-2">
-            {state === "Sign Up" ? "Create Account" : "Welcome Back"}
+            {state === "Sign Up"
+              ? t("login.createAccount")
+              : t("login.welcomeBack")}
           </h1>
           <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
             {state === "Sign Up"
-              ? "Join us today and get started in seconds"
-              : "Sign in to continue to your account"}
+              ? t("login.joinUs")
+              : t("login.signInContinue")}
           </p>
         </div>
 
@@ -112,7 +145,7 @@ const Login = () => {
                 htmlFor="name"
                 className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 ml-1"
               >
-                Full Name
+                {t("login.fullName")}
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
@@ -142,7 +175,7 @@ const Login = () => {
               htmlFor="email"
               className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 ml-1"
             >
-              Email Address
+              {t("login.emailAddress")}
             </label>
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
@@ -171,7 +204,7 @@ const Login = () => {
               htmlFor="password"
               className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 ml-1"
             >
-              Password
+              {t("login.password")}
             </label>
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
@@ -196,7 +229,11 @@ const Login = () => {
                 autocomple
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute inset-y-0 right-0 pr-3.5 flex cursor-pointer items-center text-slate-500 hover:text-indigo-400 transition-colors duration-200 outline-none focus:text-indigo-400"
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-label={
+                  showPassword
+                    ? t("login.hidePassword")
+                    : t("login.showPassword")
+                }
               >
                 {showPassword ? (
                   <EyeOff className="w-5 h-5" />
@@ -214,7 +251,7 @@ const Login = () => {
               onClick={() => navigate("/reset-password")}
               className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors duration-200 cursor-pointer outline-none focus:underline underline-offset-2"
             >
-              Forgot password?
+              {t("login.forgotPassword")}
             </button>
           </div>
 
@@ -229,12 +266,14 @@ const Login = () => {
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span>
                   {state === "Sign Up"
-                    ? "Creating account..."
-                    : "Signing in..."}
+                    ? t("login.creatingAccount")
+                    : t("login.signingIn")}
                 </span>
               </>
+            ) : state === "Sign Up" ? (
+              t("login.signUp")
             ) : (
-              state
+              t("login.loginBtn")
             )}
           </button>
         </form>
@@ -244,24 +283,24 @@ const Login = () => {
           <p className="text-slate-400 text-sm">
             {state === "Sign Up" ? (
               <>
-                Already have an account?{" "}
+                {t("login.alreadyHaveAccount")}{" "}
                 <button
                   type="button"
                   onClick={() => setState("Login")}
                   className="text-indigo-400 cursor-pointer font-semibold hover:text-indigo-300 transition-colors duration-200 outline-none focus:underline underline-offset-2"
                 >
-                  Sign in
+                  {t("login.signIn")}
                 </button>
               </>
             ) : (
               <>
-                Don't have an account?{" "}
+                {t("login.dontHaveAccount")}{" "}
                 <button
                   type="button"
                   onClick={() => setState("Sign Up")}
                   className="text-indigo-400 font-semibold cursor-pointer hover:text-indigo-300 transition-colors duration-200 outline-none focus:underline underline-offset-2"
                 >
-                  Sign up
+                  {t("login.signUpLink")}
                 </button>
               </>
             )}

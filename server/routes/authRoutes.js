@@ -9,8 +9,9 @@ import {
   sendResetOtp,
   resetPassword,
   getUserData,
+  googleCalendarAuth,
+  googleCalendarCallback,
 } from "../controllers/authControllers.js";
-
 import userAuth from "../middleware/userAuth.js";
 import {
   loginLimiter,
@@ -37,15 +38,9 @@ router.get("/user-data", userAuth, getUserData);
 // 🔥 FIXED: Add this route for frontend login check
 router.get("/is-auth", userAuth, isAuthenticated);
 
-// ✅ CSRF Token route for frontend
-router.get("/csrf", (req, res) => {
-  try {
-    const csrfToken = req.csrfToken ? req.csrfToken() : null;
-    res.json({ success: true, csrfToken });
-  } catch (error) {
-    // CSRF is bypassed in development, return success without token
-    res.json({ success: true, csrfToken: null, message: "CSRF bypassed in development" });
-  }
-});
+// ✅ Google Calendar Auth
+router.get("/test-123", (req, res) => res.send("working"));
+router.get("/google-calendar", googleCalendarAuth);
+router.get("/google-calendar/callback", googleCalendarCallback);
 
 export default router;

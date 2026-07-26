@@ -1,25 +1,17 @@
-import { useState, useContext } from "react";
-import axios from "axios";
+import { useState } from "react";
 import { toast } from "react-toastify";
-import AppContent from "../context/AppContent";
+import { meetingApi } from "../services";
 
 const useExport = () => {
-  const { backendUrl } = useContext(AppContent);
   const [isExporting, setIsExporting] = useState(false);
 
   const exportMeeting = async (meeting, format) => {
-    if (isExporting) return; // Prevent duplicate requests
+    if (isExporting) return;
+
     try {
       setIsExporting(true);
 
-      const response = await axios.get(
-        `${backendUrl}/api/meetings/${meeting._id}/export?format=${format}`,
-        {
-          withCredentials: true,
-          responseType: "blob",
-          timeout: 60000,
-        },
-      );
+      const response = await meetingApi.exportMeeting(meeting._id, format);
 
       const blob = new Blob([response.data], {
         type: response.headers["content-type"],

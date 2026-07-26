@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getCsrfToken, refreshCsrfToken } from "./csrfService.js";
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
 
@@ -7,65 +8,88 @@ const apiClient = axios.create({
   withCredentials: true,
 });
 
-// Response Interceptor for global error handling
-apiClient.interceptors.response.use(
-  (response) => {
-    return response;
+const CSRF_FAILED_MESSAGE = "CSRF token validation failed.";
+
+function isCsrfError(error) {
+  const status = error.response?.status;
+  const message = error.response?.data?.message;
+  return status === 419 || (status === 403 && message === CSRF_FAILED_MESSAGE);
+}
+
+function applyFriendlyMessage(error, friendlyMessage) {
+  if (!error.response) {
+    error.response = { data: { message: friendlyMessage }, status: 0 };
+  } else if (error.response.data) {
+    error.response.data.message = friendlyMessage;
+  } else {
+    error.response.data = { message: friendlyMessage };
+  }
+  error.message = friendlyMessage;
+}
+
+// Attach credentials + latest CSRF token on every request
+apiClient.interceptors.request.use(
+  (config) => {
+    config.withCredentials = true;
+
+    const token = getCsrfToken();
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers["X-CSRF-Token"] = token;
+    }
+
+    return config;
   },
+  (error) => Promise.reject(error),
+);
+
+apiClient.interceptors.response.use(
+  (response) => response,
   async (error) => {
+    const originalRequest = error.config;
     let friendlyMessage = "An unexpected error occurred. Please try again.";
 
-    // CSRF Retry Logic
-    if (
-      error.response &&
-      error.response.status === 403 &&
-      error.response.data &&
-      error.response.data.message === "CSRF token validation failed."
-    ) {
-      const originalRequest = error.config;
+    // Refresh CSRF once, then retry the failed request
+    if (isCsrfError(error) && originalRequest && !originalRequest._retry) {
+      originalRequest._retry = true;
 
-      if (!originalRequest._retry) {
-        originalRequest._retry = true;
-        try {
-          const { data } = await axios.get(`${backendUrl}/api/auth/csrf`, {
-            withCredentials: true,
-          });
-          if (data && data.csrfToken) {
-            // Update default headers and the original request
-            apiClient.defaults.headers.common["X-CSRF-Token"] = data.csrfToken;
-            originalRequest.headers["X-CSRF-Token"] = data.csrfToken;
-            // Retry the request
-            return apiClient(originalRequest);
-          }
-        } catch (csrfErr) {
-          console.error("Failed to refresh CSRF token", csrfErr);
-          friendlyMessage =
-            "Session security token expired. Please refresh the page.";
+      try {
+        await refreshCsrfToken();
+        const token = getCsrfToken();
+
+        if (token) {
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers["X-CSRF-Token"] = token;
+          return apiClient.request(originalRequest);
         }
-      } else {
+
+        friendlyMessage =
+          "Session security token expired. Please refresh the page.";
+      } catch (csrfErr) {
+        console.error("Failed to refresh CSRF token", csrfErr);
         friendlyMessage =
           "Session security token expired. Please refresh the page.";
       }
-    }
-
-    if (!error.response) {
-      // Network error (offline or server not reachable)
+    } else if (isCsrfError(error) && originalRequest?._retry) {
       friendlyMessage =
-        "Network offline. Please check your internet connection.";
-      // Mock the response so local catch blocks using error.response?.data?.message work
-      error.response = { data: { message: friendlyMessage }, status: 0 };
+        "Session security token expired. Please refresh the page.";
+    } else if (!error.response) {
+      if (!navigator.onLine) {
+        friendlyMessage =
+          "Network offline. Please check your internet connection.";
+      } else {
+        friendlyMessage =
+          "Unable to reach the server. This may be a network issue or a CORS policy restriction.";
+      }
     } else {
       switch (error.response.status) {
         case 401:
           friendlyMessage =
-            error.response.data && error.response.data.message
-              ? error.response.data.message
-              : "Session expired. Please log in again.";
+            error.response.data?.message ||
+            "Session expired. Please log in again.";
           break;
         case 403:
-          if (
-            error.response.data?.message !== "CSRF token validation failed."
-          ) {
+          if (error.response.data?.message !== CSRF_FAILED_MESSAGE) {
             friendlyMessage =
               "You do not have permission to perform this action.";
           }
@@ -83,23 +107,14 @@ apiClient.interceptors.response.use(
           friendlyMessage = "Server unavailable. Please try again later.";
           break;
         default:
-          // Use backend provided message if available, otherwise keep default
-          if (error.response.data && error.response.data.message) {
+          if (error.response.data?.message) {
             friendlyMessage = error.response.data.message;
           }
           break;
       }
-
-      // Inject the friendly message back into the response so local catch blocks display it
-      if (error.response.data) {
-        error.response.data.message = friendlyMessage;
-      } else {
-        error.response.data = { message: friendlyMessage };
-      }
     }
 
-    error.message = friendlyMessage;
-
+    applyFriendlyMessage(error, friendlyMessage);
     return Promise.reject(error);
   },
 );

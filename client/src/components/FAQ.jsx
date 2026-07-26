@@ -1,49 +1,8 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronDown, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const faqs = [
-  {
-    question: "Is MeetOnMemory free?",
-    answer:
-      "MeetOnMemory is currently under active development. During this phase, core features are available for testing. Pricing plans will be introduced as the platform matures.",
-  },
-  {
-    question: "Which AI model is used?",
-    answer:
-      "MeetOnMemory leverages modern AI models such as Google Gemini for meeting summarization and knowledge extraction. Additional AI services may be integrated as the platform evolves.",
-  },
-  {
-    question: "Can I upload meeting recordings?",
-    answer:
-      "Yes, you can upload meeting recordings, transcripts, and supporting documents. The platform processes them to generate summaries, extract key decisions, and build searchable organizational knowledge.",
-  },
-  {
-    question: "How secure is my data?",
-    answer:
-      "Security is a priority. Authentication, protected APIs, and organization-based access controls help ensure your meeting data remains private and accessible only to authorized users.",
-  },
-  {
-    question: "Can I search previous meetings?",
-    answer:
-      "Absolutely. MeetOnMemory uses AI-powered semantic search so you can ask natural language questions and quickly retrieve discussions, action items, and past decisions.",
-  },
-  {
-    question: "What file formats are supported?",
-    answer:
-      "The platform is designed to support meeting recordings, transcripts, PDFs, and other commonly used meeting documents. Additional formats may be added over time.",
-  },
-  {
-    question: "Can multiple team members collaborate?",
-    answer:
-      "Yes. Organizations can collaborate in shared workspaces where members can access meetings, documents, AI summaries, and organizational knowledge together.",
-  },
-  {
-    question: "Can I generate meeting reports?",
-    answer:
-      "Yes. AI-generated reports include meeting summaries, key decisions, action items, analytics, and structured Minutes of Meeting (MoM) to improve productivity.",
-  },
-];
 
 const FAQItem = ({ faq, index, isOpen, onClick }) => {
   const ref = useRef(null);
@@ -116,6 +75,42 @@ export default function FAQ() {
   const [openIndex, setOpenIndex] = useState(-1);
   const navigate = useNavigate();
   const headingRef = useRef(null);
+  const { t } = useTranslation();
+
+  const faqs = [
+    {
+      question: t("faq.q1"),
+      answer: t("faq.a1"),
+    },
+    {
+      question: t("faq.q2"),
+      answer: t("faq.a2"),
+    },
+    {
+      question: t("faq.q3"),
+      answer: t("faq.a3"),
+    },
+    {
+      question: t("faq.q4"),
+      answer: t("faq.a4"),
+    },
+    {
+      question: t("faq.q5"),
+      answer: t("faq.a5"),
+    },
+    {
+      question: t("faq.q6"),
+      answer: t("faq.a6"),
+    },
+    {
+      question: t("faq.q7"),
+      answer: t("faq.a7"),
+    },
+    {
+      question: t("faq.q8"),
+      answer: t("faq.a8"),
+    },
+  ];
 
   useEffect(() => {
     const el = headingRef.current;
@@ -142,16 +137,15 @@ export default function FAQ() {
         {/* Heading */}
         <div ref={headingRef} className="fade-in-up text-center mb-14">
           <span className="inline-flex rounded-full border border-blue-200 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 px-4 py-1 text-xs font-semibold tracking-wider uppercase text-blue-700 dark:text-blue-300">
-            FAQ
+            {t("faq.badge")}
           </span>
 
           <h2 className="mt-5 text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-            Frequently Asked Questions
+            {t("faq.heading")}
           </h2>
 
           <p className="mt-4 text-gray-500 dark:text-gray-400 max-w-2xl mx-auto text-base leading-relaxed">
-            Everything you need to know about MeetOnMemory, AI-powered meeting
-            intelligence, collaboration, and knowledge management.
+            {t("faq.subtitle")}
           </p>
         </div>
 
@@ -171,10 +165,10 @@ export default function FAQ() {
         {/* CTA below FAQ */}
         <div className="mt-14 text-center p-8 rounded-2xl bg-linear-to-br from-blue-50 to-violet-50 dark:from-blue-900/20 dark:to-violet-900/20 border border-blue-100 dark:border-blue-800">
           <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-            Still have questions?
+            {t("faq.stillHaveQuestions")}
           </h3>
           <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
-            Try MeetOnMemory yourself — no credit card required.
+            {t("faq.trySelf")}
           </p>
           <button
             id="faq-cta-btn"
@@ -182,7 +176,7 @@ export default function FAQ() {
             className="group inline-flex items-center gap-2 px-8 py-3.5 bg-linear-to-r from-blue-600 to-violet-600 text-white rounded-xl font-semibold hover:shadow-xl hover:shadow-blue-500/30 hover:scale-105 active:scale-100 transition-all duration-300 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             aria-label="Get started with MeetOnMemory for free"
           >
-            Get Started for Free
+            {t("faq.getStartedFree")}
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" />
           </button>
         </div>

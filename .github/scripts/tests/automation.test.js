@@ -10,6 +10,8 @@ import {
 } from "../pr.js";
 import { processIssueLifecycle } from "../lifecycle.js";
 import { processClaimExpiration } from "../expiration.js";
+import { autoLabelEcs } from "../label-ecs.js";
+
 
 function createCore() {
   return { info() {}, warning() {}, error() {} };
@@ -338,3 +340,117 @@ test("expiration: reminder and expiration paths", async () => {
   await processClaimExpiration({ github, context, core: createCore() });
   assert.equal(github.state.assignees[50], undefined);
 });
+
+test("autoLabelEcs: labels contributor-created issue with ECSoC26", async () => {
+  process.env.GITHUB_REPOSITORY = "org/repo";
+  const labelsAdded = [];
+  const github = {
+    rest: {
+      issues: {
+        async addLabels({ owner, repo, issue_number, labels }) {
+          labelsAdded.push({ issue_number, labels });
+          return { data: labels };
+        },
+      },
+    },
+  };
+  const context = {
+    eventName: "issues",
+    repo: { owner: "org", repo: "repo" },
+    payload: {
+      issue: {
+        number: 42,
+        user: { login: "contributor" },
+        author_association: "NONE",
+        labels: [],
+      },
+    },
+  };
+  const core = {
+    info() {},
+    warning() {},
+    setFailed(msg) {
+      assert.fail(`Should not call setFailed: ${msg}`);
+    },
+  };
+
+  await autoLabelEcs({ github, context, core });
+  assert.equal(labelsAdded.length, 1);
+  assert.equal(labelsAdded[0].issue_number, 42);
+  assert.deepEqual(labelsAdded[0].labels, ["ECSoC26"]);
+});
+
+test("autoLabelEcs: skips auto-labeling if author is a maintainer", async () => {
+  process.env.GITHUB_REPOSITORY = "org/repo";
+  const labelsAdded = [];
+  const github = {
+    rest: {
+      issues: {
+        async addLabels({ owner, repo, issue_number, labels }) {
+          labelsAdded.push({ issue_number, labels });
+          return { data: labels };
+        },
+      },
+    },
+  };
+  const context = {
+    eventName: "issues",
+    repo: { owner: "org", repo: "repo" },
+    payload: {
+      issue: {
+        number: 43,
+        user: { login: "maintainer" },
+        author_association: "OWNER",
+        labels: [],
+      },
+    },
+  };
+  const core = {
+    info() {},
+    warning() {},
+    setFailed(msg) {
+      assert.fail(`Should not call setFailed: ${msg}`);
+    },
+  };
+
+  await autoLabelEcs({ github, context, core });
+  assert.equal(labelsAdded.length, 0);
+});
+
+test("autoLabelEcs: skips auto-labeling if label is already present", async () => {
+  process.env.GITHUB_REPOSITORY = "org/repo";
+  const labelsAdded = [];
+  const github = {
+    rest: {
+      issues: {
+        async addLabels({ owner, repo, issue_number, labels }) {
+          labelsAdded.push({ issue_number, labels });
+          return { data: labels };
+        },
+      },
+    },
+  };
+  const context = {
+    eventName: "issues",
+    repo: { owner: "org", repo: "repo" },
+    payload: {
+      issue: {
+        number: 44,
+        user: { login: "contributor" },
+        author_association: "NONE",
+        labels: [{ name: "ECSoC26" }],
+      },
+    },
+  };
+  const core = {
+    info() {},
+    warning() {},
+    setFailed(msg) {
+      assert.fail(`Should not call setFailed: ${msg}`);
+    },
+  };
+
+  await autoLabelEcs({ github, context, core });
+  assert.equal(labelsAdded.length, 0);
+});
+

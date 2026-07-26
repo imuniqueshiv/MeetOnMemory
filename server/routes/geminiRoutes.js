@@ -1,11 +1,20 @@
 import express from "express";
 import axios from "axios";
 import dotenv from "dotenv";
+import userAuth from "../middleware/userAuth.js";
+import { writeLimiter } from "../middleware/rateLimiter.js";
+import { requirePermission } from "../middleware/rbac.js";
+
 dotenv.config();
 
 const router = express.Router();
 
-router.post("/insights", async (req, res) => {
+router.post(
+  "/insights",
+  userAuth,
+  writeLimiter,
+  requirePermission("reports", "view"),
+  async (req, res) => {
   try {
     const { summary } = req.body;
 

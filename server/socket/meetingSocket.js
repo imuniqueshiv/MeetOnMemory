@@ -1,4 +1,8 @@
 import jwt from "jsonwebtoken";
+import userModel from "../models/userModel.js";
+import Meeting from "../models/meetingModel.js";
+import { hasPermission } from "../utils/rbacPermissions.js";
+import streamingTranscriptionService from "../services/StreamingTranscriptionService.js";
 
 const parseCookie = (str) =>
   str
@@ -16,7 +20,7 @@ export default (io) => {
   const socketToRoom = {}; // socketId -> roomId
 
   // Authentication Middleware
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     try {
       const cookieHeader = socket.request.headers.cookie;
       if (!cookieHeader) {
@@ -32,6 +36,15 @@ export default (io) => {
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.userId = decoded.id;
+
+      // Fetch user with role and organization
+      const user = await userModel.findById(decoded.id);
+      if (!user) {
+        return next(new Error("Authentication error: User not found"));
+      }
+
+      socket.userRole = user.role;
+      socket.userOrganization = user.organization;
       next();
     } catch (error) {
       console.error("Socket authentication error:", error.message);
@@ -48,27 +61,65 @@ export default (io) => {
     }
 
     // Join room
-    socket.on("join-meeting", ({ roomId, userInfo }) => {
-      // Initialize room array if not exists
-      if (!usersInRoom[roomId]) {
-        usersInRoom[roomId] = [];
+    socket.on("join-meeting", async ({ roomId, userInfo }) => {
+      try {
+        // RBAC: Check if user has permission to view meetings
+        if (
+          !socket.userRole ||
+          !hasPermission(socket.userRole, "meetings", "view")
+        ) {
+          socket.emit("error", {
+            message: "Forbidden: Insufficient permissions",
+          });
+          return;
+        }
+
+        // RBAC: Check if user has access to this specific meeting
+        const meeting = await Meeting.findById(roomId);
+        if (!meeting) {
+          socket.emit("error", { message: "Meeting not found" });
+          return;
+        }
+
+        const isOwner =
+          meeting.uploadedBy?.toString() === socket.userId.toString();
+        const isInSameOrg =
+          meeting.organization &&
+          socket.userOrganization &&
+          meeting.organization.toString() ===
+            socket.userOrganization.toString();
+
+        if (!isOwner && !isInSameOrg) {
+          socket.emit("error", {
+            message: "Forbidden: You don't have access to this meeting",
+          });
+          return;
+        }
+
+        // Initialize room array if not exists
+        if (!usersInRoom[roomId]) {
+          usersInRoom[roomId] = [];
+        }
+
+        const user = { socketId: socket.id, ...userInfo };
+        usersInRoom[roomId].push(user);
+        socketToRoom[socket.id] = roomId;
+
+        socket.join(roomId);
+
+        // Tell the newly joined user about other users in the room
+        const usersInThisRoom = usersInRoom[roomId].filter(
+          (id) => id.socketId !== socket.id,
+        );
+        socket.emit("all-users", usersInThisRoom);
+
+        // Tell everyone else that a new user joined
+        socket.to(roomId).emit("user-joined", user);
+        console.log(`User ${socket.id} joined room: ${roomId}`);
+      } catch (error) {
+        console.error("Error joining meeting:", error);
+        socket.emit("error", { message: "Failed to join meeting" });
       }
-
-      const user = { socketId: socket.id, ...userInfo };
-      usersInRoom[roomId].push(user);
-      socketToRoom[socket.id] = roomId;
-
-      socket.join(roomId);
-
-      // Tell the newly joined user about other users in the room
-      const usersInThisRoom = usersInRoom[roomId].filter(
-        (id) => id.socketId !== socket.id,
-      );
-      socket.emit("all-users", usersInThisRoom);
-
-      // Tell everyone else that a new user joined
-      socket.to(roomId).emit("user-joined", user);
-      console.log(`User ${socket.id} joined room: ${roomId}`);
     });
 
     // WebRTC Signaling: relaying signals
@@ -109,11 +160,46 @@ export default (io) => {
         usersInRoom[roomId] = room;
         if (room.length === 0) {
           delete usersInRoom[roomId];
+          // End transcription session when last user leaves
+          streamingTranscriptionService.endSession(roomId);
         }
       }
 
       socket.to(roomId).emit("user-left", socket.id);
       delete socketToRoom[socket.id];
+    });
+
+    // Start transcription session
+    socket.on("start-transcription", async ({ roomId }) => {
+      try {
+        if (!streamingTranscriptionService.isSessionActive(roomId)) {
+          await streamingTranscriptionService.startSession(roomId, io);
+          socket.emit("transcription-started", { roomId });
+        }
+      } catch (error) {
+        console.error("Error starting transcription:", error);
+        socket.emit("transcription-error", { message: error.message });
+      }
+    });
+
+    // Stop transcription session
+    socket.on("stop-transcription", async ({ roomId }) => {
+      try {
+        await streamingTranscriptionService.endSession(roomId);
+        socket.emit("transcription-stopped", { roomId });
+      } catch (error) {
+        console.error("Error stopping transcription:", error);
+        socket.emit("transcription-error", { message: error.message });
+      }
+    });
+
+    // Process audio data for transcription
+    socket.on("audio-data", ({ roomId, audioData }) => {
+      try {
+        streamingTranscriptionService.processAudio(roomId, audioData);
+      } catch (error) {
+        console.error("Error processing audio data:", error);
+      }
     });
   });
 };

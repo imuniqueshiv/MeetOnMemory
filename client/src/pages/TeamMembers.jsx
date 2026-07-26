@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import AppContent from "../context/AppContent";
 import Navbar from "../components/Navbar.jsx";
-import { organizationApi } from "../services";
 import {
   Users,
   Search,
@@ -9,61 +7,49 @@ import {
   Mail,
   Calendar,
   Shield,
-  Copy,
   X,
   ChevronDown,
   Clock,
   CheckCircle,
   XCircle,
+  Plus,
+  Send,
+  Ban,
+  AlertTriangle,
 } from "lucide-react";
-import { toast } from "react-toastify";
-
-const ROLE_STYLES = {
-  admin: "bg-violet-50 text-violet-700 border-violet-200",
-  member: "bg-sky-50 text-sky-700 border-sky-200",
-};
-
-const ROLE_LABELS = {
-  admin: "Admin",
-  member: "Member",
-};
+import { useTeamManagement } from "../hooks/useTeamManagement";
+import InviteMemberForm from "../components/team/InviteMemberForm";
+import TeamMemberTable from "../components/team/TeamMemberTable";
 
 const TeamMembers = () => {
-  const [members, setMembers] = useState([]);
+  const [activeTab, setActiveTab] = useState("members"); // "members" | "invitations"
+
+  const {
+    members,
+    invitations,
+    loading,
+    invitesLoading,
+    error,
+    isAdmin,
+    fetchMembers,
+    handleSendInvite,
+    handleResendInvite,
+    handleCancelInvite,
+    handleExpireInvite,
+  } = useTeamManagement(activeTab);
+
   const [filteredMembers, setFilteredMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedMember, setSelectedMember] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy] = useState("name");
   const [sortOrder] = useState("asc");
   const [roleFilter, setRoleFilter] = useState("all");
 
-  const fetchMembers = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const { data } = await organizationApi.getMembers();
-
-      if (data.success) {
-        setMembers(data.members);
-        setFilteredMembers(data.members);
-      } else {
-        setError(data.message || "Failed to fetch members");
-      }
-    } catch (err) {
-      console.error("Error fetching members:", err);
-      setError("Failed to fetch members. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   const applyFiltersAndSort = useCallback(() => {
     let result = [...members];
 
-    // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
@@ -74,12 +60,10 @@ const TeamMembers = () => {
       );
     }
 
-    // Apply role filter
     if (roleFilter !== "all") {
       result = result.filter((member) => member.role === roleFilter);
     }
 
-    // Apply sorting
     result.sort((a, b) => {
       let comparison = 0;
       switch (sortBy) {
@@ -101,20 +85,9 @@ const TeamMembers = () => {
     setFilteredMembers(result);
   }, [members, searchQuery, roleFilter, sortBy, sortOrder]);
 
-  const handleCopyEmail = (email) => {
-    navigator.clipboard.writeText(email);
-    toast.success("Email copied to clipboard");
-  };
-
-  const getInitials = (name) => {
-    if (!name) return "U";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
+  useEffect(() => {
+    applyFiltersAndSort();
+  }, [applyFiltersAndSort]);
 
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
@@ -126,21 +99,13 @@ const TeamMembers = () => {
     });
   };
 
-  useEffect(() => {
-    fetchMembers();
-  }, [fetchMembers]);
-
-  useEffect(() => {
-    applyFiltersAndSort();
-  }, [applyFiltersAndSort]);
-
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
         <Navbar />
         <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-blue-600"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 dark:border-slate-700 border-t-blue-600"></div>
           </div>
         </main>
       </div>
@@ -176,8 +141,8 @@ const TeamMembers = () => {
 
       <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-md shadow-blue-600/20">
               <Users className="h-6 w-6 text-white" />
             </div>
@@ -185,248 +150,233 @@ const TeamMembers = () => {
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
                 Team Members
               </h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                {filteredMembers.length}{" "}
-                {filteredMembers.length === 1 ? "member" : "members"}
+              <p className="text-sm text-slate-500 dark:text-slate-400 font-semibold">
+                {activeTab === "members"
+                  ? `${filteredMembers.length} ${filteredMembers.length === 1 ? "member" : "members"}`
+                  : `${invitations.length} ${invitations.length === 1 ? "invitation" : "invitations"}`}
               </p>
             </div>
           </div>
+          {isAdmin && (
+            <button
+              onClick={() => setShowInviteModal(true)}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-600/20 cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              Invite Member
+            </button>
+          )}
         </div>
 
-        {/* Search and Filters */}
-        <div className="mb-6 space-y-4">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by name, email, or role..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
+        {/* Tabs */}
+        {isAdmin && (
+          <div className="flex border-b border-slate-200 dark:border-slate-800 mb-6">
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              onClick={() => setActiveTab("members")}
+              className={`pb-3 px-4 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+                activeTab === "members"
+                  ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                  : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+              }`}
             >
-              <Filter className="h-4 w-4" />
-              Filters
-              <ChevronDown
-                className={`h-4 w-4 transition-transform ${showFilters ? "rotate-180" : ""}`}
-              />
+              Members
             </button>
+            <button
+              onClick={() => setActiveTab("invitations")}
+              className={`pb-3 px-4 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+                activeTab === "invitations"
+                  ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                  : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+              }`}
+            >
+              Invitations
+            </button>
+          </div>
+        )}
 
-            {showFilters && (
-              <div className="flex flex-wrap items-center gap-3 animate-in fade-in slide-in-from-top-2">
-                <select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                  className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        {activeTab === "members" ? (
+          <>
+            {/* Search and Filters */}
+            <div className="mb-6 space-y-4">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Search by name, email, or role..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                 >
-                  <option value="all">All Roles</option>
-                  <option value="admin">Admin</option>
-                  <option value="member">Member</option>
-                </select>
+                  <Filter className="h-4 w-4" />
+                  Filters
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform ${showFilters ? "rotate-180" : ""}`}
+                  />
+                </button>
+
+                {showFilters && (
+                  <div className="flex flex-wrap items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                    <select
+                      value={roleFilter}
+                      onChange={(e) => setRoleFilter(e.target.value)}
+                      className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">All Roles</option>
+                      <option value="admin">Admin</option>
+                      <option value="member">Member</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <TeamMemberTable
+              members={filteredMembers}
+              searchQuery={searchQuery}
+              roleFilter={roleFilter}
+            />
+          </>
+        ) : (
+          <>
+            {/* Invitations List */}
+            {invitesLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <div className="animate-spin rounded-full h-8 w-8 border-4 border-slate-200 dark:border-slate-700 border-t-blue-600"></div>
+              </div>
+            ) : invitations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Mail className="h-16 w-16 text-slate-300 dark:text-slate-600 mb-4" />
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                  No invitations sent
+                </h3>
+                <p className="text-slate-500 dark:text-slate-400 mb-4 text-sm">
+                  Invite members by email to onboard them into your
+                  organization.
+                </p>
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer font-semibold shadow-md shadow-blue-600/10 active:scale-95"
+                >
+                  Send Invitation
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 animate-in fade-in duration-200">
+                {invitations.map((invite) => (
+                  <div
+                    key={invite._id}
+                    className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:shadow-xs transition-shadow"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2.5 mb-1.5">
+                        <span className="font-semibold text-slate-900 dark:text-white truncate">
+                          {invite.email}
+                        </span>
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                            invite.role === "admin"
+                              ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-400 dark:border-violet-800"
+                              : "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-400 dark:border-sky-800"
+                          }`}
+                        >
+                          {invite.role}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3.5 w-3.5" />
+                          Invited by {invite.invitedBy?.name || "Admin"}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3.5 w-3.5" />
+                          Expires {formatDate(invite.expiresAt)}
+                        </span>
+                      </div>
+                      {invite.message && (
+                        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500 italic truncate max-w-xl">
+                          "{invite.message}"
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0 justify-between md:justify-end">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
+                          invite.status === "pending"
+                            ? "bg-yellow-50 text-yellow-700 border border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800"
+                            : invite.status === "accepted"
+                              ? "bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800"
+                              : invite.status === "declined"
+                                ? "bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800"
+                                : invite.status === "expired"
+                                  ? "bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800"
+                                  : "bg-slate-50 text-slate-500 border border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800"
+                        }`}
+                      >
+                        {invite.status === "pending" && (
+                          <Clock className="w-3 h-3" />
+                        )}
+                        {invite.status === "accepted" && (
+                          <CheckCircle className="w-3 h-3" />
+                        )}
+                        {invite.status === "declined" && (
+                          <XCircle className="w-3 h-3" />
+                        )}
+                        {invite.status === "expired" && (
+                          <AlertTriangle className="w-3 h-3" />
+                        )}
+                        {invite.status === "cancelled" && (
+                          <Ban className="w-3 h-3" />
+                        )}
+                        <span className="capitalize">{invite.status}</span>
+                      </span>
+
+                      {invite.status === "pending" && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleResendInvite(invite._id)}
+                            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                            title="Resend invitation"
+                          >
+                            <Send className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleExpireInvite(invite._id)}
+                            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-orange-600 hover:text-orange-700 transition-colors cursor-pointer"
+                            title="Expire invitation"
+                          >
+                            <AlertTriangle className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleCancelInvite(invite._id)}
+                            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-red-600 hover:text-red-700 transition-colors cursor-pointer"
+                            title="Cancel invitation"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Members List */}
-        {filteredMembers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Users className="h-16 w-16 text-slate-300 mb-4" />
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-              No members found
-            </h3>
-            <p className="text-slate-500 dark:text-slate-400">
-              {searchQuery || roleFilter !== "all"
-                ? "Try adjusting your search or filters"
-                : "Your organization has no members yet"}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredMembers.map((member) => (
-              <div
-                key={member._id}
-                onClick={() => setSelectedMember(member)}
-                className="group relative flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md transition-all cursor-pointer"
-              >
-                {/* Avatar */}
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-semibold text-lg">
-                  {getInitials(member.name)}
-                </div>
-
-                {/* Member Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-slate-900 dark:text-white truncate">
-                      {member.name || "Unknown"}
-                    </h3>
-                    {member.isAccountVerified && (
-                      <CheckCircle
-                        className="h-4 w-4 text-green-500 shrink-0"
-                        title="Verified"
-                      />
-                    )}
-                  </div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 truncate">
-                    {member.email}
-                  </p>
-                </div>
-
-                {/* Role Badge */}
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wider ${ROLE_STYLES[member.role?.toLowerCase()] || ROLE_STYLES.member}`}
-                >
-                  <Shield className="h-3 w-3" />
-                  {ROLE_LABELS[member.role?.toLowerCase()] ||
-                    member.role ||
-                    "Member"}
-                </span>
-
-                {/* Join Date */}
-                <div className="hidden sm:flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
-                  <Calendar className="h-4 w-4" />
-                  <span>{formatDate(member.createdAt)}</span>
-                </div>
-
-                {/* Quick Actions */}
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleCopyEmail(member.email);
-                    }}
-                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    title="Copy email"
-                  >
-                    <Copy className="h-4 w-4 text-slate-500" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+          </>
         )}
       </main>
 
-      {/* Member Details Modal */}
-      {selectedMember && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in"
-          onClick={() => setSelectedMember(null)}
-        >
-          <div
-            className="relative w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 shadow-xl animate-in zoom-in-95 slide-in-from-bottom-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Close Button */}
-            <button
-              onClick={() => setSelectedMember(null)}
-              className="absolute right-4 top-4 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              <X className="h-5 w-5 text-slate-500" />
-            </button>
-
-            {/* Modal Content */}
-            <div className="p-6">
-              {/* Avatar */}
-              <div className="flex flex-col items-center mb-6">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold text-2xl mb-4">
-                  {getInitials(selectedMember.name)}
-                </div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                  {selectedMember.name || "Unknown"}
-                </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">{selectedMember.email}</p>
-              </div>
-
-              {/* Details */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
-                  <div className="flex items-center gap-3">
-                    <Shield className="h-5 w-5 text-slate-500" />
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Role
-                    </span>
-                  </div>
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wider ${ROLE_STYLES[selectedMember.role?.toLowerCase()] || ROLE_STYLES.member}`}
-                  >
-                    {ROLE_LABELS[selectedMember.role?.toLowerCase()] ||
-                      selectedMember.role ||
-                      "Member"}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-5 w-5 text-slate-500" />
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Email
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => handleCopyEmail(selectedMember.email)}
-                    className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
-                  >
-                    <span className="truncate max-w-[150px]">
-                      {selectedMember.email}
-                    </span>
-                    <Copy className="h-4 w-4 shrink-0" />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
-                  <div className="flex items-center gap-3">
-                    <Clock className="h-5 w-5 text-slate-500" />
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Joined
-                    </span>
-                  </div>
-                  <span className="text-sm text-slate-600 dark:text-slate-400">
-                    {formatDate(selectedMember.createdAt)}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="h-5 w-5 text-slate-500" />
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Status
-                    </span>
-                  </div>
-                  <span className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
-                    {selectedMember.isAccountVerified ? (
-                      <>
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                        Verified
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="h-4 w-4 text-amber-500" />
-                        Pending
-                      </>
-                    )}
-                  </span>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
-                <button
-                  onClick={() => setSelectedMember(null)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {showInviteModal && (
+        <InviteMemberForm
+          onClose={() => setShowInviteModal(false)}
+          onSendInvite={handleSendInvite}
+        />
       )}
     </div>
   );

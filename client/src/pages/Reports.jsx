@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import Navbar from "../components/Navbar.jsx";
 import { toast } from "react-toastify";
 import AppContent from "../context/AppContent";
@@ -10,6 +11,7 @@ import { Loader2, Brain, BarChart4, PieChart } from "lucide-react";
 Chart.register(...registerables);
 
 const Reports = () => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [aiInsights, setAiInsights] = useState("");
@@ -22,11 +24,11 @@ const Reports = () => {
         if (aiRes.data.success) {
           setAiInsights(aiRes.data.insight);
         } else {
-          setAiInsights("AI insights unavailable — please try again later.");
+          setAiInsights(t("reports.aiInsightsUnavailable"));
         }
       } catch (err) {
         console.error("AI Insights error:", err);
-        setAiInsights("AI insights unavailable — please try again later.");
+        setAiInsights(t("reports.aiInsightsUnavailable"));
       }
     };
 
@@ -38,30 +40,32 @@ const Reports = () => {
           setData(res.data);
           await fetchAIInsights(res.data.summary);
         } else {
-          toast.error("Failed to load analytics");
+          toast.error(t("reports.failedToLoad"));
         }
       } catch (error) {
         console.error("Error loading analytics:", error);
-        toast.error("Error loading analytics");
+        toast.error(t("reports.errorLoading"));
       } finally {
         setLoading(false);
       }
     };
     fetchAnalytics();
-  }, []);
+  }, [t]);
 
   if (loading)
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex justify-center items-center">
-        <Loader2 className="animate-spin w-8 h-8 text-gray-500" />
-        <span className="ml-3 text-gray-600 dark:text-gray-400">Loading analytics...</span>
+        <Loader2 className="animate-spin w-8 h-8 text-gray-500 dark:text-gray-400" />
+        <span className="ml-3 text-gray-600 dark:text-gray-400">
+          {t("reports.loading")}
+        </span>
       </div>
     );
 
   if (!data)
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex justify-center items-center text-gray-600 dark:text-gray-400">
-        No data available.
+        {t("common.noResults")}
       </div>
     );
 
@@ -72,7 +76,7 @@ const Reports = () => {
     labels: trends.monthlyMeetings.map((t) => `Month ${t._id}`),
     datasets: [
       {
-        label: "Meetings",
+        label: t("navbar.meetings"),
         data: trends.monthlyMeetings.map((t) => t.count),
         borderColor: "#4F46E5",
         backgroundColor: "rgba(99, 102, 241, 0.5)",
@@ -84,7 +88,7 @@ const Reports = () => {
     labels: trends.monthlyPolicies.map((t) => `Month ${t._id}`),
     datasets: [
       {
-        label: "Policies",
+        label: t("navbar.compliance"),
         data: trends.monthlyPolicies.map((t) => t.count),
         backgroundColor: "rgba(16, 185, 129, 0.7)",
       },
@@ -92,7 +96,7 @@ const Reports = () => {
   };
 
   const pieData = {
-    labels: ["Completed Meetings", "Pending Meetings"],
+    labels: [t("reports.completedMeetings", "Completed Meetings"), t("reports.pendingMeetings", "Pending Meetings")],
     datasets: [
       {
         data: [
@@ -109,32 +113,32 @@ const Reports = () => {
       <Navbar />
       <div className="max-w-6xl mx-auto text-center pt-24 pb-20 px-6">
         <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2 flex justify-center items-center gap-2">
-          <BarChart4 className="text-indigo-600 w-8 h-8" /> Reports & Analytics
+          <BarChart4 className="text-indigo-600 dark:text-indigo-400 w-8 h-8" />{" "}
+          {t("reports.title")}
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mb-10">
-          Visualize trends — meetings held, policies updated, and AI-powered
-          insights.
+          {t("dashboard.reportsAnalyticsDesc")}
         </p>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
           <StatCard
-            title="Total Meetings"
+            title={t("reports.totalMeetings", "Total Meetings")}
             value={summary.totalMeetings}
             color="indigo"
           />
           <StatCard
-            title="Completed Meetings"
+            title={t("reports.completedMeetings", "Completed Meetings")}
             value={summary.completedMeetings}
             color="green"
           />
           <StatCard
-            title="Total Policies"
+            title={t("reports.totalPolicies", "Total Policies")}
             value={summary.totalPolicies}
             color="blue"
           />
           <StatCard
-            title="Updated Policies"
+            title={t("reports.updatedPolicies", "Updated Policies")}
             value={summary.updatedPolicies}
             color="purple"
           />
@@ -144,14 +148,14 @@ const Reports = () => {
         <div className="grid md:grid-cols-2 gap-8 mb-10">
           <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md border dark:border-gray-800">
             <h2 className="text-lg font-semibold dark:text-white mb-3">
-              📈 Meetings Activity (6 Months)
+              📈 {t("reports.meetingTrends")}
             </h2>
             <Line data={meetingTrendData} />
           </div>
 
           <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md border dark:border-gray-800">
             <h2 className="text-lg font-semibold dark:text-white mb-3">
-              📊 Policies Activity (6 Months)
+              📊 {t("reports.policyActivity")}
             </h2>
             <Bar data={policyTrendData} />
           </div>
@@ -160,7 +164,8 @@ const Reports = () => {
         {/* Pie Chart */}
         <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md border dark:border-gray-800 max-w-2xl mx-auto mb-10">
           <h2 className="text-lg font-semibold dark:text-white mb-3 flex items-center justify-center gap-2">
-            <PieChart className="text-indigo-600 w-5 h-5" /> Meetings Status
+            <PieChart className="text-indigo-600 dark:text-indigo-400 w-5 h-5" />{" "}
+            {t("reports.meetingDistribution")}
           </h2>
           <Pie data={pieData} />
         </div>
@@ -168,7 +173,8 @@ const Reports = () => {
         {/* AI Insights Section */}
         <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md border dark:border-gray-800 text-left">
           <h2 className="text-xl font-semibold dark:text-white mb-3 flex items-center gap-2">
-            <Brain className="text-purple-600 w-6 h-6" /> AI Insights
+            <Brain className="text-purple-600 dark:text-purple-400 w-6 h-6" />{" "}
+            {t("reports.aiInsights")}
           </h2>
           <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
             {aiInsights}
@@ -182,10 +188,13 @@ const Reports = () => {
 // 🔹 Stats Card Component
 const StatCard = ({ title, value, color }) => {
   const colorMap = {
-    indigo: "bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border dark:border-indigo-900/50",
-    green: "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border dark:border-green-900/50",
+    indigo:
+      "bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border dark:border-indigo-900/50",
+    green:
+      "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border dark:border-green-900/50",
     blue: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border dark:border-blue-900/50",
-    purple: "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border dark:border-purple-900/50",
+    purple:
+      "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border dark:border-purple-900/50",
   };
   return (
     <div

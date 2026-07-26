@@ -23,6 +23,10 @@ const membershipSchema = new mongoose.Schema(
       enum: ["active", "suspended", "removed"],
       default: "active",
     },
+    engagementScore: {
+      type: Number,
+      default: 0,
+    },
     joinedAt: {
       type: Date,
       default: Date.now,
@@ -42,7 +46,6 @@ membershipSchema.index({ user: 1, status: 1 });
 membershipSchema.index({ joinedAt: -1 });
 
 const Membership =
-  mongoose.models.Membership ||
-  mongoose.model("Membership", membershipSchema);
+  mongoose.models.Membership || mongoose.model("Membership", membershipSchema);
 
 export default Membership;

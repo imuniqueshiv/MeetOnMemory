@@ -4,16 +4,31 @@
     "format:check": "prettier . --check",
     "format": "prettier . --write",
     "lint": "npm run lint --prefix client",
-    "build": "npm run build --prefix client"
+    "build": "npm run build --prefix client",
+    "prepare": "husky"
   },
   "dependencies": {
     "@pinecone-database/pinecone": "^6.1.3",
     "@xenova/transformers": "^2.17.2",
     "axios": "^1.13.1",
     "dotenv": "^17.4.2",
-    "openai": "^6.8.0"
+    "openai": "^6.8.0",
+    "protobufjs": "^7.5.5"
   },
   "devDependencies": {
+    "eslint": "^10.7.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.2.5"
+  },
+  "lint-staged": {
+    "client/**/*.{js,jsx}": [
+      "eslint --config client/eslint.config.js",
+      "prettier --write"
+    ],
+    "server/**/*.{js,jsx}": [
+      "eslint --config server/eslint.config.js",
+      "prettier --write"
+    ]
   }
 }

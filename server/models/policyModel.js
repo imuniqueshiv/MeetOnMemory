@@ -62,4 +62,8 @@ const policySchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Indexes for query performance
+policySchema.index({ organization: 1, createdAt: -1 });
+policySchema.index({ status: 1 });
+
 export default mongoose.model("Policy", policySchema);

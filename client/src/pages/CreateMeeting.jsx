@@ -12,6 +12,7 @@ import { useSessionCards } from "./CreateMeeting/hooks/useSessionCards";
 const CreateMeeting = () => {
   const [activeSection, setActiveSection] = useState("live");
 
+
   const scheduleMeetingHooks = useScheduleMeeting();
   const liveMeetingHooks = useLiveMeeting();
   const sessionCardsHooks = useSessionCards();
@@ -40,6 +41,7 @@ const CreateMeeting = () => {
 
         {/* ========== SECTION 1: SCHEDULE MEETINGS ========== */}
         {activeSection === "schedule" && (
+
           <ScheduleMeeting hookProps={scheduleMeetingHooks} />
         )}
 

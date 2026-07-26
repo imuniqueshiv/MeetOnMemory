@@ -1,5 +1,10 @@
 // server/middleware/rbac.js
 import mongoose from "mongoose";
+import {
+  hasPermission,
+  hasHigherOrEqualRole,
+  isValidRole,
+} from "../utils/rbacPermissions.js";
 
 export const requireRole = (roles) => {
   return (req, res, next) => {
@@ -7,9 +12,10 @@ export const requireRole = (roles) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
+    const userRole = req.user.role || "guest";
     const allowedRoles = Array.isArray(roles) ? roles : [roles];
 
-    if (!allowedRoles.includes(req.user.role)) {
+    if (!allowedRoles.includes(userRole)) {
       return res
         .status(403)
         .json({ success: false, message: "Forbidden: Insufficient role" });
@@ -17,6 +23,21 @@ export const requireRole = (roles) => {
 
     next();
   };
+};
+
+export const requireAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+
+  if (req.user.role !== "admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Forbidden: Admin access required",
+    });
+  }
+
+  next();
 };
 
 export const requireOrgMembership = (req, res, next) => {
@@ -34,6 +55,48 @@ export const requireOrgMembership = (req, res, next) => {
   next();
 };
 
+export const requirePermission = (resource, action) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const userRole = req.user.role || "guest";
+
+    if (!hasPermission(userRole, resource, action)) {
+      return res.status(403).json({
+        success: false,
+        message: `Forbidden: You don't have permission to ${action} ${resource}`,
+      });
+    }
+
+    next();
+  };
+};
+
+export const requireAnyPermission = (resource, actions) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const userRole = req.user.role || "guest";
+
+    const hasAny = actions.some((action) =>
+      hasPermission(userRole, resource, action),
+    );
+
+    if (!hasAny) {
+      return res.status(403).json({
+        success: false,
+        message: `Forbidden: You don't have permission to perform any of these actions on ${resource}`,
+      });
+    }
+
+    next();
+  };
+};
+
 export const requireOwnerOrAdmin = (Model) => {
   return async (req, res, next) => {
     try {
@@ -41,6 +104,13 @@ export const requireOwnerOrAdmin = (Model) => {
         return res
           .status(401)
           .json({ success: false, message: "Unauthorized" });
+      }
+
+      if (!req.user.role) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden: No role assigned",
+        });
       }
 
       const docId = req.params.id;
@@ -64,7 +134,7 @@ export const requireOwnerOrAdmin = (Model) => {
 
       const isOwner = doc.uploadedBy?.toString() === req.user._id.toString();
       const isAdminInSameOrg =
-        req.user.role === "admin" &&
+        (req.user.role === "admin" || req.user.role === "owner") &&
         doc.organization &&
         req.user.organization &&
         doc.organization.toString() === req.user.organization.toString();
@@ -77,7 +147,6 @@ export const requireOwnerOrAdmin = (Model) => {
         });
       }
 
-      // Attach the fetched document to the request object so controllers don't need to fetch it again
       req.doc = doc;
       next();
     } catch (error) {
@@ -148,6 +217,13 @@ export const requireOrgAccess = (Model) => {
           .json({ success: false, message: "Unauthorized" });
       }
 
+      if (!req.user.organization) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden: Organization membership required",
+        });
+      }
+
       const docId = req.params.id;
       if (!docId) {
         return res
@@ -189,5 +265,36 @@ export const requireOrgAccess = (Model) => {
         message: "Server error during authorization check",
       });
     }
+  };
+};
+
+export const requireMinimumRole = (minimumRole) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (!req.user.role) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: No role assigned",
+      });
+    }
+
+    if (!isValidRole(minimumRole)) {
+      return res.status(500).json({
+        success: false,
+        message: "Server error: Invalid role configuration",
+      });
+    }
+
+    if (!hasHigherOrEqualRole(req.user.role, minimumRole)) {
+      return res.status(403).json({
+        success: false,
+        message: `Forbidden: Requires ${minimumRole} role or higher`,
+      });
+    }
+
+    next();
   };
 };

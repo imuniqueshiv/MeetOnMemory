@@ -268,11 +268,13 @@ html {
     left: 0;
     transform: translate(-50%, -50%);
     pointer-events: none;
-    z-index: 9999; /* Higher z-index to stay forward */
+    z-index: 99999999; /* Ultra-high z-index to stay forward */
     will-change: transform;
+    opacity: 0;
     transition:
       width 0.25s ease,
       height 0.25s ease,
+      opacity 0.25s ease,
       background-color 0.25s ease;
   }
 
@@ -287,12 +289,14 @@ html {
     left: 0;
     transform: translate(-50%, -50%);
     pointer-events: none;
-    z-index: 9998; /* Lower z-index so it stays behind the dot */
+    z-index: 99999998; /* Stay just behind the dot */
     will-change: transform;
+    opacity: 0;
     /* Only transition size and colors, let JS handle the smooth movement */
     transition:
       width 0.3s cubic-bezier(0.25, 1, 0.5, 1),
       height 0.3s cubic-bezier(0.25, 1, 0.5, 1),
+      opacity 0.25s ease,
       border-color 0.3s ease,
       background-color 0.3s ease;
   }

@@ -1,5 +1,7 @@
 // server/controllers/notificationController.js
 import notificationModel from "../models/notificationModel.js";
+import { sendSuccess, sendError } from "../utils/responseHandler.js";
+import NotificationPreference from "../models/notificationPreferenceModel.js";
 
 // Helper to format notification response
 const formatNotificationResponse = (notification) => {
@@ -23,51 +25,65 @@ const formatNotificationResponse = (notification) => {
 export const getNotifications = async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication error, user ID not found.",
-      });
+      return sendError(res, 401, "Authentication error, user ID not found.");
     }
 
     const { category, status } = req.query;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(
+      100,
+      Math.max(1, parseInt(req.query.limit, 10) || 20),
+    );
+    const skip = (page - 1) * limit;
 
-    let query = notificationModel.find({ user: req.user.id });
+    const userId = String(req.user.id);
+    const filter = { user: userId };
 
-    if (category === "meetings") {
-      query = query.where("category").equals("meetings");
-    } else if (category === "ai_processing") {
-      query = query.where("category").equals("ai_processing");
-    } else if (category === "organizations") {
-      query = query.where("category").equals("organizations");
-    } else if (category === "policies") {
-      query = query.where("category").equals("policies");
-    } else if (category === "reports") {
-      query = query.where("category").equals("reports");
-    } else if (category === "system") {
-      query = query.where("category").equals("system");
+    if (
+      [
+        "meetings",
+        "ai_processing",
+        "organizations",
+        "policies",
+        "reports",
+        "system",
+      ].includes(category)
+    ) {
+      filter.category = String(category);
     }
 
     if (status === "unread") {
-      query = query.where("isRead").equals(false);
+      filter.isRead = false;
     } else if (status === "read") {
-      query = query.where("isRead").equals(true);
+      filter.isRead = true;
     }
 
-    const notifications = await query.sort({ createdAt: -1 }).limit(100);
+    const [notifications, total, unreadCount] = await Promise.all([
+      notificationModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      notificationModel.countDocuments(filter),
+      notificationModel.countDocuments({
+        user: userId,
+        isRead: false,
+      }),
+    ]);
 
-    const unreadCount = await notificationModel.countDocuments({
-      user: req.user.id,
-      isRead: false,
-    });
-
-    res.status(200).json({
-      success: true,
+    sendSuccess(res, {
       notifications: notifications.map(formatNotificationResponse),
       unreadCount,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     console.error("Error in getNotifications:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    sendError(res, 500, "Server error");
   }
 };
 
@@ -77,10 +93,7 @@ export const getNotifications = async (req, res) => {
 export const markAsRead = async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication error, user ID not found.",
-      });
+      return sendError(res, 401, "Authentication error, user ID not found.");
     }
 
     const notification = await notificationModel.findOneAndUpdate(
@@ -90,19 +103,17 @@ export const markAsRead = async (req, res) => {
     );
 
     if (!notification) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Notification not found" });
+      return sendError(res, 404, "Notification not found");
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Notification marked as read",
-      notification: formatNotificationResponse(notification),
-    });
+    sendSuccess(
+      res,
+      { notification: formatNotificationResponse(notification) },
+      "Notification marked as read",
+    );
   } catch (error) {
     console.error("Error in markAsRead:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    sendError(res, 500, "Server error");
   }
 };
 
@@ -112,10 +123,7 @@ export const markAsRead = async (req, res) => {
 export const markAllAsRead = async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication error, user ID not found.",
-      });
+      return sendError(res, 401, "Authentication error, user ID not found.");
     }
 
     const result = await notificationModel.updateMany(
@@ -123,14 +131,14 @@ export const markAllAsRead = async (req, res) => {
       { isRead: true },
     );
 
-    res.status(200).json({
-      success: true,
-      message: "All notifications marked as read",
-      modifiedCount: result.modifiedCount,
-    });
+    sendSuccess(
+      res,
+      { modifiedCount: result.modifiedCount },
+      "All notifications marked as read",
+    );
   } catch (error) {
     console.error("Error in markAllAsRead:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    sendError(res, 500, "Server error");
   }
 };
 
@@ -140,10 +148,7 @@ export const markAllAsRead = async (req, res) => {
 export const deleteNotification = async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication error, user ID not found.",
-      });
+      return sendError(res, 401, "Authentication error, user ID not found.");
     }
 
     const notification = await notificationModel.findOneAndDelete({
@@ -152,18 +157,13 @@ export const deleteNotification = async (req, res) => {
     });
 
     if (!notification) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Notification not found" });
+      return sendError(res, 404, "Notification not found");
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Notification deleted",
-    });
+    sendSuccess(res, null, "Notification deleted");
   } catch (error) {
     console.error("Error in deleteNotification:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    sendError(res, 500, "Server error");
   }
 };
 
@@ -173,10 +173,7 @@ export const deleteNotification = async (req, res) => {
 export const getUnreadCount = async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication error, user ID not found.",
-      });
+      return sendError(res, 401, "Authentication error, user ID not found.");
     }
 
     const unreadCount = await notificationModel.countDocuments({
@@ -184,12 +181,77 @@ export const getUnreadCount = async (req, res) => {
       isRead: false,
     });
 
-    res.status(200).json({
-      success: true,
-      unreadCount,
-    });
+    sendSuccess(res, { unreadCount });
   } catch (error) {
     console.error("Error in getUnreadCount:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    sendError(res, 500, "Server error");
+  }
+};
+
+// @desc    Get notification preferences for a user
+// @route   GET /api/notifications/preferences
+// @access  Private
+export const getPreferences = async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return sendError(res, 401, "Authentication error, user ID not found.");
+    }
+
+    let preferences = await NotificationPreference.findOne({
+      user: req.user.id,
+    });
+
+    if (!preferences) {
+      preferences = await NotificationPreference.create({
+        user: req.user.id,
+      });
+    }
+
+    sendSuccess(res, { preferences });
+  } catch (error) {
+    console.error("Error in getPreferences:", error);
+    sendError(res, 500, "Server error");
+  }
+};
+
+// @desc    Update notification preferences
+// @route   PUT /api/notifications/preferences
+// @access  Private
+export const updatePreferences = async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return sendError(res, 401, "Authentication error, user ID not found.");
+    }
+
+    const allowedFields = [
+      "emailMeetingReminders",
+      "emailTaskAssignments",
+      "emailWeeklyDigest",
+      "pushMeetingReminders",
+      "pushTaskAssignments",
+      "pushAiProcessingComplete",
+    ];
+
+    const updates = {};
+    for (const field of allowedFields) {
+      if (typeof req.body[field] === "boolean") {
+        updates[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return sendError(res, 400, "No valid preference fields provided.");
+    }
+
+    const preferences = await NotificationPreference.findOneAndUpdate(
+      { user: req.user.id },
+      { $set: updates },
+      { new: true, upsert: true },
+    );
+
+    sendSuccess(res, { preferences }, "Preferences updated successfully");
+  } catch (error) {
+    console.error("Error in updatePreferences:", error);
+    sendError(res, 500, "Server error");
   }
 };
