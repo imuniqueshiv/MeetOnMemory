@@ -1,15 +1,16 @@
+// eslint-disable-next-line no-unused-vars
 import axios from "axios";
 import MockAdapter from "axios-mock-adapter";
+// eslint-disable-next-line no-unused-vars
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import "../src/utils/apiInterceptor.js";
+import apiClient from "../src/services/apiClient.js";
 
-describe("apiInterceptor additional HTTP status coverage", () => {
-  let mock;
+let mock;
 
-  beforeEach(() => {
-    mock = new MockAdapter(axios);
-  });
+beforeEach(() => {
+  mock = new MockAdapter(apiClient);
+});
 
   afterEach(() => {
     mock.restore();
@@ -29,7 +30,7 @@ describe("apiInterceptor additional HTTP status coverage", () => {
       mock.onGet("/client-error").reply(status, { message });
 
       try {
-        await axios.get("/client-error");
+        await apiClient.get("/client-error");
         throw new Error("Request should have failed");
       } catch (error) {
         expect(error.response).toBeDefined();
@@ -48,7 +49,7 @@ describe("apiInterceptor additional HTTP status coverage", () => {
       mock.onGet("/server-error").reply(status, { message: "Original backend message" });
 
       try {
-        await axios.get("/server-error");
+        await apiClient.get("/server-error");
         throw new Error("Request should have failed");
       } catch (error) {
         expect(error.response).toBeDefined();
@@ -62,4 +63,4 @@ describe("apiInterceptor additional HTTP status coverage", () => {
       }
     },
   );
-});
+

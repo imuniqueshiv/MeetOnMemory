@@ -105,24 +105,18 @@ export async function processStructuredMoM(meeting, mom) {
           : [],
     });
 
-    if (match) {
-  match.relatesTo = match.relatesTo || [];
+   if (match) {
+  upsertRelationship(
+    match.match,
+    decision._id,
+    match.confidence,
+  );
 
-  if (
-  !match.relatesTo.some(
-    (id) => id.toString() === actionItem._id.toString(),
-  )
-) {
-  match.relatesTo.push(actionItem._id);
+  await match.match.save();
 }
-
-  await match.save();
-}
-
     await applyImportanceScore(decision);
     results.decisions.push(decision);
   }
-
   // --- Action Items ---
   for (const item of mom.action_items || []) {
     const text =
@@ -134,9 +128,9 @@ export async function processStructuredMoM(meeting, mom) {
     let dueDate = null;
 
     if (typeof item === "object" && item.due_date) {
-    const parsed = new Date(item.due_date);
+  const parsed = new Date(item.due_date);
 
-    if (!isNaN(parsed.getTime())) {
+  if (!isNaN(parsed.getTime())) {
     dueDate = parsed;
   }
 }
@@ -177,13 +171,13 @@ export async function processStructuredMoM(meeting, mom) {
     });
 
     if (match) {
-  match.relatesTo = match.relatesTo || [];
+  upsertRelationship(
+    match.match,
+    actionItem._id,
+    match.confidence,
+  );
 
-  if (!match.relatesTo.includes(actionItem._id)) {
-    match.relatesTo.push(actionItem._id);
-  }
-
-  await match.save();
+  await match.match.save();
 }
 
     await applyImportanceScore(actionItem);
