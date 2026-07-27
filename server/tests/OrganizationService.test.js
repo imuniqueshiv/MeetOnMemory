@@ -591,4 +591,177 @@ describe("OrganizationService", () => {
       ).rejects.toThrow("Invalid website URL format.");
     });
   });
+
+  // ── getOrganizations (security & filtering) ──────────────
+  describe("getOrganizations", () => {
+    it("should query with $or for public or user's joined/owned orgs when visibility is not specified", async () => {
+      const mockOrgs = [{ _id: "org1", name: "My Org" }];
+      const mockQueryChain = {
+        sort: vi.fn().mockReturnThis(),
+        skip: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue(mockOrgs),
+      };
+      Organization.find.mockReturnValue(mockQueryChain);
+      Organization.countDocuments.mockResolvedValue(1);
+
+      const result = await OrganizationService.getOrganizations("user123", null, 1, 20);
+
+      expect(result.success).toBe(true);
+      expect(Organization.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          $or: [
+            { visibility: "public" },
+            { owner: "user123" },
+            { members: "user123" },
+          ],
+        }),
+      );
+    });
+
+    it("should restrict query to owner/members when visibility is private", async () => {
+      const mockQueryChain = {
+        sort: vi.fn().mockReturnThis(),
+        skip: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue([]),
+      };
+      Organization.find.mockReturnValue(mockQueryChain);
+      Organization.countDocuments.mockResolvedValue(0);
+
+      await OrganizationService.getOrganizations("user123", "private", 1, 20);
+
+      expect(Organization.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          visibility: "private",
+          $or: [
+            { owner: "user123" },
+            { members: "user123" },
+          ],
+        }),
+      );
+    });
+  });
+
+  // ── getOrganizationById (security check) ─────────────────
+  describe("getOrganizationById", () => {
+    it("should return public organization without checking membership", async () => {
+      const mockOrg = {
+        _id: "publicOrg123",
+        name: "Public Corp",
+        visibility: "public",
+        owner: "user999",
+      };
+      Organization.findOne.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        populate: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue(mockOrg),
+      });
+      Membership.countDocuments.mockResolvedValue(5);
+
+      const result = await OrganizationService.getOrganizationById("publicOrg123", "randomUser");
+
+      expect(result.success).toBe(true);
+      expect(result.organization.name).toBe("Public Corp");
+    });
+
+    it("should return private organization if requesting user is the owner", async () => {
+      const mockOrg = {
+        _id: "privateOrg123",
+        name: "Private Corp",
+        visibility: "private",
+        owner: "ownerUser",
+      };
+      Organization.findOne.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        populate: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue(mockOrg),
+      });
+      Membership.countDocuments.mockResolvedValue(1);
+
+      const result = await OrganizationService.getOrganizationById("privateOrg123", "ownerUser");
+
+      expect(result.success).toBe(true);
+      expect(result.organization.name).toBe("Private Corp");
+    });
+
+    it("should return private organization if requesting user is a member", async () => {
+      const mockOrg = {
+        _id: "privateOrg123",
+        name: "Private Corp",
+        visibility: "private",
+        owner: "ownerUser",
+      };
+      Organization.findOne.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        populate: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue(mockOrg),
+      });
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue({ role: "member", status: "active" }),
+      });
+      Membership.countDocuments.mockResolvedValue(2);
+
+      const result = await OrganizationService.getOrganizationById("privateOrg123", "memberUser");
+
+      expect(result.success).toBe(true);
+      expect(result.organization.name).toBe("Private Corp");
+    });
+
+    it("should throw ForbiddenError if requesting user is not owner/member of private organization", async () => {
+      const mockOrg = {
+        _id: "privateOrg123",
+        name: "Private Corp",
+        visibility: "private",
+        owner: "ownerUser",
+      };
+      Organization.findOne.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        populate: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue(mockOrg),
+      });
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue(null),
+      });
+
+      await expect(
+        OrganizationService.getOrganizationById("privateOrg123", "randomUser"),
+      ).rejects.toMatchObject({ statusCode: 403 });
+    });
+  });
+
+  // ── getPublicOrganizationBySlug (security check) ──────────
+  describe("getPublicOrganizationBySlug", () => {
+    it("should return organization if visibility is public", async () => {
+      const mockOrg = {
+        _id: "org123",
+        name: "Public Slug Org",
+        slug: "public-slug",
+        visibility: "public",
+      };
+      Organization.findOne.mockResolvedValue(mockOrg);
+      Membership.countDocuments.mockResolvedValue(3);
+
+      const result = await OrganizationService.getPublicOrganizationBySlug("public-slug");
+
+      expect(result.success).toBe(true);
+      expect(result.organization.name).toBe("Public Slug Org");
+    });
+
+    it("should throw NotFoundError if organization visibility is not public", async () => {
+      const mockOrg = {
+        _id: "org123",
+        name: "Private Slug Org",
+        slug: "private-slug",
+        visibility: "private",
+      };
+      Organization.findOne.mockResolvedValue(mockOrg);
+
+      await expect(
+        OrganizationService.getPublicOrganizationBySlug("private-slug"),
+      ).rejects.toMatchObject({ statusCode: 404 });
+    });
+  });
 });

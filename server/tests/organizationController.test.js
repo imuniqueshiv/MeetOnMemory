@@ -3,6 +3,8 @@ import {
   createOrJoinOrganization,
   getOrganizationSettings,
   updateOrganization,
+  getOrganizations,
+  getOrganizationById,
 } from "../controllers/organizationController.js";
 import * as OrganizationService from "../services/OrganizationService.js";
 
@@ -11,6 +13,8 @@ vi.mock("../services/OrganizationService.js", () => ({
   createOrJoinOrganization: vi.fn(),
   getOrganizationSettings: vi.fn(),
   updateOrganization: vi.fn(),
+  getOrganizations: vi.fn(),
+  getOrganizationById: vi.fn(),
 }));
 
 describe("organizationController - createOrJoinOrganization", () => {
@@ -211,5 +215,84 @@ describe("organizationController - getOrganizationSettings & updateOrganization"
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: true }),
     );
+  });
+});
+
+describe("organizationController - getOrganizations & getOrganizationById security", () => {
+  let req;
+  let res;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    req = {
+      user: { id: "user123" },
+      body: {},
+      query: {},
+      params: {},
+    };
+
+    res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    };
+  });
+
+  describe("getOrganizations", () => {
+    it("should return 401 if user is not authenticated", async () => {
+      req.user = null;
+
+      await getOrganizations(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, message: "Authentication failed." }),
+      );
+    });
+
+    it("should invoke service with userId and query params and return 200", async () => {
+      req.query = { visibility: "private", page: "2", limit: "10" };
+      const mockResult = { success: true, organizations: [] };
+      OrganizationService.getOrganizations.mockResolvedValue(mockResult);
+
+      await getOrganizations(req, res);
+
+      expect(OrganizationService.getOrganizations).toHaveBeenCalledWith(
+        "user123",
+        "private",
+        "2",
+        "10",
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining(mockResult));
+    });
+  });
+
+  describe("getOrganizationById", () => {
+    it("should return 401 if user is not authenticated", async () => {
+      req.user = null;
+
+      await getOrganizationById(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, message: "Authentication failed." }),
+      );
+    });
+
+    it("should invoke service with idOrSlug and userId and return 200", async () => {
+      req.params.idOrSlug = "org-slug-123";
+      const mockResult = { success: true, organization: { name: "Test" } };
+      OrganizationService.getOrganizationById.mockResolvedValue(mockResult);
+
+      await getOrganizationById(req, res);
+
+      expect(OrganizationService.getOrganizationById).toHaveBeenCalledWith(
+        "org-slug-123",
+        "user123",
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining(mockResult));
+    });
   });
 });
