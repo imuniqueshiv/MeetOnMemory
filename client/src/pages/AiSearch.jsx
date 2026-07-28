@@ -186,14 +186,12 @@ const AiSearch = () => {
     setSelectedResult(result);
   };
 
-  const handleOpenMeeting = (result) => {
-    window.open(`/meetings/${result.meetingId}`, "_blank");
+const handleOpenMeeting = (result) => {
+    window.open(`/meeting/${result.meetingId}`, "_blank");
   };
-
-  const handleOpenMeetingById = (meetingId) => {
-    if (meetingId) window.open(`/meetings/${meetingId}`, "_blank");
+const handleOpenMeetingById = (meetingId) => {
+    if (meetingId) window.open(`/meeting/${meetingId}`, "_blank");
   };
-
   const handleCopySummary = async (result) => {
     const textToCopy = result.summary || result.transcript || "";
     if (textToCopy) {
