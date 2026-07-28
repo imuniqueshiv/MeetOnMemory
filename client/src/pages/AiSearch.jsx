@@ -25,7 +25,7 @@ const ResultModal = ({ result, onClose }) => {
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl"
-          ></button>
+          />
         </div>
 
         <div className="space-y-4">
@@ -63,9 +63,7 @@ const ResultModal = ({ result, onClose }) => {
               </p>
             </div>
             <div>
-              <span className="text-gray-500">
-                {t("aiSearch.similarityScore")}
-              </span>
+              <span className="text-gray-500">{t("aiSearch.similarityScore")}</span>
               <p className="font-medium text-gray-800">
                 {result.similarityScore || "N/A"}
               </p>
@@ -147,13 +145,9 @@ const AiSearch = () => {
         let sortedResults = data.results || [];
 
         if (filters.sortBy === "date-desc") {
-          sortedResults.sort(
-            (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
-          );
+          sortedResults.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         } else if (filters.sortBy === "date-asc") {
-          sortedResults.sort(
-            (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
-          );
+          sortedResults.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
         }
 
         setResults(sortedResults);
@@ -186,12 +180,14 @@ const AiSearch = () => {
     setSelectedResult(result);
   };
 
-const handleOpenMeeting = (result) => {
+  const handleOpenMeeting = (result) => {
     window.open(`/meeting/${result.meetingId}`, "_blank");
   };
-const handleOpenMeetingById = (meetingId) => {
+
+  const handleOpenMeetingById = (meetingId) => {
     if (meetingId) window.open(`/meeting/${meetingId}`, "_blank");
   };
+
   const handleCopySummary = async (result) => {
     const textToCopy = result.summary || result.transcript || "";
     if (textToCopy) {
@@ -219,20 +215,9 @@ const handleOpenMeetingById = (meetingId) => {
         />
 
         {/* Search Input */}
-        <SearchBar
-          query={query}
-          setQuery={setQuery}
-          onSearch={handleSearch}
-          loading={loading}
-          onClear={handleClear}
-        />
+        <SearchBar query={query} setQuery={setQuery} onSearch={handleSearch} loading={loading} onClear={handleClear} />
 
-        <HybridSearchToggle
-          mode={searchMode}
-          setMode={setSearchMode}
-          weights={hybridWeights}
-          setWeights={setHybridWeights}
-        />
+        <HybridSearchToggle mode={searchMode} setMode={setSearchMode} weights={hybridWeights} setWeights={setHybridWeights} />
 
         {/* Error Message */}
         {error && (
@@ -255,20 +240,12 @@ const handleOpenMeetingById = (meetingId) => {
           {!loading && results.length > 0 && (
             <>
               {searchMode === "standard" && (
-                <SearchFilters
-                  filters={filters}
-                  setFilters={setFilters}
-                  resultCount={results.length}
-                />
+                <SearchFilters filters={filters} setFilters={setFilters} resultCount={results.length} />
               )}
               <div className="space-y-5">
                 {searchMode === "hybrid"
                   ? results.map((result, index) => (
-                      <HybridResultCard
-                        key={result.key || index}
-                        result={result}
-                        onOpenMeeting={handleOpenMeetingById}
-                      />
+                      <HybridResultCard key={result.key || index} result={result} onOpenMeeting={handleOpenMeetingById} />
                     ))
                   : results.map((result, index) => (
                       <SearchResultCard
@@ -283,19 +260,12 @@ const handleOpenMeetingById = (meetingId) => {
             </>
           )}
 
-          {!loading && results.length === 0 && (
-            <SearchEmptyState hasSearched={hasSearched} />
-          )}
+          {!loading && results.length === 0 && <SearchEmptyState hasSearched={hasSearched} />}
         </div>
       </div>
 
       {/* Result Modal */}
-      {selectedResult && (
-        <ResultModal
-          result={selectedResult}
-          onClose={() => setSelectedResult(null)}
-        />
-      )}
+      {selectedResult && <ResultModal result={selectedResult} onClose={() => setSelectedResult(null)} />}
     </div>
   );
 };
