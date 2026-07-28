@@ -23,6 +23,14 @@ export function configureExpress(app) {
   // MIDDLEWARES
   app.use(cors(corsOptions));
 
+  // ==========================================
+  // 1a. SLACK WEBHOOK ROUTE (raw body required for signature verification)
+  //     Must be mounted BEFORE the global JSON/urlencoded parsers below,
+  //     so slackWebhookParser is the first thing to read the request
+  //     stream and can capture req.rawBody exactly as Slack sent it.
+  // ==========================================
+  app.use("/api/slack", slackWebhookParser, slackRoutes);
+
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
@@ -30,7 +38,6 @@ export function configureExpress(app) {
   // 1. BYPASSED ROUTES (No CSRF Protection)
   //    External services authenticate via their own mechanisms.
   // ==========================================
-  app.use("/api/slack", slackWebhookParser, slackRoutes);
   app.use("/api/webhooks", webhookRoutes);
   app.use("/api/public/shared", publicSharedRoutes);
 

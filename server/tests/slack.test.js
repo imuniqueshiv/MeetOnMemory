@@ -143,6 +143,66 @@ describe("verifySlackSignature (unit)", () => {
   });
 });
 
+// Regression: raw body must be captured BEFORE any JSON parsing
+//
+// This guards against the bug in #614, where a global express.json()
+// parser ran before slackWebhookParser was mounted. That consumed the
+// request stream first, so req.rawBody no longer matched the exact bytes
+// Slack signed — silently breaking signature verification.
+//
+// This test builds a minimal app using the SAME middleware order as
+// server/config/express.js (slackWebhookParser mounted before the global
+// JSON parser) and confirms req.rawBody exactly matches what was sent,
+// and that a signature computed over it verifies successfully.
+
+describe("Raw body capture ordering (regression for #614)", () => {
+  it("captures req.rawBody before the global JSON parser can touch it", async () => {
+    const express = (await import("express")).default;
+    const { slackWebhookParser } = await import(
+      "../middleware/slackWebhookParser.js"
+    );
+
+    const testApp = express();
+
+    // Same order as configureExpress(): Slack route + its raw-body
+    // capturing parser mounted BEFORE the global JSON parser.
+    testApp.post(
+      "/api/slack/events",
+      slackWebhookParser,
+      (req, res) => {
+        res.json({ rawBody: req.rawBody ? req.rawBody.toString("utf8") : null });
+      },
+    );
+    testApp.use(express.json({ limit: "50mb" }));
+
+    const payload = { type: "event_callback", team_id: "TREGRESSION" };
+    const rawPayloadString = JSON.stringify(payload);
+
+    const res = await request(testApp)
+      .post("/api/slack/events")
+      .set("Content-Type", "application/json")
+      .send(rawPayloadString);
+
+    expect(res.status).toBe(200);
+    // The captured rawBody must be byte-for-byte identical to what was sent
+    expect(res.body.rawBody).toBe(rawPayloadString);
+
+    // And a signature computed over that captured rawBody must verify
+    const { signature, timestamp } = generateSlackSignature(
+      res.body.rawBody,
+    );
+    const mockReq = {
+      headers: {
+        "x-slack-signature": signature,
+        "x-slack-request-timestamp": timestamp,
+      },
+      rawBody: Buffer.from(res.body.rawBody),
+    };
+    const result = verifySlackSignature(mockReq);
+    expect(result.valid).toBe(true);
+  });
+});
+
 // Integration tests — /api/slack/events
 // NOTE: In NODE_ENV=test, slackSignatureMiddleware is bypassed.
 
