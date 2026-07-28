@@ -25,4 +25,9 @@ export const meetingApi = {
       responseType: "blob",
       timeout: 60000,
     }),
+
+  getReactionSummary: (id) =>
+    apiClient.get(`/api/meetings/${id}/reactions/summary`),
+  getReactionTimeline: (id) =>
+    apiClient.get(`/api/meetings/${id}/reactions/timeline`),
 };

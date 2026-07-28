@@ -23,6 +23,10 @@ const membershipSchema = new mongoose.Schema(
       enum: ["active", "suspended", "removed"],
       default: "active",
     },
+    engagementScore: {
+      type: Number,
+      default: 0,
+    },
     joinedAt: {
       type: Date,
       default: Date.now,

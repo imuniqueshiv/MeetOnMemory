@@ -1,47 +1,50 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi as jest } from "vitest";
 import mongoose from "mongoose";
-import {
+
+jest.mock("../models/decisionModel.js", () => ({
+  default: {
+    find: jest.fn(),
+    findById: jest.fn(),
+  },
+}));
+
+jest.mock("../models/actionItemModel.js", () => ({
+  default: {
+    find: jest.fn(),
+    findById: jest.fn(),
+    findOne: jest.fn(),
+  },
+}));
+
+jest.mock("../services/knowledgeGraphService.js", () => ({
+  getDecisionLineage: jest.fn(),
+  detectResolutions: jest.fn(),
+  processStructuredMoM: jest.fn(),
+}));
+
+jest.mock("../services/importanceScoringService.js", () => ({
+  recalculateAllImportanceScores: jest.fn(),
+  recordMemoryAccess: jest.fn(),
+  recordMemoryAccessBatch: jest.fn(),
+  recordMemoryFeedback: jest.fn(),
+}));
+
+const {
   getDecisions,
   getOpenActionItems,
   getDecisionLineageController,
   submitMemoryFeedback,
   updateActionItemStatus,
-} from "../controllers/knowledgeController.js";
-import Decision from "../models/decisionModel.js";
-import ActionItem from "../models/actionItemModel.js";
-
-vi.mock("../models/decisionModel.js", () => ({
-  default: {
-    find: vi.fn(),
-    findById: vi.fn(),
-  },
-}));
-
-vi.mock("../models/actionItemModel.js", () => ({
-  default: {
-    find: vi.fn(),
-    findById: vi.fn(),
-    findOne: vi.fn(),
-  },
-}));
-
-vi.mock("../services/knowledgeGraphService.js", () => ({
-  getDecisionLineage: vi.fn(),
-}));
-
-vi.mock("../services/importanceScoringService.js", () => ({
-  recalculateAllImportanceScores: vi.fn(),
-  recordMemoryAccess: vi.fn(),
-  recordMemoryAccessBatch: vi.fn(),
-  recordMemoryFeedback: vi.fn(),
-}));
+} = await import("../controllers/knowledgeController.js");
+const Decision = (await import("../models/decisionModel.js")).default;
+const ActionItem = (await import("../models/actionItemModel.js")).default;
 
 describe("knowledgeController - NoSQL Injection & Query Validation", () => {
   let req;
   let res;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    jest.clearAllMocks();
 
     req = {
       user: { organization: "org123" },
@@ -51,8 +54,8 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
     };
 
     res = {
-      status: vi.fn().mockReturnThis(),
-      json: vi.fn(),
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
     };
   });
 
@@ -60,8 +63,8 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
     it("should fetch decisions with valid status and sortBy", async () => {
       req.query = { status: "open", sortBy: "importance" };
 
-      const mockPopulate = vi.fn().mockReturnValue({
-        sort: vi.fn().mockResolvedValue([{ _id: "dec1", status: "open" }]),
+      const mockPopulate = jest.fn().mockReturnValue({
+        sort: jest.fn().mockResolvedValue([{ _id: "dec1", status: "open" }]),
       });
       Decision.find.mockReturnValue({
         populate: mockPopulate,
@@ -86,8 +89,8 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
     it("should fetch all organization decisions when status is omitted", async () => {
       req.query = { sortBy: "createdAt" };
 
-      const mockPopulate = vi.fn().mockReturnValue({
-        sort: vi.fn().mockResolvedValue([{ _id: "dec1" }]),
+      const mockPopulate = jest.fn().mockReturnValue({
+        sort: jest.fn().mockResolvedValue([{ _id: "dec1" }]),
       });
       Decision.find.mockReturnValue({
         populate: mockPopulate,
@@ -144,10 +147,14 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
     });
 
     it("should ignore unsupported extra query parameters", async () => {
-      req.query = { status: "open", sortBy: "createdAt", $where: "sleep(5000)" };
+      req.query = {
+        status: "open",
+        sortBy: "createdAt",
+        $where: "sleep(5000)",
+      };
 
-      const mockPopulate = vi.fn().mockReturnValue({
-        sort: vi.fn().mockResolvedValue([{ _id: "dec1" }]),
+      const mockPopulate = jest.fn().mockReturnValue({
+        sort: jest.fn().mockResolvedValue([{ _id: "dec1" }]),
       });
       Decision.find.mockReturnValue({
         populate: mockPopulate,
@@ -167,8 +174,8 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
       req.user = { organization: { $ne: null } };
       req.query = { status: "open" };
 
-      const mockPopulate = vi.fn().mockReturnValue({
-        sort: vi.fn().mockResolvedValue([]),
+      const mockPopulate = jest.fn().mockReturnValue({
+        sort: jest.fn().mockResolvedValue([]),
       });
       Decision.find.mockReturnValue({
         populate: mockPopulate,
@@ -189,15 +196,18 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
     it("should fetch action items with valid status and sortBy", async () => {
       req.query = { status: "in-progress", sortBy: "createdAt" };
 
-      const mockPopulate = vi.fn().mockReturnValue({
-        sort: vi.fn().mockResolvedValue([{ _id: "item1" }]),
-      });
-      const mockWhere = jest.fn().mockReturnValue({
-        populate: mockPopulate,
-      });
-      ActionItem.find.mockReturnValue({
-        where: mockWhere,
-      });
+      const queryChain = {
+        where: jest.fn().mockReturnThis(),
+        getFilter: jest.fn().mockReturnValue({
+          organization: "org123",
+          status: "in-progress",
+          lifecycleState: { $nin: ["archived", "expired"] },
+        }),
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockResolvedValue([{ _id: "item1" }]),
+      };
+      ActionItem.find.mockReturnValue(queryChain);
+      ActionItem.countDocuments = jest.fn().mockResolvedValue(1);
 
       await getOpenActionItems(req, res);
 
@@ -205,7 +215,7 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
         organization: "org123",
         status: "in-progress",
       });
-      expect(mockWhere).toHaveBeenCalledWith({
+      expect(queryChain.where).toHaveBeenCalledWith({
         lifecycleState: { $nin: ["archived", "expired"] },
       });
       expect(res.status).toHaveBeenCalledWith(200);
@@ -253,7 +263,7 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
       req.params = { id: validId };
 
       Decision.findById.mockReturnValue({
-        select: vi.fn().mockResolvedValue(null),
+        select: jest.fn().mockResolvedValue(null),
       });
 
       await getDecisionLineageController(req, res);
@@ -281,7 +291,7 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
       req.params = { id: validId };
       req.body = { status: "resolved" };
 
-      const mockSave = vi.fn().mockResolvedValue(true);
+      const mockSave = jest.fn().mockResolvedValue(true);
       ActionItem.findOne.mockResolvedValue({
         _id: validId,
         organization: "org123",
@@ -302,7 +312,10 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
 
   describe("submitMemoryFeedback", () => {
     it("should reject invalid memory type object parameter", async () => {
-      req.params = { type: { $ne: "decision" }, id: new mongoose.Types.ObjectId().toString() };
+      req.params = {
+        type: { $ne: "decision" },
+        id: new mongoose.Types.ObjectId().toString(),
+      };
       req.body = { rating: 5 };
 
       await submitMemoryFeedback(req, res);
@@ -318,7 +331,7 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
       req.body = { rating: 5 };
 
       Decision.findById.mockReturnValue({
-        select: vi.fn().mockResolvedValue(null),
+        select: jest.fn().mockResolvedValue(null),
       });
 
       await submitMemoryFeedback(req, res);
@@ -330,4 +343,3 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
     });
   });
 });
-

@@ -12,6 +12,7 @@ import fs from "fs";
 import mongoose from "mongoose";
 import User from "../models/userModel.js";
 import Membership from "../models/membershipModel.js";
+import Tag from "../models/tagModel.js";
 import { captureSnapshot } from "./graphSnapshotService.js";
 import eventBus from "./eventBus.js";
 import {
@@ -191,12 +192,6 @@ export const createMeeting = async (uploaderId, orgId, data) => {
     }
   })();
 
-  try {
-    eventBus.emit("meeting.created", meeting);
-  } catch (evtErr) {
-    console.error("⚠️ Failed to emit meeting.created event:", evtErr.message);
-  }
-
   return meeting;
 };
 
@@ -219,6 +214,7 @@ export const uploadAndTranscribeMeeting = async (
     title: body.title?.trim() || `Meeting - ${new Date().toLocaleDateString()}`,
     date: body.date ? new Date(body.date) : new Date(),
     meetingType: body.meetingType || "internal",
+    tags: body.tags || [],
     fileUrl: file.path,
     transcript: transcriptText,
     summary: "",
@@ -228,8 +224,29 @@ export const uploadAndTranscribeMeeting = async (
 
   scheduleIndexMeeting(meeting);
 
+  if (body.tags && Array.isArray(body.tags) && orgId) {
+    for (const tagName of body.tags) {
+      const escapedTagName = tagName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      await Tag.findOneAndUpdate(
+        {
+          organization: orgId,
+          name: { $regex: new RegExp(`^${escapedTagName}$`, "i") },
+        },
+        {
+          $setOnInsert: {
+            name: tagName,
+            organization: orgId,
+            createdBy: uploaderId,
+          },
+          $inc: { usageCount: 1 },
+        },
+        { upsert: true, new: true },
+      );
+    }
+  }
+
   try {
-    fs.unlinkSync(validatePath(filePath));
+    await fs.promises.unlink(validatePath(filePath));
   } catch (e) {
     console.warn("⚠️ Could not delete temp file:", e.message);
   }
@@ -270,7 +287,7 @@ export const uploadAudioForExistingMeeting = async (
   scheduleIndexMeeting(meeting);
 
   try {
-    fs.unlinkSync(validatePath(filePath));
+    await fs.promises.unlink(validatePath(filePath));
   } catch (e) {
     console.warn("⚠️ Could not delete temp file:", e.message);
   }

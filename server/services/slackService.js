@@ -162,7 +162,7 @@ export const postBlockMessage = async (
  * @returns {Array} Block Kit blocks array
  */
 export const buildMeetingCreatedBlocks = (meeting, createdBy) => {
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  const frontendUrl = process.env.CLIENT_URL || "http://localhost:5173";
   const meetingUrl = `${frontendUrl}/meetings/${meeting._id}`;
 
   return [
@@ -224,7 +224,7 @@ export const buildMeetingCreatedBlocks = (meeting, createdBy) => {
  * @returns {Array} Block Kit blocks array
  */
 export const buildMoMSummaryBlocks = (meeting) => {
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  const frontendUrl = process.env.CLIENT_URL || "http://localhost:5173";
   const meetingUrl = `${frontendUrl}/meetings/${meeting._id}`;
   const mom = meeting.structuredMoM || {};
 

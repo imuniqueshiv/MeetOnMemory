@@ -178,6 +178,28 @@ export default function useTasks() {
     }
   };
 
+  const updateTaskStatus = async (taskId, newStatus) => {
+    try {
+      const res = await knowledgeApi.updateActionItemStatus(taskId, newStatus);
+      if (res.data?.success) {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)),
+        );
+        toast.success("Task status updated");
+        return true;
+      } else {
+        toast.error(res.data?.message || "Failed to update task status");
+        return false;
+      }
+    } catch (err) {
+      console.error("Error updating task status:", err);
+      toast.error(
+        err.response?.data?.message || "Failed to update task status",
+      );
+      return false;
+    }
+  };
+
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
@@ -217,6 +239,7 @@ export default function useTasks() {
     assignedUsers,
     sortedTasks,
     handleSort,
+    updateTaskStatus,
     clearFilters,
     hasActiveFilters,
   };

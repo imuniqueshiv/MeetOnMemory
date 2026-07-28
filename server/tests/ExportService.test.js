@@ -25,7 +25,7 @@ describe("ExportService", () => {
               owner: "Bob",
               dueDate: "2026-07-21",
               status: "In Progress",
-            }
+            },
           ],
           keywords: ["Q2", "Review"],
         },
@@ -67,7 +67,9 @@ Q2, Review
     });
 
     it("should throw an error if no meeting data is provided", () => {
-      expect(() => ExportService.generateMeetingMD(null)).toThrow("Invalid meeting data provided for MD generation");
+      expect(() => ExportService.generateMeetingMD(null)).toThrow(
+        "Invalid meeting data provided for MD generation",
+      );
     });
   });
 });

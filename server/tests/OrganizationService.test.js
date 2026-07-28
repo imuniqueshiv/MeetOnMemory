@@ -247,11 +247,16 @@ describe("OrganizationService", () => {
     });
 
     it("rejects direct joining of an invite-only organization", async () => {
+      Membership.findOne.mockResolvedValue(null);
       Organization.findById.mockResolvedValue({
         _id: "507f1f77bcf86cd799439011",
         visibility: "invite-only",
         members: [],
       });
+      Membership.findOne.mockResolvedValue(null);
+      MembershipRequest.mockImplementation
+        ? MembershipRequest.findOne.mockResolvedValue(null)
+        : MembershipRequest.findOne.mockResolvedValue(null);
 
       await expect(
         OrganizationService.joinOrganizationById(
@@ -471,6 +476,219 @@ describe("OrganizationService", () => {
           $or: expect.any(Array),
         }),
       );
+    });
+  });
+
+  // ── getOrganizationSettings ──────────────────────────────
+  describe("getOrganizationSettings", () => {
+    it("should return settings and set canEdit true for owner", async () => {
+      userModel.findById.mockResolvedValue({
+        _id: "ownerUser",
+        organization: "507f1f77bcf86cd799439011",
+      });
+
+      const mockOrg = {
+        _id: "507f1f77bcf86cd799439011",
+        name: "Acme Corp",
+        slug: "acme-corp",
+        description: "Leading enterprise",
+        about: "All about Acme",
+        website: "https://acme.com",
+        contactEmail: "info@acme.com",
+        industry: "Technology & Software",
+        location: "San Francisco, CA",
+        owner: { _id: "ownerUser", name: "Alice", email: "alice@acme.com" },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const mockQuery = {
+        populate: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue(mockOrg),
+        }),
+      };
+      Organization.findOne.mockReturnValue(mockQuery);
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue(null),
+      });
+      Membership.countDocuments.mockResolvedValue(5);
+
+      const result =
+        await OrganizationService.getOrganizationSettings("ownerUser");
+
+      expect(result.success).toBe(true);
+      expect(result.canEdit).toBe(true);
+      expect(result.userRole).toBe("owner");
+      expect(result.organization.name).toBe("Acme Corp");
+      expect(result.organization.memberCount).toBe(5);
+    });
+
+    it("should return settings and set canEdit false for regular member", async () => {
+      userModel.findById.mockResolvedValue({
+        _id: "memberUser",
+        organization: "507f1f77bcf86cd799439011",
+      });
+
+      const mockOrg = {
+        _id: "507f1f77bcf86cd799439011",
+        name: "Acme Corp",
+        owner: { _id: "ownerUser", name: "Alice", email: "alice@acme.com" },
+      };
+
+      const mockQuery = {
+        populate: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue(mockOrg),
+        }),
+      };
+      Organization.findOne.mockReturnValue(mockQuery);
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue({ role: "member", status: "active" }),
+      });
+      Membership.countDocuments.mockResolvedValue(5);
+
+      const result =
+        await OrganizationService.getOrganizationSettings("memberUser");
+
+      expect(result.success).toBe(true);
+      expect(result.canEdit).toBe(false);
+      expect(result.userRole).toBe("member");
+    });
+  });
+
+  // ── updateOrganization (enhanced validation) ──────────────
+  describe("updateOrganization validation", () => {
+    it("should reject invalid contact email format", async () => {
+      Organization.findById.mockResolvedValue({
+        _id: "507f1f77bcf86cd799439011",
+        owner: { toString: () => "ownerUser" },
+      });
+
+      await expect(
+        OrganizationService.updateOrganization(
+          "ownerUser",
+          "507f1f77bcf86cd799439011",
+          {
+            contactEmail: "invalid-email",
+          },
+        ),
+      ).rejects.toThrow("Invalid contact email format.");
+    });
+
+    it("should reject invalid website URL format", async () => {
+      Organization.findById.mockResolvedValue({
+        _id: "507f1f77bcf86cd799439011",
+        owner: { toString: () => "ownerUser" },
+      });
+
+      await expect(
+        OrganizationService.updateOrganization(
+          "ownerUser",
+          "507f1f77bcf86cd799439011",
+          {
+            website: "not a url",
+          },
+        ),
+      ).rejects.toThrow("Invalid website URL format.");
+    });
+
+    it("should reject invalid logo URL format", async () => {
+      Organization.findById.mockResolvedValue({
+        _id: "507f1f77bcf86cd799439011",
+        owner: { toString: () => "ownerUser" },
+        save: vi.fn(),
+      });
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue(null),
+      });
+
+      await expect(
+        OrganizationService.updateOrganization(
+          "ownerUser",
+          "507f1f77bcf86cd799439011",
+          {
+            logoUrl: "ftp://files.example.com/logo.png",
+          },
+        ),
+      ).rejects.toThrow("Logo URL must use http or https.");
+    });
+
+    it("should reject invalid banner URL format", async () => {
+      Organization.findById.mockResolvedValue({
+        _id: "507f1f77bcf86cd799439011",
+        owner: { toString: () => "ownerUser" },
+        save: vi.fn(),
+      });
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue(null),
+      });
+
+      await expect(
+        OrganizationService.updateOrganization(
+          "ownerUser",
+          "507f1f77bcf86cd799439011",
+          {
+            bannerUrl: "not-a-url",
+          },
+        ),
+      ).rejects.toThrow(
+        "Banner URL must be a valid URL starting with http:// or https://.",
+      );
+    });
+
+    it("should update logo and banner URLs for owner", async () => {
+      const mockOrg = {
+        _id: "507f1f77bcf86cd799439011",
+        owner: { toString: () => "ownerUser" },
+        name: "Acme",
+        logo: "",
+        bannerUrl: "",
+        save: vi.fn().mockResolvedValue(true),
+      };
+      Organization.findById.mockResolvedValue(mockOrg);
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue(null),
+      });
+      Membership.countDocuments.mockResolvedValue(3);
+
+      const result = await OrganizationService.updateOrganization(
+        "ownerUser",
+        "507f1f77bcf86cd799439011",
+        {
+          logoUrl: "https://cdn.example.com/logo.png",
+          bannerUrl: "https://cdn.example.com/banner.jpg",
+        },
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockOrg.logo).toBe("https://cdn.example.com/logo.png");
+      expect(mockOrg.bannerUrl).toBe("https://cdn.example.com/banner.jpg");
+      expect(mockOrg.save).toHaveBeenCalled();
+    });
+
+    it("should allow clearing branding URLs", async () => {
+      const mockOrg = {
+        _id: "507f1f77bcf86cd799439011",
+        owner: { toString: () => "ownerUser" },
+        name: "Acme",
+        logo: "https://cdn.example.com/logo.png",
+        bannerUrl: "https://cdn.example.com/banner.jpg",
+        save: vi.fn().mockResolvedValue(true),
+      };
+      Organization.findById.mockResolvedValue(mockOrg);
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue(null),
+      });
+      Membership.countDocuments.mockResolvedValue(1);
+
+      await OrganizationService.updateOrganization(
+        "ownerUser",
+        "507f1f77bcf86cd799439011",
+        { logo: "", bannerUrl: "" },
+      );
+
+      expect(mockOrg.logo).toBe("");
+      expect(mockOrg.bannerUrl).toBe("");
+      expect(mockOrg.save).toHaveBeenCalled();
     });
   });
 });

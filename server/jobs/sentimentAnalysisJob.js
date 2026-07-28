@@ -17,7 +17,9 @@ export default async function sentimentAnalysisJob(job) {
     }
 
     if (!transcript.segments || transcript.segments.length === 0) {
-      console.log(`ℹ️ No segments found for transcript ${transcriptId}. Skipping.`);
+      console.log(
+        `ℹ️ No segments found for transcript ${transcriptId}. Skipping.`,
+      );
       return { success: true, skipped: true };
     }
 
@@ -28,32 +30,38 @@ export default async function sentimentAnalysisJob(job) {
     }
 
     let totalScore = 0;
-    
+
     for (let i = 0; i < transcript.segments.length; i++) {
       const segment = transcript.segments[i];
       if (!segment.text || segment.text.trim().length === 0) continue;
 
       const result = await sentimentPipeline(segment.text);
       const prediction = result[0];
-      
+
       let score = prediction.score;
       if (prediction.label === "NEGATIVE") {
         score = -score; // Map negative to -1 to 0 range
       }
-      
+
       segment.sentimentScore = score;
       segment.emotionTags = [prediction.label];
       totalScore += score;
     }
 
     transcript.overallSentiment = totalScore / transcript.segments.length;
-    transcript.overallEmotion = transcript.overallSentiment >= 0 ? "POSITIVE" : "NEGATIVE";
-    
+    transcript.overallEmotion =
+      transcript.overallSentiment >= 0 ? "POSITIVE" : "NEGATIVE";
+
     await transcript.save();
-    console.log(`✅ Sentiment analysis complete for transcript ${transcriptId}`);
+    console.log(
+      `✅ Sentiment analysis complete for transcript ${transcriptId}`,
+    );
     return { success: true };
   } catch (error) {
-    console.error(`❌ Sentiment analysis failed for transcript ${transcriptId}:`, error);
+    console.error(
+      `❌ Sentiment analysis failed for transcript ${transcriptId}:`,
+      error,
+    );
     throw error;
   }
 }

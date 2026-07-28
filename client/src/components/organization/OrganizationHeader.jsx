@@ -15,7 +15,9 @@ const OrganizationHeader = ({ showActions = true }) => {
     >
       <div
         className={`flex flex-col items-center ${
-          showActions ? "sm:items-start text-center sm:text-left" : "text-center"
+          showActions
+            ? "sm:items-start text-center sm:text-left"
+            : "text-center"
         } w-full sm:w-auto`}
       >
         <h1

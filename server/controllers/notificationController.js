@@ -29,39 +29,57 @@ export const getNotifications = async (req, res) => {
     }
 
     const { category, status } = req.query;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(
+      100,
+      Math.max(1, parseInt(req.query.limit, 10) || 20),
+    );
+    const skip = (page - 1) * limit;
 
-    let query = notificationModel.find({ user: req.user.id });
+    const userId = String(req.user.id);
+    const filter = { user: userId };
 
-    if (category === "meetings") {
-      query = query.where("category").equals("meetings");
-    } else if (category === "ai_processing") {
-      query = query.where("category").equals("ai_processing");
-    } else if (category === "organizations") {
-      query = query.where("category").equals("organizations");
-    } else if (category === "policies") {
-      query = query.where("category").equals("policies");
-    } else if (category === "reports") {
-      query = query.where("category").equals("reports");
-    } else if (category === "system") {
-      query = query.where("category").equals("system");
+    if (
+      [
+        "meetings",
+        "ai_processing",
+        "organizations",
+        "policies",
+        "reports",
+        "system",
+      ].includes(category)
+    ) {
+      filter.category = String(category);
     }
 
     if (status === "unread") {
-      query = query.where("isRead").equals(false);
+      filter.isRead = false;
     } else if (status === "read") {
-      query = query.where("isRead").equals(true);
+      filter.isRead = true;
     }
 
-    const notifications = await query.sort({ createdAt: -1 }).limit(100);
-
-    const unreadCount = await notificationModel.countDocuments({
-      user: req.user.id,
-      isRead: false,
-    });
+    const [notifications, total, unreadCount] = await Promise.all([
+      notificationModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      notificationModel.countDocuments(filter),
+      notificationModel.countDocuments({
+        user: userId,
+        isRead: false,
+      }),
+    ]);
 
     sendSuccess(res, {
       notifications: notifications.map(formatNotificationResponse),
       unreadCount,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     console.error("Error in getNotifications:", error);

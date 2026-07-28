@@ -18,38 +18,41 @@ const VoiceSearchBar = ({ onResults }) => {
     finalTranscriptRef.current = finalTranscript;
   }, [finalTranscript]);
 
-  const handleSearch = useCallback(async (query) => {
-    if (!query || query.trim().length < 3) {
-      toast.error("Please speak a longer query (minimum 3 characters)");
-      return;
-    }
-
-    try {
-      setIsSearching(true);
-      const { data } = await axios.get("/api/search/voice", {
-        params: { query: query.trim() },
-        withCredentials: true,
-      });
-
-      if (data.success) {
-        setResults(data.results || []);
-        if (onResults) {
-          onResults(data.results || []);
-        }
-        
-        if (data.results.length === 0) {
-          toast.info("No results found for your query");
-        } else {
-          toast.success(`Found ${data.results.length} result(s)`);
-        }
+  const handleSearch = useCallback(
+    async (query) => {
+      if (!query || query.trim().length < 3) {
+        toast.error("Please speak a longer query (minimum 3 characters)");
+        return;
       }
-    } catch (error) {
-      console.error("Voice search error:", error);
-      toast.error(error.response?.data?.message || "Search failed");
-    } finally {
-      setIsSearching(false);
-    }
-  }, [onResults]);
+
+      try {
+        setIsSearching(true);
+        const { data } = await axios.get("/api/search/voice", {
+          params: { query: query.trim() },
+          withCredentials: true,
+        });
+
+        if (data.success) {
+          setResults(data.results || []);
+          if (onResults) {
+            onResults(data.results || []);
+          }
+
+          if (data.results.length === 0) {
+            toast.info("No results found for your query");
+          } else {
+            toast.success(`Found ${data.results.length} result(s)`);
+          }
+        }
+      } catch (error) {
+        console.error("Voice search error:", error);
+        toast.error(error.response?.data?.message || "Search failed");
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [onResults],
+  );
 
   useEffect(() => {
     handleSearchRef.current = handleSearch;
@@ -57,14 +60,18 @@ const VoiceSearchBar = ({ onResults }) => {
 
   useEffect(() => {
     // Check if browser supports speech recognition
-    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
+    if (
+      !("webkitSpeechRecognition" in window) &&
+      !("SpeechRecognition" in window)
+    ) {
       setError("Speech recognition is not supported in this browser");
       return;
     }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
-    
+
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = "en-US";
@@ -103,9 +110,11 @@ const VoiceSearchBar = ({ onResults }) => {
     recognition.onerror = (event) => {
       console.error("Speech recognition error:", event.error);
       setIsListening(false);
-      
+
       if (event.error === "not-allowed") {
-        setError("Microphone permission denied. Please allow microphone access.");
+        setError(
+          "Microphone permission denied. Please allow microphone access.",
+        );
         toast.error("Microphone permission denied");
       } else if (event.error === "no-speech") {
         setError("No speech detected.Please try again.");
@@ -237,7 +246,9 @@ const VoiceSearchBar = ({ onResults }) => {
                 className="p-2 bg-white border border-gray-200 rounded text-sm"
               >
                 <p className="font-medium text-gray-900">{result.title}</p>
-                <p className="text-gray-600 text-xs truncate">{result.summary}</p>
+                <p className="text-gray-600 text-xs truncate">
+                  {result.summary}
+                </p>
                 <p className="text-xs text-blue-600 mt-1">
                   Score: {result.score}
                 </p>

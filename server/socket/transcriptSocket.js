@@ -92,7 +92,7 @@ export default (io) => {
         socket.join(roomId);
 
         // Send current transcript status
-        const transcript = await Transcript.findOne({ meetingId });
+        const transcript = await Transcript.findOne({ meeting: meetingId });
         if (transcript) {
           socket.emit("transcript-status", {
             status: transcript.status,
@@ -104,7 +104,9 @@ export default (io) => {
         console.log(`User ${socket.id} joined transcript room: ${roomId}`);
       } catch (error) {
         console.error("Error joining transcript room:", error);
-        socket.emit("transcript-error", { message: "Failed to join transcript room" });
+        socket.emit("transcript-error", {
+          message: "Failed to join transcript room",
+        });
       }
     });
 

@@ -47,6 +47,7 @@ import transcriptSocket from "./socket/transcriptSocket.js"; // eslint-disable-l
 import { initRedis, getRedisClient } from "./services/redisService.js"; // eslint-disable-line no-unused-vars
 import { createAdapter } from "@socket.io/redis-adapter"; // eslint-disable-line no-unused-vars
 import { startCalendarSyncJob } from "./jobs/calendarSyncJob.js";
+import startPollExpirationJob from "./jobs/pollExpirationJob.js";
 import { createClient } from "redis"; // eslint-disable-line no-unused-vars
 import {
   initAIWorker, // eslint-disable-line no-unused-vars
@@ -83,7 +84,10 @@ configureExpress(app);
 app.use("/api/auth", authRoutes);
 app.use(["/api/organization", "/api/organizations"], organizationRoutes);
 app.use(["/api/membership", "/api/memberships"], membershipRoutes);
-app.use("/api/membership-request", membershipRequestRoutes);
+app.use(
+  ["/api/membership-request", "/api/membership-requests"],
+  membershipRequestRoutes,
+);
 app.use("/api/invitation", invitationRoutes);
 app.use("/api/meetings", meetingRoutes);
 app.use("/api/search", searchRoutes);
@@ -95,7 +99,7 @@ app.use("/api/user", userRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/knowledge", knowledgeRoutes);
 app.use("/api/calendar", calendarRoutes);
-app.use("/api/compliance", policyComplianceRoutes);
+app.use(["/api/policy-compliance", "/api/compliance"], policyComplianceRoutes);
 import { slackWebhookParser } from "./middleware/slackWebhookParser.js";
 
 app.use("/api/sessions", sessionRoutes);
@@ -121,7 +125,7 @@ configureErrorHandling(app);
 const server = http.createServer(app);
 
 // SOCKET.IO
-configureSocket(server, app);
+const io = configureSocket(server, app);
 
 // SERVER START (Skipped during Jest test execution)
 if (process.env.NODE_ENV !== "test") {
@@ -138,6 +142,9 @@ if (process.env.NODE_ENV !== "test") {
 
   // Start calendar sync job
   startCalendarSyncJob();
+
+  // Start poll expiration job
+  startPollExpirationJob(io);
 }
 
 // (AI, Data Export, and Webhook workers are initialized inside server.listen callback)

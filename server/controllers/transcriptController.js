@@ -9,8 +9,24 @@ import {
 import { indexTranscriptChunks } from "../utils/transcriptEmbeddingUtils.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
 import fs from "fs";
+import path from "path";
+import os from "os";
+import OpenAI from "openai";
 
 import { sentimentAnalysisQueue } from "../services/queueService.js";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || "dummy-key-for-tests",
+});
+
+/** In-progress statuses: "recording" (session) + legacy "active" (live chunks). */
+const IN_PROGRESS_STATUSES = ["recording", "active"];
+
+const findInProgressTranscript = (meetingId) =>
+  Transcript.findOne({
+    meeting: meetingId,
+    status: { $in: IN_PROGRESS_STATUSES },
+  });
 
 /**
  * @desc  Start a recording session for a meeting
@@ -46,10 +62,7 @@ export const startRecording = async (req, res) => {
     }
 
     // Check if there's already an active recording
-    const existingTranscript = await Transcript.findOne({
-      meetingId,
-      status: "recording",
-    });
+    const existingTranscript = await findInProgressTranscript(meetingId);
 
     if (existingTranscript) {
       return res.status(400).json({
@@ -60,11 +73,11 @@ export const startRecording = async (req, res) => {
 
     // Create new transcript document
     const transcript = new Transcript({
-      meetingId,
+      meeting: meetingId,
       organizationId: meeting.organization,
       status: "recording",
       language: "en",
-      timestamps: {
+      recordingTimestamps: {
         recordingStartedAt: new Date(),
       },
     });
@@ -123,10 +136,7 @@ export const stopRecording = async (req, res) => {
     }
 
     // Find active recording transcript
-    const transcript = await Transcript.findOne({
-      meetingId,
-      status: "recording",
-    });
+    const transcript = await findInProgressTranscript(meetingId);
 
     if (!transcript) {
       return res.status(404).json({
@@ -137,8 +147,11 @@ export const stopRecording = async (req, res) => {
 
     // Update transcript status to processing
     transcript.status = "processing";
-    transcript.timestamps.recordingEndedAt = new Date();
-    transcript.timestamps.processingStartedAt = new Date();
+    if (!transcript.recordingTimestamps) {
+      transcript.recordingTimestamps = {};
+    }
+    transcript.recordingTimestamps.recordingEndedAt = new Date();
+    transcript.recordingTimestamps.processingStartedAt = new Date();
     await transcript.save();
 
     // Trigger transcription in background (non-blocking)
@@ -201,10 +214,7 @@ export const uploadTranscriptAudio = async (req, res) => {
     }
 
     // Find active recording transcript
-    const transcript = await Transcript.findOne({
-      meetingId,
-      status: "recording",
-    });
+    const transcript = await findInProgressTranscript(meetingId);
 
     if (!transcript) {
       // Clean up uploaded file
@@ -234,6 +244,115 @@ export const uploadTranscriptAudio = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || "Failed to upload audio",
+    });
+  }
+};
+
+/**
+ * @desc  Upload audio chunk for live transcript and append
+ * @route POST /api/meetings/:meetingId/transcript/chunk
+ * @access Private
+ */
+export const uploadTranscriptChunk = async (req, res) => {
+  let tempFilePath = null;
+  try {
+    const { meetingId } = req.params;
+    const userId = req.user.id;
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: "No audio chunk provided",
+      });
+    }
+
+    // Verify meeting exists and user has access
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({
+        success: false,
+        message: "Meeting not found",
+      });
+    }
+
+    // Check if user is owner or in same org
+    const isOwner = meeting.uploadedBy?.toString() === userId.toString();
+    const isInSameOrg =
+      meeting.organization &&
+      req.user.organization &&
+      meeting.organization.toString() === req.user.organization.toString();
+
+    if (!isOwner && !isInSameOrg) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You don't have access to this meeting",
+      });
+    }
+
+    let transcript = await Transcript.findOne({ meeting: meetingId });
+    if (!transcript) {
+      // Create transcript if it doesn't exist yet
+      transcript = new Transcript({
+        meeting: meetingId,
+        organizationId: meeting.organization,
+        status: "recording",
+        language: "en",
+        recordingTimestamps: {
+          recordingStartedAt: new Date(),
+        },
+      });
+    }
+
+    // Write buffer to temp file for OpenAI Whisper
+    const tempFileName = `chunk_${Date.now()}_${Math.floor(Math.random() * 1000)}.webm`;
+    tempFilePath = path.join(os.tmpdir(), tempFileName);
+    fs.writeFileSync(tempFilePath, req.file.buffer);
+
+    // Call OpenAI Whisper
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(tempFilePath),
+      model: "whisper-1",
+    });
+
+    const newText = transcription.text;
+
+    if (newText && newText.trim().length > 0) {
+      const segment = {
+        text: newText,
+        speaker: "Speaker", // Simple chunk logic might not diarize accurately
+        startTime: transcript.duration,
+        endTime: transcript.duration + 5, // Rough estimate
+        confidence: 1.0,
+      };
+
+      transcript.segments.push(segment);
+      transcript.fullText = (transcript.fullText + " " + newText).trim();
+      transcript.duration += 5; // Rough estimate of chunk duration
+      await transcript.save();
+
+      // Update Meeting
+      meeting.transcript = transcript.fullText;
+      await meeting.save();
+    }
+
+    // Clean up temp file
+    if (fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+
+    res.status(200).json({
+      success: true,
+      text: newText,
+      fullText: transcript.fullText,
+    });
+  } catch (error) {
+    console.error("Error processing transcript chunk:", error);
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to process audio chunk",
     });
   }
 };
@@ -271,8 +390,8 @@ export const getTranscript = async (req, res) => {
       });
     }
 
-    // Find transcript
-    const transcript = await Transcript.findOne({ meetingId });
+    // Find transcript by canonical meeting field
+    const transcript = await Transcript.findOne({ meeting: meetingId });
 
     if (!transcript) {
       return res.status(404).json({
@@ -329,7 +448,7 @@ export const retryTranscription = async (req, res) => {
 
     // Find failed transcript
     const transcript = await Transcript.findOne({
-      meetingId,
+      meeting: meetingId,
       status: "failed",
     });
 
@@ -342,7 +461,10 @@ export const retryTranscription = async (req, res) => {
 
     // Reset status and retry
     transcript.status = "processing";
-    transcript.timestamps.processingStartedAt = new Date();
+    if (!transcript.recordingTimestamps) {
+      transcript.recordingTimestamps = {};
+    }
+    transcript.recordingTimestamps.processingStartedAt = new Date();
     transcript.errorMessage = null;
     await transcript.save();
 
@@ -440,7 +562,10 @@ async function processTranscription(transcriptId) {
     transcript.fullText = transcriptionResult.fullText;
     transcript.segments = transcriptionResult.segments;
     transcript.status = "completed";
-    transcript.timestamps.completedAt = new Date();
+    if (!transcript.recordingTimestamps) {
+      transcript.recordingTimestamps = {};
+    }
+    transcript.recordingTimestamps.completedAt = new Date();
     await transcript.save();
 
     // Clean up audio file
@@ -454,7 +579,8 @@ async function processTranscription(transcriptId) {
     await indexTranscript(transcript);
 
     // Update meeting with transcript reference
-    await Meeting.findByIdAndUpdate(transcript.meetingId, {
+    const meetingRef = transcript.meeting?._id || transcript.meeting;
+    await Meeting.findByIdAndUpdate(meetingRef, {
       transcript: transcriptionResult.fullText,
     });
 

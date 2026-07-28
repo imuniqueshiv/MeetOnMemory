@@ -43,10 +43,19 @@ const AiAssistant = () => {
         setMessages((prev) => {
           const newMessages = [...prev];
           const lastIndex = newMessages.length - 1;
-          if (lastIndex >= 0 && newMessages[lastIndex].role === "assistant" && newMessages[lastIndex].isStreaming) {
+          if (
+            lastIndex >= 0 &&
+            newMessages[lastIndex].role === "assistant" &&
+            newMessages[lastIndex].isStreaming
+          ) {
             newMessages[lastIndex].content += data.chunk;
           } else {
-            newMessages.push({ role: "assistant", content: data.chunk, isStreaming: true, sources: [] });
+            newMessages.push({
+              role: "assistant",
+              content: data.chunk,
+              isStreaming: true,
+              sources: [],
+            });
           }
           return newMessages;
         });
@@ -164,7 +173,7 @@ const AiAssistant = () => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!inputValue.trim() || isStreaming) return;
-    
+
     let activeSessionId = currentSessionId;
     if (!activeSessionId) {
       // Auto-create session if none active
@@ -192,14 +201,17 @@ const AiAssistant = () => {
     setIsRateLimited(false);
 
     try {
-      const res = await fetch(`${API_URL}/api/assistant/sessions/${activeSessionId}/message`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${tokenRef.current}`,
+      const res = await fetch(
+        `${API_URL}/api/assistant/sessions/${activeSessionId}/message`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${tokenRef.current}`,
+          },
+          body: JSON.stringify({ content: messageText }),
         },
-        body: JSON.stringify({ content: messageText }),
-      });
+      );
 
       if (res.status === 429) {
         setIsRateLimited(true);
@@ -239,16 +251,32 @@ const AiAssistant = () => {
           {!currentSessionId && messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto">
               <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-sm">
-                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                <svg
+                  className="w-8 h-8"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                  />
                 </svg>
               </div>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-2">How can I help you today?</h2>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+                How can I help you today?
+              </h2>
               <p className="text-gray-500 mb-8">
-                Ask questions about your organization's meetings, decisions, and policies. I'll search your memory and provide cited answers.
+                Ask questions about your organization's meetings, decisions, and
+                policies. I'll search your memory and provide cited answers.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-                {["What were the main decisions in the last engineering meeting?", "Summarize the remote work policy updates."].map((suggestion, i) => (
+                {[
+                  "What were the main decisions in the last engineering meeting?",
+                  "Summarize the remote work policy updates.",
+                ].map((suggestion, i) => (
                   <button
                     key={i}
                     onClick={() => setInputValue(suggestion)}
@@ -262,7 +290,10 @@ const AiAssistant = () => {
           ) : (
             <div className="max-w-3xl mx-auto space-y-6 pb-4">
               {messages.map((msg, idx) => (
-                <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  key={idx}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
                   <div
                     className={`max-w-[85%] rounded-2xl px-5 py-3.5 shadow-sm ${
                       msg.role === "user"
@@ -273,27 +304,38 @@ const AiAssistant = () => {
                     <div className="whitespace-pre-wrap leading-relaxed">
                       {msg.content}
                     </div>
-                    {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
-                      <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap">
-                        {msg.sources.map((src, i) => (
-                          <SourceCitation key={i} source={src} index={i} />
-                        ))}
-                      </div>
-                    )}
+                    {msg.role === "assistant" &&
+                      msg.sources &&
+                      msg.sources.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap">
+                          {msg.sources.map((src, i) => (
+                            <SourceCitation key={i} source={src} index={i} />
+                          ))}
+                        </div>
+                      )}
                   </div>
                 </div>
               ))}
-              
-              {isStreaming && messages[messages.length - 1]?.role === "user" && (
-                <div className="flex justify-start">
-                  <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-none px-5 py-4 shadow-sm flex items-center gap-2 text-gray-500">
-                    <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce"></span>
-                    <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "150ms" }}></span>
-                    <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "300ms" }}></span>
-                    <span className="ml-2 text-sm font-medium">Thinking...</span>
+
+              {isStreaming &&
+                messages[messages.length - 1]?.role === "user" && (
+                  <div className="flex justify-start">
+                    <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-none px-5 py-4 shadow-sm flex items-center gap-2 text-gray-500">
+                      <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce"></span>
+                      <span
+                        className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce"
+                        style={{ animationDelay: "150ms" }}
+                      ></span>
+                      <span
+                        className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce"
+                        style={{ animationDelay: "300ms" }}
+                      ></span>
+                      <span className="ml-2 text-sm font-medium">
+                        Thinking...
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
               <div ref={messagesEndRef} />
             </div>
           )}
@@ -303,22 +345,46 @@ const AiAssistant = () => {
           <div className="max-w-3xl mx-auto">
             {error && (
               <div className="mb-3 text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100 flex items-start gap-2">
-                <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                <svg
+                  className="w-5 h-5 flex-shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
                 </svg>
                 {error}
               </div>
             )}
             {isRateLimited && (
               <div className="mb-3 text-sm text-orange-700 bg-orange-50 p-3 rounded-lg border border-orange-100 flex items-start gap-2">
-                <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="w-5 h-5 flex-shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
-                Too many messages sent recently. Please wait a moment before trying again.
+                Too many messages sent recently. Please wait a moment before
+                trying again.
               </div>
             )}
-            
-            <form onSubmit={handleSendMessage} className="relative flex items-center">
+
+            <form
+              onSubmit={handleSendMessage}
+              className="relative flex items-center"
+            >
               <input
                 type="text"
                 value={inputValue}
@@ -329,14 +395,18 @@ const AiAssistant = () => {
               />
               <button
                 type="submit"
-                disabled={!inputValue.trim() || isStreaming || !isSocketConnected}
+                disabled={
+                  !inputValue.trim() || isStreaming || !isSocketConnected
+                }
                 className="absolute right-2 p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-colors shadow-sm"
               >
                 <Send className="w-5 h-5" />
               </button>
             </form>
             <div className="text-center mt-2">
-              <span className="text-[11px] text-gray-400 font-medium tracking-wide uppercase">AI Assistant can make mistakes. Verify important information.</span>
+              <span className="text-[11px] text-gray-400 font-medium tracking-wide uppercase">
+                AI Assistant can make mistakes. Verify important information.
+              </span>
             </div>
           </div>
         </div>

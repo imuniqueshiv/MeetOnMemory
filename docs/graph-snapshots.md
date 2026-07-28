@@ -32,7 +32,7 @@ underlying records are edited, merged by consolidation, or deleted.
 
 Every capture is content-hashed (SHA-256 over the sorted node/edge list).
 Before writing, the engine compares the new hash against the organization's
-*most recent* snapshot. If they match, nothing is written — the trigger
+_most recent_ snapshot. If they match, nothing is written — the trigger
 fired, but the graph didn't actually change, so there's nothing worth
 keeping a duplicate copy of.
 
@@ -44,7 +44,7 @@ because:
 - It's simple to reason about and test.
 - At this project's scale (per-organization decisions + action items, not a
   firehose graph), full copies are cheap; the dominant storage cost is
-  redundant *identical* captures, which hash-dedup eliminates directly.
+  redundant _identical_ captures, which hash-dedup eliminates directly.
 
 If graphs grow large enough that this stops being true, the next step is
 compressing `nodes`/`edges` (e.g. gzip the JSON blob) rather than
@@ -56,12 +56,12 @@ Snapshots are captured automatically, non-fatally (wrapped the same way as
 the rest of the knowledge-graph pipeline — a failure here never fails the
 meeting-processing flow):
 
-| Trigger | Where | When |
-|---|---|---|
-| `meeting_processed` | `MeetingService._runKnowledgeGraph` | After a meeting's decisions/action items are merged into the graph |
-| `consolidation` | `consolidationController.runConsolidation` | After a non-dry-run memory consolidation (bulk graph mutation) |
-| `manual` | `POST /api/knowledge/graph/snapshots` | User-triggered (e.g. "before I do this bulk edit") |
-| `scheduled` | *(reserved)* | For a future cron-based periodic capture, if automatic-only triggers prove too sparse |
+| Trigger             | Where                                      | When                                                                                  |
+| ------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `meeting_processed` | `MeetingService._runKnowledgeGraph`        | After a meeting's decisions/action items are merged into the graph                    |
+| `consolidation`     | `consolidationController.runConsolidation` | After a non-dry-run memory consolidation (bulk graph mutation)                        |
+| `manual`            | `POST /api/knowledge/graph/snapshots`      | User-triggered (e.g. "before I do this bulk edit")                                    |
+| `scheduled`         | _(reserved)_                               | For a future cron-based periodic capture, if automatic-only triggers prove too sparse |
 
 ## Diffing
 
@@ -87,13 +87,13 @@ All routes are under `/api/knowledge/graph/snapshots`, organization-scoped
 via the existing `requireOrgMembership` + `requirePermission("knowledge", …)`
 middleware:
 
-| Method | Path | Permission | Description |
-|---|---|---|---|
-| GET | `/graph/snapshots?limit=&before=` | `knowledge:view` | Timeline listing (metadata only) |
-| GET | `/graph/snapshots/:id` | `knowledge:view` | Full snapshot (nodes + edges) |
-| GET | `/graph/snapshots/:id/export` | `knowledge:view` | Same payload, `Content-Disposition: attachment` for download/audit |
-| GET | `/graph/snapshots/diff?from=&to=` | `knowledge:view` | Node/edge diff between two snapshots |
-| POST | `/graph/snapshots` (`{ force? }`) | `knowledge:snapshot` | Manually trigger a capture |
+| Method | Path                              | Permission           | Description                                                        |
+| ------ | --------------------------------- | -------------------- | ------------------------------------------------------------------ |
+| GET    | `/graph/snapshots?limit=&before=` | `knowledge:view`     | Timeline listing (metadata only)                                   |
+| GET    | `/graph/snapshots/:id`            | `knowledge:view`     | Full snapshot (nodes + edges)                                      |
+| GET    | `/graph/snapshots/:id/export`     | `knowledge:view`     | Same payload, `Content-Disposition: attachment` for download/audit |
+| GET    | `/graph/snapshots/diff?from=&to=` | `knowledge:view`     | Node/edge diff between two snapshots                               |
+| POST   | `/graph/snapshots` (`{ force? }`) | `knowledge:snapshot` | Manually trigger a capture                                         |
 
 ## Performance / isolation from the live graph
 

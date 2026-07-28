@@ -3,10 +3,8 @@ import { Link } from "react-router-dom";
 
 const SourceCitation = ({ source, index }) => {
   const { refType, refId, title } = source;
-  
-  const linkUrl = refType === "meeting" 
-    ? `/meetings/${refId}` 
-    : `/policies`; // or another policy route if specific policy view exists
+
+  const linkUrl = refType === "meeting" ? `/meetings/${refId}` : `/policies`; // or another policy route if specific policy view exists
 
   return (
     <Link
@@ -15,7 +13,9 @@ const SourceCitation = ({ source, index }) => {
       target="_blank"
       rel="noopener noreferrer"
     >
-      <span className="font-bold text-blue-800 opacity-90">[Source {index + 1}]</span>
+      <span className="font-bold text-blue-800 opacity-90">
+        [Source {index + 1}]
+      </span>
       <span className="truncate max-w-[180px] font-medium" title={title}>
         {title}
       </span>

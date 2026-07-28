@@ -374,8 +374,12 @@ export const indexTranscript = async (transcript) => {
         id: `transcript-${transcript._id.toString()}-chunk-${i}`,
         values: embedding,
         metadata: {
-          meetingId: transcript.meetingId.toString(),
-          organizationId: transcript.organizationId.toString(),
+          meetingId: (transcript.meeting?._id || transcript.meeting).toString(),
+          organizationId: (
+            transcript.organizationId ||
+            transcript.meeting?.organization ||
+            ""
+          ).toString(),
           type: "transcript",
           segmentIndex: i,
           startTime: transcript.segments[i]?.startTime || 0,

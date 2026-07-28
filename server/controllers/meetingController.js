@@ -20,6 +20,8 @@ import * as MeetingService from "../services/MeetingService.js";
 import { ValidationError, UnauthorizedError } from "../utils/errors.js";
 import AuditService from "../services/AuditService.js";
 import { sendSuccess } from "../utils/responseHandler.js";
+import * as activityService from "../services/activityService.js";
+import MeetingDigestService from "../services/MeetingDigestService.js";
 
 const pushMeetingToIntegrations = (...args) =>
   import("../services/calendarSyncService.js").then((mod) =>
@@ -53,6 +55,14 @@ const uploadMeetingSchema = z.object({
   meetingType: z
     .enum(["conference", "policy", "event", "internal", "external", "board"])
     .optional(),
+  tags: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => {
+      if (!val) return [];
+      if (Array.isArray(val)) return val;
+      return [val];
+    }),
 });
 
 const summarizeMeetingSchema = z.object({
@@ -161,6 +171,19 @@ export const createMeeting = async (req, res, next) => {
       pushMeetingToIntegrations(uploaderId, meeting).catch(console.error);
     }
 
+    if (req.user?.organization) {
+      const io = req.app.get("io");
+      activityService.logActivity(
+        io,
+        req.user.organization,
+        uploaderId,
+        "meeting.created",
+        "Meeting",
+        meeting._id,
+        meeting.title,
+      );
+    }
+
     return sendSuccess(
       res,
       {
@@ -216,6 +239,19 @@ export const uploadMeeting = async (req, res, next) => {
         req.file,
         validated,
       );
+
+    if (req.user?.organization) {
+      const io = req.app.get("io");
+      activityService.logActivity(
+        io,
+        req.user.organization,
+        uploaderId,
+        "meeting.uploaded",
+        "Meeting",
+        meeting._id,
+        meeting.title,
+      );
+    }
 
     return sendSuccess(
       res,
@@ -298,6 +334,13 @@ export const summarizeMeeting = async (req, res, next) => {
       );
     }
 
+    // Fire and forget email digest
+    if (result.meetingId) {
+      MeetingDigestService.sendMeetingDigest(result.meetingId).catch((err) => {
+        console.error("Failed to send meeting digest automatically:", err);
+      });
+    }
+
     return sendSuccess(
       res,
       {
@@ -358,6 +401,17 @@ export const deleteMeeting = async (req, res, next) => {
         organizationId: req.doc.organization,
         details: { title: req.doc.title },
       });
+
+      const io = req.app.get("io");
+      activityService.logActivity(
+        io,
+        req.doc.organization,
+        getUserId(req),
+        "meeting.deleted",
+        "Meeting",
+        req.doc._id,
+        req.doc.title,
+      );
     }
 
     return sendSuccess(res, null, "Meeting deleted successfully");
@@ -401,6 +455,19 @@ export const updateMeeting = async (req, res, next) => {
       validated,
       req.doc || null, // from requireOwner middleware
     );
+
+    if (req.user?.organization) {
+      const io = req.app.get("io");
+      activityService.logActivity(
+        io,
+        req.user.organization,
+        userId,
+        "meeting.updated",
+        "Meeting",
+        meeting._id,
+        meeting.title,
+      );
+    }
 
     return sendSuccess(
       res,

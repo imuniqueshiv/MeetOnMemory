@@ -23,12 +23,19 @@ class Logger {
   }
 
   error(message, error = null, meta = {}) {
-    const errorDetails = error instanceof Error ? {
-      errorMessage: error.message,
-      stack: error.stack,
-    } : (error ? { errorMessage: String(error) } : {});
-    
-    console.error(this.formatMessage("error", message, { ...meta, ...errorDetails }));
+    const errorDetails =
+      error instanceof Error
+        ? {
+            errorMessage: error.message,
+            stack: error.stack,
+          }
+        : error
+          ? { errorMessage: String(error) }
+          : {};
+
+    console.error(
+      this.formatMessage("error", message, { ...meta, ...errorDetails }),
+    );
   }
 }
 

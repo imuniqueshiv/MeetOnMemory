@@ -19,7 +19,7 @@ import {
   Fingerprint,
   Sliders,
   Globe,
-  Database
+  Database,
 } from "lucide-react";
 
 const CookiePolicy = () => {
@@ -284,7 +284,7 @@ const CookiePolicy = () => {
     return sections.filter(
       (sec) =>
         sec.title.toLowerCase().includes(query) ||
-        sec.content.toLowerCase().includes(query)
+        sec.content.toLowerCase().includes(query),
     );
   }, [searchQuery, sections]);
 
@@ -332,7 +332,8 @@ const CookiePolicy = () => {
             Cookie Policy
           </h1>
           <p className="mt-4 max-w-2xl mx-auto text-base sm:text-lg text-gray-500 dark:text-slate-400">
-            Learn how we configure cookies, local browser storage, and AI processing parameters to protect your organizational workspace.
+            Learn how we configure cookies, local browser storage, and AI
+            processing parameters to protect your organizational workspace.
           </p>
 
           {/* Search bar inside the policy */}
@@ -371,7 +372,6 @@ const CookiePolicy = () => {
       {/* Content Layout Grid */}
       <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 flex-1">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-
           {/* Left Column: Navigation TOC */}
           <aside className="lg:col-span-4 hidden lg:block">
             <div className="sticky top-28 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-800 rounded-2xl p-5 shadow-xs max-h-[calc(100vh-140px)] overflow-y-auto">
@@ -392,9 +392,15 @@ const CookiePolicy = () => {
                           : "text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700/30"
                       }`}
                     >
-                      <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? "text-blue-600 dark:text-blue-400" : "text-gray-400"}`} />
-                      <span className="truncate">{sec.title.split(". ")[1]}</span>
-                      {isActive && <ChevronRight className="w-4 h-4 ml-auto text-blue-600 dark:text-blue-400 shrink-0" />}
+                      <Icon
+                        className={`w-4.5 h-4.5 shrink-0 ${isActive ? "text-blue-600 dark:text-blue-400" : "text-gray-400"}`}
+                      />
+                      <span className="truncate">
+                        {sec.title.split(". ")[1]}
+                      </span>
+                      {isActive && (
+                        <ChevronRight className="w-4 h-4 ml-auto text-blue-600 dark:text-blue-400 shrink-0" />
+                      )}
                     </button>
                   );
                 })}
@@ -409,7 +415,8 @@ const CookiePolicy = () => {
                   <Shield className="w-4 h-4" /> Need assistance?
                 </h4>
                 <p className="text-[11px] text-blue-100 mt-2 leading-relaxed">
-                  Have questions about GDPR cookie consents or browser data deletes? Contact our support desk.
+                  Have questions about GDPR cookie consents or browser data
+                  deletes? Contact our support desk.
                 </p>
                 <Link
                   to="/contact"
@@ -423,7 +430,6 @@ const CookiePolicy = () => {
 
           {/* Right Column: Clauses and Preferences */}
           <div className="lg:col-span-8 space-y-12">
-
             {/* Filter Active Alert */}
             {searchQuery && (
               <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-4 flex gap-3 text-sm text-blue-700 dark:text-blue-300">
@@ -431,7 +437,8 @@ const CookiePolicy = () => {
                 <div>
                   <p className="font-semibold">Search Filter Active</p>
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    Showing segments matching "{searchQuery}". Clear search bar to view entire document.
+                    Showing segments matching "{searchQuery}". Clear search bar
+                    to view entire document.
                   </p>
                 </div>
               </div>
@@ -442,9 +449,12 @@ const CookiePolicy = () => {
               {filteredSections.length === 0 ? (
                 <div className="text-center py-12">
                   <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
-                  <h3 className="font-bold text-lg text-gray-800 dark:text-white">No sections match your query</h3>
+                  <h3 className="font-bold text-lg text-gray-800 dark:text-white">
+                    No sections match your query
+                  </h3>
                   <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">
-                    Try searching for general keywords like 'JWT', 'Gemini', 'delete', or 'GDPR'.
+                    Try searching for general keywords like 'JWT', 'Gemini',
+                    'delete', or 'GDPR'.
                   </p>
                   <button
                     onClick={() => setSearchQuery("")}
@@ -470,12 +480,13 @@ const CookiePolicy = () => {
                           {sec.title}
                         </h2>
                       </div>
-                      
+
                       {/* Render custom interactive console if this is the preferenceCenter section */}
                       {sec.id === "preferenceCenter" ? (
                         <div className="space-y-6 mt-6">
                           <p className="text-sm text-gray-500 dark:text-slate-400">
-                            Configure your preferences below. Essential cookies are required to maintain your platform session.
+                            Configure your preferences below. Essential cookies
+                            are required to maintain your platform session.
                           </p>
 
                           <div className="space-y-4">
@@ -489,7 +500,9 @@ const CookiePolicy = () => {
                                   </span>
                                 </h4>
                                 <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                                  Enables JWT secure login, cross-site request validation, and prevents horizontal team data leakage.
+                                  Enables JWT secure login, cross-site request
+                                  validation, and prevents horizontal team data
+                                  leakage.
                                 </p>
                               </div>
                               <input
@@ -507,13 +520,20 @@ const CookiePolicy = () => {
                                   Functional Settings
                                 </h4>
                                 <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                                  Caches interface custom options such as Dark Theme configurations and English/Hindi translations.
+                                  Caches interface custom options such as Dark
+                                  Theme configurations and English/Hindi
+                                  translations.
                                 </p>
                               </div>
                               <input
                                 type="checkbox"
                                 checked={preferences.functional}
-                                onChange={(e) => setPreferences({ ...preferences, functional: e.target.checked })}
+                                onChange={(e) =>
+                                  setPreferences({
+                                    ...preferences,
+                                    functional: e.target.checked,
+                                  })
+                                }
                                 className="h-4.5 w-4.5 rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer mt-1"
                               />
                             </div>
@@ -525,13 +545,20 @@ const CookiePolicy = () => {
                                   Performance & Analytics
                                 </h4>
                                 <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                                  Permits anonymous tracking indicators to analyze API response lags, upload throughputs, and page hits.
+                                  Permits anonymous tracking indicators to
+                                  analyze API response lags, upload throughputs,
+                                  and page hits.
                                 </p>
                               </div>
                               <input
                                 type="checkbox"
                                 checked={preferences.analytics}
-                                onChange={(e) => setPreferences({ ...preferences, analytics: e.target.checked })}
+                                onChange={(e) =>
+                                  setPreferences({
+                                    ...preferences,
+                                    analytics: e.target.checked,
+                                  })
+                                }
                                 className="h-4.5 w-4.5 rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer mt-1"
                               />
                             </div>
@@ -543,13 +570,20 @@ const CookiePolicy = () => {
                                   Contextual Product Notifications
                                 </h4>
                                 <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                                  Enables us to run interactive tutorial sequences and announce release notes within your workspace dashboard.
+                                  Enables us to run interactive tutorial
+                                  sequences and announce release notes within
+                                  your workspace dashboard.
                                 </p>
                               </div>
                               <input
                                 type="checkbox"
                                 checked={preferences.targeting}
-                                onChange={(e) => setPreferences({ ...preferences, targeting: e.target.checked })}
+                                onChange={(e) =>
+                                  setPreferences({
+                                    ...preferences,
+                                    targeting: e.target.checked,
+                                  })
+                                }
                                 className="h-4.5 w-4.5 rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer mt-1"
                               />
                             </div>
@@ -573,14 +607,20 @@ const CookiePolicy = () => {
                           {showSaveToast && (
                             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-xl flex items-center gap-2.5 text-xs text-emerald-800 dark:text-emerald-400 animate-fade-in">
                               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                              <span>Browser cookie permissions saved! The current session settings have been updated.</span>
+                              <span>
+                                Browser cookie permissions saved! The current
+                                session settings have been updated.
+                              </span>
                             </div>
                           )}
 
                           {clearedLogs && (
                             <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl flex items-center gap-2.5 text-xs text-amber-800 dark:text-amber-400 animate-fade-in">
                               <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
-                              <span>Cookie settings reset to minimal essential settings. Non-essential storage cleared.</span>
+                              <span>
+                                Cookie settings reset to minimal essential
+                                settings. Non-essential storage cleared.
+                              </span>
                             </div>
                           )}
                         </div>
@@ -606,7 +646,8 @@ const CookiePolicy = () => {
                     Cookie & Storage FAQs
                   </h2>
                   <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                    Quick answers regarding data security, transcripts, and storage boundaries.
+                    Quick answers regarding data security, transcripts, and
+                    storage boundaries.
                   </p>
                 </div>
               </div>
@@ -642,7 +683,6 @@ const CookiePolicy = () => {
                 })}
               </div>
             </section>
-
           </div>
         </div>
       </main>

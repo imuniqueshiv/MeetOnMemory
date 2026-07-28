@@ -7,7 +7,7 @@ export const authApi = {
   getAuthState: () => apiClient.get("/api/auth/is-auth"),
   getUserData: () => apiClient.get("/api/auth/user-data"),
   sendVerifyOtp: () => apiClient.post("/api/auth/send-verify-otp", {}),
-  verifyAccount: (data) => apiClient.post("/api/auth/verify-account", data),
+  verifyAccount: (data) => apiClient.post("/api/auth/verify-email", data),
   sendResetOtp: (data) => apiClient.post("/api/auth/send-reset-otp", data),
   resetPassword: (data) => apiClient.post("/api/auth/reset-password", data),
 };

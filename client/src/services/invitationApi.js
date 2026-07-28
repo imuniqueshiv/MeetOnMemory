@@ -7,8 +7,10 @@ export const invitationApi = {
     return apiClient.get(url, { params: status ? { status } : {} });
   },
   getUserInvitations: () => apiClient.get("/api/invitation/user"),
-  acceptInvitation: (token) => apiClient.post(`/api/invitation/${token}/accept`),
-  rejectInvitation: (token) => apiClient.post(`/api/invitation/${token}/reject`),
+  acceptInvitation: (token) =>
+    apiClient.post(`/api/invitation/${token}/accept`),
+  rejectInvitation: (token) =>
+    apiClient.post(`/api/invitation/${token}/reject`),
   revokeInvitation: (id) => apiClient.delete(`/api/invitation/${id}`),
   resendInvitation: (id) => apiClient.post(`/api/invitation/${id}/resend`),
   expireInvitation: (id) => apiClient.post(`/api/invitation/${id}/expire`),

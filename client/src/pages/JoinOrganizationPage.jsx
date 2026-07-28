@@ -6,7 +6,16 @@ import AppContent from "../context/AppContent";
 import { toast } from "react-toastify";
 import Navbar from "../components/Navbar.jsx";
 import { organizationApi, invitationApi } from "../services";
-import { Building2, Search, ArrowRight, Users, Mail, Check, X, AlertTriangle } from "lucide-react";
+import {
+  Building2,
+  Search,
+  ArrowRight,
+  Users,
+  Mail,
+  Check,
+  X,
+  AlertTriangle,
+} from "lucide-react";
 
 const JoinOrganizationPage = () => {
   const { getUserData, setUserData } = useContext(AppContent);
@@ -37,7 +46,9 @@ const JoinOrganizationPage = () => {
           }
         } catch (err) {
           console.error("Error loading invitation:", err);
-          setInviteError(err.response?.data?.message || "Invalid or expired invitation");
+          setInviteError(
+            err.response?.data?.message || "Invalid or expired invitation",
+          );
         } finally {
           setLoading(false);
         }
@@ -119,7 +130,9 @@ const JoinOrganizationPage = () => {
       }
     } catch (err) {
       console.error("Error declining invitation:", err);
-      toast.error(err.response?.data?.message || "Failed to decline invitation");
+      toast.error(
+        err.response?.data?.message || "Failed to decline invitation",
+      );
     } finally {
       setActionLoading(false);
     }
@@ -136,14 +149,18 @@ const JoinOrganizationPage = () => {
               {loading ? (
                 <div className="p-12 text-center">
                   <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 dark:border-slate-700 border-t-blue-600 mx-auto mb-4"></div>
-                  <p className="text-gray-500 dark:text-gray-400">Verifying invitation link...</p>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Verifying invitation link...
+                  </p>
                 </div>
               ) : inviteError ? (
                 <div className="p-8 text-center space-y-4">
                   <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/20 text-red-500 mb-2">
                     <AlertTriangle className="w-6 h-6" />
                   </div>
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Invitation Invalid</h2>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Invitation Invalid
+                  </h2>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     {inviteError}
                   </p>
@@ -187,17 +204,23 @@ const JoinOrganizationPage = () => {
                       Invited By
                     </p>
                     <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                      {inviteDetails.invitedBy?.name} ({inviteDetails.invitedBy?.email})
+                      {inviteDetails.invitedBy?.name} (
+                      {inviteDetails.invitedBy?.email})
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Role offered: <span className="font-bold text-blue-600 dark:text-blue-400 capitalize">{inviteDetails.role}</span>
+                      Role offered:{" "}
+                      <span className="font-bold text-blue-600 dark:text-blue-400 capitalize">
+                        {inviteDetails.role}
+                      </span>
                     </p>
                   </div>
 
                   {/* Message */}
                   {inviteDetails.message && (
                     <div className="bg-blue-50/30 dark:bg-blue-950/10 border-l-4 border-blue-500 p-4 rounded-r-xl">
-                      <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mb-1">Personal Message</p>
+                      <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mb-1">
+                        Personal Message
+                      </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400 italic">
                         "{inviteDetails.message}"
                       </p>

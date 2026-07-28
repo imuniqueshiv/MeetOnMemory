@@ -250,7 +250,7 @@ export const getPublicResource = async (req, res) => {
             requiresPasscode: true,
           });
         }
-      } catch (err) {
+      } catch (_err) {
         return res.status(401).json({
           success: false,
           message: "Session expired, please re-enter passcode",

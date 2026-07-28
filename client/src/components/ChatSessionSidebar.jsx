@@ -1,12 +1,12 @@
 import React from "react";
 import { Plus, Trash2, MessageSquare } from "lucide-react";
 
-const ChatSessionSidebar = ({ 
-  sessions, 
-  currentSessionId, 
-  onSelectSession, 
-  onNewSession, 
-  onDeleteSession 
+const ChatSessionSidebar = ({
+  sessions,
+  currentSessionId,
+  onSelectSession,
+  onNewSession,
+  onDeleteSession,
 }) => {
   return (
     <div className="w-72 border-r border-gray-200 bg-gray-50/50 flex flex-col h-full shadow-[inset_-1px_0_0_rgba(0,0,0,0.05)]">
@@ -24,17 +24,23 @@ const ChatSessionSidebar = ({
           <div
             key={session._id}
             className={`group flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-200 ${
-              currentSessionId === session._id 
-                ? "bg-indigo-50 text-indigo-900 shadow-sm border border-indigo-100/50 ring-1 ring-indigo-500/20" 
+              currentSessionId === session._id
+                ? "bg-indigo-50 text-indigo-900 shadow-sm border border-indigo-100/50 ring-1 ring-indigo-500/20"
                 : "text-gray-600 hover:bg-white hover:shadow-sm hover:text-gray-900 border border-transparent hover:border-gray-200/60"
             }`}
             onClick={() => onSelectSession(session._id)}
           >
             <div className="flex items-center gap-3 overflow-hidden">
-              <MessageSquare className={`w-5 h-5 flex-shrink-0 transition-colors ${
-                currentSessionId === session._id ? "text-indigo-600" : "text-gray-400 group-hover:text-indigo-500"
-              }`} />
-              <span className="truncate font-medium text-sm">{session.title || "New Chat"}</span>
+              <MessageSquare
+                className={`w-5 h-5 flex-shrink-0 transition-colors ${
+                  currentSessionId === session._id
+                    ? "text-indigo-600"
+                    : "text-gray-400 group-hover:text-indigo-500"
+                }`}
+              />
+              <span className="truncate font-medium text-sm">
+                {session.title || "New Chat"}
+              </span>
             </div>
             <button
               onClick={(e) => {
@@ -54,7 +60,9 @@ const ChatSessionSidebar = ({
               <MessageSquare className="w-6 h-6 text-indigo-300" />
             </div>
             <p className="text-sm font-medium text-gray-500">No recent chats</p>
-            <p className="text-xs text-gray-400">Start a new conversation to search your organization's memory.</p>
+            <p className="text-xs text-gray-400">
+              Start a new conversation to search your organization's memory.
+            </p>
           </div>
         )}
       </div>

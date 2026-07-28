@@ -122,7 +122,7 @@ describe("Webhook Endpoints & Dispatcher", () => {
       expect(res.statusCode).toEqual(201);
       expect(res.body.success).toBe(true);
       expect(res.body.webhook.targetUrl).toBe("https://example.com/webhook");
-      expect(res.body.webhook.secret).toBe("test_secret_key");
+      expect(res.body.webhook.secret).toBeUndefined();
     });
 
     it("should reject webhook creation by non-admin member", async () => {
@@ -193,6 +193,7 @@ describe("Webhook Endpoints & Dispatcher", () => {
       expect(res.statusCode).toEqual(200);
       expect(res.body.webhook.targetUrl).toBe("https://example.com/new");
       expect(res.body.webhook.isActive).toBe(false);
+      expect(res.body.webhook.secret).toBeUndefined();
     });
   });
 

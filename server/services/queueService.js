@@ -4,6 +4,8 @@ import processAudioJob from "../jobs/processAudioJob.js";
 import exportDataJob from "../jobs/exportDataJob.js";
 import conflictScanJob from "./conflictDetection/conflictScanJob.js";
 import sentimentAnalysisJob from "../jobs/sentimentAnalysisJob.js";
+import recalculateImportanceJob from "../jobs/recalculateImportanceJob.js";
+import memoryLifecycleJob from "../jobs/memoryLifecycleJob.js";
 
 // BullMQ requires maxRetriesPerRequest to be null
 let _producerConnection = null;
@@ -12,6 +14,8 @@ let _aiQueueInstance = null;
 let _dataExportQueueInstance = null;
 let _conflictScanQueueInstance = null;
 let _sentimentAnalysisQueueInstance = null;
+let _recalculateImportanceQueueInstance = null;
+let _memoryLifecycleQueueInstance = null;
 
 function getProducerConnection() {
   if (!process.env.REDIS_URI) return null;
@@ -91,6 +95,35 @@ function getSentimentAnalysisQueue() {
   return _sentimentAnalysisQueueInstance;
 }
 
+function getRecalculateImportanceQueue() {
+  if (!process.env.REDIS_URI) return null;
+  if (!_recalculateImportanceQueueInstance) {
+    const conn = getProducerConnection();
+    if (conn) {
+      _recalculateImportanceQueueInstance = new Queue(
+        "recalculate-importance-queue",
+        {
+          connection: conn,
+        },
+      );
+    }
+  }
+  return _recalculateImportanceQueueInstance;
+}
+
+function getMemoryLifecycleQueue() {
+  if (!process.env.REDIS_URI) return null;
+  if (!_memoryLifecycleQueueInstance) {
+    const conn = getProducerConnection();
+    if (conn) {
+      _memoryLifecycleQueueInstance = new Queue("memory-lifecycle-queue", {
+        connection: conn,
+      });
+    }
+  }
+  return _memoryLifecycleQueueInstance;
+}
+
 // Wrapper to preserve syntax compatibility
 export const aiQueue = {
   add: async (...args) => {
@@ -145,6 +178,34 @@ export const sentimentAnalysisQueue = {
   },
   get isActive() {
     return getSentimentAnalysisQueue() !== null;
+  },
+};
+
+export const recalculateImportanceQueue = {
+  add: async (...args) => {
+    const q = getRecalculateImportanceQueue();
+    if (!q) {
+      console.warn("⚠️ Queue operation ignored: Redis is not configured.");
+      return null;
+    }
+    return await q.add(...args);
+  },
+  get isActive() {
+    return getRecalculateImportanceQueue() !== null;
+  },
+};
+
+export const memoryLifecycleQueue = {
+  add: async (...args) => {
+    const q = getMemoryLifecycleQueue();
+    if (!q) {
+      console.warn("⚠️ Queue operation ignored: Redis is not configured.");
+      return null;
+    }
+    return await q.add(...args);
+  },
+  get isActive() {
+    return getMemoryLifecycleQueue() !== null;
   },
 };
 
@@ -284,4 +345,100 @@ export const initSentimentWorker = (app) => {
   console.log(
     "✅ Sentiment Analysis Worker initialized and listening to sentiment-analysis-queue",
   );
+};
+
+export const initRecalculateImportanceWorker = (app) => {
+  const connection = getWorkerConnection();
+  if (!connection) {
+    console.warn(
+      "⚠️ Redis not configured. Recalculate Importance Worker will not start.",
+    );
+    return;
+  }
+
+  const worker = new Worker(
+    "recalculate-importance-queue",
+    async (job) => await recalculateImportanceJob(job, app),
+    { connection, concurrency: 1 },
+  );
+
+  worker.on("completed", (job) => {
+    console.log(
+      `✅ Recalculate Importance Job ${job.id} completed successfully`,
+    );
+  });
+
+  worker.on("failed", (job, err) => {
+    console.error(
+      `❌ Recalculate Importance Job ${job.id} failed with error:`,
+      err.message,
+    );
+  });
+
+  worker.on("error", (err) => {
+    console.error("❌ Recalculate Importance Worker error:", err.message);
+  });
+
+  console.log(
+    "✅ Recalculate Importance Worker initialized and listening to recalculate-importance-queue",
+  );
+};
+
+export const initMemoryLifecycleWorker = (app) => {
+  const connection = getWorkerConnection();
+  if (!connection) {
+    console.warn(
+      "⚠️ Redis not configured. Memory Lifecycle Worker will not start.",
+    );
+    return;
+  }
+
+  const worker = new Worker(
+    "memory-lifecycle-queue",
+    async (job) => await memoryLifecycleJob(job, app),
+    { connection, concurrency: 1 },
+  );
+
+  worker.on("completed", (job) => {
+    console.log(`✅ Memory Lifecycle Job ${job.id} completed successfully`);
+  });
+
+  worker.on("failed", (job, err) => {
+    console.error(
+      `❌ Memory Lifecycle Job ${job.id} failed with error:`,
+      err.message,
+    );
+  });
+
+  worker.on("error", (err) => {
+    console.error("❌ Memory Lifecycle Worker error:", err.message);
+  });
+
+  console.log(
+    "✅ Memory Lifecycle Worker initialized and listening to memory-lifecycle-queue",
+  );
+
+  // Automatic, recurring sweep (Issue #377 acceptance criterion: memories
+  // transition according to configured policies without manual triggering).
+  // Runs once a day across all organizations; interval is configurable via
+  // env so ops can tune it without a code change.
+  const intervalMs =
+    parseInt(process.env.LIFECYCLE_SWEEP_INTERVAL_MS, 10) ||
+    24 * 60 * 60 * 1000;
+
+  memoryLifecycleQueue
+    .add(
+      "scheduled-lifecycle-sweep",
+      {},
+      {
+        repeat: { every: intervalMs },
+        jobId: "scheduled-lifecycle-sweep",
+      },
+    )
+    .catch((err) =>
+      console.error(
+        "⚠️ Failed to schedule recurring memory lifecycle sweep:",
+        err.message,
+      ),
+    );
 };

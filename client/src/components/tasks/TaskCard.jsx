@@ -1,14 +1,33 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Calendar,
   User,
   Building2,
   FileText,
   ExternalLink,
+  ChevronDown,
+  Loader2,
 } from "lucide-react";
 import { STATUS_STYLES, PRIORITY_STYLES } from "../../utils/taskStyles";
 
-export default function TaskCard({ task, setSelectedTask, navigate }) {
+export default function TaskCard({
+  task,
+  setSelectedTask,
+  navigate,
+  updateTaskStatus,
+}) {
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleStatusChange = async (e) => {
+    e.stopPropagation();
+    const newStatus = e.target.value;
+    if (updateTaskStatus && newStatus !== task.status) {
+      setIsUpdating(true);
+      await updateTaskStatus(task.id, newStatus);
+      setIsUpdating(false);
+    }
+  };
+
   const statusStyle = STATUS_STYLES[task.status] || STATUS_STYLES["open"];
   const priorityStyle =
     PRIORITY_STYLES[task.priority] || PRIORITY_STYLES.medium;
@@ -43,12 +62,37 @@ export default function TaskCard({ task, setSelectedTask, navigate }) {
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600 dark:text-slate-400">
             {/* Status */}
-            <span
-              className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium border ${statusStyle.bgColor} ${statusStyle.textColor} ${statusStyle.borderColor}`}
-            >
-              <StatusIcon className="w-3.5 h-3.5" />
-              {statusStyle.label}
-            </span>
+            <div className="relative inline-flex items-center">
+              {isUpdating ? (
+                <Loader2
+                  className={`absolute left-2 w-3.5 h-3.5 animate-spin ${statusStyle.textColor}`}
+                />
+              ) : (
+                <StatusIcon
+                  className={`absolute left-2 w-3.5 h-3.5 pointer-events-none ${statusStyle.textColor}`}
+                />
+              )}
+              <select
+                value={task.status}
+                onClick={(e) => e.stopPropagation()}
+                onChange={handleStatusChange}
+                disabled={isUpdating}
+                className={`appearance-none pl-7 pr-6 py-1 rounded-lg text-xs font-medium border cursor-pointer outline-none focus:ring-2 focus:ring-blue-500/50 transition-colors disabled:opacity-70 disabled:cursor-not-allowed ${statusStyle.bgColor} ${statusStyle.textColor} ${statusStyle.borderColor}`}
+              >
+                {Object.entries(STATUS_STYLES).map(([statusKey, style]) => (
+                  <option
+                    key={statusKey}
+                    value={statusKey}
+                    className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                  >
+                    {style.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                className={`absolute right-2 w-3 h-3 pointer-events-none opacity-70 ${statusStyle.textColor}`}
+              />
+            </div>
 
             {/* Due Date */}
             {task.dueDate && (

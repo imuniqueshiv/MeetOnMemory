@@ -15,4 +15,18 @@ export const organizationApi = {
     apiClient.get("/api/organizations/browse", { params }),
   searchOrganizations: (params) =>
     apiClient.get("/api/organizations/search", { params }),
+  getOrganizationSettings: (orgId) =>
+    apiClient.get("/api/organizations/current/settings", {
+      params: orgId ? { orgId } : {},
+    }),
+  updateOrganizationSettings: (id, data) =>
+    apiClient.put(`/api/organizations/${id}`, data),
+  getOrganizationById: (idOrSlug) =>
+    apiClient.get(`/api/organizations/${idOrSlug}`),
+  getLeaderboard: (orgId) =>
+    apiClient.get(
+      orgId
+        ? `/api/organizations/${orgId}/leaderboard`
+        : "/api/organizations/current/leaderboard",
+    ),
 };

@@ -1,13 +1,11 @@
 import express from "express";
+import { generateSession } from "../controllers/sessionController.js";
+import userAuth from "../middleware/userAuth.js";
+import { writeLimiter } from "../middleware/rateLimiter.js";
 
 const router = express.Router();
 
-// Stub route to prevent 404 for generate session
-router.post("/generate", (req, res) => {
-  res.status(501).json({
-    success: false,
-    message: "AI Session Generation is not implemented yet.",
-  });
-});
+// Generate session card
+router.post("/generate", userAuth, writeLimiter, generateSession);
 
 export default router;

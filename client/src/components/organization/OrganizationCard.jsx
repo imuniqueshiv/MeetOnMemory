@@ -1,9 +1,10 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Users, Clock, Shield } from "lucide-react";
+import { Users, Clock, Shield } from "lucide-react";
 import { organizationApi } from "../../services";
 import { toast } from "react-toastify";
 import AppContent from "../../context/AppContent";
+import OrganizationLogo from "./OrganizationLogo.jsx";
 
 const OrganizationCard = ({ organization }) => {
   const navigate = useNavigate();
@@ -86,18 +87,12 @@ const OrganizationCard = ({ organization }) => {
       {/* Organization Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-4">
-          {/* Logo */}
-          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl shadow-lg">
-            {logo ? (
-              <img
-                src={logo}
-                alt={name}
-                className="w-full h-full rounded-xl object-cover"
-              />
-            ) : (
-              name?.charAt(0)?.toUpperCase() || "O"
-            )}
-          </div>
+          <OrganizationLogo
+            src={logo || organization.logoUrl || ""}
+            name={name}
+            size="lg"
+            className="shadow-lg"
+          />
           <div>
             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
               {name}

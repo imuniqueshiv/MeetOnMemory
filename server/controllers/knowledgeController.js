@@ -9,6 +9,17 @@ import {
   recordMemoryFeedback,
 } from "../services/importanceScoringService.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
+import {
+  recalculateImportanceQueue,
+  memoryLifecycleQueue,
+} from "../services/queueService.js";
+import {
+  runLifecycleSweep,
+  restoreMemory,
+  transitionLifecycleState,
+} from "../services/memoryLifecycleService.js";
+import AuditLog from "../models/auditLogModel.js";
+import eventBus from "../services/eventBus.js";
 
 const ALLOWED_SORT_FIELDS = {
   importance: { importanceScore: -1 },
@@ -40,7 +51,8 @@ export const getDecisionLineageController = async (req, res) => {
     const cleanId = new mongoose.Types.ObjectId(id);
 
     // Verify the requested decision belongs to the user's organization
-    const startDecision = await Decision.findById(cleanId).select("organization");
+    const startDecision =
+      await Decision.findById(cleanId).select("organization");
 
     if (
       !startDecision ||
@@ -70,7 +82,11 @@ export const getDecisionLineageController = async (req, res) => {
 
 export const getOpenActionItems = async (req, res) => {
   try {
-    const { status = "open", sortBy = "createdAt" } = req.query || {};
+    const {
+      status = "open",
+      sortBy = "createdAt",
+      includeArchived,
+    } = req.query || {};
     const organization = sanitizeOrg(req.user?.organization);
 
     const allowedStatuses = [
@@ -121,9 +137,35 @@ export const getOpenActionItems = async (req, res) => {
       });
     }
 
-    const items = await query
+    // Archived/expired memories are excluded from default retrieval per
+    // the Memory Lifecycle Management engine (Issue #377) — they remain
+    // searchable/restorable via the lifecycle endpoints, just not shown
+    // in everyday listings unless explicitly requested.
+    if (includeArchived !== "true") {
+      query = query.where({
+        lifecycleState: { $nin: ["archived", "expired"] },
+      });
+    }
+
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 100);
+    const skip = (page - 1) * limit;
+
+    const total =
+      typeof ActionItem.countDocuments === "function" &&
+      typeof query.getFilter === "function"
+        ? await ActionItem.countDocuments(query.getFilter())
+        : 0;
+
+    let itemsQuery = query
       .populate("sourceMeetingId", "title date")
       .sort(ALLOWED_SORT_FIELDS[sortBy]);
+
+    if (typeof itemsQuery.skip === "function") {
+      itemsQuery = itemsQuery.skip(skip).limit(limit);
+    }
+
+    const items = await itemsQuery;
 
     // Retrieving this list counts as accessing each memory in it; refresh
     // their importance scores in the background without blocking the response.
@@ -132,7 +174,15 @@ export const getOpenActionItems = async (req, res) => {
       items.map((item) => item._id),
     );
 
-    sendSuccess(res, { actionItems: items });
+    sendSuccess(res, {
+      actionItems: items,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.error("getOpenActionItems error:", error);
     sendError(res, 500, "Failed to fetch action items");
@@ -141,7 +191,7 @@ export const getOpenActionItems = async (req, res) => {
 
 export const getDecisions = async (req, res) => {
   try {
-    const { status, sortBy = "createdAt" } = req.query || {};
+    const { status, sortBy = "createdAt", includeArchived } = req.query || {};
     const organization = sanitizeOrg(req.user?.organization);
 
     const allowedStatuses = ["open", "in-progress", "resolved", "superseded"];
@@ -174,19 +224,48 @@ export const getDecisions = async (req, res) => {
       filter.status = "superseded";
     }
 
+    // Archived/expired memories are excluded from default retrieval per
+    // the Memory Lifecycle Management engine (Issue #377).
+    if (includeArchived !== "true") {
+      filter.lifecycleState = { $nin: ["archived", "expired"] };
+    }
+
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 100);
+    const skip = (page - 1) * limit;
+
+    const total =
+      typeof Decision.countDocuments === "function"
+        ? await Decision.countDocuments(filter)
+        : 0;
+
     const sort =
       sortBy === "dueDate" ? { createdAt: -1 } : ALLOWED_SORT_FIELDS[sortBy];
 
-    const decisions = await Decision.find(filter)
+    let decisionsQuery = Decision.find(filter)
       .populate("sourceMeetingId", "title date")
       .sort(sort);
+
+    if (typeof decisionsQuery.skip === "function") {
+      decisionsQuery = decisionsQuery.skip(skip).limit(limit);
+    }
+
+    const decisions = await decisionsQuery;
 
     recordMemoryAccessBatch(
       "decision",
       decisions.map((d) => d._id),
     );
 
-    sendSuccess(res, { decisions });
+    sendSuccess(res, {
+      decisions,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.error("getDecisions error:", error);
     sendError(res, 500, "Failed to fetch decisions");
@@ -256,6 +335,20 @@ export const submitMemoryFeedback = async (req, res) => {
 export const recalculateImportance = async (req, res) => {
   try {
     const organization = sanitizeOrg(req.user?.organization);
+
+    if (recalculateImportanceQueue.isActive) {
+      await recalculateImportanceQueue.add("recalculate-importance", {
+        organization,
+      });
+      return sendSuccess(
+        res,
+        {},
+        "Importance scores recalculation started in the background",
+        202,
+      );
+    }
+
+    // Fallback to synchronous execution when Redis is not configured (e.g. testing / development)
     const results = await recalculateAllImportanceScores({ organization });
 
     sendSuccess(res, { ...results }, "Importance scores recalculated");
@@ -305,9 +398,137 @@ export const updateActionItemStatus = async (req, res) => {
 
     await item.save();
 
+    if (safeStatus === "resolved" && req.user?.id) {
+      eventBus.emit("actionItem.completed", {
+        userId: req.user.id,
+        organizationId: item.organization,
+        actionItemId: item._id,
+      });
+    }
+
     sendSuccess(res, { actionItem: item });
   } catch (error) {
     console.error("updateActionItemStatus error:", error);
     sendError(res, 500, "Failed to update action item");
+  }
+};
+
+/**
+ * POST /api/knowledge/lifecycle/run
+ * Manually triggers a full lifecycle sweep (active/dormant/archived/expired
+ * classification) for the caller's organization. Also runs automatically
+ * on a schedule once Redis/BullMQ is configured (see queueService.js).
+ */
+export const runMemoryLifecycleSweep = async (req, res) => {
+  try {
+    const organization = sanitizeOrg(req.user?.organization);
+
+    if (memoryLifecycleQueue.isActive) {
+      await memoryLifecycleQueue.add("memory-lifecycle-sweep", {
+        organization,
+      });
+      return sendSuccess(
+        res,
+        {},
+        "Memory lifecycle sweep started in the background",
+        202,
+      );
+    }
+
+    // Fallback to synchronous execution when Redis is not configured (e.g.
+    // testing / development), same pattern as recalculateImportance above.
+    const summary = await runLifecycleSweep({ organization });
+
+    if (organization) {
+      await AuditLog.create({
+        organization,
+        actor: req.user._id,
+        action: "memory_lifecycle_sweep",
+        entity: "KnowledgeGraph",
+        entityId: req.user._id,
+        details: summary,
+      });
+    }
+
+    sendSuccess(res, { summary }, "Memory lifecycle sweep completed");
+  } catch (error) {
+    console.error("runMemoryLifecycleSweep error:", error);
+    sendError(res, 500, "Failed to run memory lifecycle sweep");
+  }
+};
+
+/**
+ * PATCH /api/knowledge/:type/:id/lifecycle
+ * Manually moves a memory to a specific lifecycle state (e.g. an admin
+ * archiving something early, or restoring an archived memory).
+ */
+export const updateMemoryLifecycleState = async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const { state, reason } = req.body || {};
+    const organization = sanitizeOrg(req.user?.organization);
+
+    if (
+      typeof type !== "string" ||
+      !["decision", "action-item"].includes(type)
+    ) {
+      return sendError(
+        res,
+        400,
+        "Invalid memory type. Use 'decision' or 'action-item'.",
+      );
+    }
+
+    if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, "Invalid memory id");
+    }
+
+    const allowedStates = ["active", "dormant", "archived", "expired"];
+    if (typeof state !== "string" || !allowedStates.includes(state)) {
+      return sendError(
+        res,
+        400,
+        `Invalid state. Expected one of: ${allowedStates.join(", ")}`,
+      );
+    }
+
+    const safeType = type === "decision" ? "decision" : "actionItem";
+    const Model = safeType === "decision" ? Decision : ActionItem;
+    const cleanId = new mongoose.Types.ObjectId(id);
+
+    const document = await Model.findOne({ _id: cleanId, organization });
+    if (!document) {
+      return sendError(res, 404, "Memory not found");
+    }
+
+    const updated =
+      state === "active"
+        ? await restoreMemory(safeType, cleanId, {
+            triggeredBy: req.user?._id?.toString() || "admin",
+            reason: reason || "Manually restored",
+          })
+        : await transitionLifecycleState(document, state, {
+            triggeredBy: req.user?._id?.toString() || "admin",
+            reason: reason || "Manually updated by admin",
+          });
+
+    if (organization) {
+      await AuditLog.create({
+        organization,
+        actor: req.user._id,
+        action: "memory_lifecycle_transition",
+        entity: safeType === "decision" ? "Decision" : "ActionItem",
+        entityId: cleanId,
+        details: { toState: state, reason },
+      });
+    }
+
+    sendSuccess(res, {
+      lifecycleState: updated.lifecycleState,
+      lifecycleHistory: updated.lifecycleHistory,
+    });
+  } catch (error) {
+    console.error("updateMemoryLifecycleState error:", error);
+    sendError(res, 500, "Failed to update memory lifecycle state");
   }
 };

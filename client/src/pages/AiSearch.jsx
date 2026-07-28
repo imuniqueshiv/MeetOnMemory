@@ -141,7 +141,7 @@ const AiSearch = () => {
         });
         setResults(res.data.results || []);
       } else {
-        const res = await apiClient.post("/api/ai-search", { query, filters });
+        const res = await apiClient.post("/api/ai", { query, filters });
         const data = res.data;
 
         let sortedResults = data.results || [];

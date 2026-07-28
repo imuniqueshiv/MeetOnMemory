@@ -59,7 +59,11 @@ export const indexTranscriptChunks = async (transcript, meeting) => {
   try {
     const indexInstance = await initVectorStore();
 
-    if (!transcript || !transcript.segments || transcript.segments.length === 0) {
+    if (
+      !transcript ||
+      !transcript.segments ||
+      transcript.segments.length === 0
+    ) {
       console.warn("⚠️ Skipping empty transcript embedding");
       return;
     }
@@ -97,7 +101,7 @@ export const indexTranscriptChunks = async (transcript, meeting) => {
     await indexInstance.upsert(vectors);
 
     console.log(
-      `✅ Indexed transcript chunks for meeting ${meeting.title} (${chunks.length} chunks)`
+      `✅ Indexed transcript chunks for meeting ${meeting.title} (${chunks.length} chunks)`,
     );
   } catch (error) {
     console.error("❌ Failed to index transcript chunks:", error);
@@ -117,7 +121,9 @@ export const searchTranscriptChunks = async (query, meetingId = null) => {
 
     const queryEmbedding = await embedText(query);
 
-    const filter = meetingId ? { meetingId: { $eq: meetingId.toString() } } : {};
+    const filter = meetingId
+      ? { meetingId: { $eq: meetingId.toString() } }
+      : {};
 
     const results = await indexInstance.query({
       vector: queryEmbedding,
@@ -173,6 +179,9 @@ export const deleteTranscriptChunks = async (transcriptId) => {
 
     console.log(`✅ Deleted transcript chunks from Pinecone: ${transcriptId}`);
   } catch (error) {
-    console.error("❌ Failed to delete transcript chunks from Pinecone:", error);
+    console.error(
+      "❌ Failed to delete transcript chunks from Pinecone:",
+      error,
+    );
   }
 };

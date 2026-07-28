@@ -19,6 +19,8 @@ const formatUserResponse = (user) => {
     organization: user.organization,
     profilePic: user.profilePic || "",
     bio: user.bio || "",
+    dashboardPreferences: user.dashboardPreferences || null,
+    emailDigestEnabled: user.emailDigestEnabled,
     createdAt: user.createdAt,
   };
 };
@@ -33,9 +35,9 @@ export const getUserData = async (req, res) => {
       return sendError(res, 401, "Authentication error, user ID not found.");
     }
 
-    // Now this line is safe to run
+    const userId = String(req.user.id);
     const user = await userModel
-      .findById(req.user.id)
+      .findById(userId)
       .select("-password")
       .populate("organization", "name logo");
 
@@ -50,12 +52,77 @@ export const getUserData = async (req, res) => {
   }
 };
 
+export const getCurrentUser = getUserData;
+
+// @desc    Get dashboard preferences
+// @route   GET /api/user/preferences/dashboard
+// @access  Private
+export const getDashboardPreferences = async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return sendError(res, 401, "Authentication error, user ID not found.");
+    }
+    const userId = String(req.user.id);
+    const user = await userModel
+      .findById(userId)
+      .select("dashboardPreferences");
+
+    if (user) {
+      sendSuccess(res, {
+        dashboardPreferences: user.dashboardPreferences || null,
+      });
+    } else {
+      return sendError(res, 404, "User not found");
+    }
+  } catch (error) {
+    console.error("Error in getDashboardPreferences:", error);
+    sendError(res, 500, "Server error");
+  }
+};
+
+// @desc    Update dashboard preferences
+// @route   PUT /api/user/preferences/dashboard
+// @access  Private
+export const updateDashboardPreferences = async (req, res) => {
+  try {
+    const { dashboardPreferences } = req.body;
+
+    if (!req.user || !req.user.id) {
+      return sendError(res, 401, "Authentication error, user ID not found.");
+    }
+
+    const userId = String(req.user.id);
+    const updatedUser = await userModel.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          dashboardPreferences: dashboardPreferences,
+        },
+      },
+      { new: true },
+    );
+
+    if (!updatedUser) {
+      return sendError(res, 404, "User not found.");
+    }
+
+    sendSuccess(
+      res,
+      { dashboardPreferences: updatedUser.dashboardPreferences },
+      "Dashboard preferences updated successfully.",
+    );
+  } catch (error) {
+    console.error("Error in updateDashboardPreferences:", error);
+    sendError(res, 500, "Server error");
+  }
+};
+
 // @desc    Update user profile
 // @route   PUT /api/user/update
 // @access  Private
 export const updateUserProfile = async (req, res) => {
   try {
-    const { name, profilePic, bio } = req.body;
+    const { name, profilePic, bio, emailDigestEnabled } = req.body;
 
     if (!req.user || !req.user.id) {
       return sendError(res, 401, "Authentication error, user ID not found.");
@@ -78,14 +145,16 @@ export const updateUserProfile = async (req, res) => {
       }
     }
 
+    const userId = String(req.user.id);
     const updatedUser = await userModel
       .findByIdAndUpdate(
-        req.user.id,
+        userId,
         {
           $set: {
             name: name.trim(),
             profilePic: profilePic ? profilePic.trim() : "",
             bio: bio ? bio.trim() : "",
+            ...(emailDigestEnabled !== undefined && { emailDigestEnabled }),
           },
         },
         { new: true },
@@ -116,15 +185,37 @@ export const requestDataExport = async (req, res) => {
       return sendError(res, 401, "Authentication error, user ID not found.");
     }
 
-    const user = await userModel.findById(req.user.id);
+    const userId = String(req.user.id);
+    const user = await userModel.findById(userId);
     if (!user) {
       return sendError(res, 404, "User not found.");
+    }
+
+    const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+    if (user.lastExportRequestedAt) {
+      const timeSinceLastExport =
+        Date.now() - new Date(user.lastExportRequestedAt).getTime();
+      if (timeSinceLastExport < COOLDOWN_MS) {
+        const hoursRemaining = Math.ceil(
+          (COOLDOWN_MS - timeSinceLastExport) / (60 * 60 * 1000),
+        );
+        return sendError(
+          res,
+          429,
+          `You can only request one data export per 24 hours. Please try again in approximately ${hoursRemaining} hour(s).`,
+        );
+      }
     }
 
     if (dataExportQueue) {
       await dataExportQueue.add("export", {
         userId: user._id.toString(),
         email: user.email,
+      });
+
+      await userModel.findByIdAndUpdate(userId, {
+        lastExportRequestedAt: new Date(),
       });
 
       return sendSuccess(

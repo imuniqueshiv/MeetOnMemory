@@ -41,20 +41,8 @@ router.get(
   requirePermission("team_members", "view"),
   getUserInvitations,
 );
-router.post(
-  "/:token/accept",
-  userAuth,
-  writeLimiter,
-  requirePermission("organizations", "leave"),
-  acceptInvitation,
-);
-router.post(
-  "/:token/reject",
-  userAuth,
-  writeLimiter,
-  requirePermission("organizations", "leave"),
-  rejectInvitation,
-);
+router.post("/:token/accept", userAuth, writeLimiter, acceptInvitation);
+router.post("/:token/reject", userAuth, writeLimiter, rejectInvitation);
 router.delete(
   "/:id",
   userAuth,

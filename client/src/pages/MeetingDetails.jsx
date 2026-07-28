@@ -11,6 +11,14 @@ import MeetingMetadata from "../components/meeting-details/MeetingMetadata";
 import MeetingActions from "../components/meeting-details/MeetingActions";
 import ShareModal from "../components/shared-links/ShareModal";
 import MeetingFollowUpBanner from "../components/meeting-details/MeetingFollowUpBanner";
+import PresentMode from "../components/meeting-details/PresentMode";
+import CommentSection from "../components/meeting-details/CommentSection";
+import PollSection from "../components/meeting-details/PollSection";
+import DigestActions from "../components/meeting-details/DigestActions";
+import AttachmentPanel from "../components/meeting-details/AttachmentPanel";
+import ReactionSummaryCard from "../components/meeting-details/ReactionSummaryCard";
+import SeriesNavigation from "../components/meeting-details/SeriesNavigation";
+import CompareButton from "../components/meeting-details/CompareButton";
 
 const MeetingDetails = () => {
   const { id } = useParams();
@@ -19,6 +27,7 @@ const MeetingDetails = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [isPresentModeOpen, setIsPresentModeOpen] = useState(false);
 
   useEffect(() => {
     const fetchMeetingDetails = async () => {
@@ -156,20 +165,30 @@ const MeetingDetails = () => {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
         <MeetingFollowUpBanner meeting={meeting} />
+        <SeriesNavigation meeting={meeting} />
         <MeetingHeader
           meeting={meeting}
           onShare={() => setShareModalOpen(true)}
+          onPresent={() => setIsPresentModeOpen(true)}
         />
         <MeetingSummary meeting={meeting} />
+        <ReactionSummaryCard meetingId={meeting._id} />
         <MeetingCollaborativeNotes meeting={meeting} />
         <MeetingTranscript meeting={meeting} />
         <MeetingParticipants meeting={meeting} />
         <MeetingMetadata meeting={meeting} />
+        <div className="mb-6 flex justify-end gap-2 items-center">
+          <CompareButton meetingId={meeting._id} />
+          <DigestActions meetingId={meeting._id} />
+        </div>
         <MeetingActions
           meeting={meeting}
           onDelete={handleDelete}
           onRename={handleRename}
         />
+        <AttachmentPanel meetingId={meeting._id} />
+        <PollSection meetingId={meeting._id} />
+        <CommentSection meetingId={meeting._id} />
       </div>
 
       <ShareModal
@@ -179,6 +198,13 @@ const MeetingDetails = () => {
         resourceType="Meeting"
         title={meeting.title}
       />
+
+      {isPresentModeOpen && (
+        <PresentMode
+          meeting={meeting}
+          onClose={() => setIsPresentModeOpen(false)}
+        />
+      )}
     </div>
   );
 };

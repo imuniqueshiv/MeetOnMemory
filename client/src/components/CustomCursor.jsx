@@ -4,6 +4,21 @@ const CustomCursor = () => {
   const [isHovered, setIsHovered] = useState(false);
   const [isMobile, setIsMobile] = useState(true);
 
+  // Respect the user's OS-level motion preference — WCAG 2.1 SC 2.3.3
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+
+  // Listen for dynamic changes (user toggles accessibility setting while page is open)
+  useEffect(() => {
+    const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const handler = (e) => setPrefersReducedMotion(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
   useEffect(() => {
     const mediaQuery = window.matchMedia("(pointer: fine)");
     setIsMobile(!mediaQuery.matches);
@@ -93,6 +108,11 @@ const CustomCursor = () => {
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
+
+  // Do not render the custom cursor if the user prefers reduced motion.
+  // This prevents motion-triggered discomfort for users with vestibular disorders
+  // and ensures the native OS cursor (including high-contrast accessibility cursors) is shown.
+  if (prefersReducedMotion) return null;
 
   if (isMobile) return null;
 

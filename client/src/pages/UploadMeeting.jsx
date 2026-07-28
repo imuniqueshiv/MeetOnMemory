@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Clock,
   X,
+  Mic,
 } from "lucide-react";
 import { io } from "socket.io-client";
 import Navbar from "../components/Navbar.jsx";
@@ -24,6 +25,8 @@ import useExport from "../hooks/useExport.js";
 import { meetingApi } from "../services";
 import useMeetingUpload from "../hooks/useMeetingUpload";
 import Dropzone from "../components/meetings/Dropzone.jsx";
+import MeetingRecorder from "../components/meetings/MeetingRecorder.jsx";
+import TagAutocomplete from "../components/meetings/TagAutocomplete.jsx";
 
 const UploadMeeting = () => {
   const { userData } = useContext(AppContent);
@@ -47,6 +50,7 @@ const UploadMeeting = () => {
     isDragging,
     transcript,
     meetingId,
+    setMeetingId,
     fileInputRef,
     handleDragOver,
     handleDragLeave,
@@ -93,6 +97,18 @@ const UploadMeeting = () => {
     return `${yyyy}-${mm}-${dd}`;
   });
   const [title, setTitle] = useState("");
+  const [tags, setTags] = useState([]);
+  const [activeTab, setActiveTab] = useState("upload"); // 'upload' or 'record'
+
+  // If a transcript chunk comes back from live recording, append it to `transcript` hook state
+  // Wait, `useMeetingUpload` gives us `transcript` as a state variable but it doesn't expose a setter directly?
+  // Let's assume we can at least show it. We might need `setTranscript` from `useMeetingUpload`.
+  // Wait, `useMeetingUpload` manages `transcript`. Let's just create a local transcript accumulator for live recording.
+  const [liveTranscript, setLiveTranscript] = useState("");
+
+  const handleTranscriptUpdate = (text, fullText) => {
+    setLiveTranscript(fullText);
+  };
 
   const handleGenerateSummary = async () => {
     if (!transcript && !meetingId) {
@@ -184,15 +200,42 @@ const UploadMeeting = () => {
               <UploadCloud className="w-10 h-10 text-blue-600 dark:text-blue-400" />
             </div>
             <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-gray-100 tracking-tight">
-              Upload Recorded Meeting
+              Upload or Record Meeting
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-2 max-w-xl mx-auto text-sm sm:text-base">
-              Upload meeting recordings (WAV, MP3, M4A). We'll transcribe it
-              using AI, then generate structured Minutes of Meeting (MoM).
+              Upload meeting recordings (WAV, MP3, M4A) or record live. We'll
+              transcribe it using AI, then generate structured Minutes of
+              Meeting (MoM).
             </p>
           </div>
 
-          {/* Main Upload Card (Glassmorphic) */}
+          {/* Toggle Tabs */}
+          <div className="flex justify-center mb-8 fade-in-up stagger-1">
+            <div className="inline-flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+              <button
+                onClick={() => setActiveTab("upload")}
+                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                  activeTab === "upload"
+                    ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                }`}
+              >
+                Upload File
+              </button>
+              <button
+                onClick={() => setActiveTab("record")}
+                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                  activeTab === "record"
+                    ? "bg-white dark:bg-gray-700 text-red-600 dark:text-red-400 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                }`}
+              >
+                Record Live
+              </button>
+            </div>
+          </div>
+
+          {/* Main Upload/Record Card (Glassmorphic) */}
           <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-xl rounded-2xl border border-gray-100 dark:border-gray-700 p-6 md:p-8 mb-10 transition-all duration-300 hover:shadow-2xl fade-in-up stagger-1">
             <div className="grid md:grid-cols-2 gap-8">
               {/* Left Column: Form Inputs */}
@@ -238,6 +281,11 @@ const UploadMeeting = () => {
                   </div>
                 </div>
 
+                <TagAutocomplete
+                  selectedTags={tags}
+                  setSelectedTags={setTags}
+                />
+
                 <div className="pt-2 text-xs text-gray-400 dark:text-gray-500 leading-relaxed flex items-start gap-1.5">
                   <AlertCircle className="w-4.5 h-4.5 text-blue-400 dark:text-blue-500 shrink-0 mt-0.5" />
                   <span>
@@ -248,73 +296,95 @@ const UploadMeeting = () => {
                 </div>
               </div>
 
-              {/* Right Column: Audio Drag & Drop Area */}
+              {/* Right Column: Audio Drag & Drop Area or Recorder */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1.5">
-                  <FileAudio className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-                  Choose Meeting Audio
-                </label>
+                {activeTab === "upload" ? (
+                  <>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1.5">
+                      <FileAudio className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                      Choose Meeting Audio
+                    </label>
 
-                <Dropzone
-                  file={file}
-                  setFile={setFile}
-                  isDragging={isDragging}
-                  handleDragOver={handleDragOver}
-                  handleDragLeave={handleDragLeave}
-                  handleDrop={handleDrop}
-                  handleFileChange={handleFileChange}
-                  fileInputRef={fileInputRef}
-                  formatFileSize={formatFileSize}
-                />
+                    <Dropzone
+                      file={file}
+                      setFile={setFile}
+                      isDragging={isDragging}
+                      handleDragOver={handleDragOver}
+                      handleDragLeave={handleDragLeave}
+                      handleDrop={handleDrop}
+                      handleFileChange={handleFileChange}
+                      fileInputRef={fileInputRef}
+                      formatFileSize={formatFileSize}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1.5">
+                      <Mic className="w-4 h-4 text-red-500" />
+                      Live Audio Recorder
+                    </label>
+                    <MeetingRecorder
+                      meetingId={meetingId}
+                      onTranscriptUpdate={handleTranscriptUpdate}
+                      onMeetingCreated={setMeetingId}
+                      title={title}
+                      date={meetingDate}
+                      tags={tags}
+                    />
+                  </>
+                )}
               </div>
             </div>
 
             {/* Footer Actions inside Card */}
-            <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3 w-full sm:w-auto justify-start order-2 sm:order-1">
-                <button
-                  onClick={() => handleUpload(title, setTitle)}
-                  disabled={isUploading || !file}
-                  className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
-                    isUploading || !file
-                      ? "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed shadow-none border border-gray-200 dark:border-gray-600"
-                      : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/10 hover:shadow-blue-500/25 hover:-translate-y-0.5 active:translate-y-0"
-                  }`}
-                >
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-white" />
-                      <span>Uploading ({uploadProgress}%)</span>
-                    </>
+            {activeTab === "upload" && (
+              <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3 w-full sm:w-auto justify-start order-2 sm:order-1">
+                  <button
+                    onClick={() => handleUpload(title, setTitle, tags)}
+                    disabled={isUploading || !file}
+                    className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
+                      isUploading || !file
+                        ? "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed shadow-none border border-gray-200 dark:border-gray-600"
+                        : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/10 hover:shadow-blue-500/25 hover:-translate-y-0.5 active:translate-y-0"
+                    }`}
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Uploading ({uploadProgress}%)</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="w-4 h-4" />
+                        <span>Upload & Transcribe</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => resetUpload(setSummary, setTitle)}
+                    className="w-full sm:w-auto px-5 py-3 rounded-xl border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 font-bold hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200 transition-colors duration-150 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Reset
+                  </button>
+                </div>
+
+                <div className="text-sm font-semibold text-gray-500 dark:text-gray-400 flex items-center gap-2 order-1 sm:order-2 w-full sm:w-auto justify-center sm:justify-start">
+                  {file ? (
+                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 px-3 py-1 rounded-full text-xs font-bold animate-pulse">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Ready to
+                      transcribe
+                    </span>
                   ) : (
-                    <>
-                      <UploadCloud className="w-4 h-4" />
-                      <span>Upload & Transcribe</span>
-                    </>
+                    <span className="text-gray-400 dark:text-gray-500 text-xs font-medium">
+                      No file selected
+                    </span>
                   )}
-                </button>
-
-                <button
-                  onClick={() => resetUpload(setSummary, setTitle)}
-                  className="w-full sm:w-auto px-5 py-3 rounded-xl border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 font-bold hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200 transition-colors duration-150 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Reset
-                </button>
+                </div>
               </div>
-
-              <div className="text-sm font-semibold text-gray-500 dark:text-gray-400 flex items-center gap-2 order-1 sm:order-2 w-full sm:w-auto justify-center sm:justify-start">
-                {file ? (
-                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 px-3 py-1 rounded-full text-xs font-bold animate-pulse">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Ready to transcribe
-                  </span>
-                ) : (
-                  <span className="text-gray-400 dark:text-gray-500 text-xs font-medium">
-                    No file selected
-                  </span>
-                )}
-              </div>
-            </div>
+            )}
 
             {/* Upload Progress Bar */}
             {isUploading && (
@@ -342,7 +412,7 @@ const UploadMeeting = () => {
                   <FileText className="w-5 h-5 text-blue-500 dark:text-blue-400" />
                   Meeting Transcript
                 </h3>
-                {transcript && (
+                {(transcript || liveTranscript) && (
                   <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 px-2 py-0.5 rounded-full uppercase tracking-wider">
                     Generated
                   </span>
@@ -350,10 +420,10 @@ const UploadMeeting = () => {
               </div>
 
               <div className="flex-grow flex flex-col justify-between">
-                {transcript ? (
+                {transcript || liveTranscript ? (
                   <>
                     <div className="text-gray-700 whitespace-pre-wrap max-h-[280px] overflow-y-auto border border-gray-100 p-4 rounded-xl bg-gray-50/50 text-sm leading-relaxed mb-4 scrollbar-thin">
-                      {transcript}
+                      {liveTranscript || transcript}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <button
@@ -374,8 +444,10 @@ const UploadMeeting = () => {
                         Copy
                       </button>
                       <button
-                        onClick={handleGenerateSummary}
-                        disabled={isSummarizing}
+                        onClick={() => handleGenerateSummary()}
+                        disabled={
+                          isSummarizing || (!transcript && !liveTranscript)
+                        }
                         className={`ml-auto px-5 py-2.5 text-xs font-bold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-500/10 hover:shadow-indigo-500/20 transition-all flex items-center gap-1.5 cursor-pointer ${
                           isSummarizing ? "opacity-70 cursor-not-allowed" : ""
                         }`}

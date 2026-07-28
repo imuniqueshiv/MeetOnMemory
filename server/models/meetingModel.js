@@ -56,6 +56,8 @@ const meetingSchema = new mongoose.Schema(
     agendaItems: [
       {
         text: { type: String, required: true },
+        description: { type: String, default: "" },
+        duration: { type: Number, default: null },
       },
     ],
     policyDetails: {
@@ -135,6 +137,15 @@ const meetingSchema = new mongoose.Schema(
     collaborativeNotes: {
       type: String, // Plain-text snapshot for read-only views and semantic search
       default: "",
+    },
+    series: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "MeetingSeries",
+      default: null,
+    },
+    seriesOccurrence: {
+      type: Number,
+      default: null,
     },
   },
   { timestamps: true },

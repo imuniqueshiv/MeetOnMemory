@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Brain, Search, BarChart3, Users, ArrowRight } from "lucide-react";
 
-
 const useIntersectionFade = (threshold = 0.15) => {
   const ref = useRef(null);
   useEffect(() => {

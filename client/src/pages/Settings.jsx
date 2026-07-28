@@ -39,12 +39,13 @@ const Settings = () => {
   });
   const [calendarLoading, setCalendarLoading] = useState(false);
 
-  // Notification preferences state (UI only - no backend support)
+  // Notification preferences state (UI only - no backend support except emailDigestEnabled)
   const [notificationPrefs, setNotificationPrefs] = useState({
     meetingNotifications: true,
     organizationUpdates: true,
     aiProcessingUpdates: true,
     emailNotifications: true,
+    emailDigestEnabled: userData?.emailDigestEnabled !== false,
   });
 
   const { theme, toggleTheme } = useTheme();
@@ -115,11 +116,32 @@ const Settings = () => {
     }
   };
 
-  const handleNotificationChange = (key) => {
+  const handleNotificationChange = async (key) => {
+    const newValue = !notificationPrefs[key];
     setNotificationPrefs((prev) => ({
       ...prev,
-      [key]: !prev[key],
+      [key]: newValue,
     }));
+
+    if (key === "emailDigestEnabled") {
+      try {
+        const token = localStorage.getItem("token");
+        await axios.put(
+          "/api/user/update",
+          { emailDigestEnabled: newValue },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        toast.success("Email digest preference updated");
+      } catch (error) {
+        console.error("Error updating preference:", error);
+        toast.error("Failed to update preference");
+        // Revert on error
+        setNotificationPrefs((prev) => ({
+          ...prev,
+          [key]: !newValue,
+        }));
+      }
+    }
   };
 
   const handleThemeChange = (newTheme) => {
@@ -136,10 +158,14 @@ const Settings = () => {
       const response = await axios.get("/api/calendar/google/auth-url", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       // Open OAuth popup
-      const authWindow = window.open(response.data.authUrl, "_blank", "width=500,height=600");
-      
+      const authWindow = window.open(
+        response.data.authUrl,
+        "_blank",
+        "width=500,height=600",
+      );
+
       // Poll for callback (in production, use a proper OAuth flow with redirect)
       const pollForCallback = setInterval(() => {
         if (authWindow.closed) {
@@ -163,10 +189,14 @@ const Settings = () => {
       const response = await axios.get("/api/calendar/microsoft/auth-url", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       // Open OAuth popup
-      const authWindow = window.open(response.data.authUrl, "_blank", "width=500,height=600");
-      
+      const authWindow = window.open(
+        response.data.authUrl,
+        "_blank",
+        "width=500,height=600",
+      );
+
       // Poll for callback
       const pollForCallback = setInterval(() => {
         if (authWindow.closed) {
@@ -190,7 +220,9 @@ const Settings = () => {
       await axios.delete(`/api/calendar/${provider}/disconnect`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} Calendar disconnected`);
+      toast.success(
+        `${provider.charAt(0).toUpperCase() + provider.slice(1)} Calendar disconnected`,
+      );
       // Refresh status
       const statusResponse = await axios.get("/api/calendar/status", {
         headers: { Authorization: `Bearer ${token}` },
@@ -208,10 +240,16 @@ const Settings = () => {
     try {
       setCalendarLoading(true);
       const token = localStorage.getItem("token");
-      await axios.post(`/api/calendar/${provider}/resync`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} Calendar synced`);
+      await axios.post(
+        `/api/calendar/${provider}/resync`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      toast.success(
+        `${provider.charAt(0).toUpperCase() + provider.slice(1)} Calendar synced`,
+      );
       // Refresh status
       const statusResponse = await axios.get("/api/calendar/status", {
         headers: { Authorization: `Bearer ${token}` },
@@ -239,15 +277,18 @@ const Settings = () => {
 
   const getConnectionStatusIcon = (connection) => {
     if (!connection) return <XCircle className="w-4 h-4 text-slate-400" />;
-    if (connection.syncStatus === "connected") return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-    if (connection.syncStatus === "needs_reauth") return <XCircle className="w-4 h-4 text-amber-500" />;
+    if (connection.syncStatus === "connected")
+      return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+    if (connection.syncStatus === "needs_reauth")
+      return <XCircle className="w-4 h-4 text-amber-500" />;
     return <XCircle className="w-4 h-4 text-red-500" />;
   };
 
   const getConnectionStatusText = (connection) => {
     if (!connection) return "Not connected";
     if (connection.syncStatus === "connected") return "Connected";
-    if (connection.syncStatus === "needs_reauth") return "Re-authentication required";
+    if (connection.syncStatus === "needs_reauth")
+      return "Re-authentication required";
     if (connection.syncStatus === "syncing") return "Syncing...";
     return "Error";
   };
@@ -333,6 +374,15 @@ const Settings = () => {
                     </p>
                   </div>
                 </div>
+                {userData.organization && (
+                  <button
+                    onClick={() => navigate("/organization/settings")}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    Org Settings
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                )}
               </div>
 
               <div className="flex items-center justify-between py-3">
@@ -537,6 +587,34 @@ const Settings = () => {
                   />
                 </button>
               </div>
+
+              <div className="flex items-center justify-between py-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                    Receive email digest after meetings
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Get an automated summary of completed meetings
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleNotificationChange("emailDigestEnabled")}
+                  className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                    notificationPrefs.emailDigestEnabled
+                      ? "bg-blue-600"
+                      : "bg-slate-200 dark:bg-slate-700"
+                  }`}
+                  aria-pressed={notificationPrefs.emailDigestEnabled}
+                >
+                  <span
+                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
+                      notificationPrefs.emailDigestEnabled
+                        ? "translate-x-5"
+                        : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -582,7 +660,9 @@ const Settings = () => {
                       className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer"
                       title="Resync"
                     >
-                      <RefreshCw className={`w-4 h-4 ${calendarLoading ? "animate-spin" : ""}`} />
+                      <RefreshCw
+                        className={`w-4 h-4 ${calendarLoading ? "animate-spin" : ""}`}
+                      />
                     </button>
                   )}
                   {calendarStatus.google ? (
@@ -628,7 +708,9 @@ const Settings = () => {
                       className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer"
                       title="Resync"
                     >
-                      <RefreshCw className={`w-4 h-4 ${calendarLoading ? "animate-spin" : ""}`} />
+                      <RefreshCw
+                        className={`w-4 h-4 ${calendarLoading ? "animate-spin" : ""}`}
+                      />
                     </button>
                   )}
                   {calendarStatus.microsoft ? (

@@ -25,15 +25,15 @@ export const requireRole = (roles) => {
   };
 };
 
-export const requireAdmin = (req, res, next) => {
+export const requireAdminOrOwner = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ success: false, message: "Unauthorized" });
   }
 
-  if (req.user.role !== "admin") {
+  if (req.user.role !== "admin" && req.user.role !== "owner") {
     return res.status(403).json({
       success: false,
-      message: "Forbidden: Admin access required",
+      message: "Forbidden: Admin or Owner access required",
     });
   }
 
@@ -113,7 +113,8 @@ export const requireOwnerOrAdmin = (Model) => {
         });
       }
 
-      const docId = req.params.id;
+      // Prefer :id (meetings/policies); fall back to :meetingId (transcript routes).
+      const docId = req.params.id || req.params.meetingId;
       if (!docId) {
         return res
           .status(400)
@@ -168,7 +169,8 @@ export const requireOwner = (Model) => {
           .json({ success: false, message: "Unauthorized" });
       }
 
-      const docId = req.params.id;
+      // Prefer :id (meetings/policies); fall back to :meetingId (transcript routes).
+      const docId = req.params.id || req.params.meetingId;
       if (!docId) {
         return res
           .status(400)
@@ -224,7 +226,8 @@ export const requireOrgAccess = (Model) => {
         });
       }
 
-      const docId = req.params.id;
+      // Prefer :id (meetings/policies); fall back to :meetingId (transcript routes).
+      const docId = req.params.id || req.params.meetingId;
       if (!docId) {
         return res
           .status(400)

@@ -96,7 +96,7 @@ const MembershipRequests = () => {
   };
 
   const handleViewOrganization = (organizationSlug) => {
-    navigate(`/organization/${organizationSlug}`);
+    navigate(`/organizations/${organizationSlug}`);
   };
 
   const formatDate = (dateString) => {

@@ -47,14 +47,14 @@ const useMeetingUpload = () => {
     }
   };
 
-  const handleUpload = (title, setTitle) => {
+  const handleUpload = (title, setTitle, tags = []) => {
     if (!file) {
       toast.error("Please select an audio file first.");
       return;
     }
     setTranscript("");
     setMeetingId(null);
-    uploadMeeting(file, title, {
+    uploadMeeting(file, title, tags, {
       onSuccess: (data) => {
         toast.success("Transcription complete!");
         setTranscript(data.transcript || "");

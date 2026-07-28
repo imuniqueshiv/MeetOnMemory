@@ -1,10 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createOrJoinOrganization } from "../controllers/organizationController.js";
+import {
+  createOrJoinOrganization,
+  getOrganizationSettings,
+  updateOrganization,
+} from "../controllers/organizationController.js";
 import * as OrganizationService from "../services/OrganizationService.js";
 
-// Mock the service layer (not the models — that's the service's job)
+// Mock the service layer
 vi.mock("../services/OrganizationService.js", () => ({
   createOrJoinOrganization: vi.fn(),
+  getOrganizationSettings: vi.fn(),
+  updateOrganization: vi.fn(),
 }));
 
 describe("organizationController - createOrJoinOrganization", () => {
@@ -17,6 +23,8 @@ describe("organizationController - createOrJoinOrganization", () => {
     req = {
       user: { id: "user123" },
       body: { name: "Test Org" },
+      query: {},
+      params: {},
       app: {
         get: vi.fn().mockReturnValue({}), // mock io
       },
@@ -137,5 +145,71 @@ describe("organizationController - createOrJoinOrganization", () => {
       success: false,
       message: "Organization not found.",
     });
+  });
+});
+
+describe("organizationController - getOrganizationSettings & updateOrganization", () => {
+  let req;
+  let res;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    req = {
+      user: { id: "user123" },
+      body: {},
+      query: {},
+      params: {},
+    };
+
+    res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    };
+  });
+
+  it("getOrganizationSettings should call service and return 200", async () => {
+    const mockPayload = {
+      success: true,
+      organization: { _id: "org123", name: "Acme" },
+      userRole: "owner",
+      canEdit: true,
+    };
+    OrganizationService.getOrganizationSettings.mockResolvedValue(mockPayload);
+
+    await getOrganizationSettings(req, res);
+
+    expect(OrganizationService.getOrganizationSettings).toHaveBeenCalledWith(
+      "user123",
+      null,
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true }),
+    );
+  });
+
+  it("updateOrganization should call service and return updated organization", async () => {
+    req.params.id = "org123";
+    req.body = { name: "Updated Acme", contactEmail: "contact@acme.com" };
+
+    const mockResult = {
+      success: true,
+      message: "Organization settings updated successfully.",
+      organization: { _id: "org123", name: "Updated Acme" },
+    };
+    OrganizationService.updateOrganization.mockResolvedValue(mockResult);
+
+    await updateOrganization(req, res);
+
+    expect(OrganizationService.updateOrganization).toHaveBeenCalledWith(
+      "user123",
+      "org123",
+      req.body,
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true }),
+    );
   });
 });

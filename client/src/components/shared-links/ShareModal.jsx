@@ -20,6 +20,7 @@ const ShareModal = ({ isOpen, onClose, resourceId, resourceType, title }) => {
       setExpirationDate("");
       setPasscode("");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, resourceId]);
 
   const fetchLinks = async () => {

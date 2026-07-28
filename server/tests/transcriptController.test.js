@@ -1,66 +1,42 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { updateSpeakers } from "../controllers/transcriptController.js";
-import Transcript from "../models/transcriptModel.js";
-import { sendSuccess, sendError } from "../utils/responseHandler.js";
+import { describe, it, expect, beforeEach, vi as jest } from "vitest";
 
-// Mock dependencies
-vi.mock("../models/transcriptModel.js", () => ({
+jest.mock("../models/transcriptModel.js", () => ({
   default: {
-    findById: vi.fn(),
+    findById: jest.fn(),
   },
 }));
 
-vi.mock("../utils/responseHandler.js", () => ({
-  sendSuccess: vi.fn(),
-  sendError: vi.fn(),
+jest.mock("../utils/responseHandler.js", () => ({
+  sendSuccess: jest.fn(),
+  sendError: jest.fn(),
 }));
+
+const { updateSpeakers } =
+  await import("../controllers/transcriptController.js");
+const Transcript = (await import("../models/transcriptModel.js")).default;
+const { sendSuccess, sendError } = await import("../utils/responseHandler.js");
 
 describe("transcriptController - updateSpeakers", () => {
   let req;
   let res;
-  let mockTranscript;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    jest.clearAllMocks();
 
     req = {
-      params: { id: "transcript123" },
-      body: { oldSpeaker: "Speaker A", newSpeaker: "John Doe" },
-      user: {
-        _id: "user123",
-        role: "owner",
-        organization: "org123",
-      },
+      params: { id: "650c1f1e1c9d440000a1b1c1" },
+      body: { oldSpeaker: "Speaker 1", newSpeaker: "John Doe" },
+      user: { _id: "user123", role: "user", organization: "org123" },
     };
 
     res = {
-      status: vi.fn().mockReturnThis(),
-      json: vi.fn(),
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
     };
-
-    mockTranscript = {
-      _id: "transcript123",
-      meeting: {
-        _id: "meeting123",
-        uploadedBy: "user123",
-        organization: "org123",
-      },
-      segments: [
-        { speaker: "Speaker A", text: "Hello" },
-        { speaker: "Speaker B", text: "Hi" },
-        { speaker: "Speaker A", text: "How are you?" },
-      ],
-      save: vi.fn().mockResolvedValue(true),
-    };
-
-    const mockQuery = {
-      populate: vi.fn().mockResolvedValue(mockTranscript),
-    };
-    Transcript.findById.mockReturnValue(mockQuery);
   });
 
   it("should return 400 if oldSpeaker or newSpeaker is missing", async () => {
-    req.body.newSpeaker = "";
+    req.body = { oldSpeaker: "Speaker 1" }; // missing newSpeaker
 
     await updateSpeakers(req, res);
 
@@ -73,21 +49,31 @@ describe("transcriptController - updateSpeakers", () => {
 
   it("should return 404 if transcript is not found", async () => {
     const mockQuery = {
-      populate: vi.fn().mockResolvedValue(null),
+      populate: jest.fn().mockResolvedValue(null),
     };
     Transcript.findById.mockReturnValue(mockQuery);
 
     await updateSpeakers(req, res);
 
+    expect(Transcript.findById).toHaveBeenCalledWith(
+      "650c1f1e1c9d440000a1b1c1",
+    );
     expect(sendError).toHaveBeenCalledWith(res, 404, "Transcript not found");
   });
 
   it("should return 403 if user lacks permissions", async () => {
-    req.user = {
-      _id: "user999",
-      role: "member",
-      organization: "org999",
+    const mockTranscript = {
+      _id: "650c1f1e1c9d440000a1b1c1",
+      meeting: {
+        _id: "meeting123",
+        uploadedBy: "otherUser",
+        organization: "org456", // different org
+      },
     };
+    const mockQuery = {
+      populate: jest.fn().mockResolvedValue(mockTranscript),
+    };
+    Transcript.findById.mockReturnValue(mockQuery);
 
     await updateSpeakers(req, res);
 
@@ -99,12 +85,29 @@ describe("transcriptController - updateSpeakers", () => {
   });
 
   it("should bulk update speakers if no segmentIndex is provided", async () => {
+    const mockTranscript = {
+      _id: "650c1f1e1c9d440000a1b1c1",
+      meeting: {
+        _id: "meeting123",
+        uploadedBy: "user123", // user is owner
+      },
+      segments: [
+        { speaker: "Speaker 1", text: "Hello" },
+        { speaker: "Speaker 2", text: "Hi" },
+        { speaker: "Speaker 1", text: "How are you?" },
+      ],
+      save: jest.fn().mockResolvedValue(true),
+    };
+    const mockQuery = {
+      populate: jest.fn().mockResolvedValue(mockTranscript),
+    };
+    Transcript.findById.mockReturnValue(mockQuery);
+
     await updateSpeakers(req, res);
 
     expect(mockTranscript.segments[0].speaker).toBe("John Doe");
-    expect(mockTranscript.segments[1].speaker).toBe("Speaker B");
+    expect(mockTranscript.segments[1].speaker).toBe("Speaker 2"); // unchanged
     expect(mockTranscript.segments[2].speaker).toBe("John Doe");
-
     expect(mockTranscript.save).toHaveBeenCalled();
     expect(sendSuccess).toHaveBeenCalledWith(
       res,
@@ -114,14 +117,31 @@ describe("transcriptController - updateSpeakers", () => {
   });
 
   it("should update a specific segment if segmentIndex is provided", async () => {
-    req.body.segmentIndex = 0;
+    req.body.segmentIndex = 2; // Only update the 3rd segment
+
+    const mockTranscript = {
+      _id: "650c1f1e1c9d440000a1b1c1",
+      meeting: {
+        _id: "meeting123",
+        uploadedBy: "user123",
+      },
+      segments: [
+        { speaker: "Speaker 1", text: "Hello" },
+        { speaker: "Speaker 2", text: "Hi" },
+        { speaker: "Speaker 1", text: "How are you?" },
+      ],
+      save: jest.fn().mockResolvedValue(true),
+    };
+    const mockQuery = {
+      populate: jest.fn().mockResolvedValue(mockTranscript),
+    };
+    Transcript.findById.mockReturnValue(mockQuery);
 
     await updateSpeakers(req, res);
 
-    expect(mockTranscript.segments[0].speaker).toBe("John Doe");
-    // Other matching segments shouldn't change
-    expect(mockTranscript.segments[2].speaker).toBe("Speaker A");
-
+    expect(mockTranscript.segments[0].speaker).toBe("Speaker 1"); // unchanged
+    expect(mockTranscript.segments[1].speaker).toBe("Speaker 2"); // unchanged
+    expect(mockTranscript.segments[2].speaker).toBe("John Doe"); // updated
     expect(mockTranscript.save).toHaveBeenCalled();
     expect(sendSuccess).toHaveBeenCalledWith(
       res,
@@ -131,7 +151,24 @@ describe("transcriptController - updateSpeakers", () => {
   });
 
   it("should return success message if no segments were updated", async () => {
-    req.body.oldSpeaker = "NonExistentSpeaker";
+    req.body.oldSpeaker = "Nonexistent Speaker"; // won't match any
+
+    const mockTranscript = {
+      _id: "650c1f1e1c9d440000a1b1c1",
+      meeting: {
+        _id: "meeting123",
+        uploadedBy: "user123",
+      },
+      segments: [
+        { speaker: "Speaker 1", text: "Hello" },
+        { speaker: "Speaker 2", text: "Hi" },
+      ],
+      save: jest.fn(),
+    };
+    const mockQuery = {
+      populate: jest.fn().mockResolvedValue(mockTranscript),
+    };
+    Transcript.findById.mockReturnValue(mockQuery);
 
     await updateSpeakers(req, res);
 
@@ -144,10 +181,9 @@ describe("transcriptController - updateSpeakers", () => {
   });
 
   it("should return 500 on server error", async () => {
-    const mockQuery = {
-      populate: vi.fn().mockRejectedValue(new Error("DB Error")),
-    };
-    Transcript.findById.mockReturnValue(mockQuery);
+    Transcript.findById.mockImplementation(() => {
+      throw new Error("Database error");
+    });
 
     await updateSpeakers(req, res);
 

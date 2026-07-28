@@ -13,6 +13,11 @@ const userSchema = new mongoose.Schema(
     resetOtpExpireAt: { type: Number, default: 0 },
 
     // --- NEW FIELDS ADDED ---
+    clerkUserId: {
+      type: String,
+      sparse: true,
+      unique: true,
+    },
     role: {
       type: String,
       enum: ["owner", "admin", "moderator", "member", "guest"],
@@ -46,6 +51,18 @@ const userSchema = new mongoose.Schema(
     calendarSyncEnabled: {
       type: Boolean,
       default: false,
+    },
+    dashboardPreferences: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    lastExportRequestedAt: {
+      type: Date,
+      default: null,
+    },
+    emailDigestEnabled: {
+      type: Boolean,
+      default: true,
     },
   },
   { timestamps: true },

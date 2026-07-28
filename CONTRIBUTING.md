@@ -17,7 +17,7 @@ Please follow this workflow for every contribution.
 3. ⏳ Wait until the issue is assigned to you.
 4. 🌿 Create a new branch.
 5. 💻 Make your changes.
-6. 🧪 Test everything locally.
+6. 🧪 Verify formatting, lint, and build locally (when applicable).
 7. 📦 Commit your changes.
 8. 🚀 Push your branch.
 9. 🔁 Open a Pull Request.
@@ -179,53 +179,60 @@ npm run dev
 To ensure code quality, we use **Husky** and **lint-staged** to automatically run ESLint and Prettier on your staged files before a commit is created. This ensures unformatted or lint-error-prone code never gets committed.
 If the linting or formatting fails, the commit will be aborted until the errors are fixed.
 
-To ensure code quality and avoid PR checklist failures, we run quality checks on every Pull Request via **GitHub Actions**.
+Pull Requests run lightweight, path-filtered quality checks via **GitHub Actions**. This keeps feedback fast while maintaining code quality.
 
 ### ⚙️ CI/CD Pipeline Checks
 
-Every Pull Request runs the following status checks:
+Every Pull Request runs the following status checks (path-filtered; not all jobs run on every PR):
 
-- **CI Pipeline / Format**: Verifies file formatting using `npm run format:check`.
-- **CI Pipeline / Lint**: Runs static analysis check via `npm run lint`.
-- **CI Pipeline / Prettier Check**: Checks formatting using Prettier via `npx prettier . --check`.
-- **CI Pipeline / Production Build**: Compiles frontend assets for production using `npm run build`.
-- **CodeQL Security Analysis**: Scans the codebase for security vulnerabilities.
+- **Detect Changes**: Selects which CI jobs to run based on changed paths.
+- **Root Prettier**: Changed-file Prettier check at the repository root.
+- **Frontend Validation** (when `client/**` changes):
+  - ESLint (changed files)
+  - Prettier (changed client files)
+  - Production build (`npm run build`)
+- **Server Validation** (when `server/**` changes):
+  - ESLint (changed files)
+  - Prettier (changed server files)
 
-### 💻 Running Checks Locally
+Pull Requests do **not** run backend tests, frontend tests, integration tests, startup tests, security audits, or CodeQL. Those checks run in separate maintenance workflows after merge or on a schedule.
 
-You can run the same checks locally from the repository root:
+### 💻 Local Validation
 
-1. **Verify Formatting**:
+Contributors can verify their changes locally using:
 
-   ```bash
-   npm run format:check
-   ```
+```bash
+npm run format:check:changed
+```
 
-   To automatically format files:
+Run changed-file linting from the package you modified:
 
-   ```bash
-   npm run format
-   ```
-
-2. **Run Lint Checks**:
-
-   ```bash
-   npm run lint
-   ```
-
-3. **Verify Production Build**:
-   ```bash
-   npm run build
-   ```
-
-If your changes affect the backend, make sure it starts correctly:
+```bash
+cd client
+npm run lint:changed
+```
 
 ```bash
 cd server
-npm run server
+npm run lint:changed
 ```
 
-Resolve all linting, formatting, and build issues before committing.
+If frontend files were modified:
+
+```bash
+cd client
+npm run build
+```
+
+The server has no build step.
+
+To automatically format files:
+
+```bash
+npm run format
+```
+
+Resolve all linting, formatting, and build issues before opening a Pull Request.
 
 ---
 
@@ -268,7 +275,7 @@ Common prefixes:
 1. Sync your fork with the latest changes.
 2. Create a feature branch.
 3. Implement your changes.
-4. Test locally.
+4. Verify formatting, lint, and build locally.
 5. Format your code.
 6. Commit.
 7. Push your branch.
@@ -292,9 +299,9 @@ Before opening a Pull Request, ensure:
 
 - [ ] Related Issue is linked.
 - [ ] Issue was assigned before starting work.
-- [ ] Project builds successfully (`npm run build`).
-- [ ] Code is formatted (`npm run format`).
-- [ ] Code passes lint checks (`npm run lint`).
+- [ ] Formatting passes (`npm run format:check:changed`).
+- [ ] Lint passes (`npm run lint:changed` in `client/` or `server/` as applicable).
+- [ ] Frontend builds successfully when client changes are made (`npm run build` in `client/`).
 - [ ] Documentation updated (if needed).
 - [ ] No unnecessary files included.
 - [ ] No merge conflicts.
