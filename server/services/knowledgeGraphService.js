@@ -93,25 +93,23 @@ export async function processStructuredMoM(meeting, mom) {
       sourceMeetingId: meeting._id,
       organization,
       embedding,
-      relatesTo:
-        match && match.confidence >= CONFIDENCE_THRESHOLD
+      relatesTo: match
           ? [
-              {
-                target: match.match._id,
-                confidence: match.confidence,
-                computedAt: new Date(),
-              },
-            ]
-          : [],
+      {
+        target: match.match._id,
+        confidence: match.confidence,
+        computedAt: new Date(),
+      },
+    ]
+         : [],
     });
 
-   if (match) {
+  if (match) {
   upsertRelationship(
     match.match,
     decision._id,
     match.confidence,
   );
-
   await match.match.save();
 }
     await applyImportanceScore(decision);
@@ -158,16 +156,15 @@ export async function processStructuredMoM(meeting, mom) {
       sourceMeetingId: meeting._id,
       organization,
       embedding,
-      relatesTo:
-        match && match.confidence >= CONFIDENCE_THRESHOLD
+      relatesTo: match
           ? [
-              {
-                target: match.match._id,
-                confidence: match.confidence,
-                computedAt: new Date(),
-              },
-            ]
-          : [],
+      {
+        target: match.match._id,
+        confidence: match.confidence,
+        computedAt: new Date(),
+      },
+    ]
+            : [],
     });
 
     if (match) {
@@ -176,7 +173,6 @@ export async function processStructuredMoM(meeting, mom) {
     actionItem._id,
     match.confidence,
   );
-
   await match.match.save();
 }
 
