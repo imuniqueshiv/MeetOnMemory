@@ -11,8 +11,6 @@ import NotFound from "./pages/NotFound.jsx";
 
 import Navbar from "./components/Navbar";
 import ScrollNavigator from "./components/ScrollNavigator";
-import CustomCursor from "./components/CustomCursor.jsx";
-
 // --- Components ---
 import Footer from "./components/Footer.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
@@ -58,8 +56,6 @@ const App = () => {
 
         {/* Global Footer */}
         {shouldShowFooter && <Footer />}
-
-        <CustomCursor />
       </ErrorBoundary>
     </div>
   );
