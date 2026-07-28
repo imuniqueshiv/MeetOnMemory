@@ -23,7 +23,7 @@ const LiveTranscriptPanel = ({ meetingId }) => {
       console.log("Connected to transcript socket");
       setStatus("connected");
       setError(null);
-      
+
       // Join transcript room
       socketRef.current.emit("join-transcript-room", { meetingId });
     });
@@ -122,10 +122,10 @@ const LiveTranscriptPanel = ({ meetingId }) => {
               status === "recording"
                 ? "bg-red-100 text-red-700"
                 : status === "processing"
-                ? "bg-yellow-100 text-yellow-700"
-                : status === "completed"
-                ? "bg-green-100 text-green-700"
-                : "bg-gray-100 text-gray-700"
+                  ? "bg-yellow-100 text-yellow-700"
+                  : status === "completed"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-gray-100 text-gray-700"
             }`}
           >
             {status.charAt(0).toUpperCase() + status.slice(1)}

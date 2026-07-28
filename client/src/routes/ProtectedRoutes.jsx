@@ -14,6 +14,7 @@ import OrganizationSettings from "../pages/OrganizationSettings.jsx";
 import Dashboard from "../pages/Dashboard.jsx";
 
 // Feature Pages
+import CompareMeetings from "../pages/MeetingComparison";
 import CreateMeeting from "../pages/CreateMeeting.jsx";
 import UploadMeeting from "../pages/UploadMeeting.jsx";
 import Policies from "../pages/Policies.jsx";
@@ -35,6 +36,9 @@ import PolicyCompliance from "../pages/PolicyCompliance.jsx";
 import Settings from "../pages/Settings.jsx";
 import MembershipRequests from "../pages/MembershipRequests.jsx";
 import AdminPanel from "../pages/AdminPanel.jsx";
+import Bookmarks from "../pages/Bookmarks.jsx";
+import ActivityFeed from "../pages/ActivityFeed.jsx";
+import TagBrowser from "../pages/TagBrowser.jsx";
 
 const ProtectedRoutes = (
   <React.Fragment>
@@ -43,6 +47,14 @@ const ProtectedRoutes = (
       element={
         <ProtectedRoute resource="meetings" action="view">
           <MeetingListPage />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/meetings/compare"
+      element={
+        <ProtectedRoute resource="meetings" action="view">
+          <CompareMeetings />
         </ProtectedRoute>
       }
     />
@@ -272,6 +284,31 @@ const ProtectedRoutes = (
         </ProtectedRoute>
       }
     />
+    <Route
+      path="/bookmarks"
+      element={
+        <ProtectedRoute>
+          <Bookmarks />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/activities"
+      element={
+        <ProtectedRoute>
+          <ActivityFeed />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/tags"
+      element={
+        <ProtectedRoute>
+          <TagBrowser />
+        </ProtectedRoute>
+      }
+    />
+    <Route path="/access-denied" element={<AccessDenied />} />
 
     <Route
       path="/admin-panel"

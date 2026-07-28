@@ -9,6 +9,8 @@ import {
   submitMemoryFeedback,
   recalculateImportance,
   updateActionItemStatus,
+  runMemoryLifecycleSweep,
+  updateMemoryLifecycleState,
 } from "../controllers/knowledgeController.js";
 import {
   runConsolidation,
@@ -64,6 +66,22 @@ router.post(
   requireOrgMembership,
   requirePermission("knowledge", "edit"),
   recalculateImportance,
+);
+
+// --- Memory Lifecycle Management (#377) ---
+router.post(
+  "/lifecycle/run",
+  writeLimiter,
+  requireOrgMembership,
+  requirePermission("knowledge", "manage_lifecycle"),
+  runMemoryLifecycleSweep,
+);
+router.patch(
+  "/:type/:id/lifecycle",
+  writeLimiter,
+  requireOrgMembership,
+  requirePermission("knowledge", "manage_lifecycle"),
+  updateMemoryLifecycleState,
 );
 
 // --- Memory Consolidation Engine ---

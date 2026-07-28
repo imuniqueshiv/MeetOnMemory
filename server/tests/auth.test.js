@@ -55,4 +55,48 @@ describe("Auth Endpoints", () => {
     const tokenCookie = cookies.find((cookie) => cookie.startsWith("token="));
     expect(tokenCookie).toBeDefined();
   });
+
+  describe("Google Calendar OAuth", () => {
+    beforeAll(() => {
+      process.env.GOOGLE_CLIENT_ID = "mock-client-id";
+      process.env.GOOGLE_CLIENT_SECRET = "mock-client-secret";
+      process.env.GOOGLE_REDIRECT_URI =
+        "http://localhost:4000/api/auth/google-calendar/callback";
+    });
+
+    it("should reject unauthorized request to google-calendar", async () => {
+      const res = await request(app).get("/api/auth/google-calendar");
+      expect(res.statusCode).toEqual(401);
+      expect(res.body).toHaveProperty("success", false);
+      expect(res.body.message).toMatch(/No token found|Please login first/i);
+    });
+
+    it("should redirect for authorized request to google-calendar", async () => {
+      const agent = request.agent(app);
+
+      // Register first
+      const regCsrf = await agent.get("/api/csrf-token");
+      await agent
+        .post("/api/auth/register")
+        .set("X-CSRF-Token", regCsrf.body.csrfToken)
+        .send(testUser);
+
+      // Login to set cookie
+      const loginCsrf = await agent.get("/api/csrf-token");
+      await agent
+        .post("/api/auth/login")
+        .set("X-CSRF-Token", loginCsrf.body.csrfToken)
+        .send({
+          email: testUser.email,
+          password: testUser.password,
+        });
+
+      // Make the authorized GET request to /api/auth/google-calendar
+      const res = await agent.get("/api/auth/google-calendar");
+
+      expect(res.statusCode).toEqual(302);
+      expect(res.headers.location).toContain("accounts.google.com");
+      expect(res.headers.location).toContain("client_id=mock-client-id");
+    });
+  });
 });

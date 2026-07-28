@@ -8,6 +8,9 @@ const MeetingRecorder = ({
   meetingId,
   onTranscriptUpdate,
   onMeetingCreated,
+  title,
+  date,
+  tags,
 }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState(null);
@@ -31,8 +34,9 @@ const MeetingRecorder = ({
       if (!activeMeetingId) {
         try {
           const res = await meetingApi.scheduleMeeting({
-            title: "Live Recording " + new Date().toLocaleTimeString(),
-            date: new Date().toISOString(),
+            title: title || "Live Recording " + new Date().toLocaleTimeString(),
+            date: date || new Date().toISOString(),
+            tags: tags || [],
           });
           if (res.data && res.data.meeting) {
             activeMeetingId = res.data.meeting._id;

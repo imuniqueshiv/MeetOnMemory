@@ -11,6 +11,9 @@ import TranscriptPanel from "../components/meetings/TranscriptPanel.jsx";
 import LiveCaptions from "../components/meetings/LiveCaptions.jsx";
 import useWebRTC from "../hooks/useWebRTC";
 import useLiveTranscription from "../hooks/useLiveTranscription";
+import useReactions from "../hooks/useReactions.js";
+import ReactionBar from "../components/meetings/ReactionBar.jsx";
+import ReactionOverlay from "../components/meetings/ReactionOverlay.jsx";
 
 const MeetingRoom = () => {
   const { roomId } = useParams();
@@ -55,6 +58,12 @@ const MeetingRoom = () => {
     roomId,
     socketRef,
     streamRef,
+  );
+
+  // Reactions
+  const { reactions, sendReaction, onCooldown } = useReactions(
+    roomId,
+    socketRef,
   );
 
   useEffect(() => {
@@ -124,6 +133,8 @@ const MeetingRoom = () => {
       {/* ---------- ACTIVE MEETING SCREEN ---------- */}
       {joined && !meetingEnded && (
         <div className="flex-1 flex flex-col min-h-0 bg-gray-900 relative">
+          <ReactionOverlay reactions={reactions} />
+
           <MeetingHeader
             roomId={roomId}
             duration={duration}
@@ -197,6 +208,8 @@ const MeetingRoom = () => {
           </div>
 
           <LiveCaptions showCaptions={showCaptions} captions={captions} />
+
+          <ReactionBar sendReaction={sendReaction} onCooldown={onCooldown} />
 
           <MeetingControlBar
             micOn={micOn}

@@ -110,7 +110,7 @@ export const transcribeAudioWithSegments = async (audioUrl) => {
 
 export const transcribeFileWithSegments = async (filePath) => {
   const jobId = await _startAssemblyAIJob(filePath);
-  
+
   while (true) {
     const checkRes = await axios.get(
       `https://api.assemblyai.com/v2/transcript/${jobId}`,

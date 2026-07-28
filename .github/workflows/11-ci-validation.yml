@@ -1,0 +1,28 @@
+name: "11 CI Validation Review"
+
+on:
+  check_suite:
+    types: [completed]
+
+permissions:
+  pull-requests: write
+  contents: read
+  checks: read
+
+concurrency:
+  group: ci-validation-${{ github.event.check_suite.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  ci-validation:
+    runs-on: ubuntu-latest
+    if: github.event.check_suite.app.slug == 'github-actions'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Validate CI results and review PR
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { processCiValidation } = await import(`${process.cwd()}/.github/scripts/ci-validation.js`);
+            await processCiValidation({ github, context, core });

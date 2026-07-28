@@ -14,7 +14,7 @@ const TranscriptViewer = ({ meetingId }) => {
         setLoading(true);
         const { data } = await axios.get(
           `/api/meetings/${meetingId}/transcript`,
-          { withCredentials: true }
+          { withCredentials: true },
         );
 
         if (data.success) {
@@ -43,9 +43,10 @@ const TranscriptViewer = ({ meetingId }) => {
       return;
     }
 
-    const filtered = transcript.segments.filter((segment) =>
-      segment.text.toLowerCase().includes(filter.toLowerCase()) ||
-      segment.speaker.toLowerCase().includes(filter.toLowerCase())
+    const filtered = transcript.segments.filter(
+      (segment) =>
+        segment.text.toLowerCase().includes(filter.toLowerCase()) ||
+        segment.speaker.toLowerCase().includes(filter.toLowerCase()),
     );
     setFilteredSegments(filtered);
   }, [transcript, filter]);
@@ -79,7 +80,9 @@ const TranscriptViewer = ({ meetingId }) => {
   if (!transcript) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <p className="text-gray-500 text-center py-8">No transcript available</p>
+        <p className="text-gray-500 text-center py-8">
+          No transcript available
+        </p>
       </div>
     );
   }
@@ -87,20 +90,23 @@ const TranscriptViewer = ({ meetingId }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Meeting Transcript</h3>
+        <h3 className="text-lg font-semibold text-gray-900">
+          Meeting Transcript
+        </h3>
         <div className="flex items-center gap-2">
           <span
             className={`px-3 py-1 rounded-full text-xs font-medium ${
               transcript.status === "completed"
                 ? "bg-green-100 text-green-700"
                 : transcript.status === "processing"
-                ? "bg-yellow-100 text-yellow-700"
-                : transcript.status === "failed"
-                ? "bg-red-100 text-red-700"
-                : "bg-gray-100 text-gray-700"
+                  ? "bg-yellow-100 text-yellow-700"
+                  : transcript.status === "failed"
+                    ? "bg-red-100 text-red-700"
+                    : "bg-gray-100 text-gray-700"
             }`}
           >
-            {transcript.status.charAt(0).toUpperCase() + transcript.status.slice(1)}
+            {transcript.status.charAt(0).toUpperCase() +
+              transcript.status.slice(1)}
           </span>
         </div>
       </div>
@@ -123,7 +129,9 @@ const TranscriptViewer = ({ meetingId }) => {
       <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
         {filteredSegments.length === 0 ? (
           <p className="text-gray-500 text-center py-8">
-            {filter ? "No matching segments found" : "No transcript segments available"}
+            {filter
+              ? "No matching segments found"
+              : "No transcript segments available"}
           </p>
         ) : (
           filteredSegments.map((segment, index) => (
@@ -171,7 +179,9 @@ const TranscriptViewer = ({ meetingId }) => {
         <div className="mt-4 pt-4 border-t border-gray-200">
           <button
             onClick={() => {
-              const blob = new Blob([transcript.fullText], { type: "text/plain" });
+              const blob = new Blob([transcript.fullText], {
+                type: "text/plain",
+              });
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a");
               a.href = url;

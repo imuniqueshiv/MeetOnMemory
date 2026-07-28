@@ -125,8 +125,7 @@ export const slackOAuthRedirect = async (req, res, next) => {
   try {
     const { code, state: stateToken, error: slackError } = req.query;
 
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-
+    const frontendUrl = process.env.CLIENT_URL || "http://localhost:5173";
     if (!stateToken || typeof stateToken !== "string") {
       return sendError(res, 400, "Missing OAuth state.");
     }

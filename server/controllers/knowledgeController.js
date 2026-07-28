@@ -9,7 +9,16 @@ import {
   recordMemoryFeedback,
 } from "../services/importanceScoringService.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
-import { recalculateImportanceQueue } from "../services/queueService.js";
+import {
+  recalculateImportanceQueue,
+  memoryLifecycleQueue,
+} from "../services/queueService.js";
+import {
+  runLifecycleSweep,
+  restoreMemory,
+  transitionLifecycleState,
+} from "../services/memoryLifecycleService.js";
+import AuditLog from "../models/auditLogModel.js";
 import eventBus from "../services/eventBus.js";
 
 const ALLOWED_SORT_FIELDS = {
@@ -73,7 +82,11 @@ export const getDecisionLineageController = async (req, res) => {
 
 export const getOpenActionItems = async (req, res) => {
   try {
-    const { status = "open", sortBy = "createdAt" } = req.query || {};
+    const {
+      status = "open",
+      sortBy = "createdAt",
+      includeArchived,
+    } = req.query || {};
     const organization = sanitizeOrg(req.user?.organization);
 
     const allowedStatuses = [
@@ -124,6 +137,16 @@ export const getOpenActionItems = async (req, res) => {
       });
     }
 
+    // Archived/expired memories are excluded from default retrieval per
+    // the Memory Lifecycle Management engine (Issue #377) — they remain
+    // searchable/restorable via the lifecycle endpoints, just not shown
+    // in everyday listings unless explicitly requested.
+    if (includeArchived !== "true") {
+      query = query.where({
+        lifecycleState: { $nin: ["archived", "expired"] },
+      });
+    }
+
     const page = parseInt(req.query.page, 10) || 1;
     const limit = Math.min(parseInt(req.query.limit, 10) || 10, 100);
     const skip = (page - 1) * limit;
@@ -168,7 +191,7 @@ export const getOpenActionItems = async (req, res) => {
 
 export const getDecisions = async (req, res) => {
   try {
-    const { status, sortBy = "createdAt" } = req.query || {};
+    const { status, sortBy = "createdAt", includeArchived } = req.query || {};
     const organization = sanitizeOrg(req.user?.organization);
 
     const allowedStatuses = ["open", "in-progress", "resolved", "superseded"];
@@ -199,6 +222,12 @@ export const getDecisions = async (req, res) => {
       filter.status = "resolved";
     } else if (status === "superseded") {
       filter.status = "superseded";
+    }
+
+    // Archived/expired memories are excluded from default retrieval per
+    // the Memory Lifecycle Management engine (Issue #377).
+    if (includeArchived !== "true") {
+      filter.lifecycleState = { $nin: ["archived", "expired"] };
     }
 
     const page = parseInt(req.query.page, 10) || 1;
@@ -381,5 +410,125 @@ export const updateActionItemStatus = async (req, res) => {
   } catch (error) {
     console.error("updateActionItemStatus error:", error);
     sendError(res, 500, "Failed to update action item");
+  }
+};
+
+/**
+ * POST /api/knowledge/lifecycle/run
+ * Manually triggers a full lifecycle sweep (active/dormant/archived/expired
+ * classification) for the caller's organization. Also runs automatically
+ * on a schedule once Redis/BullMQ is configured (see queueService.js).
+ */
+export const runMemoryLifecycleSweep = async (req, res) => {
+  try {
+    const organization = sanitizeOrg(req.user?.organization);
+
+    if (memoryLifecycleQueue.isActive) {
+      await memoryLifecycleQueue.add("memory-lifecycle-sweep", {
+        organization,
+      });
+      return sendSuccess(
+        res,
+        {},
+        "Memory lifecycle sweep started in the background",
+        202,
+      );
+    }
+
+    // Fallback to synchronous execution when Redis is not configured (e.g.
+    // testing / development), same pattern as recalculateImportance above.
+    const summary = await runLifecycleSweep({ organization });
+
+    if (organization) {
+      await AuditLog.create({
+        organization,
+        actor: req.user._id,
+        action: "memory_lifecycle_sweep",
+        entity: "KnowledgeGraph",
+        entityId: req.user._id,
+        details: summary,
+      });
+    }
+
+    sendSuccess(res, { summary }, "Memory lifecycle sweep completed");
+  } catch (error) {
+    console.error("runMemoryLifecycleSweep error:", error);
+    sendError(res, 500, "Failed to run memory lifecycle sweep");
+  }
+};
+
+/**
+ * PATCH /api/knowledge/:type/:id/lifecycle
+ * Manually moves a memory to a specific lifecycle state (e.g. an admin
+ * archiving something early, or restoring an archived memory).
+ */
+export const updateMemoryLifecycleState = async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const { state, reason } = req.body || {};
+    const organization = sanitizeOrg(req.user?.organization);
+
+    if (
+      typeof type !== "string" ||
+      !["decision", "action-item"].includes(type)
+    ) {
+      return sendError(
+        res,
+        400,
+        "Invalid memory type. Use 'decision' or 'action-item'.",
+      );
+    }
+
+    if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, "Invalid memory id");
+    }
+
+    const allowedStates = ["active", "dormant", "archived", "expired"];
+    if (typeof state !== "string" || !allowedStates.includes(state)) {
+      return sendError(
+        res,
+        400,
+        `Invalid state. Expected one of: ${allowedStates.join(", ")}`,
+      );
+    }
+
+    const safeType = type === "decision" ? "decision" : "actionItem";
+    const Model = safeType === "decision" ? Decision : ActionItem;
+    const cleanId = new mongoose.Types.ObjectId(id);
+
+    const document = await Model.findOne({ _id: cleanId, organization });
+    if (!document) {
+      return sendError(res, 404, "Memory not found");
+    }
+
+    const updated =
+      state === "active"
+        ? await restoreMemory(safeType, cleanId, {
+            triggeredBy: req.user?._id?.toString() || "admin",
+            reason: reason || "Manually restored",
+          })
+        : await transitionLifecycleState(document, state, {
+            triggeredBy: req.user?._id?.toString() || "admin",
+            reason: reason || "Manually updated by admin",
+          });
+
+    if (organization) {
+      await AuditLog.create({
+        organization,
+        actor: req.user._id,
+        action: "memory_lifecycle_transition",
+        entity: safeType === "decision" ? "Decision" : "ActionItem",
+        entityId: cleanId,
+        details: { toState: state, reason },
+      });
+    }
+
+    sendSuccess(res, {
+      lifecycleState: updated.lifecycleState,
+      lifecycleHistory: updated.lifecycleHistory,
+    });
+  } catch (error) {
+    console.error("updateMemoryLifecycleState error:", error);
+    sendError(res, 500, "Failed to update memory lifecycle state");
   }
 };

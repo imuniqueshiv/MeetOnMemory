@@ -146,15 +146,6 @@ html {
   opacity: 1;
 }
 
-/* Dashboard feature cards — held until IntersectionObserver adds .visible */
-.dash-card.fade-in-up {
-  animation-play-state: paused;
-}
-
-.dash-card.fade-in-up.visible {
-  animation-play-state: running;
-}
-
 /* Stagger delays for child items */
 .stagger-1 {
   animation-delay: 0.05s;

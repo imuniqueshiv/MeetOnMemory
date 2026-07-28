@@ -590,5 +590,105 @@ describe("OrganizationService", () => {
         ),
       ).rejects.toThrow("Invalid website URL format.");
     });
+
+    it("should reject invalid logo URL format", async () => {
+      Organization.findById.mockResolvedValue({
+        _id: "507f1f77bcf86cd799439011",
+        owner: { toString: () => "ownerUser" },
+        save: vi.fn(),
+      });
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue(null),
+      });
+
+      await expect(
+        OrganizationService.updateOrganization(
+          "ownerUser",
+          "507f1f77bcf86cd799439011",
+          {
+            logoUrl: "ftp://files.example.com/logo.png",
+          },
+        ),
+      ).rejects.toThrow("Logo URL must use http or https.");
+    });
+
+    it("should reject invalid banner URL format", async () => {
+      Organization.findById.mockResolvedValue({
+        _id: "507f1f77bcf86cd799439011",
+        owner: { toString: () => "ownerUser" },
+        save: vi.fn(),
+      });
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue(null),
+      });
+
+      await expect(
+        OrganizationService.updateOrganization(
+          "ownerUser",
+          "507f1f77bcf86cd799439011",
+          {
+            bannerUrl: "not-a-url",
+          },
+        ),
+      ).rejects.toThrow(
+        "Banner URL must be a valid URL starting with http:// or https://.",
+      );
+    });
+
+    it("should update logo and banner URLs for owner", async () => {
+      const mockOrg = {
+        _id: "507f1f77bcf86cd799439011",
+        owner: { toString: () => "ownerUser" },
+        name: "Acme",
+        logo: "",
+        bannerUrl: "",
+        save: vi.fn().mockResolvedValue(true),
+      };
+      Organization.findById.mockResolvedValue(mockOrg);
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue(null),
+      });
+      Membership.countDocuments.mockResolvedValue(3);
+
+      const result = await OrganizationService.updateOrganization(
+        "ownerUser",
+        "507f1f77bcf86cd799439011",
+        {
+          logoUrl: "https://cdn.example.com/logo.png",
+          bannerUrl: "https://cdn.example.com/banner.jpg",
+        },
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockOrg.logo).toBe("https://cdn.example.com/logo.png");
+      expect(mockOrg.bannerUrl).toBe("https://cdn.example.com/banner.jpg");
+      expect(mockOrg.save).toHaveBeenCalled();
+    });
+
+    it("should allow clearing branding URLs", async () => {
+      const mockOrg = {
+        _id: "507f1f77bcf86cd799439011",
+        owner: { toString: () => "ownerUser" },
+        name: "Acme",
+        logo: "https://cdn.example.com/logo.png",
+        bannerUrl: "https://cdn.example.com/banner.jpg",
+        save: vi.fn().mockResolvedValue(true),
+      };
+      Organization.findById.mockResolvedValue(mockOrg);
+      Membership.findOne.mockReturnValue({
+        lean: vi.fn().mockResolvedValue(null),
+      });
+      Membership.countDocuments.mockResolvedValue(1);
+
+      await OrganizationService.updateOrganization(
+        "ownerUser",
+        "507f1f77bcf86cd799439011",
+        { logo: "", bannerUrl: "" },
+      );
+
+      expect(mockOrg.logo).toBe("");
+      expect(mockOrg.bannerUrl).toBe("");
+      expect(mockOrg.save).toHaveBeenCalled();
+    });
   });
 });

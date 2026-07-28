@@ -8,7 +8,7 @@ import Policy from "../models/policyModel.js";
 import {
   requireOwnerOrAdmin,
   requireOrgMembership,
-  requireAdmin,
+  requireAdminOrOwner,
   requirePermission,
   requireOrgAccess,
 } from "../middleware/rbac.js";
@@ -156,7 +156,7 @@ router.post(
   "/upload",
   uploadLimiter,
   userAuth,
-  requireAdmin,
+  requireAdminOrOwner,
   requireOrgMembership,
   requirePermission("policies", "create"),
   handleMulterUpload,

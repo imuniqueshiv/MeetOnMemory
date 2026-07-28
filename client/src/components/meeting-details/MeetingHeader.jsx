@@ -1,9 +1,39 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import CalendarSyncBadge from "../CalendarSyncBadge.jsx";
-import { Share2, Presentation } from "lucide-react";
+import { Share2, Presentation, Bookmark } from "lucide-react";
+import { toast } from "react-toastify";
+import { toggleBookmarkAPI, getBookmarkStatusAPI } from "../../api/bookmarkApi";
 
 const MeetingHeader = ({ meeting, onShare, onPresent }) => {
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isLoadingBookmark, setIsLoadingBookmark] = useState(false);
+
+  useEffect(() => {
+    if (meeting?._id) {
+      getBookmarkStatusAPI(meeting._id)
+        .then((data) => {
+          setIsBookmarked(data.bookmarked);
+        })
+        .catch((err) => console.error("Error fetching bookmark status:", err));
+    }
+  }, [meeting]);
+
+  const handleToggleBookmark = async () => {
+    if (!meeting?._id) return;
+    setIsLoadingBookmark(true);
+    try {
+      const data = await toggleBookmarkAPI(meeting._id);
+      setIsBookmarked(data.bookmarked);
+      toast.success(data.message);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to toggle bookmark");
+    } finally {
+      setIsLoadingBookmark(false);
+    }
+  };
+
   if (!meeting) return null;
 
   const formatDate = (dateString) => {
@@ -105,6 +135,21 @@ const MeetingHeader = ({ meeting, onShare, onPresent }) => {
           >
             {meeting.status || "uploaded"}
           </span>
+          <button
+            onClick={handleToggleBookmark}
+            disabled={isLoadingBookmark}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              isBookmarked
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                : "bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            }`}
+          >
+            <Bookmark
+              className="w-4 h-4"
+              fill={isBookmarked ? "currentColor" : "none"}
+            />
+            {isBookmarked ? "Saved" : "Save"}
+          </button>
           <button
             onClick={onPresent}
             className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 rounded-lg text-sm font-medium transition-colors"

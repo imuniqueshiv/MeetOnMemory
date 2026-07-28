@@ -22,5 +22,6 @@ export default {
     "OrganizationService.test.js",
     "knowledgeController.test.js",
     "transcriptController.test.js",
+    "meetingDigestService.test.js",
   ],
 };

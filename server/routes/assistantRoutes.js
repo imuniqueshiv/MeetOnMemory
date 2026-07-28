@@ -1,10 +1,10 @@
 import express from "express";
-import { 
-  createSession, 
-  getSession, 
-  deleteSession, 
-  listSessions, 
-  processMessage 
+import {
+  createSession,
+  getSession,
+  deleteSession,
+  listSessions,
+  processMessage,
 } from "../services/ragAssistantService.js";
 import userAuth from "../middleware/userAuth.js";
 import rateLimit from "express-rate-limit";
@@ -74,13 +74,16 @@ router.post("/sessions/:id/message", messageLimiter, async (req, res) => {
     const sessionId = req.params.id;
     // Get socket io instance to broadcast streaming events
     const io = req.app.get("io");
-    
+
     // Process message in the background and stream over socket
-    processMessage(sessionId, req.user._id, content, io).catch(err => {
+    processMessage(sessionId, req.user._id, content, io).catch((err) => {
       console.error("Error processing message:", err);
-      io.emit("assistant_error", { sessionId, error: "Failed to process message." });
+      io.emit("assistant_error", {
+        sessionId,
+        error: "Failed to process message.",
+      });
     });
-    
+
     res.status(202).json({ status: "Processing" });
   } catch (error) {
     console.error("Error in message route:", error);

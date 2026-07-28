@@ -46,6 +46,9 @@ vi.mock("../components/ErrorBoundary.jsx", () => ({
 vi.mock("../pages/Home.jsx", () => ({
   default: () => <div data-testid="home-page" />,
 }));
+vi.mock("../pages/NotFound.jsx", () => ({
+  default: () => <div data-testid="not-found-page" />,
+}));
 vi.mock("../pages/Login.jsx", () => ({
   default: () => <div data-testid="login-page" />,
 }));
@@ -90,13 +93,13 @@ describe("App Routing", () => {
     expect(screen.getByTestId("dashboard-page")).toBeInTheDocument();
   });
 
-  it("renders Home page as fallback on unknown paths", () => {
+  it("renders NotFound page as fallback on unknown paths", () => {
     render(
       <MemoryRouter initialEntries={["/unknown-path-that-does-not-exist"]}>
         <App />
       </MemoryRouter>,
     );
-    // Since fallback route maps to <Home />
-    expect(screen.getByTestId("home-page")).toBeInTheDocument();
+    // Since fallback route maps to <NotFound />
+    expect(screen.getByTestId("not-found-page")).toBeInTheDocument();
   });
 });

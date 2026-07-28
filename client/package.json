@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "lint:changed": "node ../scripts/validation/run-eslint-changed.mjs client",
+    "format:check:changed": "node ../scripts/validation/run-prettier-changed.mjs client",
     "preview": "vite preview",
     "test": "vitest"
   },

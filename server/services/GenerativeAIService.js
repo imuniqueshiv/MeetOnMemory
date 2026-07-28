@@ -264,3 +264,55 @@ export const buildHumanReadableMoM = (mom) => {
   }
   return text;
 };
+
+/**
+ * AI-powered session card generation.
+ * Generates a concise summary and keywords for a presentation session.
+ */
+export const generateSessionCardAI = async (
+  eventName,
+  sessionTitle,
+  speaker,
+  speakerTitle,
+  speakerBio,
+) => {
+  const prompt = `
+You are an AI assistant specialized in academic/professional conference session cards.
+Given the following session metadata:
+- Event Name: ${eventName || "N/A"}
+- Session Title: ${sessionTitle}
+- Speaker Name: ${speaker || "N/A"}
+- Speaker Title: ${speakerTitle || "N/A"}
+- Speaker Bio: ${speakerBio || "N/A"}
+
+Generate a professional, concise summary (2-3 sentences) of what this session is about, and extract 3-5 relevant keywords.
+
+Return ONLY a valid JSON object matching this structure (no markdown formatting, no backticks, no commentary):
+{
+  "summary": "...",
+  "keywords": ["...", "..."]
+}
+`;
+
+  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+  const result = await model.generateContent(prompt);
+  const outputText = result.response.text();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(outputText);
+  } catch {
+    const match = outputText.match(/\{[\s\S]*\}/);
+    if (match) {
+      parsed = JSON.parse(match[0]);
+    } else {
+      throw new Error("Failed to parse Gemini JSON output");
+    }
+  }
+
+  return {
+    summary: parsed.summary || "",
+    keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
+  };
+};

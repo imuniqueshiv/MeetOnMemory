@@ -9,57 +9,65 @@ const useUploadMeetingApi = () => {
     progress: 0,
   });
 
-  const uploadMeeting = useCallback(async (file, title, options = {}) => {
-    const { onSuccess, onError } = options;
+  const uploadMeeting = useCallback(
+    async (file, title, tags = [], options = {}) => {
+      const { onSuccess, onError } = options;
 
-    if (!file) {
-      const error = new Error("Please select an audio file first.");
-      setState({ status: "error", data: null, error, progress: 0 });
-      if (onError) onError(error);
-      return;
-    }
+      if (!file) {
+        const error = new Error("Please select an audio file first.");
+        setState({ status: "error", data: null, error, progress: 0 });
+        if (onError) onError(error);
+        return;
+      }
 
-    try {
-      setState({ status: "pending", data: null, error: null, progress: 0 });
+      try {
+        setState({ status: "pending", data: null, error: null, progress: 0 });
 
-      const formData = new FormData();
-      formData.append("file", file);
-      if (title) formData.append("title", title);
+        const formData = new FormData();
+        formData.append("file", file);
+        if (title) formData.append("title", title);
 
-      const res = await meetingApi.uploadMeeting(formData, {
-        onUploadProgress: (progressEvent) => {
-          const percent = Math.round(
-            (progressEvent.loaded * 100) / progressEvent.total,
-          );
-          setState((prev) => ({ ...prev, progress: percent }));
-        },
-      });
+        // Append tags array
+        if (tags && tags.length > 0) {
+          tags.forEach((tag) => formData.append("tags", tag));
+        }
 
-      if (res.data?.success) {
-        setState({
-          status: "success",
-          data: res.data,
-          error: null,
-          progress: 100,
+        const res = await meetingApi.uploadMeeting(formData, {
+          onUploadProgress: (progressEvent) => {
+            const percent = Math.round(
+              (progressEvent.loaded * 100) / progressEvent.total,
+            );
+            setState((prev) => ({ ...prev, progress: percent }));
+          },
         });
-        if (onSuccess) onSuccess(res.data);
-      } else {
-        const errorMsg = res.data?.message || "Upload failed";
+
+        if (res.data?.success) {
+          setState({
+            status: "success",
+            data: res.data,
+            error: null,
+            progress: 100,
+          });
+          if (onSuccess) onSuccess(res.data);
+        } else {
+          const errorMsg = res.data?.message || "Upload failed";
+          const error = new Error(errorMsg);
+          setState({ status: "error", data: null, error, progress: 0 });
+          if (onError) onError(error);
+        }
+      } catch (err) {
+        console.error("Upload error:", err);
+        const errorMsg =
+          err.response?.data?.message ||
+          err.message ||
+          "Server error during upload";
         const error = new Error(errorMsg);
         setState({ status: "error", data: null, error, progress: 0 });
         if (onError) onError(error);
       }
-    } catch (err) {
-      console.error("Upload error:", err);
-      const errorMsg =
-        err.response?.data?.message ||
-        err.message ||
-        "Server error during upload";
-      const error = new Error(errorMsg);
-      setState({ status: "error", data: null, error, progress: 0 });
-      if (onError) onError(error);
-    }
-  }, []);
+    },
+    [],
+  );
 
   return { ...state, uploadMeeting };
 };

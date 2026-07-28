@@ -21,9 +21,8 @@ import {
   CreditCard,
   Cpu,
   Fingerprint,
-
   Award,
-  Server
+  Server,
 } from "lucide-react";
 
 // Sections data
@@ -279,7 +278,7 @@ const Terms = () => {
     return sections.filter(
       (sec) =>
         sec.title.toLowerCase().includes(query) ||
-        sec.content.toLowerCase().includes(query)
+        sec.content.toLowerCase().includes(query),
     );
   }, [searchQuery]);
 
@@ -314,7 +313,8 @@ const Terms = () => {
             Terms of Service
           </h1>
           <p className="mt-4 max-w-2xl mx-auto text-base sm:text-lg text-gray-500 dark:text-slate-400">
-            Please read these terms carefully before accessing or using our collaborative AI knowledge platform.
+            Please read these terms carefully before accessing or using our
+            collaborative AI knowledge platform.
           </p>
 
           <div className="mt-8 max-w-md mx-auto relative">
@@ -352,7 +352,6 @@ const Terms = () => {
       {/* Main Grid Content */}
       <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 flex-1">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
           {/* Left Column: Navigation Sidebar */}
           <aside className="lg:col-span-4 hidden lg:block">
             <div className="sticky top-28 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm max-h-[calc(100vh-140px)] overflow-y-auto">
@@ -373,9 +372,15 @@ const Terms = () => {
                           : "text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700/30"
                       }`}
                     >
-                      <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? "text-blue-600 dark:text-blue-400" : "text-gray-400"}`} />
-                      <span className="truncate">{sec.title.split(". ")[1]}</span>
-                      {isActive && <ChevronRight className="w-4 h-4 ml-auto text-blue-600 dark:text-blue-400 shrink-0 animate-pulse" />}
+                      <Icon
+                        className={`w-4.5 h-4.5 shrink-0 ${isActive ? "text-blue-600 dark:text-blue-400" : "text-gray-400"}`}
+                      />
+                      <span className="truncate">
+                        {sec.title.split(". ")[1]}
+                      </span>
+                      {isActive && (
+                        <ChevronRight className="w-4 h-4 ml-auto text-blue-600 dark:text-blue-400 shrink-0 animate-pulse" />
+                      )}
                     </button>
                   );
                 })}
@@ -390,7 +395,9 @@ const Terms = () => {
                   <Fingerprint className="w-4 h-4" /> Legal Repository
                 </h4>
                 <p className="text-[11px] text-blue-100 mt-2 leading-relaxed">
-                  MeetOnMemory operates under strict California state digital services codes. All transcriptions are secured via private channels.
+                  MeetOnMemory operates under strict California state digital
+                  services codes. All transcriptions are secured via private
+                  channels.
                 </p>
                 <a
                   href="mailto:legal@meetonmemory.com"
@@ -404,7 +411,6 @@ const Terms = () => {
 
           {/* Right Column: Clauses and Modules */}
           <div className="lg:col-span-8 space-y-12">
-            
             {/* Search warning */}
             {searchQuery && (
               <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-4 flex gap-3 text-sm text-blue-700 dark:text-blue-300 animate-fade-in">
@@ -412,7 +418,8 @@ const Terms = () => {
                 <div>
                   <p className="font-semibold">Search Filter Active</p>
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    Showing clauses that match "{searchQuery}". Clear query to view complete Terms of Service.
+                    Showing clauses that match "{searchQuery}". Clear query to
+                    view complete Terms of Service.
                   </p>
                 </div>
               </div>
@@ -423,9 +430,12 @@ const Terms = () => {
               {filteredSections.length === 0 ? (
                 <div className="text-center py-12">
                   <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3 animate-bounce" />
-                  <h3 className="font-bold text-lg text-gray-800 dark:text-white">No matches found</h3>
+                  <h3 className="font-bold text-lg text-gray-800 dark:text-white">
+                    No matches found
+                  </h3>
                   <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">
-                    Try searching for different terms like 'recording', 'Gemini', 'liable', or 'billing'.
+                    Try searching for different terms like 'recording',
+                    'Gemini', 'liable', or 'billing'.
                   </p>
                   <button
                     onClick={() => setSearchQuery("")}
@@ -473,13 +483,17 @@ const Terms = () => {
                     Agreement Acceptance Simulator
                   </h2>
                   <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                    Demonstrate and simulate your organization's legal acceptance tracking.
+                    Demonstrate and simulate your organization's legal
+                    acceptance tracking.
                   </p>
                 </div>
               </div>
 
               {!signedTerms ? (
-                <form onSubmit={handleSignatureSubmit} className="space-y-4 mt-6">
+                <form
+                  onSubmit={handleSignatureSubmit}
+                  className="space-y-4 mt-6"
+                >
                   <div>
                     <label className="block text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">
                       Authorized Signee Name
@@ -540,22 +554,29 @@ const Terms = () => {
                       Agreement Digitally Signed
                     </h4>
                     <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
-                      A simulated digital audit signature has been compiled for your local state browser session.
+                      A simulated digital audit signature has been compiled for
+                      your local state browser session.
                     </p>
                   </div>
 
                   <div className="max-w-md mx-auto grid grid-cols-2 gap-4 text-left p-3.5 bg-white dark:bg-slate-900/60 border border-gray-100 dark:border-slate-800 rounded-xl text-xs">
                     <div>
                       <span className="text-gray-400">Signatory:</span>
-                      <p className="font-bold text-gray-700 dark:text-slate-300 mt-0.5">{userName}</p>
+                      <p className="font-bold text-gray-700 dark:text-slate-300 mt-0.5">
+                        {userName}
+                      </p>
                     </div>
                     <div>
                       <span className="text-gray-400">Role:</span>
-                      <p className="font-bold text-gray-700 dark:text-slate-300 mt-0.5 capitalize">{userRole}</p>
+                      <p className="font-bold text-gray-700 dark:text-slate-300 mt-0.5 capitalize">
+                        {userRole}
+                      </p>
                     </div>
                     <div>
                       <span className="text-gray-400">Signed Time:</span>
-                      <p className="font-bold text-gray-700 dark:text-slate-300 mt-0.5">{signatureDate}</p>
+                      <p className="font-bold text-gray-700 dark:text-slate-300 mt-0.5">
+                        {signatureDate}
+                      </p>
                     </div>
                     <div>
                       <span className="text-gray-400">Scope Status:</span>
@@ -590,7 +611,8 @@ const Terms = () => {
                     Terms FAQs
                   </h2>
                   <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                    Quick clarifications regarding service limits and copyright boundaries.
+                    Quick clarifications regarding service limits and copyright
+                    boundaries.
                   </p>
                 </div>
               </div>
@@ -638,7 +660,8 @@ const Terms = () => {
                     Revision History
                   </h2>
                   <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                    Timeline logs detailing previous versions of these guidelines.
+                    Timeline logs detailing previous versions of these
+                    guidelines.
                   </p>
                 </div>
               </div>
@@ -649,10 +672,15 @@ const Terms = () => {
                   <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-blue-500 bg-white dark:bg-slate-800" />
                   <h4 className="font-bold text-sm text-gray-800 dark:text-white flex items-center gap-2.5">
                     Version 1.2
-                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">July 16, 2026 (Current)</span>
+                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">
+                      July 16, 2026 (Current)
+                    </span>
                   </h4>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-normal">
-                    Revised AI models limitations clause to specify Gemini rate rules, and expanded Intellectual Property clause to explicitly clarify user copyright ownership of summary outputs.
+                    Revised AI models limitations clause to specify Gemini rate
+                    rules, and expanded Intellectual Property clause to
+                    explicitly clarify user copyright ownership of summary
+                    outputs.
                   </p>
                 </div>
 
@@ -661,10 +689,14 @@ const Terms = () => {
                   <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-blue-200 dark:border-blue-900 bg-white dark:bg-slate-800" />
                   <h4 className="font-bold text-sm text-gray-800 dark:text-white flex items-center gap-2.5">
                     Version 1.1
-                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">March 04, 2026</span>
+                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">
+                      March 04, 2026
+                    </span>
                   </h4>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-normal">
-                    Incorporated arbitration clauses for commercial disputes under AAA guidelines, and structured organizational account admin duties.
+                    Incorporated arbitration clauses for commercial disputes
+                    under AAA guidelines, and structured organizational account
+                    admin duties.
                   </p>
                 </div>
 
@@ -673,15 +705,18 @@ const Terms = () => {
                   <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-blue-200 dark:border-blue-900 bg-white dark:bg-slate-800" />
                   <h4 className="font-bold text-sm text-gray-800 dark:text-white flex items-center gap-2.5">
                     Version 1.0
-                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">November 10, 2025</span>
+                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">
+                      November 10, 2025
+                    </span>
                   </h4>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-normal">
-                    Initial launch of services regulating subscription rates, registration safety limits, and acceptable recording consent compliance.
+                    Initial launch of services regulating subscription rates,
+                    registration safety limits, and acceptable recording consent
+                    compliance.
                   </p>
                 </div>
               </div>
             </section>
-
           </div>
         </div>
       </main>
@@ -690,7 +725,8 @@ const Terms = () => {
       <div className="bg-gray-100 dark:bg-slate-900 border-t border-gray-200/80 dark:border-slate-800/80 py-10 mt-auto">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400">
-            Have questions about standard contract clauses or transcription billing?
+            Have questions about standard contract clauses or transcription
+            billing?
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-4 text-xs font-semibold">
             <a

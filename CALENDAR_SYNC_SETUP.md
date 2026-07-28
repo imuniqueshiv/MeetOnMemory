@@ -5,6 +5,7 @@ This guide explains how to set up Google Calendar and Microsoft Outlook two-way 
 ## Overview
 
 The calendar sync feature allows users to:
+
 - Connect their Google Calendar and/or Microsoft Outlook accounts
 - Automatically sync meetings created in MeetOnMemory to connected calendars
 - View external calendar events in the MeetOnMemory dashboard
@@ -36,7 +37,7 @@ The calendar sync feature allows users to:
 3. Select "Web application" as the application type
 4. Configure the following:
    - **Name**: MeetOnMemory Calendar Sync
-   - **Authorized redirect URIs**: 
+   - **Authorized redirect URIs**:
      - `http://localhost:4000/api/calendar/google/callback` (development)
      - `https://your-domain.com/api/calendar/google/callback` (production)
 5. Click "Create"
@@ -65,7 +66,7 @@ The calendar sync feature allows users to:
 4. Configure the following:
    - **Name**: MeetOnMemory Calendar Sync
    - **Supported account types**: "Accounts in any organizational directory and personal Microsoft accounts"
-   - **Redirect URI**: 
+   - **Redirect URI**:
      - `http://localhost:4000/api/calendar/microsoft/callback` (development)
      - `https://your-domain.com/api/calendar/microsoft/callback` (production)
 5. Click "Register"
@@ -136,6 +137,7 @@ npm start
 ```
 
 You should see the following log message:
+
 ```
 Starting calendar sync job (interval: 15 minutes)
 ```
@@ -189,6 +191,7 @@ Starting calendar sync job (interval: 15 minutes)
 **Problem**: OAuth popup shows an error or doesn't redirect properly.
 
 **Solutions**:
+
 - Verify redirect URIs match exactly (including http/https and port)
 - Check that the consent screen is published
 - Ensure API permissions are granted (for Microsoft)
@@ -199,6 +202,7 @@ Starting calendar sync job (interval: 15 minutes)
 **Problem**: Meetings created in MeetOnMemory don't appear in external calendars.
 
 **Solutions**:
+
 - Check server logs for sync errors
 - Verify environment variables are set correctly
 - Ensure tokens are not expired (check connection status)
@@ -209,6 +213,7 @@ Starting calendar sync job (interval: 15 minutes)
 **Problem**: External calendar events don't appear in the Calendar view.
 
 **Solutions**:
+
 - Enable the "External Events" toggle in the Calendar page
 - Check that the calendar connection is active
 - Verify the date range includes events
@@ -219,6 +224,7 @@ Starting calendar sync job (interval: 15 minutes)
 **Problem**: Calendar connection shows "Re-authentication required".
 
 **Solutions**:
+
 - Disconnect and reconnect the calendar
 - Verify refresh token is being stored correctly
 - Check that OAuth consent includes offline access
@@ -234,6 +240,7 @@ Starting calendar sync job (interval: 15 minutes)
 ## Background Sync Job
 
 The calendar sync job runs every 15 minutes to:
+
 - Fetch external calendar events
 - Sync external changes to MeetOnMemory
 - Handle conflict resolution (last modified wins)
@@ -261,6 +268,7 @@ You can manually trigger a sync from the Settings page using the resync button.
 ## Support
 
 For issues or questions:
+
 1. Check the server logs for detailed error messages
 2. Verify OAuth application configuration
 3. Ensure all environment variables are set correctly

@@ -5,6 +5,8 @@ export const knowledgeApi = {
     apiClient.get(
       `/api/knowledge/action-items?status=${status}&sortBy=${sortBy}`,
     ),
+  updateActionItemStatus: (id, status) =>
+    apiClient.patch(`/api/knowledge/action-items/${id}`, { status }),
   getDecisions: (sortBy = "createdAt", status) =>
     apiClient.get(
       `/api/knowledge/decisions?sortBy=${sortBy}${status ? `&status=${status}` : ""}`,

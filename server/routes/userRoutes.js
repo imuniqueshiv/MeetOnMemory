@@ -8,6 +8,7 @@ import {
 import { requirePermission } from "../middleware/rbac.js";
 import {
   getUserData,
+  getCurrentUser,
   updateUserProfile,
   requestDataExport,
   downloadExport,
@@ -26,6 +27,7 @@ userRouter.get(
   requirePermission("settings", "self_view"),
   getUserData,
 );
+userRouter.get("/me", userAuth, getCurrentUser);
 userRouter.put(
   "/update",
   userAuth,

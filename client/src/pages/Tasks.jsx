@@ -104,6 +104,7 @@ const Tasks = () => {
                 task={task}
                 setSelectedTask={taskState.setSelectedTask}
                 navigate={navigate}
+                updateTaskStatus={taskState.updateTaskStatus}
               />
             ))}
           </div>

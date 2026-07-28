@@ -23,9 +23,12 @@ let syncIntervalId = null;
  */
 const syncUserCalendar = async (userId, provider) => {
   try {
+    const providersToMatch =
+      provider === "google" ? ["google"] : ["microsoft", "outlook"];
+
     const connection = await CalendarConnection.findOne({
       user: userId,
-      provider,
+      provider: { $in: providersToMatch },
       syncStatus: "connected",
     });
 

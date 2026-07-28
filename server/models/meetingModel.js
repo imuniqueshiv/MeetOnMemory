@@ -138,6 +138,15 @@ const meetingSchema = new mongoose.Schema(
       type: String, // Plain-text snapshot for read-only views and semantic search
       default: "",
     },
+    series: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "MeetingSeries",
+      default: null,
+    },
+    seriesOccurrence: {
+      type: Number,
+      default: null,
+    },
   },
   { timestamps: true },
 );

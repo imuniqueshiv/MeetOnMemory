@@ -73,7 +73,7 @@ export const logout = async (req, res) => {
 // --------------------------- SEND VERIFY OTP ---------------------------
 export const sendVerifyOtp = async (req, res) => {
   try {
-    const { userId } = req;
+    const userId = req.user.id;
 
     await AuthService.sendVerifyOtp(userId);
 
@@ -95,7 +95,7 @@ export const sendVerifyOtp = async (req, res) => {
 // --------------------------- VERIFY EMAIL ---------------------------
 export const verifyEmail = async (req, res) => {
   const { otp } = req.body;
-  const { userId } = req;
+  const userId = req.user.id;
   if (!validateFields({ userId, otp }, res)) return;
 
   try {

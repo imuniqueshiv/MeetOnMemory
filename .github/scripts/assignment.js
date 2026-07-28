@@ -1,10 +1,12 @@
+import { AUTOMATION } from "./constants.js";
 import { comments } from "./comments.js";
-import { createComment, getIssue, isExpectedRepository } from "./helpers.js";
 import {
-  readMetadata,
-  setAssignmentMetadata,
-  updateIssueMetadata,
-} from "./metadata.js";
+  createComment,
+  findCommentByMarker,
+  getIssue,
+  isExpectedRepository,
+} from "./helpers.js";
+import { setAssignmentMetadata, updateIssueMetadata } from "./metadata.js";
 import { isMaintainerRole, resolveActorRole } from "./permissions.js";
 import { isIgnoredBotUser } from "./utils.js";
 
@@ -25,12 +27,20 @@ export async function processManualAssignment({ github, context, core }) {
   const issue = await getIssue(github, context, core, issueNumber);
   if (!issue) return;
 
-  const metadata = readMetadata(issue.body);
-  if (metadata.welcomeSource === "claim") return;
-
+  // Persist manualAssignment so expiration/reminders never touch this claim.
   await updateIssueMetadata(github, context, core, issue, (draft) =>
     setAssignmentMetadata(draft, "manual"),
   );
+
+  const existingWelcome = await findCommentByMarker(
+    github,
+    context,
+    core,
+    issueNumber,
+    AUTOMATION.assignmentWelcomeMarker,
+  );
+  if (existingWelcome) return;
+
   await createComment(
     github,
     context,

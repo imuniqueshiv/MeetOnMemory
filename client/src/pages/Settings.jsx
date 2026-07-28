@@ -39,12 +39,13 @@ const Settings = () => {
   });
   const [calendarLoading, setCalendarLoading] = useState(false);
 
-  // Notification preferences state (UI only - no backend support)
+  // Notification preferences state (UI only - no backend support except emailDigestEnabled)
   const [notificationPrefs, setNotificationPrefs] = useState({
     meetingNotifications: true,
     organizationUpdates: true,
     aiProcessingUpdates: true,
     emailNotifications: true,
+    emailDigestEnabled: userData?.emailDigestEnabled !== false,
   });
 
   const { theme, toggleTheme } = useTheme();
@@ -115,11 +116,32 @@ const Settings = () => {
     }
   };
 
-  const handleNotificationChange = (key) => {
+  const handleNotificationChange = async (key) => {
+    const newValue = !notificationPrefs[key];
     setNotificationPrefs((prev) => ({
       ...prev,
-      [key]: !prev[key],
+      [key]: newValue,
     }));
+
+    if (key === "emailDigestEnabled") {
+      try {
+        const token = localStorage.getItem("token");
+        await axios.put(
+          "/api/user/update",
+          { emailDigestEnabled: newValue },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        toast.success("Email digest preference updated");
+      } catch (error) {
+        console.error("Error updating preference:", error);
+        toast.error("Failed to update preference");
+        // Revert on error
+        setNotificationPrefs((prev) => ({
+          ...prev,
+          [key]: !newValue,
+        }));
+      }
+    }
   };
 
   const handleThemeChange = (newTheme) => {
@@ -559,6 +581,34 @@ const Settings = () => {
                   <span
                     className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
                       notificationPrefs.emailNotifications
+                        ? "translate-x-5"
+                        : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between py-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                    Receive email digest after meetings
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Get an automated summary of completed meetings
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleNotificationChange("emailDigestEnabled")}
+                  className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                    notificationPrefs.emailDigestEnabled
+                      ? "bg-blue-600"
+                      : "bg-slate-200 dark:bg-slate-700"
+                  }`}
+                  aria-pressed={notificationPrefs.emailDigestEnabled}
+                >
+                  <span
+                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
+                      notificationPrefs.emailDigestEnabled
                         ? "translate-x-5"
                         : "translate-x-0"
                     }`}

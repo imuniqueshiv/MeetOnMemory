@@ -7,7 +7,7 @@ import "react-toastify/dist/ReactToastify.css";
 import PublicRoutes from "./routes/PublicRoutes.jsx";
 import ProtectedRoutes from "./routes/ProtectedRoutes.jsx";
 
-import Home from "./pages/Home.jsx"; // 👈 Fallback page
+import NotFound from "./pages/NotFound.jsx";
 
 import Navbar from "./components/Navbar";
 import ScrollNavigator from "./components/ScrollNavigator";
@@ -48,8 +48,8 @@ const App = () => {
           <Routes>
             {PublicRoutes}
             {ProtectedRoutes}
-            {/* ✅ Fallback route — send unknown routes to Home */}
-            <Route path="*" element={<Home />} />
+            {/* ✅ Fallback route — send unknown routes to NotFound */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
 

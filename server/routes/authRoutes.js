@@ -40,7 +40,7 @@ router.get("/is-auth", userAuth, isAuthenticated);
 
 // ✅ Google Calendar Auth
 router.get("/test-123", (req, res) => res.send("working"));
-router.get("/google-calendar", googleCalendarAuth);
+router.get("/google-calendar", userAuth, googleCalendarAuth);
 router.get("/google-calendar/callback", googleCalendarCallback);
 
 export default router;

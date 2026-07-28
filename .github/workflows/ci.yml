@@ -1,122 +1,78 @@
 name: CI Pipeline
 
 on:
-  push:
-    branches: [main, master]
   pull_request:
     branches: [main, master]
 
-# Cancel redundant runs for the same PR/branch — keeps only the latest.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-pr-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # ─────────────────────────────────────────────────────────────
-  # 1. CODE QUALITY — Prettier formatting + ESLint (both sides)
-  # ─────────────────────────────────────────────────────────────
-  code-quality:
-    name: Code Quality
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      formatting: ${{ steps.filter.outputs.formatting }}
+    steps:
+      - name: Detect changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'server/**'
+            frontend:
+              - 'client/**'
+            formatting:
+              - '**/*.{js,jsx,ts,tsx,css,html,json,md,yml,yaml}'
+              - '.prettierrc'
+              - '.prettierrc.*'
+              - 'prettier.config.*'
+              - '.github/workflows/**'
+
+  root-prettier:
+    name: Root Prettier
+    needs: changes
+    if: needs.changes.outputs.formatting == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0 # full history needed for diff-based prettier
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: |
-            package-lock.json
-            server/package-lock.json
-            client/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install root dependencies
         run: npm ci
 
-      - name: Install server dependencies
-        run: npm ci --prefix server
+      - name: Fetch base branch for changed-file checks
+        run: git fetch origin ${{ github.base_ref }} --depth=1
 
-      - name: Install client dependencies
-        run: npm ci --prefix client
+      - name: Check changed files with Prettier
+        run: npm run format:check:changed
 
-      - name: Prettier — check changed files
-        run: |
-          git fetch origin ${{ github.base_ref || 'main' }} --depth=1
-          TARGET_BRANCH="origin/${{ github.base_ref || 'main' }}"
-          CHANGED_FILES=$(git diff --name-only $TARGET_BRANCH...HEAD | grep -E '\.(js|jsx|ts|tsx|css|html|json|md|yml|yaml)$' || true)
-          if [ -n "$CHANGED_FILES" ]; then
-            npx prettier --check $CHANGED_FILES
-          else
-            echo "No changed files to check."
-          fi
-
-      - name: ESLint — server
-        run: npm run lint --prefix server
-
-      - name: ESLint — client
-        run: npm run lint --prefix client
-
-  # ─────────────────────────────────────────────────────────────
-  # 2. BACKEND VALIDATION — Lint, tests, coverage, startup
-  # ─────────────────────────────────────────────────────────────
-  backend-validation:
-    name: Backend Validation
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: server/package-lock.json
-
-      - name: Install server dependencies
-        run: npm ci --prefix server
-
-      - name: Create minimal .env for tests
-        run: |
-          cat <<EOF > server/.env
-          NODE_ENV=test
-          JWT_SECRET=ci_test_secret
-          GEMINI_API_KEY=test_key
-          GEMINI_MODEL=gemini-2.5-flash
-          PINECONE_API_KEY=test_key
-          INDEX_NAME=meeton
-          EOF
-
-      - name: Lint
-        run: npm run lint --prefix server
-
-      - name: Run tests with coverage
-        run: npm run test:ci --prefix server
-
-      - name: Startup validation
-        run: npm run test:startup --prefix server
-
-      - name: Upload coverage report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-coverage
-          path: server/coverage/
-          retention-days: 14
-
-  # ─────────────────────────────────────────────────────────────
-  # 3. FRONTEND VALIDATION — Lint, tests, production build
-  # ─────────────────────────────────────────────────────────────
   frontend-validation:
     name: Frontend Validation
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
@@ -128,52 +84,22 @@ jobs:
       - name: Install client dependencies
         run: npm ci --prefix client
 
-      - name: Lint
-        run: npm run lint --prefix client
+      - name: Fetch base branch for changed-file checks
+        run: git fetch origin ${{ github.base_ref }} --depth=1
 
-      - name: Run tests
-        run: npm run test:ci --prefix client
+      - name: Run PR frontend validation
+        run: npm run validate:pr --prefix client
 
-      - name: Verify production build
-        run: npm run build --prefix client
-
-  # ─────────────────────────────────────────────────────────────
-  # 4. SECURITY — npm audit for high/critical vulnerabilities
-  # ─────────────────────────────────────────────────────────────
-  security:
-    name: Security Checks
+  server-validation:
+    name: Server Validation
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
         with:
-          node-version: "20"
-
-      - name: Audit server dependencies
-        run: |
-          cd server
-          npm audit --audit-level=high || true
-        # `|| true` prevents job failure on advisory-only findings.
-        # The exit code is non-zero even for moderate issues; we only
-        # want to fail on high/critical which npm audit reports separately.
-
-      - name: Audit client dependencies
-        run: |
-          cd client
-          npm audit --audit-level=high || true
-
-  # ─────────────────────────────────────────────────────────────
-  # 5. INTEGRATION TESTS — Critical API endpoint verification
-  # ─────────────────────────────────────────────────────────────
-  integration-tests:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
@@ -185,20 +111,8 @@ jobs:
       - name: Install server dependencies
         run: npm ci --prefix server
 
-      - name: Create minimal .env for tests
-        run: |
-          cat <<EOF > server/.env
-          NODE_ENV=test
-          JWT_SECRET=ci_test_secret
-          GEMINI_API_KEY=test_key
-          GEMINI_MODEL=gemini-2.5-flash
-          PINECONE_API_KEY=test_key
-          INDEX_NAME=meeton
-          EOF
+      - name: Fetch base branch for changed-file checks
+        run: git fetch origin ${{ github.base_ref }} --depth=1
 
-      - name: Run integration tests
-        run: |
-          cd server
-          node --experimental-vm-modules node_modules/jest/bin/jest.js \
-            --forceExit --ci \
-            tests/integration.test.js
+      - name: Run PR server validation
+        run: npm run validate:pr --prefix server

@@ -21,8 +21,9 @@ export const getDecisionCompliance = async (req, res) => {
 
     // Verify the decision belongs to the caller's organization before
     // returning anything — never leak cross-organization data.
-    const decision =
-      await Decision.findById(decisionId).select("organization text createdAt");
+    const decision = await Decision.findById(decisionId).select(
+      "organization text createdAt",
+    );
 
     if (
       !decision ||

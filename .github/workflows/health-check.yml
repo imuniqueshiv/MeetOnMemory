@@ -2,8 +2,9 @@ name: Keep-Alive Health Check
 
 on:
   schedule:
-    # Every 10 minutes — Render free tier sleeps after ~15 mins of inactivity
-    - cron: "*/10 * * * *"
+    # Every 15 minutes — matches Render free-tier ~15 min idle sleep window
+    # while cutting Actions minutes vs */10 (144 → 96 runs/day).
+    - cron: "*/15 * * * *"
   workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
 
 jobs:

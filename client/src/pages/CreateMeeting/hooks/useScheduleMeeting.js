@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { toast } from "react-toastify";
-import { meetingApi, meetingTemplateApi } from "../../../services";
+import {
+  meetingApi,
+  meetingTemplateApi,
+  meetingSeriesApi,
+} from "../../../services";
 import { useEffect } from "react";
 
 export const useScheduleMeeting = () => {
@@ -14,6 +18,10 @@ export const useScheduleMeeting = () => {
     location: "",
     venue: "",
     syncToCalendar: true,
+    recurrencePattern: "none",
+    endDate: "",
+    dayOfWeek: "",
+    dayOfMonth: "",
   });
   const [participants, setParticipants] = useState([]);
   const [newParticipant, setNewParticipant] = useState({ name: "", email: "" });
@@ -118,10 +126,32 @@ export const useScheduleMeeting = () => {
         agendaItems,
       };
 
-      const response = await meetingApi.scheduleMeeting(payload);
+      // Type-cast specific fields for meeting series if needed
+      if (
+        scheduleData.recurrencePattern &&
+        scheduleData.recurrencePattern !== "none"
+      ) {
+        payload.dayOfWeek = scheduleData.dayOfWeek
+          ? parseInt(scheduleData.dayOfWeek, 10)
+          : undefined;
+        payload.dayOfMonth = scheduleData.dayOfMonth
+          ? parseInt(scheduleData.dayOfMonth, 10)
+          : undefined;
+      }
+
+      const response =
+        scheduleData.recurrencePattern &&
+        scheduleData.recurrencePattern !== "none"
+          ? await meetingSeriesApi.createSeries(payload)
+          : await meetingApi.scheduleMeeting(payload);
 
       if (response.data?.success) {
-        toast.success("✅ Meeting scheduled and synced to calendars!");
+        toast.success(
+          scheduleData.recurrencePattern &&
+            scheduleData.recurrencePattern !== "none"
+            ? "✅ Meeting series scheduled successfully!"
+            : "✅ Meeting scheduled and synced to calendars!",
+        );
 
         // Trigger calendar integration
         if (response.data.calendarLinks) {
@@ -139,6 +169,10 @@ export const useScheduleMeeting = () => {
           location: "",
           venue: "",
           syncToCalendar: true,
+          recurrencePattern: "none",
+          endDate: "",
+          dayOfWeek: "",
+          dayOfMonth: "",
         });
         setParticipants([]);
         setAgendaItems([]);

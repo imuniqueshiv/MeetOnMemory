@@ -19,6 +19,7 @@ import * as PolicyService from "../services/PolicyService.js";
 import { ValidationError, UnauthorizedError } from "../utils/errors.js";
 import AuditService from "../services/AuditService.js";
 import { sendSuccess } from "../utils/responseHandler.js";
+import * as activityService from "../services/activityService.js";
 // ═══════════════════════════════════════════════════════════════
 // Zod validation schemas
 // ═══════════════════════════════════════════════════════════════
@@ -79,6 +80,17 @@ export const uploadPolicy = async (req, res, next) => {
         organizationId: orgId,
         details: { title: policy.title, commitMsg: validated.commitMsg },
       });
+
+      const io = req.app.get("io");
+      activityService.logActivity(
+        io,
+        orgId,
+        uploaderId,
+        isUpdate ? "policy.updated" : "policy.created",
+        "Policy",
+        policy._id,
+        policy.title,
+      );
     }
 
     return sendSuccess(
@@ -188,6 +200,17 @@ export const deletePolicy = async (req, res, next) => {
         organizationId: policy.organization,
         details: { title: policy.title },
       });
+
+      const io = req.app.get("io");
+      activityService.logActivity(
+        io,
+        policy.organization,
+        getUserId(req),
+        "policy.deleted",
+        "Policy",
+        policy._id,
+        policy.title,
+      );
     }
 
     return sendSuccess(res, null, "Policy deleted successfully.");

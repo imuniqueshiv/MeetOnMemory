@@ -29,13 +29,13 @@ export const listSessions = async (userId) => {
 async function queryPinecone(organizationId, queryText, topK = 6) {
   const queryEmbedding = await embedText(queryText);
   const index = await initVectorStore();
-  
+
   // 1. Query meetings (default namespace)
   const meetingResults = await index.query({
     vector: queryEmbedding,
     topK,
     includeMetadata: true,
-    filter: { organization: organizationId.toString() }
+    filter: { organization: organizationId.toString() },
   });
 
   // 2. Query policies (policy namespace)
@@ -43,13 +43,16 @@ async function queryPinecone(organizationId, queryText, topK = 6) {
     vector: queryEmbedding,
     topK,
     includeMetadata: true,
-    filter: { organization: organizationId.toString() }
+    filter: { organization: organizationId.toString() },
   });
 
   // Combine and sort by score
   const combined = [
-    ...(meetingResults.matches || []).map(m => ({ ...m, refType: "meeting" })),
-    ...(policyResults.matches || []).map(m => ({ ...m, refType: "policy" }))
+    ...(meetingResults.matches || []).map((m) => ({
+      ...m,
+      refType: "meeting",
+    })),
+    ...(policyResults.matches || []).map((m) => ({ ...m, refType: "policy" })),
   ];
 
   combined.sort((a, b) => (b.score || 0) - (a.score || 0));
@@ -59,28 +62,28 @@ async function queryPinecone(organizationId, queryText, topK = 6) {
 export const processMessage = async (sessionId, userId, content, socket) => {
   const session = await getSession(sessionId, userId);
   const organizationId = session.organizationId;
-  
+
   // Save user message
   session.messages.push({ role: "user", content, sources: [] });
   await session.save();
 
   // Retrieve context
   const rawHits = await queryPinecone(organizationId, content, 6);
-  
+
   const sources = [];
   let contextText = "";
-  
+
   for (let i = 0; i < rawHits.length; i++) {
     const hit = rawHits[i];
     const meta = hit.metadata || {};
-    
+
     // De-dupe sources (optional, but good practice)
     let refId = "";
     let title = "";
     let snippet = "";
-    
+
     if (hit.refType === "meeting") {
-      refId = meta.meetingId || hit.id.split('-')[0];
+      refId = meta.meetingId || hit.id.split("-")[0];
       title = meta.title || "Untitled Meeting";
       snippet = meta.summary || meta.transcript || "";
     } else {
@@ -88,16 +91,16 @@ export const processMessage = async (sessionId, userId, content, socket) => {
       title = meta.name || "Untitled Policy";
       snippet = meta.summary || "";
     }
-    
-    if (!sources.some(s => s.refId.toString() === refId.toString())) {
+
+    if (!sources.some((s) => s.refId.toString() === refId.toString())) {
       sources.push({
         refType: hit.refType,
         refId,
         title,
-        snippet: snippet.substring(0, 500) // keep snippet brief for DB
+        snippet: snippet.substring(0, 500), // keep snippet brief for DB
       });
     }
-    
+
     contextText += `\n\n[Source ${sources.length}] Type: ${hit.refType}, Title: ${title}\nContent: ${snippet}`;
   }
 
@@ -112,22 +115,22 @@ ${contextText}
 
   // Gemini prompt
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ 
+  const model = genAI.getGenerativeModel({
     model: GEMINI_MODEL,
-    systemInstruction: systemPrompt 
+    systemInstruction: systemPrompt,
   });
-  
-  const history = session.messages.slice(0, -1).map(m => ({
+
+  const history = session.messages.slice(0, -1).map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }]
+    parts: [{ text: m.content }],
   }));
 
   const chat = model.startChat({
-    history
+    history,
   });
 
   const result = await chat.sendMessageStream(content);
-  
+
   let fullResponse = "";
   for await (const chunk of result.stream) {
     const chunkText = chunk.text();
@@ -142,7 +145,10 @@ ${contextText}
     try {
       const titlePrompt = `Generate a short, 2-4 word title for a chat that started with this message: "${content}". Output only the title, no quotes.`;
       const titleResult = await model.generateContent(titlePrompt);
-      const generatedTitle = titleResult.response.text().trim().replace(/["']/g, '');
+      const generatedTitle = titleResult.response
+        .text()
+        .trim()
+        .replace(/["']/g, "");
       if (generatedTitle) {
         session.title = generatedTitle;
       }
@@ -154,17 +160,17 @@ ${contextText}
   const assistantMessage = {
     role: "assistant",
     content: fullResponse,
-    sources
+    sources,
   };
-  
+
   session.messages.push(assistantMessage);
   await session.save();
-  
+
   if (socket) {
-    socket.emit("assistant_message_done", { 
-      sessionId, 
+    socket.emit("assistant_message_done", {
+      sessionId,
       message: session.messages[session.messages.length - 1],
-      title: session.title
+      title: session.title,
     });
   }
 

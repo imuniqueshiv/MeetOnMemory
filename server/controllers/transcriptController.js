@@ -19,6 +19,15 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "dummy-key-for-tests",
 });
 
+/** In-progress statuses: "recording" (session) + legacy "active" (live chunks). */
+const IN_PROGRESS_STATUSES = ["recording", "active"];
+
+const findInProgressTranscript = (meetingId) =>
+  Transcript.findOne({
+    meeting: meetingId,
+    status: { $in: IN_PROGRESS_STATUSES },
+  });
+
 /**
  * @desc  Start a recording session for a meeting
  * @route POST /api/meetings/:meetingId/recording/start
@@ -53,10 +62,7 @@ export const startRecording = async (req, res) => {
     }
 
     // Check if there's already an active recording
-    const existingTranscript = await Transcript.findOne({
-      meetingId,
-      status: "recording",
-    });
+    const existingTranscript = await findInProgressTranscript(meetingId);
 
     if (existingTranscript) {
       return res.status(400).json({
@@ -67,11 +73,11 @@ export const startRecording = async (req, res) => {
 
     // Create new transcript document
     const transcript = new Transcript({
-      meetingId,
+      meeting: meetingId,
       organizationId: meeting.organization,
       status: "recording",
       language: "en",
-      timestamps: {
+      recordingTimestamps: {
         recordingStartedAt: new Date(),
       },
     });
@@ -130,10 +136,7 @@ export const stopRecording = async (req, res) => {
     }
 
     // Find active recording transcript
-    const transcript = await Transcript.findOne({
-      meetingId,
-      status: "recording",
-    });
+    const transcript = await findInProgressTranscript(meetingId);
 
     if (!transcript) {
       return res.status(404).json({
@@ -144,8 +147,11 @@ export const stopRecording = async (req, res) => {
 
     // Update transcript status to processing
     transcript.status = "processing";
-    transcript.timestamps.recordingEndedAt = new Date();
-    transcript.timestamps.processingStartedAt = new Date();
+    if (!transcript.recordingTimestamps) {
+      transcript.recordingTimestamps = {};
+    }
+    transcript.recordingTimestamps.recordingEndedAt = new Date();
+    transcript.recordingTimestamps.processingStartedAt = new Date();
     await transcript.save();
 
     // Trigger transcription in background (non-blocking)
@@ -208,10 +214,7 @@ export const uploadTranscriptAudio = async (req, res) => {
     }
 
     // Find active recording transcript
-    const transcript = await Transcript.findOne({
-      meetingId,
-      status: "recording",
-    });
+    const transcript = await findInProgressTranscript(meetingId);
 
     if (!transcript) {
       // Clean up uploaded file
@@ -291,8 +294,12 @@ export const uploadTranscriptChunk = async (req, res) => {
       // Create transcript if it doesn't exist yet
       transcript = new Transcript({
         meeting: meetingId,
-        status: "active",
+        organizationId: meeting.organization,
+        status: "recording",
         language: "en",
+        recordingTimestamps: {
+          recordingStartedAt: new Date(),
+        },
       });
     }
 
@@ -383,8 +390,8 @@ export const getTranscript = async (req, res) => {
       });
     }
 
-    // Find transcript
-    const transcript = await Transcript.findOne({ meetingId });
+    // Find transcript by canonical meeting field
+    const transcript = await Transcript.findOne({ meeting: meetingId });
 
     if (!transcript) {
       return res.status(404).json({
@@ -441,7 +448,7 @@ export const retryTranscription = async (req, res) => {
 
     // Find failed transcript
     const transcript = await Transcript.findOne({
-      meetingId,
+      meeting: meetingId,
       status: "failed",
     });
 
@@ -454,7 +461,10 @@ export const retryTranscription = async (req, res) => {
 
     // Reset status and retry
     transcript.status = "processing";
-    transcript.timestamps.processingStartedAt = new Date();
+    if (!transcript.recordingTimestamps) {
+      transcript.recordingTimestamps = {};
+    }
+    transcript.recordingTimestamps.processingStartedAt = new Date();
     transcript.errorMessage = null;
     await transcript.save();
 
@@ -552,7 +562,10 @@ async function processTranscription(transcriptId) {
     transcript.fullText = transcriptionResult.fullText;
     transcript.segments = transcriptionResult.segments;
     transcript.status = "completed";
-    transcript.timestamps.completedAt = new Date();
+    if (!transcript.recordingTimestamps) {
+      transcript.recordingTimestamps = {};
+    }
+    transcript.recordingTimestamps.completedAt = new Date();
     await transcript.save();
 
     // Clean up audio file
@@ -566,7 +579,8 @@ async function processTranscription(transcriptId) {
     await indexTranscript(transcript);
 
     // Update meeting with transcript reference
-    await Meeting.findByIdAndUpdate(transcript.meetingId, {
+    const meetingRef = transcript.meeting?._id || transcript.meeting;
+    await Meeting.findByIdAndUpdate(meetingRef, {
       transcript: transcriptionResult.fullText,
     });
 

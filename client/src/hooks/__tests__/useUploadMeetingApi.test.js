@@ -28,7 +28,7 @@ describe("useUploadMeetingApi hook", () => {
     const onError = vi.fn();
 
     await act(async () => {
-      await result.current.uploadMeeting(null, "Test Title", { onError });
+      await result.current.uploadMeeting(null, "Test Title", [], { onError });
     });
 
     expect(result.current.status).toBe("error");
@@ -47,7 +47,7 @@ describe("useUploadMeetingApi hook", () => {
     const onSuccess = vi.fn();
 
     await act(async () => {
-      await result.current.uploadMeeting(file, "Title", { onSuccess });
+      await result.current.uploadMeeting(file, "Title", [], { onSuccess });
     });
 
     expect(meetingApi.uploadMeeting).toHaveBeenCalled();
@@ -65,7 +65,7 @@ describe("useUploadMeetingApi hook", () => {
     const onError = vi.fn();
 
     await act(async () => {
-      await result.current.uploadMeeting(file, "Title", { onError });
+      await result.current.uploadMeeting(file, "Title", [], { onError });
     });
 
     expect(onError).toHaveBeenCalled();

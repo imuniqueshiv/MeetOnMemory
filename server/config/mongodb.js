@@ -2,14 +2,19 @@ import mongoose from "mongoose";
 
 const connectDB = async () => {
   try {
-    mongoose.connection.on("connected", () =>
-      console.log("Database connected"),
-    );
+    mongoose.connection.on("connected", () => {
+      console.log("Database connected");
+    });
 
     const rawUri =
       process.env.NODE_ENV === "test" && process.env.TEST_MONGODB_URI
         ? process.env.TEST_MONGODB_URI
         : process.env.MONGODB_URI;
+
+    if (!rawUri) {
+      console.error("MongoDB URI is not set in environment variables.");
+      process.exit(1);
+    }
 
     // Strip trailing slash to avoid double-slash database name
     const dbUri = rawUri.endsWith("/") ? rawUri.slice(0, -1) : rawUri;
@@ -23,6 +28,7 @@ const connectDB = async () => {
     const connectionUri = uriPathSegments > 3 ? dbUri : `${dbUri}/${dbName}`;
 
     await mongoose.connect(connectionUri);
+
     const sanitizedUri = dbUri.replace(
       /(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@)/,
       "$1****$3",
@@ -34,9 +40,10 @@ const connectDB = async () => {
     console.log("Database:", resolvedDbName);
   } catch (error) {
     console.error("MongoDB connection failed:", error.message);
-    console.warn(
-      "Server running without database connection. Some features may not work.",
+    console.error(
+      "Exiting process because the server cannot run without a database connection.",
     );
+    process.exit(1);
   }
 };
 

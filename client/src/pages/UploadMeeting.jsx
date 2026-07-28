@@ -26,6 +26,7 @@ import { meetingApi } from "../services";
 import useMeetingUpload from "../hooks/useMeetingUpload";
 import Dropzone from "../components/meetings/Dropzone.jsx";
 import MeetingRecorder from "../components/meetings/MeetingRecorder.jsx";
+import TagAutocomplete from "../components/meetings/TagAutocomplete.jsx";
 
 const UploadMeeting = () => {
   const { userData } = useContext(AppContent);
@@ -96,6 +97,7 @@ const UploadMeeting = () => {
     return `${yyyy}-${mm}-${dd}`;
   });
   const [title, setTitle] = useState("");
+  const [tags, setTags] = useState([]);
   const [activeTab, setActiveTab] = useState("upload"); // 'upload' or 'record'
 
   // If a transcript chunk comes back from live recording, append it to `transcript` hook state
@@ -279,6 +281,11 @@ const UploadMeeting = () => {
                   </div>
                 </div>
 
+                <TagAutocomplete
+                  selectedTags={tags}
+                  setSelectedTags={setTags}
+                />
+
                 <div className="pt-2 text-xs text-gray-400 dark:text-gray-500 leading-relaxed flex items-start gap-1.5">
                   <AlertCircle className="w-4.5 h-4.5 text-blue-400 dark:text-blue-500 shrink-0 mt-0.5" />
                   <span>
@@ -320,6 +327,9 @@ const UploadMeeting = () => {
                       meetingId={meetingId}
                       onTranscriptUpdate={handleTranscriptUpdate}
                       onMeetingCreated={setMeetingId}
+                      title={title}
+                      date={meetingDate}
+                      tags={tags}
                     />
                   </>
                 )}
@@ -331,7 +341,7 @@ const UploadMeeting = () => {
               <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-3 w-full sm:w-auto justify-start order-2 sm:order-1">
                   <button
-                    onClick={() => handleUpload(title, setTitle)}
+                    onClick={() => handleUpload(title, setTitle, tags)}
                     disabled={isUploading || !file}
                     className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
                       isUploading || !file

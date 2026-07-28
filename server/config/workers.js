@@ -5,6 +5,7 @@ import {
   initConflictScanWorker,
   initSentimentWorker,
   initRecalculateImportanceWorker,
+  initMemoryLifecycleWorker,
 } from "../services/queueService.js";
 import { initWebhookWorker } from "../services/webhookDispatcherService.js";
 
@@ -29,6 +30,7 @@ export function startWorkers(app) {
   safeInit("Recalculate Importance Worker", () =>
     initRecalculateImportanceWorker(app),
   );
+  safeInit("Memory Lifecycle Worker", () => initMemoryLifecycleWorker(app));
 
   import("../utils/embeddingUtils.js")
     .then(({ preWarmPinecone }) => {

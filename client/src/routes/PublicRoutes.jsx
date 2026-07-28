@@ -17,6 +17,7 @@ import Status from "../pages/Status.jsx";
 import HelpCenter from "../pages/HelpCenter.jsx";
 import Careers from "../pages/Careers.jsx";
 import PublicSharedView from "../pages/PublicSharedView.jsx";
+import DeveloperDocs from "../pages/DeveloperDocs.jsx";
 
 const PublicRoutes = (
   <React.Fragment>
@@ -32,6 +33,8 @@ const PublicRoutes = (
     <Route path="/status" element={<Status />} />
     <Route path="/help-center" element={<HelpCenter />} />
     <Route path="/careers" element={<Careers />} />
+    <Route path="/docs" element={<DeveloperDocs />} />
+    <Route path="/developer-docs" element={<DeveloperDocs />} />
     <Route
       path="/organizations/:slug"
       element={<PublicOrganizationProfile />}

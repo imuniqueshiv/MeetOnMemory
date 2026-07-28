@@ -14,7 +14,7 @@ const router = express.Router();
 // Apply rate limiting to all routes
 router.use(apiLimiter);
 
-// POST /api/ai-search
+// POST /api/ai
 router.post(
   "/",
   userAuth,
@@ -37,7 +37,7 @@ router.post(
       logger.info("Received AI search query", {
         userId: req.user ? req.user._id : "anonymous",
         queryLength: query ? query.length : 0,
-        hasFilters: !!filters
+        hasFilters: !!filters,
       });
 
       // ✅ Call vector search with filters
@@ -82,7 +82,7 @@ router.post(
       // ✅ Debug log
       logger.info("Returning authorized AI search results", {
         resultCount: authorizedResults.length,
-        userId: req.user ? req.user._id : "anonymous"
+        userId: req.user ? req.user._id : "anonymous",
       });
 
       // ✅ Send response
@@ -94,7 +94,7 @@ router.post(
     } catch (error) {
       logger.error("AI Search Error", error, {
         userId: req.user ? req.user._id : "anonymous",
-        queryLength: req.body?.query ? req.body.query.length : 0
+        queryLength: req.body?.query ? req.body.query.length : 0,
       });
       res.status(500).json({
         error: error.message || "Search failed",

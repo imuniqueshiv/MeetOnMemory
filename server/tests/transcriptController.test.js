@@ -1,11 +1,4 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi as jest,
-} from "vitest";
+import { describe, it, expect, beforeEach, vi as jest } from "vitest";
 
 jest.mock("../models/transcriptModel.js", () => ({
   default: {

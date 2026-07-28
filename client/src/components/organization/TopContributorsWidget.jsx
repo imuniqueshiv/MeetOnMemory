@@ -26,7 +26,7 @@ const TopContributorsWidget = ({ organizationId }) => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 bg-white dark:bg-gray-800 rounded-xl border border-slate-200/80 dark:border-gray-700 shadow-sm p-6">
+      <div className="flex flex-col items-center justify-center min-h-[9rem] bg-white dark:bg-gray-800 rounded-xl border border-slate-200/80 dark:border-gray-700 shadow-sm p-6">
         <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-3" />
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Loading Leaderboard...
@@ -37,16 +37,29 @@ const TopContributorsWidget = ({ organizationId }) => {
 
   if (contributors.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 bg-white dark:bg-gray-800 rounded-xl border border-slate-200/80 dark:border-gray-700 shadow-sm p-6 text-center">
-        <div className="bg-slate-100 dark:bg-gray-700 p-3 rounded-full mb-3">
-          <Trophy className="h-6 w-6 text-slate-400 dark:text-gray-500" />
+      <div className="rounded-xl border border-slate-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-5 sm:p-6">
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="bg-amber-100 dark:bg-amber-900/30 p-2 rounded-lg">
+            <Trophy className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-gray-100 tracking-tight">
+            Top Contributors
+          </h2>
         </div>
-        <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-300">
-          No contributors yet
-        </h3>
-        <p className="text-xs text-slate-500 mt-1 max-w-[200px]">
-          Complete action items and summaries to earn points!
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 rounded-lg border border-dashed border-slate-200 dark:border-gray-600 bg-slate-50/80 dark:bg-gray-700/40 px-4 py-5 sm:px-5">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-gray-800 shadow-sm ring-1 ring-slate-200/80 dark:ring-gray-600">
+            <Trophy className="h-5 w-5 text-slate-400 dark:text-gray-500" />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-200">
+              No contributors yet
+            </h3>
+            <p className="text-sm leading-relaxed text-slate-500 dark:text-gray-400 max-w-2xl">
+              Complete action items and summaries to earn points and appear on
+              the organization leaderboard.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }

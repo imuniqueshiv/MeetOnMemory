@@ -3,6 +3,7 @@ import Membership from "../models/membershipModel.js";
 import Organization from "../models/organizationModel.js";
 import userModel from "../models/userModel.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
+import * as activityService from "../services/activityService.js";
 
 /**
  * ✅ Get User Memberships
@@ -125,6 +126,17 @@ export const updateMembershipRole = async (req, res) => {
     membership.role = role;
     await membership.save();
 
+    const io = req.app.get("io");
+    activityService.logActivity(
+      io,
+      membership.organization._id || membership.organization,
+      req.user.id,
+      "membership.role_updated",
+      "User",
+      membership.user,
+      "Role updated to " + role,
+    );
+
     sendSuccess(res, { membership }, "Membership role updated successfully.");
   } catch (error) {
     console.error("❌ Error updating membership role:", error);
@@ -199,6 +211,17 @@ export const removeMembership = async (req, res) => {
       });
     }
 
+    const io = req.app.get("io");
+    activityService.logActivity(
+      io,
+      removedOrgId,
+      req.user.id,
+      "membership.removed",
+      "User",
+      targetUserId,
+      isSelf ? "Left organization" : "Removed from organization",
+    );
+
     sendSuccess(res, null, "Membership removed successfully.");
   } catch (error) {
     console.error("❌ Error removing membership:", error);
@@ -246,6 +269,17 @@ export const leaveOrganization = async (req, res) => {
       organization: null,
       role: null,
     });
+
+    const io = req.app.get("io");
+    activityService.logActivity(
+      io,
+      organizationId,
+      req.user.id,
+      "membership.left",
+      "User",
+      req.user.id,
+      "Left organization",
+    );
 
     sendSuccess(res, null, "Left organization successfully.");
   } catch (error) {

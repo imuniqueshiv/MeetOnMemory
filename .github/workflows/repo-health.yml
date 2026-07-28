@@ -1,0 +1,54 @@
+name: Repository Health
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: repo-health-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  full-validation:
+    name: Full Validation Sweep
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install server dependencies
+        run: npm ci --prefix server
+
+      - name: Install client dependencies
+        run: npm ci --prefix client
+
+      - name: Create minimal .env for tests
+        run: |
+          cat <<EOF > server/.env
+          NODE_ENV=test
+          JWT_SECRET=repo_health_secret
+          GEMINI_API_KEY=test_key
+          GEMINI_MODEL=gemini-2.5-flash
+          PINECONE_API_KEY=test_key
+          INDEX_NAME=meeton
+          EOF
+
+      - name: Run root full validation
+        run: npm run validate:full
+
+      - name: Run integration tests
+        run: npm run test:integration --prefix server
