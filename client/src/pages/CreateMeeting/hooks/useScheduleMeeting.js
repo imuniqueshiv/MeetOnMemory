@@ -197,6 +197,7 @@ export const useScheduleMeeting = () => {
     newParticipant,
     setNewParticipant,
     agendaItems,
+    setAgendaItems,
     newAgenda,
     setNewAgenda,
     attachments,

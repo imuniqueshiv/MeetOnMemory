@@ -15,6 +15,8 @@ export default function TaskCard({
   setSelectedTask,
   navigate,
   updateTaskStatus,
+  isSelected,
+  onSelectTask,
 }) {
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -39,6 +41,22 @@ export default function TaskCard({
       className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-5 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition-all cursor-pointer"
     >
       <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+        {/* Selection Checkbox */}
+        {onSelectTask && (
+          <div className="pt-1 shrink-0">
+            <input
+              type="checkbox"
+              checked={!!isSelected}
+              onChange={(e) => {
+                e.stopPropagation();
+                onSelectTask(task.id, e.target.checked);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+            />
+          </div>
+        )}
+
         {/* Task Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-3 mb-2">

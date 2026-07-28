@@ -13,6 +13,7 @@ import mongoose from "mongoose";
 import User from "../models/userModel.js";
 import Membership from "../models/membershipModel.js";
 import Tag from "../models/tagModel.js";
+import ActionItem from "../models/actionItemModel.js";
 import { captureSnapshot } from "./graphSnapshotService.js";
 import eventBus from "./eventBus.js";
 import {
@@ -112,6 +113,16 @@ const _runKnowledgeGraph = (meetingDoc, mom) => {
 // ═══════════════════════════════════════════════════════════════
 
 export const createMeeting = async (uploaderId, orgId, data) => {
+  if (data.sourceActionItemIds && data.sourceActionItemIds.length > 0) {
+    const validCount = await ActionItem.countDocuments({
+      _id: { $in: data.sourceActionItemIds },
+      organization: orgId || null,
+    });
+    if (validCount !== data.sourceActionItemIds.length) {
+      throw new ValidationError("One or more invalid or unauthorized action items requested.");
+    }
+  }
+
   const meeting = await MeetingStorageService.createMeetingRecord({
     uploadedBy: uploaderId,
     organization: orgId || null,
@@ -131,6 +142,7 @@ export const createMeeting = async (uploaderId, orgId, data) => {
     summary: "",
     structuredMoM: null,
     status: "uploaded",
+    sourceActionItemIds: data.sourceActionItemIds || [],
   });
 
   scheduleIndexMeeting(meeting);

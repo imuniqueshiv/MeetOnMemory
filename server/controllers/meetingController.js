@@ -47,6 +47,7 @@ const createMeetingSchema = z.object({
   agendaItems: z.array(z.record(z.unknown())).optional().default([]),
   policyDetails: z.record(z.unknown()).nullable().optional(),
   recordingType: z.enum(["upload", "live"]).optional().default("upload"),
+  sourceActionItemIds: z.array(z.string()).optional(),
 });
 
 const uploadMeetingSchema = z.object({

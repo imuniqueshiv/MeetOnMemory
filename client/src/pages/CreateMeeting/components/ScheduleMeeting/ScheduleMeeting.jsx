@@ -1,4 +1,7 @@
 import { Calendar, Loader2, Send, FileText } from "lucide-react";
+import { useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { knowledgeApi } from "../../../../services/knowledgeApi";
 import MeetingInformationForm from "./MeetingInformationForm";
 import ParticipantsSection from "./ParticipantsSection";
 import AgendaSection from "./AgendaSection";
@@ -29,6 +32,53 @@ const ScheduleMeeting = ({ hookProps }) => {
     removeAttachment,
     handleScheduleSubmit,
   } = hookProps;
+
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const actionItemsParam = searchParams.get("sourceActionItems");
+    if (actionItemsParam) {
+      const ids = actionItemsParam.split(",");
+      const fetchPreFillData = async () => {
+        try {
+          const res = await knowledgeApi.getActionItems("all");
+          if (res.data?.success) {
+            const selectedItems = res.data.actionItems.filter((item) =>
+              ids.includes(item.id || item._id)
+            );
+
+            if (selectedItems.length > 0) {
+              // Pre-fill Title
+              const firstSourceMeeting = selectedItems.find(
+                (item) => item.sourceMeetingId
+              )?.sourceMeetingId;
+              const title = firstSourceMeeting?.title
+                ? `Follow-up: ${firstSourceMeeting.title}`
+                : "Follow-up Meeting";
+
+              setScheduleData((prev) => ({
+                ...prev,
+                title,
+                sourceActionItemIds: ids,
+              }));
+
+              // Pre-fill Agenda Items
+              const newAgendaItems = selectedItems.map((item) => ({
+                text: item.text,
+                description: item.owner ? `Owner: ${item.owner}` : "",
+                duration: null,
+                id: Date.now().toString() + Math.random(),
+              }));
+              hookProps.setAgendaItems(newAgendaItems);
+            }
+          }
+        } catch (error) {
+          console.error("Failed to fetch action items for pre-fill:", error);
+        }
+      };
+      fetchPreFillData();
+    }
+  }, [searchParams, setScheduleData, hookProps]);
 
   return (
     <div className="bg-white shadow-lg rounded-2xl p-8">

@@ -60,6 +60,12 @@ const meetingSchema = new mongoose.Schema(
         duration: { type: Number, default: null },
       },
     ],
+    sourceActionItemIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "ActionItem",
+      },
+    ],
     policyDetails: {
       // For policy-type meetings
       policyName: { type: String, default: "" },

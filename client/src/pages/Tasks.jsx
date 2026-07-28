@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar.jsx";
 import {
@@ -7,6 +7,7 @@ import {
   FileText,
   Loader2,
   GitMerge,
+  CalendarPlus,
 } from "lucide-react";
 import useTasks from "../hooks/useTasks";
 import TaskFilterPanel from "../components/tasks/TaskFilterPanel";
@@ -17,6 +18,13 @@ import TaskDetailsModal from "../components/tasks/TaskDetailsModal";
 const Tasks = () => {
   const navigate = useNavigate();
   const taskState = useTasks();
+  const [selectedTaskIds, setSelectedTaskIds] = useState([]);
+
+  const handleSelectTask = (taskId, isSelected) => {
+    setSelectedTaskIds((prev) =>
+      isSelected ? [...prev, taskId] : prev.filter((id) => id !== taskId)
+    );
+  };
 
   return (
     <div className="min-h-screen bg-linear-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex flex-col">
@@ -48,6 +56,30 @@ const Tasks = () => {
           sortOrder={taskState.sortOrder}
           handleSort={taskState.handleSort}
         />
+
+        {/* Bulk Actions Toolbar */}
+        {selectedTaskIds.length > 0 && (
+          <div className="mb-6 fade-in-up bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900 rounded-xl p-4 flex items-center justify-between shadow-sm shadow-blue-100 dark:shadow-none">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              {selectedTaskIds.length} item{selectedTaskIds.length > 1 ? "s" : ""} selected
+            </span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setSelectedTaskIds([])}
+                className="text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                Clear
+              </button>
+              <button
+                onClick={() => navigate(`/create-meeting?sourceActionItems=${selectedTaskIds.join(",")}`)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              >
+                <CalendarPlus className="w-4 h-4" />
+                Create Follow-up Meeting
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Tasks List */}
         {taskState.loading ? (
@@ -105,6 +137,8 @@ const Tasks = () => {
                 setSelectedTask={taskState.setSelectedTask}
                 navigate={navigate}
                 updateTaskStatus={taskState.updateTaskStatus}
+                isSelected={selectedTaskIds.includes(task.id)}
+                onSelectTask={handleSelectTask}
               />
             ))}
           </div>
