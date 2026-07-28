@@ -3,8 +3,9 @@ import { io } from "socket.io-client";
 import { Send, RefreshCw } from "lucide-react";
 import ChatSessionSidebar from "../components/ChatSessionSidebar";
 import SourceCitation from "../components/SourceCitation";
+import { getBackendUrl } from "../config/backendConfig.js";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = getBackendUrl();
 
 const AiAssistant = () => {
   const [sessions, setSessions] = useState([]);

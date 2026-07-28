@@ -18,6 +18,7 @@ import {
   ConflictError,
   ValidationError,
 } from "../utils/errors.js";
+import { normalizeImageUrl } from "../utils/imageUrl.js";
 
 // ═══════════════════════════════════════════════════════════════
 // Private helpers
@@ -393,7 +394,7 @@ export const getPublicOrganizationBySlug = async (slug) => {
   // Find organization by slug - only select public fields
   const organization = await Organization.findOne(
     { slug },
-    "name slug description logo visibility createdAt metadata",
+    "name slug description logo bannerUrl visibility createdAt metadata",
   );
 
   if (!organization) {
@@ -408,16 +409,19 @@ export const getPublicOrganizationBySlug = async (slug) => {
 
   // Extract public metadata fields (website, social links, tags)
   const metadata = organization.metadata || {};
+  const logoUrl = organization.logo || "";
   const publicData = {
     _id: organization._id,
     name: organization.name,
     slug: organization.slug,
     description: organization.description,
-    logo: organization.logo,
+    logo: logoUrl,
+    logoUrl,
+    bannerUrl: organization.bannerUrl || "",
     visibility: organization.visibility,
     createdAt: organization.createdAt,
     memberCount,
-    website: metadata.website || null,
+    website: metadata.website || organization.website || null,
     socialLinks: metadata.socialLinks || null,
     tags: metadata.tags || [],
   };
@@ -493,7 +497,7 @@ export const browsePublicOrganizations = async ({
   const [organizations, total] = await Promise.all([
     Organization.find(finalQuery)
       .select(
-        "name slug description logo visibility createdAt members metadata",
+        "name slug description logo bannerUrl visibility createdAt members metadata",
       )
       .sort(sortObj)
       .skip(skip)
@@ -544,7 +548,7 @@ export const searchOrganizations = async (q, page = 1, limit = 12) => {
   const [organizations, total] = await Promise.all([
     Organization.find(query)
       .select(
-        "name slug description logo visibility createdAt members metadata",
+        "name slug description logo bannerUrl visibility createdAt members metadata",
       )
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -583,7 +587,7 @@ export const getUserOrganizations = async (userId) => {
   })
     .populate(
       "organization",
-      "name slug description logo visibility members updatedAt",
+      "name slug description logo bannerUrl visibility members updatedAt",
     )
     .lean();
 
@@ -604,7 +608,16 @@ export const getUserOrganizations = async (userId) => {
  */
 export const createOrganization = async (
   userId,
-  { name, description, logo, visibility, joinPolicy, metadata },
+  {
+    name,
+    description,
+    logo,
+    logoUrl,
+    bannerUrl,
+    visibility,
+    joinPolicy,
+    metadata,
+  },
 ) => {
   if (!name || !name.trim()) {
     throw new ValidationError("Organization name is required.");
@@ -617,6 +630,29 @@ export const createOrganization = async (
   }
   if (joinPolicy && !isValidJoinPolicy(joinPolicy)) {
     throw new ValidationError("Invalid join policy.");
+  }
+
+  const logoInput = logoUrl !== undefined ? logoUrl : logo;
+  let normalizedLogo = "";
+  if (
+    logoInput !== undefined &&
+    logoInput !== null &&
+    String(logoInput).trim()
+  ) {
+    const result = normalizeImageUrl(logoInput, "Logo URL");
+    if (!result.ok) throw new ValidationError(result.message);
+    normalizedLogo = result.value || "";
+  }
+
+  let normalizedBanner = "";
+  if (
+    bannerUrl !== undefined &&
+    bannerUrl !== null &&
+    String(bannerUrl).trim()
+  ) {
+    const result = normalizeImageUrl(bannerUrl, "Banner URL");
+    if (!result.ok) throw new ValidationError(result.message);
+    normalizedBanner = result.value || "";
   }
 
   // Check if organization with same name exists (case-insensitive)
@@ -637,7 +673,8 @@ export const createOrganization = async (
     name: orgName,
     slug,
     description: description || "",
-    logo: logo || "",
+    logo: normalizedLogo,
+    bannerUrl: normalizedBanner,
     visibility: visibility || "private",
     joinPolicy: joinPolicy || "open",
     owner: userId,
@@ -694,7 +731,7 @@ export const getOrganizations = async (visibility, page = 1, limit = 20) => {
     .sort({ createdAt: -1 })
     .skip((pageNum - 1) * limitNum)
     .limit(limitNum)
-    .select("name slug description logo visibility owner createdAt")
+    .select("name slug description logo bannerUrl visibility owner createdAt")
     .lean();
 
   const total = await Organization.countDocuments(safeFilter);
@@ -781,6 +818,8 @@ export const getOrganizationSettings = async (userId, orgIdOrSlug = null) => {
       industry: organization.industry || "",
       location: organization.location || "",
       logo: organization.logo || "",
+      logoUrl: organization.logo || "",
+      bannerUrl: organization.bannerUrl || "",
       visibility: organization.visibility || "private",
       joinPolicy: organization.joinPolicy || "open",
       owner: organization.owner,
@@ -813,7 +852,7 @@ export const getOrganizationById = async (idOrSlug) => {
 
   const organization = await Organization.findOne(query)
     .select(
-      "name slug description about website contactEmail industry location logo visibility joinPolicy owner createdAt updatedAt metadata",
+      "name slug description about website contactEmail industry location logo bannerUrl visibility joinPolicy owner createdAt updatedAt metadata",
     )
     .populate("owner", "name email")
     .lean();
@@ -852,6 +891,8 @@ export const updateOrganization = async (
     industry,
     location,
     logo,
+    logoUrl,
+    bannerUrl,
     visibility,
     joinPolicy,
     metadata,
@@ -981,8 +1022,28 @@ export const updateOrganization = async (
     organization.location = trimmedLoc;
   }
 
-  if (logo !== undefined)
-    organization.logo = String(logo).trim().substring(0, 500);
+  // Prefer logoUrl when provided (issue #510 naming); fall back to logo.
+  const logoInput = logoUrl !== undefined ? logoUrl : logo;
+  if (logoInput !== undefined) {
+    const normalized = normalizeImageUrl(logoInput, "Logo URL");
+    if (!normalized.ok) {
+      throw new ValidationError(normalized.message);
+    }
+    if (normalized.value !== undefined) {
+      organization.logo = normalized.value;
+    }
+  }
+
+  if (bannerUrl !== undefined) {
+    const normalized = normalizeImageUrl(bannerUrl, "Banner URL");
+    if (!normalized.ok) {
+      throw new ValidationError(normalized.message);
+    }
+    if (normalized.value !== undefined) {
+      organization.bannerUrl = normalized.value;
+    }
+  }
+
   if (cleanVisibility) organization.visibility = cleanVisibility;
   if (cleanJoinPolicy) organization.joinPolicy = cleanJoinPolicy;
   if (metadata)

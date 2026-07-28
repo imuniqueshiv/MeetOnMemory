@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "lint:changed": "node ../scripts/validation/run-eslint-changed.mjs client",
+    "format:check:changed": "node ../scripts/validation/run-prettier-changed.mjs client",
     "preview": "vite preview",
     "test": "vitest",
     "test:ci": "vitest run",
@@ -16,6 +17,7 @@
     "build:if-needed": "node ../scripts/validation/run-client-build-if-needed.mjs",
     "validate": "node ../scripts/validation/validate-client-changed.mjs",
     "validate:changed": "node ../scripts/validation/validate-client-changed.mjs",
+    "validate:pr": "node ../scripts/validation/validate-client-pr.mjs",
     "validate:full": "npm run lint && npm run test:ci && npm run build"
   },
   "dependencies": {

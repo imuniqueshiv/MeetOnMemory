@@ -113,6 +113,12 @@ const Footer = () => {
               >
                 {t("footer.careers", "Careers")}
               </Link>
+              <Link
+                to="/docs"
+                className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 font-semibold text-blue-600 dark:text-blue-400"
+              >
+                Developer Docs
+              </Link>
               <span className="text-gray-300 dark:text-gray-700">|</span>
               <Link
                 to="/contact"
@@ -308,6 +314,14 @@ const Footer = () => {
                   className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 inline-block font-medium"
                 >
                   {t("footer.careers", "Careers")}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/docs"
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors duration-200 inline-block font-semibold"
+                >
+                  Developer Docs
                 </Link>
               </li>
               <li>

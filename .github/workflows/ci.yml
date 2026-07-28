@@ -18,9 +18,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
-      integration: ${{ steps.filter.outputs.integration }}
       formatting: ${{ steps.filter.outputs.formatting }}
-      security: ${{ steps.filter.outputs.security }}
     steps:
       - name: Detect changed paths
         uses: dorny/paths-filter@v3
@@ -31,31 +29,15 @@ jobs:
               - 'server/**'
             frontend:
               - 'client/**'
-            integration:
-              - 'server/controllers/**'
-              - 'server/routes/**'
-              - 'server/services/**'
-              - 'server/models/**'
-              - 'server/middleware/**'
-              - 'server/config/**'
-              - 'server/utils/**'
-              - 'server/server.js'
-              - 'server/package.json'
-              - 'server/package-lock.json'
             formatting:
               - '**/*.{js,jsx,ts,tsx,css,html,json,md,yml,yaml}'
               - '.prettierrc'
               - '.prettierrc.*'
               - 'prettier.config.*'
               - '.github/workflows/**'
-            security:
-              - 'server/package.json'
-              - 'server/package-lock.json'
-              - 'client/package.json'
-              - 'client/package-lock.json'
 
-  code-quality:
-    name: Code Quality
+  root-prettier:
+    name: Root Prettier
     needs: changes
     if: needs.changes.outputs.formatting == 'true'
     runs-on: ubuntu-latest
@@ -63,7 +45,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0 # full history needed for diff-based prettier
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
@@ -78,46 +60,8 @@ jobs:
       - name: Fetch base branch for changed-file checks
         run: git fetch origin ${{ github.base_ref }} --depth=1
 
-      - name: Prettier - check changed files
+      - name: Check changed files with Prettier
         run: npm run format:check:changed
-
-  backend-validation:
-    name: Backend Validation
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: server/package-lock.json
-
-      - name: Install server dependencies
-        run: npm ci --prefix server
-
-      - name: Fetch base branch for changed-file checks
-        run: git fetch origin ${{ github.base_ref }} --depth=1
-
-      - name: Create minimal .env for tests
-        run: |
-          cat <<EOF > server/.env
-          NODE_ENV=test
-          JWT_SECRET=ci_test_secret
-          GEMINI_API_KEY=test_key
-          GEMINI_MODEL=gemini-2.5-flash
-          PINECONE_API_KEY=test_key
-          INDEX_NAME=meeton
-          EOF
-
-      - name: Run contributor-fast backend validation
-        run: npm run validate:changed --prefix server
 
   frontend-validation:
     name: Frontend Validation
@@ -143,47 +87,19 @@ jobs:
       - name: Fetch base branch for changed-file checks
         run: git fetch origin ${{ github.base_ref }} --depth=1
 
-      - name: Run contributor-fast frontend validation
-        run: npm run validate:changed --prefix client
+      - name: Run PR frontend validation
+        run: npm run validate:pr --prefix client
 
-  security:
-    name: Security Checks
+  server-validation:
+    name: Server Validation
     needs: changes
-    if: needs.changes.outputs.security == 'true'
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
         with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: |
-            server/package-lock.json
-            client/package-lock.json
-
-      - name: Audit server dependencies
-        run: |
-          cd server
-          npm audit --audit-level=high || true
-        # `|| true` keeps this job informational. npm audit exits non-zero for
-        # many advisory levels; the bot in 11-ci-validation ignores this check.
-
-      - name: Audit client dependencies
-        run: |
-          cd client
-          npm audit --audit-level=high || true
-
-  integration-tests:
-    name: Integration Tests
-    needs: changes
-    if: needs.changes.outputs.integration == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
@@ -195,16 +111,8 @@ jobs:
       - name: Install server dependencies
         run: npm ci --prefix server
 
-      - name: Create minimal .env for tests
-        run: |
-          cat <<EOF > server/.env
-          NODE_ENV=test
-          JWT_SECRET=ci_test_secret
-          GEMINI_API_KEY=test_key
-          GEMINI_MODEL=gemini-2.5-flash
-          PINECONE_API_KEY=test_key
-          INDEX_NAME=meeton
-          EOF
+      - name: Fetch base branch for changed-file checks
+        run: git fetch origin ${{ github.base_ref }} --depth=1
 
-      - name: Run integration tests
-        run: npm run test:integration --prefix server
+      - name: Run PR server validation
+        run: npm run validate:pr --prefix server

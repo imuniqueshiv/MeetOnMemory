@@ -57,6 +57,14 @@ const organizationSchema = new mongoose.Schema(
     logo: {
       type: String,
       default: "",
+      // Logo image URL (external or future upload CDN URL)
+      maxlength: [2048, "Logo URL cannot exceed 2048 characters"],
+    },
+    // Cover/banner image URL (external or future upload CDN URL)
+    bannerUrl: {
+      type: String,
+      default: "",
+      maxlength: [2048, "Banner URL cannot exceed 2048 characters"],
     },
     visibility: {
       type: String,

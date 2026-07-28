@@ -16,8 +16,10 @@ import {
   Info,
 } from "lucide-react";
 
+import { getBackendUrl } from "../config/backendConfig.js";
+
 // Get backend URL
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
+const BACKEND_URL = getBackendUrl();
 
 const Status = () => {
   const [refreshCountdown, setRefreshCountdown] = useState(15);

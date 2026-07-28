@@ -21,10 +21,15 @@ import {
   AlertCircle,
   Lock,
   ExternalLink,
+  Image as ImageIcon,
+  PanelsTopLeft,
 } from "lucide-react";
 import Navbar from "../components/Navbar.jsx";
 import AppContent from "../context/AppContent";
 import { organizationApi } from "../services/organizationApi.js";
+import OrganizationLogo from "../components/organization/OrganizationLogo.jsx";
+import OrganizationBanner from "../components/organization/OrganizationBanner.jsx";
+import { validateImageUrl } from "../utils/imageUrl.js";
 
 const OrganizationSettings = () => {
   const navigate = useNavigate();
@@ -49,6 +54,8 @@ const OrganizationSettings = () => {
     contactEmail: "",
     industry: "",
     location: "",
+    logo: "",
+    bannerUrl: "",
     visibility: "private",
     joinPolicy: "open",
   });
@@ -98,6 +105,8 @@ const OrganizationSettings = () => {
           contactEmail: org.contactEmail || "",
           industry: org.industry || "",
           location: org.location || "",
+          logo: org.logoUrl || org.logo || "",
+          bannerUrl: org.bannerUrl || "",
           visibility: org.visibility || "private",
           joinPolicy: org.joinPolicy || "open",
         };
@@ -198,6 +207,20 @@ const OrganizationSettings = () => {
         }
         break;
 
+      case "logo": {
+        const logoError = validateImageUrl(value, "Logo URL");
+        if (logoError) newErrors.logo = logoError;
+        else delete newErrors.logo;
+        break;
+      }
+
+      case "bannerUrl": {
+        const bannerError = validateImageUrl(value, "Banner URL");
+        if (bannerError) newErrors.bannerUrl = bannerError;
+        else delete newErrors.bannerUrl;
+        break;
+      }
+
       default:
         break;
     }
@@ -244,6 +267,12 @@ const OrganizationSettings = () => {
       }
     }
 
+    const logoError = validateImageUrl(formData.logo, "Logo URL");
+    if (logoError) newErrors.logo = logoError;
+
+    const bannerError = validateImageUrl(formData.bannerUrl, "Banner URL");
+    if (bannerError) newErrors.bannerUrl = bannerError;
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -266,7 +295,13 @@ const OrganizationSettings = () => {
       setSaving(true);
       const { data } = await organizationApi.updateOrganizationSettings(
         metadata._id,
-        formData,
+        {
+          ...formData,
+          // Persist under both names for compatibility with existing `logo` field.
+          logo: formData.logo,
+          logoUrl: formData.logo,
+          bannerUrl: formData.bannerUrl,
+        },
       );
 
       if (data.success) {
@@ -564,6 +599,170 @@ const OrganizationSettings = () => {
                   <div className="flex justify-end text-[11px] text-slate-400 mt-1">
                     {formData.about.length}/2000
                   </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION: ORGANIZATION BRANDING */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="p-2 bg-violet-50 dark:bg-violet-900/30 rounded-xl text-violet-600 dark:text-violet-400">
+                <PanelsTopLeft className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Organization Branding
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Logo and banner image URLs with live preview. Upload support
+                  can plug into these same fields later.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-8">
+              {/* Logo */}
+              <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6 items-start">
+                <div className="flex flex-col items-center gap-3">
+                  <OrganizationLogo
+                    src={formData.logo}
+                    name={formData.name || "Organization"}
+                    size="xl"
+                  />
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Logo preview
+                  </p>
+                </div>
+                <div className="min-w-0 space-y-3">
+                  <label
+                    htmlFor="org-logo-url"
+                    className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5 flex items-center gap-1.5"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
+                    Logo URL
+                  </label>
+                  <input
+                    id="org-logo-url"
+                    type="url"
+                    name="logo"
+                    value={formData.logo}
+                    onChange={handleChange}
+                    disabled={!canEdit || saving}
+                    placeholder="https://cdn.example.com/logo.png"
+                    aria-invalid={Boolean(errors.logo)}
+                    aria-describedby={
+                      errors.logo ? "org-logo-error" : undefined
+                    }
+                    className={`w-full px-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/80 border ${
+                      errors.logo
+                        ? "border-red-500 focus:ring-red-500"
+                        : "border-slate-200 dark:border-slate-700 focus:ring-blue-500"
+                    } text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed`}
+                  />
+                  {errors.logo ? (
+                    <p
+                      id="org-logo-error"
+                      className="text-xs text-red-500 flex items-center gap-1"
+                    >
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      {errors.logo}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Square image recommended. Leave empty to use the default
+                      placeholder.
+                    </p>
+                  )}
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData((prev) => ({ ...prev, logo: "" }));
+                        setErrors((prev) => {
+                          const next = { ...prev };
+                          delete next.logo;
+                          return next;
+                        });
+                      }}
+                      disabled={!formData.logo || saving}
+                      className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 disabled:opacity-40 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Reset logo to default
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Banner */}
+              <div className="space-y-3">
+                <label
+                  htmlFor="org-banner-url"
+                  className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5 flex items-center gap-1.5"
+                >
+                  <PanelsTopLeft className="w-3.5 h-3.5 text-slate-400" />
+                  Banner URL
+                </label>
+                <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                  <OrganizationBanner
+                    src={formData.bannerUrl}
+                    name={formData.name || "Organization"}
+                    heightClass="h-36 sm:h-44"
+                  />
+                </div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  Banner preview
+                </p>
+                <input
+                  id="org-banner-url"
+                  type="url"
+                  name="bannerUrl"
+                  value={formData.bannerUrl}
+                  onChange={handleChange}
+                  disabled={!canEdit || saving}
+                  placeholder="https://cdn.example.com/banner.jpg"
+                  aria-invalid={Boolean(errors.bannerUrl)}
+                  aria-describedby={
+                    errors.bannerUrl ? "org-banner-error" : undefined
+                  }
+                  className={`w-full px-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/80 border ${
+                    errors.bannerUrl
+                      ? "border-red-500 focus:ring-red-500"
+                      : "border-slate-200 dark:border-slate-700 focus:ring-blue-500"
+                  } text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed`}
+                />
+                {errors.bannerUrl ? (
+                  <p
+                    id="org-banner-error"
+                    className="text-xs text-red-500 flex items-center gap-1"
+                  >
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {errors.bannerUrl}
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Wide cover image (roughly 3:1). Leave empty to use the
+                    default gradient.
+                  </p>
+                )}
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData((prev) => ({ ...prev, bannerUrl: "" }));
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.bannerUrl;
+                        return next;
+                      });
+                    }}
+                    disabled={!formData.bannerUrl || saving}
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 disabled:opacity-40 cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Reset banner to default
+                  </button>
                 )}
               </div>
             </div>

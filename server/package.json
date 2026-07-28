@@ -11,6 +11,7 @@
     "server": "nodemon server.js",
     "lint": "eslint .",
     "lint:changed": "node ../scripts/validation/run-eslint-changed.mjs server",
+    "format:check:changed": "node ../scripts/validation/run-prettier-changed.mjs server",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit",
     "test:ci": "node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit --ci --runInBand --coverage",
     "test:startup": "node tests/testStartup.js",
@@ -21,12 +22,14 @@
     "test:related": "node ../scripts/validation/run-server-related-tests.mjs",
     "validate": "node ../scripts/validation/validate-server-changed.mjs",
     "validate:changed": "node ../scripts/validation/validate-server-changed.mjs",
+    "validate:pr": "node ../scripts/validation/validate-server-pr.mjs",
     "validate:full": "npm run lint && npm run test:ci && npm run test:startup"
   },
   "dependencies": {
     "@azure/identity": "^4.13.1",
     "@azure/msal-node": "^5.4.2",
     "@chroma-core/default-embed": "^0.1.8",
+    "@clerk/express": "^2.1.47",
     "@google/generative-ai": "^0.24.1",
     "@huggingface/inference": "^4.13.0",
     "@microsoft/microsoft-graph-client": "^3.0.7",

@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import AppContent from "../context/AppContent";
 import {
-  Building2,
   FileText,
   Upload,
   BarChart3,
@@ -15,6 +14,8 @@ import {
 } from "lucide-react";
 import Navbar from "../components/Navbar.jsx";
 import TopContributorsWidget from "../components/organization/TopContributorsWidget";
+import OrganizationLogo from "../components/organization/OrganizationLogo.jsx";
+import OrganizationBanner from "../components/organization/OrganizationBanner.jsx";
 
 /* ─── Role Badge ──────────────────────────────────────────────────────────── */
 const ROLE_STYLES = {
@@ -40,6 +41,9 @@ const Dashboard = () => {
 
   const organizationName =
     userData?.organization?.name?.toUpperCase() || "ORGANIZATION";
+  const organizationLogoUrl =
+    userData?.organization?.logoUrl || userData?.organization?.logo || "";
+  const organizationBannerUrl = userData?.organization?.bannerUrl || "";
 
   const rawRole = userData?.role || "member";
   const displayRole =
@@ -141,46 +145,59 @@ const Dashboard = () => {
               className="h-1 bg-linear-to-r from-blue-600 via-violet-600 to-indigo-600"
             />
 
-            <div className="px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
-              {/* Org header */}
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex items-start gap-4">
-                  <div
-                    aria-hidden="true"
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-blue-600 to-indigo-600 shadow-md shadow-blue-600/20 sm:h-14 sm:w-14 sm:rounded-2xl"
-                  >
-                    <Building2 className="h-6 w-6 text-white sm:h-7 sm:w-7" />
-                  </div>
+            {/* Branded org header — banner background with readable overlay */}
+            <div className="relative">
+              <OrganizationBanner
+                src={organizationBannerUrl}
+                name={userData?.organization?.name || organizationName}
+                heightClass="h-full"
+                className="absolute inset-0"
+              />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 bg-linear-to-r from-slate-900/75 via-slate-900/55 to-slate-900/35 dark:from-gray-950/85 dark:via-gray-900/65 dark:to-gray-900/45"
+              />
+              <div className="relative px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-4">
+                    <OrganizationLogo
+                      src={organizationLogoUrl}
+                      name={userData?.organization?.name || organizationName}
+                      size="lg"
+                    />
 
-                  <div className="min-w-0 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-gray-100 sm:text-3xl lg:text-4xl">
-                        {organizationName}
-                      </h1>
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${roleStyle}`}
-                      >
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-4xl">
+                          {organizationName}
+                        </h1>
                         <span
-                          className="h-1.5 w-1.5 rounded-full bg-current opacity-70"
-                          aria-hidden="true"
-                        />
-                        {displayRole}
-                      </span>
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${roleStyle}`}
+                        >
+                          <span
+                            className="h-1.5 w-1.5 rounded-full bg-current opacity-70"
+                            aria-hidden="true"
+                          />
+                          {displayRole}
+                        </span>
+                      </div>
+                      <p className="max-w-xl text-sm leading-relaxed text-slate-200 sm:text-base">
+                        {t("dashboard.welcomeBack")}{" "}
+                        <span className="font-semibold text-white">
+                          {userData?.name || t("dashboard.there")}
+                        </span>
+                        {t("dashboard.everythingHere")}
+                      </p>
                     </div>
-                    <p className="max-w-xl text-sm leading-relaxed text-slate-500 dark:text-gray-400 sm:text-base">
-                      {t("dashboard.welcomeBack")}{" "}
-                      <span className="font-semibold text-slate-800 dark:text-gray-200">
-                        {userData?.name || t("dashboard.there")}
-                      </span>
-                      {t("dashboard.everythingHere")}
-                    </p>
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* AI Smart Search — integrated CTA */}
+            {/* AI Smart Search — integrated CTA */}
+            <div className="px-5 pt-7 pb-7 sm:px-8 sm:pt-8 sm:pb-9 lg:px-10">
               <div
-                className="mt-7 rounded-xl border border-slate-200/80 dark:border-gray-700 bg-slate-50/80 dark:bg-gray-700/50 p-5 sm:mt-8 sm:p-6"
+                className="rounded-xl border border-slate-200/80 dark:border-gray-700 bg-slate-50/80 dark:bg-gray-700/50 p-5 sm:p-6"
                 role="region"
                 aria-label="AI Smart Search"
               >

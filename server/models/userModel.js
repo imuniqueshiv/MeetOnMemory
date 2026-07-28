@@ -13,6 +13,11 @@ const userSchema = new mongoose.Schema(
     resetOtpExpireAt: { type: Number, default: 0 },
 
     // --- NEW FIELDS ADDED ---
+    clerkUserId: {
+      type: String,
+      sparse: true,
+      unique: true,
+    },
     role: {
       type: String,
       enum: ["owner", "admin", "moderator", "member", "guest"],

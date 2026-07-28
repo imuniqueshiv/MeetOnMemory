@@ -75,6 +75,7 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
       expect(Decision.find).toHaveBeenCalledWith({
         organization: "org123",
         status: "open",
+        lifecycleState: { $nin: ["archived", "expired"] },
       });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -99,6 +100,7 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
 
       expect(Decision.find).toHaveBeenCalledWith({
         organization: "org123",
+        lifecycleState: { $nin: ["archived", "expired"] },
       });
       expect(res.status).toHaveBeenCalledWith(200);
     });
@@ -163,6 +165,7 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
       expect(Decision.find).toHaveBeenCalledWith({
         organization: "org123",
         status: "open",
+        lifecycleState: { $nin: ["archived", "expired"] },
       });
       expect(res.status).toHaveBeenCalledWith(200);
     });
@@ -183,6 +186,7 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
       expect(Decision.find).toHaveBeenCalledWith({
         organization: "[object Object]",
         status: "open",
+        lifecycleState: { $nin: ["archived", "expired"] },
       });
       expect(res.status).toHaveBeenCalledWith(200);
     });
@@ -192,18 +196,27 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
     it("should fetch action items with valid status and sortBy", async () => {
       req.query = { status: "in-progress", sortBy: "createdAt" };
 
-      const mockPopulate = jest.fn().mockReturnValue({
+      const queryChain = {
+        where: jest.fn().mockReturnThis(),
+        getFilter: jest.fn().mockReturnValue({
+          organization: "org123",
+          status: "in-progress",
+          lifecycleState: { $nin: ["archived", "expired"] },
+        }),
+        populate: jest.fn().mockReturnThis(),
         sort: jest.fn().mockResolvedValue([{ _id: "item1" }]),
-      });
-      ActionItem.find.mockReturnValue({
-        populate: mockPopulate,
-      });
+      };
+      ActionItem.find.mockReturnValue(queryChain);
+      ActionItem.countDocuments = jest.fn().mockResolvedValue(1);
 
       await getOpenActionItems(req, res);
 
       expect(ActionItem.find).toHaveBeenCalledWith({
         organization: "org123",
         status: "in-progress",
+      });
+      expect(queryChain.where).toHaveBeenCalledWith({
+        lifecycleState: { $nin: ["archived", "expired"] },
       });
       expect(res.status).toHaveBeenCalledWith(200);
     });

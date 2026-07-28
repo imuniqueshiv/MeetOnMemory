@@ -52,6 +52,8 @@ export const getUserData = async (req, res) => {
   }
 };
 
+export const getCurrentUser = getUserData;
+
 // @desc    Get dashboard preferences
 // @route   GET /api/user/preferences/dashboard
 // @access  Private

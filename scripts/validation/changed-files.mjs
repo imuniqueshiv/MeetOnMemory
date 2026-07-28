@@ -1,4 +1,6 @@
 import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
 
 function resolveRepoRoot() {
   try {
@@ -162,4 +164,32 @@ export function runNpm(args, options = {}) {
 
 export function runNpx(args, options = {}) {
   run(`${npxCommand} ${args}`, options);
+}
+
+function cleanNpmPrefixEnv(env = process.env) {
+  const cleaned = { ...env };
+  delete cleaned.npm_config_prefix;
+  delete cleaned.NPM_CONFIG_PREFIX;
+  return cleaned;
+}
+
+export function resolvePrettierCommand() {
+  const prettierCjs = path.join(
+    repoRoot,
+    "node_modules/prettier/bin/prettier.cjs",
+  );
+  if (existsSync(prettierCjs)) {
+    return `node "${prettierCjs}"`;
+  }
+  return `${npxCommand} --yes prettier`;
+}
+
+export function runPrettierCheck(files, { cwd = repoRoot, label = "format" } = {}) {
+  if (files.length === 0) return;
+
+  logStep(label, `Checking ${files.length} file(s) with Prettier...`);
+  run(`${resolvePrettierCommand()} --check ${quoteFiles(files)}`, {
+    cwd,
+    env: cleanNpmPrefixEnv(),
+  });
 }

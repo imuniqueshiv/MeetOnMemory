@@ -1,8 +1,7 @@
 import {
   FORMAT_REGEX,
   logStep,
-  quoteFiles,
-  runNpx,
+  runPrettierCheck,
   selectChangedFiles,
 } from "./validation/changed-files.mjs";
 
@@ -18,4 +17,4 @@ if (selected.length === 0) {
   process.exit(0);
 }
 
-runNpx(`prettier --check ${quoteFiles(selected)}`);
+runPrettierCheck(selected, { label: "validate:format" });

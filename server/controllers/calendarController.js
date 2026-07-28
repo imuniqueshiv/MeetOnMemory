@@ -8,22 +8,33 @@ import {
   getFreeBusy,
   fetchExternalEvents,
 } from "../services/calendarService.js";
+import { triggerManualSync } from "../jobs/calendarSyncJob.js";
 
 /**
  * Get calendar connection status for a user
  */
 export const getConnectionStatus = async (req, res) => {
   try {
-    const userId = req.user._id;
-
+    const userId = req.user.id || req.user._id;
     const connections = await CalendarConnection.find({ user: userId });
 
     const status = {
       google: connections.find((c) => c.provider === "google") || null,
-      microsoft: connections.find((c) => c.provider === "microsoft") || null,
+      microsoft:
+        connections.find((c) =>
+          ["microsoft", "outlook"].includes(c.provider),
+        ) || null,
     };
 
-    res.json({ success: true, status });
+    const integrations = connections.map((c) => ({
+      provider: c.provider,
+      syncStatus: c.syncStatus,
+      syncEnabled: c.syncStatus === "connected",
+      lastSyncedAt: c.lastSyncAt || c.updatedAt,
+      externalCalendarId: c.providerData?.calendarId || "primary",
+    }));
+
+    res.json({ success: true, status, integrations });
   } catch (error) {
     console.error("Error getting connection status:", error.message);
     res.status(500).json({ success: false, message: error.message });
@@ -36,7 +47,7 @@ export const getConnectionStatus = async (req, res) => {
 export const getGoogleOAuthUrl = async (req, res) => {
   try {
     const authUrl = getGoogleAuthUrl();
-    res.json({ success: true, authUrl });
+    res.json({ success: true, authUrl, url: authUrl });
   } catch (error) {
     console.error("Error getting Google OAuth URL:", error.message);
     res.status(500).json({ success: false, message: error.message });
@@ -47,31 +58,35 @@ export const getGoogleOAuthUrl = async (req, res) => {
  * Handle Google OAuth callback
  */
 export const handleGoogleCallback = async (req, res) => {
+  const isGetRequest = req.method === "GET";
   try {
-    const { code } = req.body;
-    const userId = req.user._id;
+    const code = req.body?.code || req.query?.code;
+    const userId = req.user?._id || req.user?.id || req.query?.state;
 
-    if (!code) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Authorization code is required" });
+    if (!code || !userId) {
+      if (isGetRequest) {
+        return res.redirect(
+          `${process.env.CLIENT_URL || "http://localhost:5173"}/settings?error=google_sync_failed`,
+        );
+      }
+      return res.status(400).json({
+        success: false,
+        message: "Authorization code and user state are required",
+      });
     }
 
     const tokens = await getGoogleTokens(code);
 
-    // Calculate token expiration
     const tokenExpiresAt = tokens.expiry_date
       ? new Date(tokens.expiry_date)
-      : new Date(Date.now() + 3600 * 1000); // Default 1 hour
+      : new Date(Date.now() + 3600 * 1000);
 
-    // Check if connection already exists
     let connection = await CalendarConnection.findOne({
       user: userId,
       provider: "google",
     });
 
     if (connection) {
-      // Update existing connection
       connection.accessToken = encryptToken(tokens.access_token);
       connection.refreshToken = tokens.refresh_token
         ? encryptToken(tokens.refresh_token)
@@ -82,7 +97,6 @@ export const handleGoogleCallback = async (req, res) => {
       connection.lastSyncAt = new Date();
       await connection.save();
     } else {
-      // Create new connection
       connection = await CalendarConnection.create({
         user: userId,
         provider: "google",
@@ -96,6 +110,12 @@ export const handleGoogleCallback = async (req, res) => {
       });
     }
 
+    if (isGetRequest) {
+      return res.redirect(
+        `${process.env.CLIENT_URL || "http://localhost:5173"}/settings?sync=success`,
+      );
+    }
+
     res.json({
       success: true,
       message: "Google Calendar connected successfully",
@@ -107,6 +127,11 @@ export const handleGoogleCallback = async (req, res) => {
     });
   } catch (error) {
     console.error("Error handling Google callback:", error.message);
+    if (isGetRequest) {
+      return res.redirect(
+        `${process.env.CLIENT_URL || "http://localhost:5173"}/settings?error=google_sync_failed`,
+      );
+    }
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -117,7 +142,7 @@ export const handleGoogleCallback = async (req, res) => {
 export const getMicrosoftOAuthUrl = async (req, res) => {
   try {
     const authUrl = await getMicrosoftAuthUrl();
-    res.json({ success: true, authUrl });
+    res.json({ success: true, authUrl, url: authUrl });
   } catch (error) {
     console.error("Error getting Microsoft OAuth URL:", error.message);
     res.status(500).json({ success: false, message: error.message });
@@ -128,31 +153,35 @@ export const getMicrosoftOAuthUrl = async (req, res) => {
  * Handle Microsoft OAuth callback
  */
 export const handleMicrosoftCallback = async (req, res) => {
+  const isGetRequest = req.method === "GET";
   try {
-    const { code } = req.body;
-    const userId = req.user._id;
+    const code = req.body?.code || req.query?.code;
+    const userId = req.user?._id || req.user?.id || req.query?.state;
 
-    if (!code) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Authorization code is required" });
+    if (!code || !userId) {
+      if (isGetRequest) {
+        return res.redirect(
+          `${process.env.CLIENT_URL || "http://localhost:5173"}/settings?error=outlook_sync_failed`,
+        );
+      }
+      return res.status(400).json({
+        success: false,
+        message: "Authorization code and user state are required",
+      });
     }
 
     const tokenResponse = await getMicrosoftTokens(code);
 
-    // Calculate token expiration (Microsoft tokens typically expire in 1 hour)
     const tokenExpiresAt = new Date(
       Date.now() + (tokenResponse.expiresOn || 3600) * 1000,
     );
 
-    // Check if connection already exists
     let connection = await CalendarConnection.findOne({
       user: userId,
-      provider: "microsoft",
+      provider: { $in: ["microsoft", "outlook"] },
     });
 
     if (connection) {
-      // Update existing connection
       connection.accessToken = encryptToken(tokenResponse.accessToken);
       connection.refreshToken = tokenResponse.refreshToken
         ? encryptToken(tokenResponse.refreshToken)
@@ -166,7 +195,6 @@ export const handleMicrosoftCallback = async (req, res) => {
       };
       await connection.save();
     } else {
-      // Create new connection
       connection = await CalendarConnection.create({
         user: userId,
         provider: "microsoft",
@@ -183,6 +211,12 @@ export const handleMicrosoftCallback = async (req, res) => {
       });
     }
 
+    if (isGetRequest) {
+      return res.redirect(
+        `${process.env.CLIENT_URL || "http://localhost:5173"}/settings?sync=success`,
+      );
+    }
+
     res.json({
       success: true,
       message: "Microsoft Calendar connected successfully",
@@ -194,6 +228,11 @@ export const handleMicrosoftCallback = async (req, res) => {
     });
   } catch (error) {
     console.error("Error handling Microsoft callback:", error.message);
+    if (isGetRequest) {
+      return res.redirect(
+        `${process.env.CLIENT_URL || "http://localhost:5173"}/settings?error=outlook_sync_failed`,
+      );
+    }
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -204,17 +243,20 @@ export const handleMicrosoftCallback = async (req, res) => {
 export const disconnectCalendar = async (req, res) => {
   try {
     const { provider } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.id || req.user._id;
 
-    if (!["google", "microsoft"].includes(provider)) {
+    if (!["google", "microsoft", "outlook"].includes(provider)) {
       return res
         .status(400)
         .json({ success: false, message: "Invalid provider" });
     }
 
+    const providersToMatch =
+      provider === "google" ? ["google"] : ["microsoft", "outlook"];
+
     const connection = await CalendarConnection.findOneAndDelete({
       user: userId,
-      provider,
+      provider: { $in: providersToMatch },
     });
 
     if (!connection) {
@@ -239,17 +281,20 @@ export const disconnectCalendar = async (req, res) => {
 export const resyncCalendar = async (req, res) => {
   try {
     const { provider } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.id || req.user._id;
 
-    if (!["google", "microsoft"].includes(provider)) {
+    if (!["google", "microsoft", "outlook"].includes(provider)) {
       return res
         .status(400)
         .json({ success: false, message: "Invalid provider" });
     }
 
+    const providersToMatch =
+      provider === "google" ? ["google"] : ["microsoft", "outlook"];
+
     const connection = await CalendarConnection.findOne({
       user: userId,
-      provider,
+      provider: { $in: providersToMatch },
     });
 
     if (!connection) {
@@ -258,13 +303,13 @@ export const resyncCalendar = async (req, res) => {
         .json({ success: false, message: "Connection not found" });
     }
 
-    // Update sync status
     connection.syncStatus = "syncing";
     connection.syncError = null;
     await connection.save();
 
-    // Trigger sync (this would typically be handled by a background job)
-    // For now, we'll just mark as connected
+    const providerKey = provider === "google" ? "google" : "microsoft";
+    await triggerManualSync(userId, providerKey);
+
     connection.syncStatus = "connected";
     connection.lastSyncAt = new Date();
     await connection.save();
@@ -290,7 +335,7 @@ export const resyncCalendar = async (req, res) => {
 export const getFreeBusyAvailability = async (req, res) => {
   try {
     const { attendeeEmails, timeMin, timeMax } = req.body;
-    const userId = req.user._id;
+    const userId = req.user.id || req.user._id;
 
     if (!attendeeEmails || !Array.isArray(attendeeEmails)) {
       return res
@@ -323,18 +368,51 @@ export const getFreeBusyAvailability = async (req, res) => {
  */
 export const getExternalEvents = async (req, res) => {
   try {
-    const { timeMin, timeMax } = req.query;
-    const userId = req.user._id;
+    const userId = req.user.id || req.user._id;
+    let { timeMin, timeMax } = req.query;
 
-    if (!timeMin || !timeMax) {
-      return res
-        .status(400)
-        .json({ success: false, message: "timeMin and timeMax are required" });
+    if (!timeMin) {
+      const minDate = new Date();
+      minDate.setDate(minDate.getDate() - 30);
+      timeMin = minDate.toISOString();
+    }
+    if (!timeMax) {
+      const maxDate = new Date();
+      maxDate.setDate(maxDate.getDate() + 90);
+      timeMax = maxDate.toISOString();
     }
 
-    const events = await fetchExternalEvents(userId, timeMin, timeMax);
+    const rawEvents = await fetchExternalEvents(userId, timeMin, timeMax);
 
-    res.json({ success: true, events });
+    const formattedEvents = [];
+    if (rawEvents.google && Array.isArray(rawEvents.google)) {
+      rawEvents.google.forEach((e) => {
+        formattedEvents.push({
+          id: e.id,
+          title: e.summary || "Google Event",
+          start: e.start?.dateTime || e.start?.date,
+          end: e.end?.dateTime || e.end?.date,
+          location: e.location || "",
+          provider: "google",
+          isExternal: true,
+        });
+      });
+    }
+    if (rawEvents.microsoft && Array.isArray(rawEvents.microsoft)) {
+      rawEvents.microsoft.forEach((e) => {
+        formattedEvents.push({
+          id: e.id,
+          title: e.subject || "Outlook Event",
+          start: e.start?.dateTime ? e.start.dateTime + "Z" : e.start,
+          end: e.end?.dateTime ? e.end.dateTime + "Z" : e.end,
+          location: e.location?.displayName || "",
+          provider: "outlook",
+          isExternal: true,
+        });
+      });
+    }
+
+    res.json({ success: true, events: formattedEvents, rawEvents });
   } catch (error) {
     console.error("Error fetching external events:", error.message);
     res.status(500).json({ success: false, message: error.message });

@@ -19,6 +19,7 @@ const VITEST_TEST_FILES = new Set([
   "server/tests/knowledgeController.test.js",
   "server/tests/transcriptController.test.js",
   "server/tests/meetingDigestService.test.js",
+  "server/tests/imageUrl.test.js",
 ]);
 const JEST_RELATED_IGNORE = [
   "tests/integration.test.js",

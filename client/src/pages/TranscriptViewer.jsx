@@ -17,6 +17,7 @@ import {
 import { toast } from "react-toastify";
 import MeetingSentimentChart from "../components/MeetingSentimentChart";
 import AppContent from "../context/AppContent.js";
+import { getBackendUrl } from "../config/backendConfig.js";
 
 const TranscriptViewer = () => {
   const { meetingId } = useParams();
@@ -33,7 +34,7 @@ const TranscriptViewer = () => {
   const [newSpeakerName, setNewSpeakerName] = useState("");
   const [isBulkUpdate, setIsBulkUpdate] = useState(true);
 
-  const backendUrl = import.meta.env.VITE_BACKEND_URL;
+  const backendUrl = getBackendUrl();
 
   const fetchTranscript = useCallback(async () => {
     try {
