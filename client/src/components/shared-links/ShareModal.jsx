@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Copy, Trash2, X, Plus, Calendar, Lock, Globe } from "lucide-react";
+import { Copy, Trash2, X, Plus, Calendar, Lock, Globe, Eye, Clock, AlertTriangle } from "lucide-react";
 import { toast } from "react-toastify";
 import { sharedLinkApi } from "../../services";
 
@@ -167,6 +167,28 @@ const ShareModal = ({ isOpen, onClose, resourceId, resourceType, title }) => {
                               <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
                                 <Lock className="w-3 h-3" /> Password protected
                               </span>
+                            )}
+                          </div>
+
+                          <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
+                            {!link.totalViews && !link.failedPasscodeAttempts ? (
+                                <span className="italic text-gray-400 dark:text-gray-500">No analytics yet</span>
+                            ) : (
+                                <>
+                                  <span className="flex items-center gap-1" title="Total Views">
+                                    <Eye className="w-3.5 h-3.5" /> {link.totalViews || 0} views
+                                  </span>
+                                  {link.lastAccessed && (
+                                    <span className="flex items-center gap-1" title="Last Accessed">
+                                      <Clock className="w-3.5 h-3.5" /> {new Date(link.lastAccessed).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  )}
+                                  {link.failedPasscodeAttempts > 0 && (
+                                    <span className="flex items-center gap-1 text-red-500 dark:text-red-400" title="Failed Passcode Attempts">
+                                      <AlertTriangle className="w-3.5 h-3.5" /> {link.failedPasscodeAttempts} failed
+                                    </span>
+                                  )}
+                                </>
                             )}
                           </div>
                         </div>

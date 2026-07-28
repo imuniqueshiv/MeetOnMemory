@@ -113,6 +113,9 @@ export const getActiveLinksFixed = async (req, res) => {
         expirationDate: link.expirationDate,
         hasPasscode: !!link.passcode,
         createdAt: link.createdAt,
+        totalViews: link.totalViews,
+        lastAccessed: link.lastAccessed,
+        failedPasscodeAttempts: link.failedPasscodeAttempts,
       })),
     });
   } catch (error) {
@@ -186,6 +189,9 @@ export const verifyPasscode = async (req, res) => {
 
     const isMatch = await bcrypt.compare(passcode, link.passcode);
     if (!isMatch) {
+      await SharedLink.findByIdAndUpdate(link._id, {
+        $inc: { failedPasscodeAttempts: 1 },
+      });
       return res
         .status(401)
         .json({ success: false, message: "Incorrect passcode" });
@@ -288,6 +294,12 @@ export const getPublicResource = async (req, res) => {
       }
       resourceData = policy;
     }
+
+    // Update analytics atomically upon successful access
+    await SharedLink.findByIdAndUpdate(link._id, {
+      $inc: { totalViews: 1 },
+      $set: { lastAccessed: new Date() },
+    });
 
     res.status(200).json({
       success: true,
