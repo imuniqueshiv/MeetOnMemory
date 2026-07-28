@@ -72,6 +72,7 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
       expect(Decision.find).toHaveBeenCalledWith({
         organization: "org123",
         status: "open",
+        lifecycleState: { $nin: ["archived", "expired"] },
       });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -96,6 +97,7 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
 
       expect(Decision.find).toHaveBeenCalledWith({
         organization: "org123",
+        lifecycleState: { $nin: ["archived", "expired"] },
       });
       expect(res.status).toHaveBeenCalledWith(200);
     });
@@ -156,6 +158,7 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
       expect(Decision.find).toHaveBeenCalledWith({
         organization: "org123",
         status: "open",
+        lifecycleState: { $nin: ["archived", "expired"] },
       });
       expect(res.status).toHaveBeenCalledWith(200);
     });
@@ -176,6 +179,7 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
       expect(Decision.find).toHaveBeenCalledWith({
         organization: "[object Object]",
         status: "open",
+        lifecycleState: { $nin: ["archived", "expired"] },
       });
       expect(res.status).toHaveBeenCalledWith(200);
     });
@@ -188,8 +192,11 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
       const mockPopulate = vi.fn().mockReturnValue({
         sort: vi.fn().mockResolvedValue([{ _id: "item1" }]),
       });
-      ActionItem.find.mockReturnValue({
+      const mockWhere = jest.fn().mockReturnValue({
         populate: mockPopulate,
+      });
+      ActionItem.find.mockReturnValue({
+        where: mockWhere,
       });
 
       await getOpenActionItems(req, res);
@@ -197,6 +204,9 @@ describe("knowledgeController - NoSQL Injection & Query Validation", () => {
       expect(ActionItem.find).toHaveBeenCalledWith({
         organization: "org123",
         status: "in-progress",
+      });
+      expect(mockWhere).toHaveBeenCalledWith({
+        lifecycleState: { $nin: ["archived", "expired"] },
       });
       expect(res.status).toHaveBeenCalledWith(200);
     });
