@@ -21,7 +21,15 @@ export function configureExpress(app) {
   app.set("trust proxy", 1);
 
   // MIDDLEWARES
-  app.use(cors(corsOptions));
+app.use(cors(corsOptions));
+
+  // ==========================================
+  // 1a. SLACK WEBHOOK ROUTE (needs the raw, unmodified body for
+  //     signature verification). Mounted BEFORE the global JSON/urlencoded
+  //     parsers so slackWebhookParser is the first thing to read the
+  //     request stream and can capture req.rawBody correctly.
+  // ==========================================
+  app.use("/api/slack", slackWebhookParser, slackRoutes);
 
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -30,10 +38,8 @@ export function configureExpress(app) {
   // 1. BYPASSED ROUTES (No CSRF Protection)
   //    External services authenticate via their own mechanisms.
   // ==========================================
-  app.use("/api/slack", slackWebhookParser, slackRoutes);
   app.use("/api/webhooks", webhookRoutes);
   app.use("/api/public/shared", publicSharedRoutes);
-
   // ==========================================
   // 2. COOKIES & CSRF (Global for all remaining routes)
   // ==========================================
