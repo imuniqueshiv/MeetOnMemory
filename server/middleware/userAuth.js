@@ -46,3 +46,5 @@ console.log("Decoded JWT user id:", decoded?.id);
 };
 
 export default userAuth;
+
+
