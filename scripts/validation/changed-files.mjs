@@ -85,7 +85,9 @@ function buildRefCandidates() {
   }
 
   for (const remote of preferredRemotes) {
-    const remoteHead = tryCapture(`git symbolic-ref --quiet "refs/remotes/${escapeRef(remote)}/HEAD"`);
+    const remoteHead = tryCapture(
+      `git symbolic-ref --quiet "refs/remotes/${escapeRef(remote)}/HEAD"`,
+    );
     if (remoteHead) {
       candidates.unshift(remoteHead);
     }
@@ -95,13 +97,9 @@ function buildRefCandidates() {
 }
 
 function diffFromBaseRef(baseRef) {
-  const mergeBase = tryCapture(
-    `git merge-base HEAD "${escapeRef(baseRef)}"`,
-  );
+  const mergeBase = tryCapture(`git merge-base HEAD "${escapeRef(baseRef)}"`);
   if (!mergeBase) return [];
-  return parseLines(
-    tryCapture(`git diff --name-only "${mergeBase}"...HEAD`),
-  );
+  return parseLines(tryCapture(`git diff --name-only "${mergeBase}"...HEAD`));
 }
 
 function getWorkingTreeFiles() {
@@ -109,9 +107,7 @@ function getWorkingTreeFiles() {
 }
 
 function getUntrackedFiles() {
-  return parseLines(
-    tryCapture("git ls-files --others --exclude-standard"),
-  );
+  return parseLines(tryCapture("git ls-files --others --exclude-standard"));
 }
 
 export function detectBaseRef() {
@@ -184,7 +180,10 @@ export function resolvePrettierCommand() {
   return `${npxCommand} --yes prettier`;
 }
 
-export function runPrettierCheck(files, { cwd = repoRoot, label = "format" } = {}) {
+export function runPrettierCheck(
+  files,
+  { cwd = repoRoot, label = "format" } = {},
+) {
   if (files.length === 0) return;
 
   logStep(label, `Checking ${files.length} file(s) with Prettier...`);

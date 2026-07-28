@@ -19,7 +19,10 @@ const selected = selectChangedFiles(FORMAT_REGEX, prefix);
 const scopedFiles = selected.map((file) => file.slice(prefix.length));
 
 if (scopedFiles.length === 0) {
-  logStep(`format:${scope}`, `No changed ${scope} files require formatting checks.`);
+  logStep(
+    `format:${scope}`,
+    `No changed ${scope} files require formatting checks.`,
+  );
   process.exit(0);
 }
 

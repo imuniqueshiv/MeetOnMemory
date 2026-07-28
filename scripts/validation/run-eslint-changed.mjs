@@ -9,7 +9,9 @@ import {
 
 const scope = process.argv[2];
 if (!scope) {
-  throw new Error("Usage: node scripts/validation/run-eslint-changed.mjs <client|server>");
+  throw new Error(
+    "Usage: node scripts/validation/run-eslint-changed.mjs <client|server>",
+  );
 }
 
 const prefix = `${scope}/`;

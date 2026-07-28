@@ -17,7 +17,9 @@ const clientFiles = changedFiles.filter(
 const directTests = clientFiles.filter((file) =>
   /(\.test\.|\.spec\.|__tests__)/.test(file),
 );
-const relatedSources = clientFiles.filter((file) => !directTests.includes(file));
+const relatedSources = clientFiles.filter(
+  (file) => !directTests.includes(file),
+);
 
 logStep(
   "test:client:related",
@@ -25,7 +27,10 @@ logStep(
 );
 
 if (clientFiles.length === 0) {
-  logStep("test:client:related", "No changed client source files require tests.");
+  logStep(
+    "test:client:related",
+    "No changed client source files require tests.",
+  );
   process.exit(0);
 }
 

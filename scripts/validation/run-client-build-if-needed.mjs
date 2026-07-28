@@ -1,4 +1,9 @@
-import { getChangedFiles, logStep, repoRoot, runNpm } from "./changed-files.mjs";
+import {
+  getChangedFiles,
+  logStep,
+  repoRoot,
+  runNpm,
+} from "./changed-files.mjs";
 
 const BUILD_TRIGGER_PATTERNS = [
   /^client\/src\//,
