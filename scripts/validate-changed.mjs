@@ -14,7 +14,11 @@ if (files.length === 0) {
   process.exit(0);
 }
 
-if (has(FORMAT_REGEX) || has(/^\.github\/workflows\//) || has(/^\.github\/scripts\//)) {
+if (
+  has(FORMAT_REGEX) ||
+  has(/^\.github\/workflows\//) ||
+  has(/^\.github\/scripts\//)
+) {
   runNpm("run format:check:changed");
 }
 
