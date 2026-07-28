@@ -3,12 +3,11 @@ import userModel from "../models/userModel.js";
 
 const userAuth = async (req, res, next) => {
   try {
-    console.log("=================================");
+console.log("=================================");
     console.log("Origin:", req.headers.origin);
-    console.log("Cookies:", req.cookies);
-    console.log("Authorization:", req.headers.authorization);
+    console.log("Cookies present:", req.cookies?.token ? "YES" : "NO");
+    console.log("Authorization header present:", req.headers.authorization ? "YES" : "NO");
     console.log("=================================");
-
     const token =
       req.cookies?.token || req.header("Authorization")?.replace("Bearer ", "");
 
@@ -23,8 +22,7 @@ const userAuth = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    console.log("Decoded JWT:", decoded);
-
+console.log("Decoded JWT user id:", decoded?.id);
     const user = await userModel.findById(decoded.id).select("-password");
 
     if (!user) {
