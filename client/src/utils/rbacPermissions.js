@@ -64,12 +64,13 @@ export const PERMISSIONS = {
     delete: ["owner"],
     leave: ["owner", "admin", "moderator", "member", "guest"],
   },
-  // Settings permissions
+// Settings permissions
   settings: {
     view: ["owner", "admin", "moderator"],
     edit: ["owner", "admin"],
-  },
-  // Reports permissions
+    self_view: ["owner", "admin", "moderator", "member", "guest"],
+    self_edit: ["owner", "admin", "moderator", "member", "guest"],
+  },  // Reports permissions
   reports: {
     view: ["owner", "admin", "moderator"],
     export: ["owner", "admin", "moderator"],
@@ -79,17 +80,25 @@ export const PERMISSIONS = {
     view: ["owner", "admin"],
     manage: ["owner", "admin"],
   },
-  // Knowledge Base permissions
+// Knowledge Base permissions
   knowledge: {
     view: ["owner", "admin", "moderator", "member", "guest"],
     create: ["owner", "admin", "moderator", "member"],
     edit: ["owner", "admin", "moderator", "member"],
     delete: ["owner", "admin", "moderator"],
-  },
+    consolidate: ["owner", "admin", "moderator"],
+    resolve_conflicts: ["owner", "admin", "moderator"],
+    manage_lifecycle: ["owner", "admin", "moderator"],
+  },  
   // Notifications permissions
   notifications: {
     view: ["owner", "admin", "moderator", "member", "guest"],
     manage: ["owner", "admin"],
+    self_manage: ["owner", "admin", "moderator", "member", "guest"],
+  },
+  // Audit Logs permissions
+  audit_logs: {
+    view: ["owner", "admin"],
   },
 };
 
