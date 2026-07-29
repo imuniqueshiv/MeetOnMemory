@@ -28,13 +28,16 @@ const DropZone = ({ onFile, disabled, selectedFile }) => {
       onDragOver={handleDragOver}
       onDragLeave={() => setIsDragging(false)}
       onClick={() => !disabled && inputRef.current?.click()}
-      onKeyDown={(e) =>
-        e.key === "Enter" && !disabled && inputRef.current?.click()
-      }
+      onKeyDown={(e) => {
+        if ((e.key === "Enter" || e.key === " ") && !disabled) {
+          e.preventDefault();
+          inputRef.current?.click();
+        }
+      }}
       className={`
         relative flex flex-col items-center justify-center gap-3 px-6 py-10 rounded-xl border-2 border-dashed cursor-pointer transition-all
-        ${disabled ? "opacity-50 cursor-not-allowed border-gray-200 bg-gray-50" : ""}
-        ${isDragging ? "border-indigo-400 bg-indigo-50 scale-[1.01]" : !disabled ? "border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/40 bg-gray-50" : ""}
+        ${disabled ? "opacity-50 cursor-not-allowed border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800" : ""}
+        ${isDragging ? "border-indigo-400 bg-indigo-50 dark:border-indigo-500 dark:bg-indigo-900/30 scale-[1.01]" : !disabled ? "border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/40 bg-gray-50 dark:border-gray-600 hover:dark:border-indigo-500 hover:dark:bg-indigo-900/20 dark:bg-gray-800" : ""}
       `}
     >
       <input
@@ -50,27 +53,27 @@ const DropZone = ({ onFile, disabled, selectedFile }) => {
         }}
       />
       <div
-        className={`p-3 rounded-full transition ${isDragging ? "bg-indigo-100" : "bg-white shadow-sm"}`}
+        className={`p-3 rounded-full transition ${isDragging ? "bg-indigo-100 dark:bg-indigo-900" : "bg-white dark:bg-gray-700 shadow-sm"}`}
       >
         <Upload
-          className={`w-6 h-6 ${isDragging ? "text-indigo-600" : "text-gray-400"}`}
+          className={`w-6 h-6 ${isDragging ? "text-indigo-600 dark:text-indigo-400" : "text-gray-400 dark:text-gray-400"}`}
         />
       </div>
       {selectedFile ? (
         <div className="text-center">
-          <p className="font-medium text-gray-800 text-sm">
+          <p className="font-medium text-gray-800 dark:text-gray-200 text-sm">
             {selectedFile.name}
           </p>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             {(selectedFile.size / 1024).toFixed(0)} KB · Click to change
           </p>
         </div>
       ) : (
         <div className="text-center">
-          <p className="font-medium text-gray-700 text-sm">
+          <p className="font-medium text-gray-700 dark:text-gray-300 text-sm">
             {isDragging ? "Drop to upload" : "Drag & drop or click to select"}
           </p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
             PDF, DOCX, or TXT · Max 20 MB
           </p>
         </div>

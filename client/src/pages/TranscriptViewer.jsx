@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../services/apiClient.js";
 import {
   FileText,
   Search,
@@ -18,6 +18,24 @@ import { toast } from "react-toastify";
 import MeetingSentimentChart from "../components/MeetingSentimentChart";
 import AppContent from "../context/AppContent.js";
 import { getBackendUrl } from "../config/backendConfig.js";
+
+const HighlightedText = ({ text, query }) => {
+  if (!query) return <>{text}</>;
+  const parts = text.split(new RegExp(`(${query})`, "gi"));
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase() ? (
+          <mark key={i} className="bg-yellow-300 text-black">
+            {part}
+          </mark>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
+};
 
 const TranscriptViewer = () => {
   const { meetingId } = useParams();
@@ -39,20 +57,7 @@ const TranscriptViewer = () => {
   const fetchTranscript = useCallback(async () => {
     try {
       setLoading(true);
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("token="))
-        ?.split("=")[1];
-
-      const response = await axios.get(
-        `${backendUrl}/api/transcripts/meeting/${meetingId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
-        },
-      );
+      const response = await api.get(`/transcripts/meeting/${meetingId}`);
 
       setTranscript(response.data);
     } catch (error) {
@@ -71,23 +76,12 @@ const TranscriptViewer = () => {
     if (!newSpeakerName.trim()) return;
 
     try {
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("token="))
-        ?.split("=")[1];
-
-      const response = await axios.put(
-        `${backendUrl}/api/transcripts/${transcript._id}/speakers`,
+      const response = await api.put(
+        `/transcripts/${transcript._id}/speakers`,
         {
           oldSpeaker,
           newSpeaker: newSpeakerName.trim(),
           segmentIndex: isBulkUpdate ? null : index,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
         },
       );
 
@@ -114,20 +108,9 @@ const TranscriptViewer = () => {
     }
 
     try {
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("token="))
-        ?.split("=")[1];
-
-      const response = await axios.post(
-        `${backendUrl}/api/transcripts/meeting/${meetingId}/search`,
+      const response = await api.post(
+        `/transcripts/meeting/${meetingId}/search`,
         { query: searchQuery },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
-        },
       );
 
       setSearchResults(response.data.matches || []);
@@ -139,18 +122,9 @@ const TranscriptViewer = () => {
 
   const handleExportText = async () => {
     try {
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("token="))
-        ?.split("=")[1];
-
-      const response = await axios.get(
-        `${backendUrl}/api/transcripts/meeting/${meetingId}/export/text`,
+      const response = await api.get(
+        `/transcripts/meeting/${meetingId}/export/text`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
           responseType: "blob",
         },
       );
@@ -171,18 +145,9 @@ const TranscriptViewer = () => {
 
   const handleExportPDF = async () => {
     try {
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("token="))
-        ?.split("=")[1];
-
-      const response = await axios.get(
-        `${backendUrl}/api/transcripts/meeting/${meetingId}/export/pdf`,
+      const response = await api.get(
+        `/transcripts/meeting/${meetingId}/export/pdf`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
           responseType: "blob",
         },
       );
@@ -205,15 +170,6 @@ const TranscriptViewer = () => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const highlightText = (text, query) => {
-    if (!query) return text;
-    const regex = new RegExp(`(${query})`, "gi");
-    return text.replace(
-      regex,
-      '<mark class="bg-yellow-300 text-black">$1</mark>',
-    );
   };
 
   const scrollToSegment = (index) => {
@@ -466,12 +422,9 @@ const TranscriptViewer = () => {
                       </span>
                     </div>
                   </div>
-                  <p
-                    className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed"
-                    dangerouslySetInnerHTML={{
-                      __html: highlightText(segment.text, searchQuery),
-                    }}
-                  />
+                  <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
+                    <HighlightedText text={segment.text} query={searchQuery} />
+                  </p>
                 </div>
               ))
             )}
