@@ -14,7 +14,7 @@ const messageSchema = new mongoose.Schema({
     {
       refType: {
         type: String,
-        enum: ["meeting", "policy"],
+        enum: ["meeting", "policy", "knowledge"],
         required: true,
       },
       refId: {
@@ -37,6 +37,26 @@ const messageSchema = new mongoose.Schema({
   },
 });
 
+const pinnedContextSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ["meeting", "policy", "knowledge"],
+      required: true,
+    },
+    refId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+  },
+  { _id: false },
+);
+
 const chatSessionSchema = new mongoose.Schema({
   organizationId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -53,6 +73,10 @@ const chatSessionSchema = new mongoose.Schema({
   title: {
     type: String,
     default: "New Chat",
+  },
+  pinnedContext: {
+    type: pinnedContextSchema,
+    default: null,
   },
   messages: [messageSchema],
   createdAt: {

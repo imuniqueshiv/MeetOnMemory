@@ -11,7 +11,6 @@ import {
 } from "react-icons/fa";
 import { FaArrowRight } from "react-icons/fa6";
 
-
 const FeatureCard = ({ icon, title, description, iconBg, index }) => {
   const ref = useRef(null);
 
@@ -187,4 +186,3 @@ const Features = () => {
 };
 
 export default Features;
-

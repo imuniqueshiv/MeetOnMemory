@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useContext } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -7,18 +7,20 @@ import "react-toastify/dist/ReactToastify.css";
 import PublicRoutes from "./routes/PublicRoutes.jsx";
 import ProtectedRoutes from "./routes/ProtectedRoutes.jsx";
 
-import Home from "./pages/Home.jsx"; // 👈 Fallback page
+import NotFound from "./pages/NotFound.jsx";
 
-import Navbar from "./components/Navbar";
 import ScrollNavigator from "./components/ScrollNavigator";
 import CustomCursor from "./components/CustomCursor.jsx";
+import FloatingAssistant from "./components/FloatingAssistant.jsx";
 
 // --- Components ---
 import Footer from "./components/Footer.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
+import AppContent from "./context/AppContent.js";
 
 const App = () => {
   const location = useLocation();
+  const { isLoggedin } = useContext(AppContent);
 
   const hideFooterRoutes = ["/login"];
   const shouldShowFooter = !hideFooterRoutes.includes(location.pathname);
@@ -48,13 +50,16 @@ const App = () => {
           <Routes>
             {PublicRoutes}
             {ProtectedRoutes}
-            {/* ✅ Fallback route — send unknown routes to Home */}
-            <Route path="*" element={<Home />} />
+            {/* ✅ Fallback route — send unknown routes to NotFound */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
 
         {/* Floating Section Controller overlay */}
         {shouldShowScrollNavigator && <ScrollNavigator />}
+
+        {/* Global AI Assistant floating workspace */}
+        {isLoggedin && <FloatingAssistant />}
 
         {/* Global Footer */}
         {shouldShowFooter && <Footer />}

@@ -60,10 +60,7 @@ const run = async () => {
         );
       } catch (err) {
         failed++;
-        console.error(
-          `❌ Failed meeting ${meeting._id}:`,
-          err.message,
-        );
+        console.error(`❌ Failed meeting ${meeting._id}:`, err.message);
       }
     }
 

@@ -23,6 +23,14 @@ import commentRoutes from "./commentRoutes.js";
 import activityRoutes from "./activityRoutes.js";
 import tagRoutes from "./tagRoutes.js";
 import pollRoutes from "./pollRoutes.js";
+import attachmentRoutes from "./attachmentRoutes.js";
+import meetingSeriesRoutes from "./meetingSeriesRoutes.js";
+import comparisonRoutes from "./comparisonRoutes.js";
+import dashboardRoutes from "./dashboardRoutes.js";
+import agendaTimerRoutes from "./agendaTimerRoutes.js";
+import digestRoutes from "./digestRoutes.js";
+import decisionGraphRoutes from "./decisionGraphRoutes.js";
+import attendanceAnalyticsRoutes from "./attendanceAnalyticsRoutes.js";
 const router = express.Router();
 
 // ==========================================
@@ -33,6 +41,7 @@ router.use(["/api/organization", "/api/organizations"], organizationRoutes);
 router.use("/api/membership", membershipRoutes);
 router.use("/api/membership-request", membershipRequestRoutes);
 router.use("/api/invitation", invitationRoutes);
+router.use("/api/meetings/timer", agendaTimerRoutes);
 router.use("/api/meetings", meetingRoutes);
 router.use("/api/search", searchRoutes);
 router.use("/api/ai", aiRoutes);
@@ -52,5 +61,12 @@ router.use("/api/comments", commentRoutes);
 router.use("/api/activities", activityRoutes);
 router.use("/api/tags", tagRoutes);
 router.use("/api/polls", pollRoutes);
+router.use("/api/meetings/:meetingId/attachments", attachmentRoutes);
+router.use("/api/meeting-series", meetingSeriesRoutes);
+router.use("/api/comparison", comparisonRoutes);
+router.use("/api/dashboard", dashboardRoutes);
+router.use("/api/digest-preferences", digestRoutes);
+router.use("/api/decision-graph", decisionGraphRoutes);
+router.use("/api/attendance-analytics", attendanceAnalyticsRoutes);
 
 export default router;

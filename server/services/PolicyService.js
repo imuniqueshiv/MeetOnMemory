@@ -23,7 +23,8 @@ import {
   removePolicyFromIndex,
   reevaluatePolicyDecisions,
 } from "./policyComplianceService.js";
-import { NotFoundError } from "../utils/errors.js";
+import { NotFoundError, ValidationError } from "../utils/errors.js";
+import { computeLineDiff } from "../utils/lineDiff.js";
 
 // ── pdf-parse (CJS module — requires dynamic require) ──────────
 const require = createRequire(import.meta.url);
@@ -387,6 +388,133 @@ export const getPolicyDownloadPath = async (policyId) => {
   }
 
   return { safeFilePath, fileName: policy.name };
+};
+
+/**
+ * Resolve a version ref within a single policy document.
+ * Accepts "current" (or the parent policy id) or a previousVersions subdocument id.
+ */
+const _resolvePolicyVersion = (policy, ref) => {
+  if (!ref || typeof ref !== "string") {
+    throw new ValidationError(
+      'Version ref is required. Use "current" or a previous version id.',
+    );
+  }
+
+  const normalized = ref.trim();
+  const policyId = policy._id.toString();
+
+  if (normalized === "current" || normalized === policyId) {
+    return {
+      id: "current",
+      version: policy.version,
+      name: policy.name,
+      fileUrl: policy.fileUrl,
+      summary: policy.summary,
+      key_changes: policy.key_changes || [],
+      keywords: policy.keywords || [],
+      commitMsg: policy.commitMsg || "",
+      createdAt: policy.updatedAt || policy.createdAt,
+    };
+  }
+
+  const previous =
+    policy.previousVersions?.id?.(normalized) ||
+    (policy.previousVersions || []).find(
+      (v) => v._id && v._id.toString() === normalized,
+    );
+
+  if (!previous) {
+    throw new ValidationError(
+      "Version not found on this policy. Cross-policy comparison is not allowed.",
+    );
+  }
+
+  return {
+    id: previous._id.toString(),
+    version: previous.version,
+    name: previous.name,
+    fileUrl: previous.fileUrl,
+    summary: previous.summary,
+    key_changes: previous.key_changes || [],
+    keywords: previous.keywords || [],
+    commitMsg: previous.commitMsg || "",
+    createdAt: previous.createdAt,
+  };
+};
+
+/**
+ * Compare two versions of the same policy by extracting file text and
+ * computing a line-oriented diff. Both refs must belong to this policy.
+ *
+ * @param {string} policyId
+ * @param {string} fromRef - "current" or previousVersions._id
+ * @param {string} toRef   - "current" or previousVersions._id
+ */
+export const comparePolicyVersions = async (policyId, fromRef, toRef) => {
+  const policy = await Policy.findById(policyId);
+  if (!policy) throw new NotFoundError("Policy not found.");
+
+  if (!policy.previousVersions || policy.previousVersions.length === 0) {
+    throw new ValidationError(
+      "This policy has only one version. Upload a new version before comparing.",
+    );
+  }
+
+  if (!fromRef || !toRef) {
+    throw new ValidationError(
+      'Both "from" and "to" version refs are required.',
+    );
+  }
+
+  if (fromRef === toRef) {
+    throw new ValidationError("Select two different versions to compare.");
+  }
+
+  const fromVersion = _resolvePolicyVersion(policy, fromRef);
+  const toVersion = _resolvePolicyVersion(policy, toRef);
+
+  const fromPath = _validateUploadPath(fromVersion.fileUrl);
+  const toPath = _validateUploadPath(toVersion.fileUrl);
+
+  if (!fs.existsSync(fromPath) || !fs.existsSync(toPath)) {
+    throw new NotFoundError(
+      "One or both policy version files are no longer available on the server.",
+    );
+  }
+
+  const [fromText, toText] = await Promise.all([
+    _extractTextFromFile(fromPath, null),
+    _extractTextFromFile(toPath, null),
+  ]);
+
+  const diff = computeLineDiff(fromText, toText);
+
+  return {
+    policyId: policy._id.toString(),
+    policyName: policy.name,
+    from: {
+      id: fromVersion.id,
+      version: fromVersion.version,
+      summary: fromVersion.summary,
+      key_changes: fromVersion.key_changes,
+      keywords: fromVersion.keywords,
+      commitMsg: fromVersion.commitMsg,
+      createdAt: fromVersion.createdAt,
+      textAvailable: Boolean(fromText && fromText.trim()),
+    },
+    to: {
+      id: toVersion.id,
+      version: toVersion.version,
+      summary: toVersion.summary,
+      key_changes: toVersion.key_changes,
+      keywords: toVersion.keywords,
+      commitMsg: toVersion.commitMsg,
+      createdAt: toVersion.createdAt,
+      textAvailable: Boolean(toText && toText.trim()),
+    },
+    diff,
+  };
 };
 
 /**

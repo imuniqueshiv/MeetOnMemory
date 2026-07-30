@@ -6,6 +6,9 @@ import { toast } from "react-toastify";
 import { assets } from "../assets/assets";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { authApi, csrfService } from "../services";
+import { SignIn, SignUp } from "@clerk/clerk-react";
+
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 const Login = () => {
   const navigate = useNavigate();
@@ -122,190 +125,223 @@ const Login = () => {
       />
 
       {/* Auth Card */}
-      <div className="relative w-full max-w-md bg-slate-900 backdrop-blur-2xl border border-slate-700/40 rounded-2xl shadow-2xl shadow-black/20 p-8 sm:p-10 z-10 transition-all duration-300">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-2">
-            {state === "Sign Up"
-              ? t("login.createAccount")
-              : t("login.welcomeBack")}
-          </h1>
-          <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
-            {state === "Sign Up"
-              ? t("login.joinUs")
-              : t("login.signInContinue")}
-          </p>
-        </div>
-
-        <form onSubmit={onSubmitHandler} className="space-y-5">
-          {/* Name Field */}
-          {state === "Sign Up" && (
-            <div>
-              <label
-                htmlFor="name"
-                className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 ml-1"
-              >
-                {t("login.fullName")}
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <img
-                    src={assets.person_icon}
-                    alt=""
-                    className="w-5 h-5 text-slate-500 opacity-70"
-                  />
-                </div>
-                <input
-                  id="name"
-                  onChange={(e) => setName(e.target.value)}
-                  value={name}
-                  type="text"
-                  autoComplete="name"
-                  placeholder="John Doe"
-                  required
-                  className="w-full pl-11 pr-4 py-3 bg-slate-800/40 border border-slate-600/40 rounded-xl text-slate-100 placeholder-slate-600 outline-none transition-all duration-200 focus:border-indigo-400/60 focus:bg-slate-800/60 focus-visible:ring-2 focus:ring-indigo-400/20 hover:border-slate-500/60"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Email Field */}
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 ml-1"
-            >
-              {t("login.emailAddress")}
-            </label>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                <img
-                  src={assets.mail_icon}
-                  alt=""
-                  className="w-5 h-5 text-slate-500 opacity-70"
-                />
-              </div>
-              <input
-                id="email"
-                onChange={(e) => setEmail(e.target.value)}
-                value={email}
-                type="email"
-                autoComplete="email"
-                placeholder="you@example.com"
-                required
-                className="w-full pl-11 pr-4 py-3 bg-slate-800/40 border border-slate-600/40 rounded-xl text-slate-100 placeholder-slate-600 outline-none transition-all duration-200 focus:border-indigo-400/60 focus:bg-slate-800/60 focus-visible:ring-2 focus:ring-indigo-400/20 hover:border-slate-500/60"
+      <div className="relative w-full max-w-md bg-slate-900 backdrop-blur-2xl border border-slate-700/40 rounded-2xl shadow-2xl shadow-black/20 p-8 sm:p-10 z-10 transition-all duration-300 flex flex-col items-center">
+        {clerkPubKey && clerkPubKey.trim().length > 0 ? (
+          <div className="w-full flex flex-col items-center">
+            {state === "Sign Up" ? (
+              <SignUp
+                routing="virtual"
+                signInUrl="/login"
+                fallbackRedirectUrl="/dashboard"
               />
-            </div>
-          </div>
-
-          {/* Password Field */}
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 ml-1"
-            >
-              {t("login.password")}
-            </label>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                <img
-                  src={assets.lock_icon}
-                  alt=""
-                  className="w-5 h-5 text-slate-500 opacity-70"
-                />
-              </div>
-              <input
-                id="password"
-                onChange={(e) => setPassword(e.target.value)}
-                value={password}
-                autoComplete="current-password"
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                required
-                className="w-full pl-11 pr-12 py-3 bg-slate-800/40 border border-slate-600/40 rounded-xl text-slate-100 placeholder-slate-600 outline-none transition-all duration-200 focus:border-indigo-400/60 focus:bg-slate-800/60 focus-visible:ring-2 focus:ring-indigo-400/20 hover:border-slate-500/60"
+            ) : (
+              <SignIn
+                routing="virtual"
+                signUpUrl="/login?mode=signup"
+                fallbackRedirectUrl="/dashboard"
               />
+            )}
+            <div className="mt-4 text-center">
               <button
                 type="button"
-                autocomple
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3.5 flex cursor-pointer items-center text-slate-500 hover:text-indigo-400 transition-colors duration-200 outline-none focus:text-indigo-400"
-                aria-label={
-                  showPassword
-                    ? t("login.hidePassword")
-                    : t("login.showPassword")
+                onClick={() =>
+                  setState((prev) => (prev === "Sign Up" ? "Login" : "Sign Up"))
                 }
+                className="text-xs text-indigo-400 hover:underline cursor-pointer"
               >
-                {showPassword ? (
-                  <EyeOff className="w-5 h-5" />
-                ) : (
-                  <Eye className="w-5 h-5" />
-                )}
+                {state === "Sign Up"
+                  ? "Already have an account? Sign In"
+                  : "Need an account? Sign Up"}
               </button>
             </div>
           </div>
+        ) : (
+          <>
+            {/* Header */}
+            <div className="text-center mb-8">
+              <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-2">
+                {state === "Sign Up"
+                  ? t("login.createAccount")
+                  : t("login.welcomeBack")}
+              </h1>
+              <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
+                {state === "Sign Up"
+                  ? t("login.joinUs")
+                  : t("login.signInContinue")}
+              </p>
+            </div>
 
-          {/* Forgot Password */}
-          <div className="flex items-center justify-end pt-1">
-            <button
-              type="button"
-              onClick={() => navigate("/reset-password")}
-              className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors duration-200 cursor-pointer outline-none focus:underline underline-offset-2"
-            >
-              {t("login.forgotPassword")}
-            </button>
-          </div>
+            <form onSubmit={onSubmitHandler} className="space-y-5">
+              {/* Name Field */}
+              {state === "Sign Up" && (
+                <div>
+                  <label
+                    htmlFor="name"
+                    className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 ml-1"
+                  >
+                    {t("login.fullName")}
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                      <img
+                        src={assets.person_icon}
+                        alt=""
+                        className="w-5 h-5 text-slate-500 opacity-70"
+                      />
+                    </div>
+                    <input
+                      id="name"
+                      onChange={(e) => setName(e.target.value)}
+                      value={name}
+                      type="text"
+                      autoComplete="name"
+                      placeholder="John Doe"
+                      required
+                      className="w-full pl-11 pr-4 py-3 bg-slate-800/40 border border-slate-600/40 rounded-xl text-slate-100 placeholder-slate-600 outline-none transition-all duration-200 focus:border-indigo-400/60 focus:bg-slate-800/60 focus-visible:ring-2 focus:ring-indigo-400/20 hover:border-slate-500/60"
+                    />
+                  </div>
+                </div>
+              )}
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full py-3 px-4 rounded-xl cursor-pointer bg-linear-to-r from-indigo-500 to-indigo-900 text-white font-semibold text-sm shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:translate-y-[-2px] active:translate-y-0 active:shadow-md transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex items-center justify-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>
-                  {state === "Sign Up"
-                    ? t("login.creatingAccount")
-                    : t("login.signingIn")}
-                </span>
-              </>
-            ) : state === "Sign Up" ? (
-              t("login.signUp")
-            ) : (
-              t("login.loginBtn")
-            )}
-          </button>
-        </form>
+              {/* Email Field */}
+              <div>
+                <label
+                  htmlFor="email"
+                  className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 ml-1"
+                >
+                  {t("login.emailAddress")}
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <img
+                      src={assets.mail_icon}
+                      alt=""
+                      className="w-5 h-5 text-slate-500 opacity-70"
+                    />
+                  </div>
+                  <input
+                    id="email"
+                    onChange={(e) => setEmail(e.target.value)}
+                    value={email}
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    required
+                    className="w-full pl-11 pr-4 py-3 bg-slate-800/40 border border-slate-600/40 rounded-xl text-slate-100 placeholder-slate-600 outline-none transition-all duration-200 focus:border-indigo-400/60 focus:bg-slate-800/60 focus-visible:ring-2 focus:ring-indigo-400/20 hover:border-slate-500/60"
+                  />
+                </div>
+              </div>
 
-        {/* Toggle State */}
-        <div className="mt-8 pt-6 border-t border-slate-700/40 text-center ">
-          <p className="text-slate-400 text-sm">
-            {state === "Sign Up" ? (
-              <>
-                {t("login.alreadyHaveAccount")}{" "}
+              {/* Password Field */}
+              <div>
+                <label
+                  htmlFor="password"
+                  className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 ml-1"
+                >
+                  {t("login.password")}
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <img
+                      src={assets.lock_icon}
+                      alt=""
+                      className="w-5 h-5 text-slate-500 opacity-70"
+                    />
+                  </div>
+                  <input
+                    id="password"
+                    onChange={(e) => setPassword(e.target.value)}
+                    value={password}
+                    autoComplete="current-password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    required
+                    className="w-full pl-11 pr-12 py-3 bg-slate-800/40 border border-slate-600/40 rounded-xl text-slate-100 placeholder-slate-600 outline-none transition-all duration-200 focus:border-indigo-400/60 focus:bg-slate-800/60 focus-visible:ring-2 focus:ring-indigo-400/20 hover:border-slate-500/60"
+                  />
+                  <button
+                    type="button"
+                    autocomple
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex cursor-pointer items-center text-slate-500 hover:text-indigo-400 transition-colors duration-200 outline-none focus:text-indigo-400"
+                    aria-label={
+                      showPassword
+                        ? t("login.hidePassword")
+                        : t("login.showPassword")
+                    }
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Forgot Password */}
+              <div className="flex items-center justify-end pt-1">
                 <button
                   type="button"
-                  onClick={() => setState("Login")}
-                  className="text-indigo-400 cursor-pointer font-semibold hover:text-indigo-300 transition-colors duration-200 outline-none focus:underline underline-offset-2"
+                  onClick={() => navigate("/reset-password")}
+                  className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors duration-200 cursor-pointer outline-none focus:underline underline-offset-2"
                 >
-                  {t("login.signIn")}
+                  {t("login.forgotPassword")}
                 </button>
-              </>
-            ) : (
-              <>
-                {t("login.dontHaveAccount")}{" "}
-                <button
-                  type="button"
-                  onClick={() => setState("Sign Up")}
-                  className="text-indigo-400 font-semibold cursor-pointer hover:text-indigo-300 transition-colors duration-200 outline-none focus:underline underline-offset-2"
-                >
-                  {t("login.signUpLink")}
-                </button>
-              </>
-            )}
-          </p>
-        </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 px-4 rounded-xl cursor-pointer bg-linear-to-r from-indigo-500 to-indigo-900 text-white font-semibold text-sm shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:translate-y-[-2px] active:translate-y-0 active:shadow-md transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex items-center justify-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>
+                      {state === "Sign Up"
+                        ? t("login.creatingAccount")
+                        : t("login.signingIn")}
+                    </span>
+                  </>
+                ) : state === "Sign Up" ? (
+                  t("login.signUp")
+                ) : (
+                  t("login.loginBtn")
+                )}
+              </button>
+            </form>
+
+            {/* Toggle State */}
+            <div className="mt-8 pt-6 border-t border-slate-700/40 text-center ">
+              <p className="text-slate-400 text-sm">
+                {state === "Sign Up" ? (
+                  <>
+                    {t("login.alreadyHaveAccount")}{" "}
+                    <button
+                      type="button"
+                      onClick={() => setState("Login")}
+                      className="text-indigo-400 cursor-pointer font-semibold hover:text-indigo-300 transition-colors duration-200 outline-none focus:underline underline-offset-2"
+                    >
+                      {t("login.signIn")}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {t("login.dontHaveAccount")}{" "}
+                    <button
+                      type="button"
+                      onClick={() => setState("Sign Up")}
+                      className="text-indigo-400 font-semibold cursor-pointer hover:text-indigo-300 transition-colors duration-200 outline-none focus:underline underline-offset-2"
+                    >
+                      {t("login.signUpLink")}
+                    </button>
+                  </>
+                )}
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -5,9 +5,12 @@ import {
   getSnapshotById,
   diffSnapshots,
 } from "../services/graphSnapshotService.js";
+import { sanitizeFilenameForHeader } from "../utils/fileUtils.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+const getOrgId = (req) =>
+  req.user?.organization || req.user?.organizationId || null;
 
 /**
  * GET /api/knowledge/graph/snapshots?limit=50&before=<ISO date>
@@ -15,7 +18,7 @@ const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
  */
 export const getSnapshots = async (req, res) => {
   try {
-    const organization = req.user.organization || null;
+    const organization = getOrgId(req);
     const { limit, before } = req.query;
 
     const snapshots = await listSnapshots(organization, { limit, before });
@@ -41,7 +44,7 @@ export const getSnapshot = async (req, res) => {
       return sendError(res, 400, "Invalid snapshot ID");
     }
 
-    const organization = req.user.organization || null;
+    const organization = getOrgId(req);
     const snapshot = await getSnapshotById(id, organization);
 
     if (!snapshot) {
@@ -67,7 +70,7 @@ export const exportSnapshot = async (req, res) => {
       return sendError(res, 400, "Invalid snapshot ID");
     }
 
-    const organization = req.user.organization || null;
+    const organization = getOrgId(req);
     const snapshot = await getSnapshotById(id, organization);
 
     if (!snapshot) {
@@ -76,7 +79,7 @@ export const exportSnapshot = async (req, res) => {
 
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="graph-snapshot-${id}.json"`,
+      `attachment; filename="${sanitizeFilenameForHeader(`graph-snapshot-${id}`)}.json"`,
     );
     sendSuccess(res, { snapshot });
   } catch (error) {
@@ -104,7 +107,7 @@ export const getSnapshotDiff = async (req, res) => {
       return sendError(res, 400, "Invalid snapshot ID(s)");
     }
 
-    const organization = req.user.organization || null;
+    const organization = getOrgId(req);
     const diff = await diffSnapshots(from, to, organization);
 
     sendSuccess(res, { diff });
@@ -127,7 +130,7 @@ export const getSnapshotDiff = async (req, res) => {
  */
 export const createManualSnapshot = async (req, res) => {
   try {
-    const organization = req.user.organization || null;
+    const organization = getOrgId(req);
     const { force = false } = req.body || {};
 
     const result = await captureSnapshot(organization, {

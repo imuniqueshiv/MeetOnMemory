@@ -1,3 +1,6 @@
+import React from "react";
+import RecurrenceSelector from "../../../../components/meetings/RecurrenceSelector";
+
 const MeetingInformationForm = ({
   scheduleData,
   setScheduleData,
@@ -103,7 +106,7 @@ const MeetingInformationForm = ({
         </div>
       </div>
 
-    {/* Location */}
+      {/* Location */}
       <div className="grid md:grid-cols-2 gap-4 mb-6">
         <div>
           <label className="block mb-2 font-semibold text-gray-700">
@@ -132,6 +135,13 @@ const MeetingInformationForm = ({
           />
         </div>
       </div>
+
+      {/* Recurrence Selector */}
+      <RecurrenceSelector
+        scheduleData={scheduleData}
+        handleScheduleChange={handleScheduleChange}
+        setScheduleData={setScheduleData}
+      />
 
       {/* Sync to Calendar */}
       <div className="mb-6 flex items-center gap-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">

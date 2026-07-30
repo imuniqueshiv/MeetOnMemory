@@ -3,11 +3,6 @@ export const AUTOMATION = Object.freeze({
   metadataStart: "<!-- mom:metadata:start -->",
   metadataEnd: "<!-- mom:metadata:end -->",
   markerPrefix: "mom",
-  reminder8Marker: "mom:reminder-8h",
-  reminder16Marker: "mom:reminder-16h",
-  reminder24Marker: "mom:reminder-24h",
-  reminder32Marker: "mom:reminder-32h",
-  reminder40Marker: "mom:reminder-40h",
   expiredMarker: "mom:claim-expired",
   claimWelcomeMarker: "mom:claim-welcome",
   assignmentWelcomeMarker: "mom:manual-assignment-welcome",
@@ -30,13 +25,16 @@ export const LIMITS = Object.freeze({
 });
 
 export const TIMERS = Object.freeze({
-  reminder8Hours: 8,
-  reminder16Hours: 16,
-  reminder24Hours: 24,
-  reminder32Hours: 32,
-  reminder40Hours: 40,
+  // Reminders every 8 hours until the 48-hour claim window expires.
+  reminderHours: Object.freeze([8, 16, 24, 32, 40]),
   expirationHours: 48,
+  // Contributor-authored issues: exclusive claim window for the author.
+  authorPriorityHours: 48,
 });
+
+export function reminderMarker(hours) {
+  return `mom:reminder-${hours}h`;
+}
 
 export const IGNORE_BOTS = Object.freeze([
   "github-actions[bot]",

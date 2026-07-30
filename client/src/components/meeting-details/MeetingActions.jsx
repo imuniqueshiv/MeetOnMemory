@@ -13,7 +13,7 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
   const [newTitle, setNewTitle] = useState("");
   const [showExportMenu, setShowExportMenu] = useState(false);
   const { exportMeeting, isExporting } = useExport();
-  
+
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -72,12 +72,12 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+
       // Start recording session on server
       const { data } = await axios.post(
         `/api/meetings/${meeting._id}/recording/start`,
         {},
-        { withCredentials: true }
+        { withCredentials: true },
       );
 
       if (!data.success) {
@@ -103,12 +103,12 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
           const blob = new Blob(chunksRef.current, { type: "audio/webm" });
           const formData = new FormData();
           formData.append("audio", blob, "audio.webm");
-          
+
           try {
             await axios.post(
               `/api/meetings/${meeting._id}/transcript/upload`,
               formData,
-              { withCredentials: true }
+              { withCredentials: true },
             );
             chunksRef.current = [];
           } catch (error) {
@@ -116,7 +116,6 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
           }
         }
       }, 10000);
-
     } catch (error) {
       console.error("Error starting recording:", error);
       toast.error(error.message || "Failed to start recording");
@@ -128,8 +127,10 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
 
     // Stop media recorder
     mediaRecorderRef.current.stop();
-    mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-    
+    mediaRecorderRef.current.stream
+      .getTracks()
+      .forEach((track) => track.stop());
+
     // Clear upload interval
     if (recordingIntervalRef.current) {
       clearInterval(recordingIntervalRef.current);
@@ -140,12 +141,12 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
       const blob = new Blob(chunksRef.current, { type: "audio/webm" });
       const formData = new FormData();
       formData.append("audio", blob, "audio.webm");
-      
+
       try {
         await axios.post(
           `/api/meetings/${meeting._id}/transcript/upload`,
           formData,
-          { withCredentials: true }
+          { withCredentials: true },
         );
       } catch (error) {
         console.error("Error uploading final audio chunk:", error);
@@ -157,7 +158,7 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
       const { data } = await axios.post(
         `/api/meetings/${meeting._id}/recording/stop`,
         {},
-        { withCredentials: true }
+        { withCredentials: true },
       );
 
       if (!data.success) {
@@ -173,16 +174,22 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
         try {
           const { data: transcriptData } = await axios.get(
             `/api/meetings/${meeting._id}/transcript`,
-            { withCredentials: true }
+            { withCredentials: true },
           );
 
-          if (transcriptData.success && transcriptData.transcript.status === "completed") {
+          if (
+            transcriptData.success &&
+            transcriptData.transcript.status === "completed"
+          ) {
             clearInterval(pollInterval);
             setIsProcessing(false);
             toast.success("Transcription completed!");
             // Refresh meeting data to show updated transcript
             window.location.reload();
-          } else if (transcriptData.success && transcriptData.transcript.status === "failed") {
+          } else if (
+            transcriptData.success &&
+            transcriptData.transcript.status === "failed"
+          ) {
             clearInterval(pollInterval);
             setIsProcessing(false);
             toast.error("Transcription failed. Please try again.");
@@ -191,7 +198,6 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
           console.error("Error polling transcript status:", error);
         }
       }, 5000);
-
     } catch (error) {
       console.error("Error stopping recording:", error);
       toast.error(error.message || "Failed to stop recording");
@@ -215,7 +221,9 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
       }
       if (mediaRecorderRef.current && isRecording) {
         mediaRecorderRef.current.stop();
-        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+        mediaRecorderRef.current.stream
+          .getTracks()
+          .forEach((track) => track.stop());
       }
     };
   }, [isRecording]);
@@ -250,8 +258,8 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
               isRecording
                 ? "bg-red-500 hover:bg-red-600 text-white"
                 : isProcessing
-                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700 text-white"
+                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
             }`}
           >
             {isProcessing ? (

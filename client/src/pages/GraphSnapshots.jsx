@@ -213,7 +213,9 @@ const GraphSnapshots = () => {
   const downloadSnapshot = async (id) => {
     try {
       const res = await knowledgeApi.exportGraphSnapshot(id);
-      const blob = new Blob([JSON.stringify(res.data, null, 2)], {
+      const payload =
+        res.data?.data?.snapshot || res.data?.snapshot || res.data;
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
         type: "application/json",
       });
       const url = URL.createObjectURL(blob);

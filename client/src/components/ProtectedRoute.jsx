@@ -46,10 +46,15 @@ const ProtectedRoute = ({
     "/create-organization",
     "/join-organization",
   ];
+  const isJoinWithToken =
+    location.pathname === "/join-organization" &&
+    new URLSearchParams(location.search).has("token");
+
   if (
     userData &&
     userData.hasCompletedOnboarding &&
-    onboardingOnlyPages.includes(location.pathname)
+    onboardingOnlyPages.includes(location.pathname) &&
+    !isJoinWithToken
   ) {
     return <Navigate to="/dashboard" replace />;
   }

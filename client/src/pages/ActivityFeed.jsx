@@ -9,8 +9,9 @@ import {
   Activity as ActivityIcon,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { getBackendUrl } from "../config/backendConfig.js";
 
-const backendUrl = import.meta.env.VITE_API_URL || "";
+const backendUrl = getBackendUrl();
 
 export default function ActivityFeed() {
   const [activities, setActivities] = useState([]);

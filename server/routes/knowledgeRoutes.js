@@ -9,6 +9,9 @@ import {
   submitMemoryFeedback,
   recalculateImportance,
   updateActionItemStatus,
+  toggleActionItemReminderStatus,
+  runMemoryLifecycleSweep,
+  updateMemoryLifecycleState,
 } from "../controllers/knowledgeController.js";
 import {
   runConsolidation,
@@ -20,10 +23,50 @@ import {
   getConflictDetail,
   resolveConflict,
 } from "../controllers/conflictController.js";
+import {
+  getSnapshots,
+  getSnapshot,
+  exportSnapshot,
+  getSnapshotDiff,
+  createManualSnapshot,
+} from "../controllers/graphSnapshotController.js";
 
 const router = express.Router();
 router.use(apiLimiter);
 router.use(userAuth);
+
+// --- Knowledge Graph Snapshots (#714) ---
+router.get(
+  "/graph/snapshots",
+  requireOrgMembership,
+  requirePermission("knowledge", "view"),
+  getSnapshots,
+);
+router.post(
+  "/graph/snapshots",
+  writeLimiter,
+  requireOrgMembership,
+  requirePermission("knowledge", "edit"),
+  createManualSnapshot,
+);
+router.get(
+  "/graph/snapshots/diff",
+  requireOrgMembership,
+  requirePermission("knowledge", "view"),
+  getSnapshotDiff,
+);
+router.get(
+  "/graph/snapshots/:id",
+  requireOrgMembership,
+  requirePermission("knowledge", "view"),
+  getSnapshot,
+);
+router.get(
+  "/graph/snapshots/:id/export",
+  requireOrgMembership,
+  requirePermission("knowledge", "view"),
+  exportSnapshot,
+);
 
 router.get(
   "/decisions",
@@ -51,6 +94,13 @@ router.patch(
   updateActionItemStatus,
 );
 router.patch(
+  "/action-items/:id/reminders",
+  writeLimiter,
+  requireOrgMembership,
+  requirePermission("tasks", "edit"),
+  toggleActionItemReminderStatus,
+);
+router.patch(
   "/:type/:id/feedback",
   writeLimiter,
   requireOrgMembership,
@@ -64,6 +114,22 @@ router.post(
   requireOrgMembership,
   requirePermission("knowledge", "edit"),
   recalculateImportance,
+);
+
+// --- Memory Lifecycle Management (#377) ---
+router.post(
+  "/lifecycle/run",
+  writeLimiter,
+  requireOrgMembership,
+  requirePermission("knowledge", "manage_lifecycle"),
+  runMemoryLifecycleSweep,
+);
+router.patch(
+  "/:type/:id/lifecycle",
+  writeLimiter,
+  requireOrgMembership,
+  requirePermission("knowledge", "manage_lifecycle"),
+  updateMemoryLifecycleState,
 );
 
 // --- Memory Consolidation Engine ---

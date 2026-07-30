@@ -105,6 +105,7 @@ const Tasks = () => {
                 setSelectedTask={taskState.setSelectedTask}
                 navigate={navigate}
                 updateTaskStatus={taskState.updateTaskStatus}
+                toggleTaskReminder={taskState.toggleTaskReminder}
               />
             ))}
           </div>

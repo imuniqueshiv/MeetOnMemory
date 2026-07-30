@@ -1,6 +1,10 @@
 import { ISSUE_EVENTS } from "./constants.js";
 import { getIssue, isExpectedRepository } from "./helpers.js";
-import { clearAssignmentMetadata, updateIssueMetadata } from "./metadata.js";
+import {
+  clearAssignmentMetadata,
+  resetReminderTracking,
+  updateIssueMetadata,
+} from "./metadata.js";
 
 export async function processIssueLifecycle({ github, context, core }) {
   if (!isExpectedRepository(context)) return;
@@ -40,11 +44,7 @@ export async function processIssueLifecycle({ github, context, core }) {
 
   if (action === ISSUE_EVENTS.reopened) {
     await updateIssueMetadata(github, context, core, issue, (draft) => {
-      draft.reminder8SentAt = null;
-      draft.reminder16SentAt = null;
-      draft.reminder24SentAt = null;
-      draft.reminder32SentAt = null;
-      draft.reminder40SentAt = null;
+      resetReminderTracking(draft);
       draft.expiredAt = null;
       draft.lastActivityAt = new Date().toISOString();
       return draft;

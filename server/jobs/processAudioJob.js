@@ -14,6 +14,7 @@ import {
   normalizeMoM,
   buildHumanReadableMoM,
 } from "../services/GenerativeAIService.js";
+import MeetingDigestService from "../services/MeetingDigestService.js";
 
 export default async function processAudioJob(job, _app) {
   const { meetingId, transcript, date, title, userId } = job.data;
@@ -105,6 +106,13 @@ export default async function processAudioJob(job, _app) {
           kgError,
         );
       }
+
+      // Fire and forget email digest
+      MeetingDigestService.sendMeetingDigest(meetingToUpdate._id).catch(
+        (err) => {
+          console.error("Failed to send meeting digest automatically:", err);
+        },
+      );
     }
 
     return { success: true, meetingId: meetingToUpdate?._id };

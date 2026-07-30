@@ -1,5 +1,8 @@
 import AuditLogExport from "../models/auditLogExportModel.js";
-import { buildAuditLogFilter, createAuditLogExportFile } from "../services/auditLogExportService.js";
+import {
+  buildAuditLogFilter,
+  createAuditLogExportFile,
+} from "../services/auditLogExportService.js";
 
 export default async function auditLogExportJob(job) {
   const exportRecord = await AuditLogExport.findById(job.data.exportId);

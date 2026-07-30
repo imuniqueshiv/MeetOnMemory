@@ -3,10 +3,11 @@ import { io } from "socket.io-client";
 import Peer from "simple-peer";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
+import { getBackendUrl } from "../config/backendConfig.js";
 
 export default function useWebRTC(roomId, callbacks) {
   const navigate = useNavigate();
-  const backendUrl = import.meta.env.VITE_BACKEND_URL;
+  const backendUrl = getBackendUrl();
 
   const [joined, setJoined] = useState(false);
   const [loading, setLoading] = useState(false);

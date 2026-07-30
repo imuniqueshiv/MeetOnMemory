@@ -14,6 +14,10 @@ node_modules/
 config/*.json
 credentials.json
 
+# uploads
+server/uploads/
+server/tmp/
+
 # build or dist folders
 dist/
 build/
@@ -29,3 +33,4 @@ Thumbs.db
 eslint-output.json
 fix_lint*.mjs
 coverage/
+server/uploads/

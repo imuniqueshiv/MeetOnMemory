@@ -16,7 +16,8 @@ const CreateOrganizationPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!orgName.trim()) return toast.error(t("createOrganization.nameRequired"));
+    if (!orgName.trim())
+      return toast.error(t("createOrganization.nameRequired"));
 
     try {
       setLoading(true);
@@ -64,7 +65,9 @@ const CreateOrganizationPage = () => {
               disabled={loading}
               className="w-full p-3 bg-blue-600 text-white rounded-lg text-lg font-semibold hover:bg-blue-700 transition-all cursor-pointer"
             >
-              {loading ? t("common.loading") : t("createOrganization.createOrJoinBtn")}
+              {loading
+                ? t("common.loading")
+                : t("createOrganization.createOrJoinBtn")}
             </button>
           </form>
         </div>
@@ -74,4 +77,3 @@ const CreateOrganizationPage = () => {
 };
 
 export default CreateOrganizationPage;
-

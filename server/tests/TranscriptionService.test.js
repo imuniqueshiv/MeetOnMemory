@@ -26,7 +26,8 @@ jest.unstable_mockModule("../utils/fileUtils.js", () => ({
 const axios = (await import("axios")).default;
 const fs = (await import("fs")).default;
 const { validatePath } = await import("../utils/fileUtils.js");
-const { transcribeFile, transcribeAudioUrl } = await import("../services/TranscriptionService.js");
+const { transcribeFile, transcribeAudioUrl } =
+  await import("../services/TranscriptionService.js");
 
 describe("TranscriptionService", () => {
   beforeEach(() => {
@@ -42,13 +43,17 @@ describe("TranscriptionService", () => {
 
       // Mock axios post (upload and start transcription job)
       axios.post
-        .mockResolvedValueOnce({ data: { upload_url: "https://fake.url/audio" } }) // First post: Upload
+        .mockResolvedValueOnce({
+          data: { upload_url: "https://fake.url/audio" },
+        }) // First post: Upload
         .mockResolvedValueOnce({ data: { id: "fake-job-id" } }); // Second post: Start Transcript
 
       // Mock axios get (polling)
       axios.get
         .mockResolvedValueOnce({ data: { status: "processing" } }) // First poll
-        .mockResolvedValueOnce({ data: { status: "completed", text: "Hello world!" } }); // Second poll
+        .mockResolvedValueOnce({
+          data: { status: "completed", text: "Hello world!" },
+        }); // Second poll
 
       // 2. Execute the service method
       const result = await transcribeFile(mockFilePath);
@@ -61,7 +66,7 @@ describe("TranscriptionService", () => {
       expect(axios.get).toHaveBeenCalledTimes(2);
       expect(axios.get).toHaveBeenCalledWith(
         "https://api.assemblyai.com/v2/transcript/fake-job-id",
-        expect.objectContaining({ headers: { authorization: MOCK_API_KEY } })
+        expect.objectContaining({ headers: { authorization: MOCK_API_KEY } }),
       );
     });
 
@@ -71,12 +76,18 @@ describe("TranscriptionService", () => {
       fs.readFileSync.mockReturnValue("fake-audio-buffer");
 
       axios.post
-        .mockResolvedValueOnce({ data: { upload_url: "https://fake.url/error" } })
+        .mockResolvedValueOnce({
+          data: { upload_url: "https://fake.url/error" },
+        })
         .mockResolvedValueOnce({ data: { id: "fake-job-id-error" } });
 
-      axios.get.mockResolvedValueOnce({ data: { status: "error", error: "Audio format not supported" } });
+      axios.get.mockResolvedValueOnce({
+        data: { status: "error", error: "Audio format not supported" },
+      });
 
-      await expect(transcribeFile(mockFilePath)).rejects.toThrow("Audio format not supported");
+      await expect(transcribeFile(mockFilePath)).rejects.toThrow(
+        "Audio format not supported",
+      );
     });
   });
 
@@ -86,8 +97,9 @@ describe("TranscriptionService", () => {
 
       axios.post.mockResolvedValueOnce({ data: { id: "fake-job-id-url" } });
 
-      axios.get
-        .mockResolvedValueOnce({ data: { status: "completed", text: "Transcribed from URL!" } });
+      axios.get.mockResolvedValueOnce({
+        data: { status: "completed", text: "Transcribed from URL!" },
+      });
 
       const result = await transcribeAudioUrl(mockUrl);
 
@@ -95,7 +107,7 @@ describe("TranscriptionService", () => {
       expect(axios.post).toHaveBeenCalledWith(
         "https://api.assemblyai.com/v2/transcript",
         { audio_url: mockUrl },
-        expect.objectContaining({ headers: { authorization: MOCK_API_KEY } })
+        expect.objectContaining({ headers: { authorization: MOCK_API_KEY } }),
       );
       expect(axios.get).toHaveBeenCalledTimes(1);
     });

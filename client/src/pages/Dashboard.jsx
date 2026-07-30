@@ -1,15 +1,8 @@
-import React, {
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  useCallback,
-} from "react";
+import React, { useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import AppContent from "../context/AppContent";
 import {
-  Building2,
   FileText,
   Upload,
   BarChart3,
@@ -18,16 +11,13 @@ import {
   ArrowRight,
   Sparkles,
   Shield,
+  Users,
 } from "lucide-react";
 import Navbar from "../components/Navbar.jsx";
-import {
-  Responsive as ResponsiveGridLayout,
-  useContainerWidth,
-} from "react-grid-layout";
-import "react-grid-layout/css/styles.css";
-import "react-resizable/css/styles.css";
-import { userApi } from "../services/userApi";
 import TopContributorsWidget from "../components/organization/TopContributorsWidget";
+import DashboardMetricsWidget from "../components/dashboard/DashboardMetricsWidget.jsx";
+import OrganizationLogo from "../components/organization/OrganizationLogo.jsx";
+import OrganizationBanner from "../components/organization/OrganizationBanner.jsx";
 
 /* ─── Role Badge ──────────────────────────────────────────────────────────── */
 const ROLE_STYLES = {
@@ -43,6 +33,7 @@ const ROUTE_MAP = {
   summaries: "/summaries",
   policies: "/policies",
   reports: "/reports",
+  "attendance-analytics": "/attendance-analytics",
 };
 
 /* ─── Dashboard ───────────────────────────────────────────────────────────── */
@@ -50,20 +41,20 @@ const Dashboard = () => {
   const { t } = useTranslation();
   const { userData } = useContext(AppContent);
   const navigate = useNavigate();
-  const { width: containerWidth, containerRef } = useContainerWidth();
-
-  const [layouts, setLayouts] = useState(null);
-  const saveTimeoutRef = useRef(null);
 
   const organizationName =
     userData?.organization?.name?.toUpperCase() || "ORGANIZATION";
+  const organizationLogoUrl =
+    userData?.organization?.logoUrl || userData?.organization?.logo || "";
+  const organizationBannerUrl = userData?.organization?.bannerUrl || "";
 
   const rawRole = userData?.role || "member";
   const displayRole =
     rawRole.charAt(0).toUpperCase() + rawRole.slice(1).toLowerCase();
   const roleStyle = ROLE_STYLES[rawRole.toLowerCase()] || ROLE_STYLES.member;
 
-  const isAdmin = userData?.role === "admin" || userData?.role === "owner";
+  const isAdmin =
+    rawRole.toLowerCase() === "admin" || rawRole.toLowerCase() === "owner";
 
   const FEATURE_CARDS = [
     {
@@ -123,102 +114,23 @@ const Dashboard = () => {
       tagColor: "bg-indigo-50 text-indigo-700 border-indigo-100",
       accentRing: "group-hover:ring-indigo-100",
     },
+    {
+      id: "attendance-analytics",
+      icon: Users,
+      title: "Attendance Analytics",
+      description:
+        "Visualize per-member attendance rates, heatmap activity, and trends.",
+      iconBg: "bg-pink-50",
+      iconColor: "text-pink-600",
+      tag: "Analytics",
+      tagColor: "bg-pink-50 text-pink-700 border-pink-100",
+      accentRing: "group-hover:ring-pink-100",
+    },
   ];
 
   const visibleCards = FEATURE_CARDS.filter(
     (card) => !card.adminOnly || isAdmin,
   );
-
-  useEffect(() => {
-    let mounted = true;
-    const fetchPreferences = async () => {
-      try {
-        const res = await userApi.getDashboardPreferences();
-        if (mounted) {
-          if (res.data.success && res.data.dashboardPreferences) {
-            setLayouts(res.data.dashboardPreferences);
-          } else {
-            // Generate default layout
-            const defaultL = visibleCards.map((card, index) => ({
-              i: card.id,
-              x: index % 3,
-              y: Math.floor(index / 3),
-              w: 1,
-              h: 1,
-            }));
-            setLayouts({ lg: defaultL });
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load dashboard preferences", err);
-        if (mounted) {
-          const defaultL = visibleCards.map((card, index) => ({
-            i: card.id,
-            x: index % 3,
-            y: Math.floor(index / 3),
-            w: 1,
-            h: 1,
-          }));
-          setLayouts({ lg: defaultL });
-        }
-      }
-    };
-
-    // Only fetch if userData is loaded somewhat, to avoid pre-auth calls if any
-    if (userData) {
-      fetchPreferences();
-    }
-
-    return () => {
-      mounted = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userData, visibleCards.length]);
-
-  // Resume paused .dash-card.fade-in-up entrance animations once cards enter the viewport.
-  // Matches Features/Hero IntersectionObserver + .visible contract in index.css.
-  useEffect(() => {
-    if (!layouts || typeof IntersectionObserver === "undefined") return;
-
-    const root = containerRef.current;
-    if (!root) return;
-
-    const cards = root.querySelectorAll(".dash-card.fade-in-up");
-    if (cards.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("visible");
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.1 },
-    );
-
-    cards.forEach((card) => observer.observe(card));
-    return () => observer.disconnect();
-  }, [layouts, visibleCards.length, containerRef]);
-
-  const handleLayoutChange = useCallback((layout, allLayouts) => {
-    // Only save if layouts are actually set and changed
-    // react-grid-layout triggers on mount, so we compare if needed, or just debounce
-    setLayouts(allLayouts);
-
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-
-    saveTimeoutRef.current = setTimeout(async () => {
-      try {
-        await userApi.updateDashboardPreferences({
-          dashboardPreferences: allLayouts,
-        });
-      } catch (err) {
-        console.error("Failed to save dashboard preferences", err);
-      }
-    }, 1000);
-  }, []);
 
   const handleAISearch = () => navigate("/ai-search");
   const handleCardClick = (id) => navigate(ROUTE_MAP[id]);
@@ -227,11 +139,11 @@ const Dashboard = () => {
     <div className="min-h-screen flex flex-col bg-linear-to-b from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
       <Navbar />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16 sm:pb-20">
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-12 sm:pb-16">
         {/* ── Hero + AI Search — unified panel ── */}
         <section
           aria-label="Dashboard hero"
-          className="relative mb-10 sm:mb-12 fade-in-up stagger-1"
+          className="relative mb-6 sm:mb-8 fade-in-up stagger-1"
         >
           <div
             aria-hidden="true"
@@ -248,46 +160,59 @@ const Dashboard = () => {
               className="h-1 bg-linear-to-r from-blue-600 via-violet-600 to-indigo-600"
             />
 
-            <div className="px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
-              {/* Org header */}
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex items-start gap-4">
-                  <div
-                    aria-hidden="true"
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-blue-600 to-indigo-600 shadow-md shadow-blue-600/20 sm:h-14 sm:w-14 sm:rounded-2xl"
-                  >
-                    <Building2 className="h-6 w-6 text-white sm:h-7 sm:w-7" />
-                  </div>
+            {/* Branded org header — banner background with readable overlay */}
+            <div className="relative">
+              <OrganizationBanner
+                src={organizationBannerUrl}
+                name={userData?.organization?.name || organizationName}
+                heightClass="h-full"
+                className="absolute inset-0"
+              />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 bg-linear-to-r from-slate-900/75 via-slate-900/55 to-slate-900/35 dark:from-gray-950/85 dark:via-gray-900/65 dark:to-gray-900/45"
+              />
+              <div className="relative px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-4">
+                    <OrganizationLogo
+                      src={organizationLogoUrl}
+                      name={userData?.organization?.name || organizationName}
+                      size="lg"
+                    />
 
-                  <div className="min-w-0 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-gray-100 sm:text-3xl lg:text-4xl">
-                        {organizationName}
-                      </h1>
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${roleStyle}`}
-                      >
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-4xl">
+                          {organizationName}
+                        </h1>
                         <span
-                          className="h-1.5 w-1.5 rounded-full bg-current opacity-70"
-                          aria-hidden="true"
-                        />
-                        {displayRole}
-                      </span>
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${roleStyle}`}
+                        >
+                          <span
+                            className="h-1.5 w-1.5 rounded-full bg-current opacity-70"
+                            aria-hidden="true"
+                          />
+                          {displayRole}
+                        </span>
+                      </div>
+                      <p className="max-w-xl text-sm leading-relaxed text-slate-200 sm:text-base">
+                        {t("dashboard.welcomeBack")}{" "}
+                        <span className="font-semibold text-white">
+                          {userData?.name || t("dashboard.there")}
+                        </span>
+                        {t("dashboard.everythingHere")}
+                      </p>
                     </div>
-                    <p className="max-w-xl text-sm leading-relaxed text-slate-500 dark:text-gray-400 sm:text-base">
-                      {t("dashboard.welcomeBack")}{" "}
-                      <span className="font-semibold text-slate-800 dark:text-gray-200">
-                        {userData?.name || t("dashboard.there")}
-                      </span>
-                      {t("dashboard.everythingHere")}
-                    </p>
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* AI Smart Search — integrated CTA */}
+            {/* AI Smart Search — integrated CTA */}
+            <div className="px-5 pt-7 pb-7 sm:px-8 sm:pt-8 sm:pb-9 lg:px-10">
               <div
-                className="mt-7 rounded-xl border border-slate-200/80 dark:border-gray-700 bg-slate-50/80 dark:bg-gray-700/50 p-5 sm:mt-8 sm:p-6"
+                className="rounded-xl border border-slate-200/80 dark:border-gray-700 bg-slate-50/80 dark:bg-gray-700/50 p-5 sm:p-6"
                 role="region"
                 aria-label="AI Smart Search"
               >
@@ -334,123 +259,89 @@ const Dashboard = () => {
           </div>
         </section>
 
+        {/* ── Operational Metrics ── */}
+        <DashboardMetricsWidget />
+
         {/* ── Feature Cards ── */}
         <section aria-label="Dashboard features">
-          <header className="mb-6 sm:mb-8 fade-in-up stagger-2">
+          <header className="mb-4 sm:mb-5 fade-in-up stagger-2">
             <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-gray-500">
               {t("dashboard.features")}
             </p>
-            <div className="flex items-center justify-between">
-              <h2 className="mt-1 text-xl font-semibold text-slate-900 dark:text-gray-100 sm:text-2xl">
-                {t("dashboard.everythingInOnePlace")}
-              </h2>
-              <span className="text-xs text-slate-400 dark:text-gray-500 hidden sm:inline-block">
-                Drag cards to reorder
-              </span>
-            </div>
+            <h2 className="mt-1 text-xl font-semibold text-slate-900 dark:text-gray-100 sm:text-2xl">
+              {t("dashboard.everythingInOnePlace")}
+            </h2>
           </header>
 
-          {layouts ? (
-            <div ref={containerRef} className="w-full">
-              <ResponsiveGridLayout
-                width={containerWidth}
-                className="layout"
-                layouts={layouts}
-                breakpoints={{ lg: 1024, md: 768, sm: 640, xs: 480, xxs: 0 }}
-                cols={{ lg: 3, md: 2, sm: 2, xs: 1, xxs: 1 }}
-                rowHeight={220}
-                onLayoutChange={handleLayoutChange}
-                isDraggable={true}
-                isResizable={true}
-                containerPadding={[0, 0]}
-                margin={[20, 20]}
-                draggableHandle=".drag-handle"
-              >
-                {visibleCards.map((card, index) => {
-                  const Icon = card.icon;
-                  const staggerClass = `stagger-${Math.min(index + 1, 6)}`;
-                  return (
+          <div
+            data-testid="feature-cards-grid"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            {visibleCards.map((card) => {
+              const Icon = card.icon;
+              return (
+                <div
+                  key={card.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Navigate to ${card.title}`}
+                  onClick={() => handleCardClick(card.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleCardClick(card.id);
+                    }
+                  }}
+                  className={`dash-card group relative flex cursor-pointer flex-col rounded-xl border border-slate-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm ring-1 ring-transparent transition-all duration-200 hover:border-slate-300/80 dark:hover:border-gray-600 hover:shadow-md focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:p-5 ${card.accentRing}`}
+                >
+                  <div className="mb-3 flex items-start justify-between gap-3">
                     <div
-                      key={card.id}
-                      className={`dash-card fade-in-up ${staggerClass} group relative flex cursor-pointer flex-col rounded-xl border border-slate-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm ring-1 ring-transparent transition-all duration-200 hover:border-slate-300/80 dark:hover:border-gray-600 hover:shadow-md focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:p-6 ${card.accentRing} h-full w-full`}
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${card.iconBg} transition-transform duration-200 group-hover:scale-105`}
                     >
-                      {/* Drag Handle Layer */}
-                      <div
-                        className="drag-handle absolute top-0 left-0 right-0 h-10 z-10 cursor-move opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-b from-slate-100/50 to-transparent dark:from-slate-700/50 rounded-t-xl"
-                        title="Drag to move"
+                      <Icon
+                        className={`h-5 w-5 ${card.iconColor}`}
+                        aria-hidden="true"
                       />
-
-                      {/* Content Wrapper */}
-                      <div
-                        className="flex flex-col h-full flex-1 z-0 relative"
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`Navigate to ${card.title}`}
-                        onClick={() => handleCardClick(card.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            handleCardClick(card.id);
-                          }
-                        }}
-                      >
-                        <div className="mb-4 flex items-start justify-between gap-3 pointer-events-none">
-                          <div
-                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${card.iconBg} transition-transform duration-200 group-hover:scale-105`}
-                          >
-                            <Icon
-                              className={`h-5 w-5 ${card.iconColor}`}
-                              aria-hidden="true"
-                            />
-                          </div>
-                          <span
-                            className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${card.tagColor}`}
-                          >
-                            {card.tag}
-                          </span>
-                        </div>
-
-                        <div className="flex flex-1 flex-col pointer-events-none">
-                          <h3 className="mb-2 text-base font-semibold leading-snug text-slate-900 dark:text-gray-100">
-                            {card.title}
-                          </h3>
-                          <p className="flex-1 text-sm leading-relaxed text-slate-500 dark:text-gray-400">
-                            {card.description}
-                          </p>
-                        </div>
-
-                        <div className="mt-5 flex items-center gap-1.5 border-t border-slate-100 dark:border-gray-700 pt-4 text-xs font-semibold text-slate-400 dark:text-gray-500 transition-colors duration-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                          <span>{t("dashboard.open")}</span>
-                          <ArrowRight
-                            className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
-                            aria-hidden="true"
-                          />
-                        </div>
-                      </div>
                     </div>
-                  );
-                })}
-              </ResponsiveGridLayout>
-            </div>
-          ) : (
-            <div className="min-h-[220px] flex items-center justify-center">
-              {/* Skeleton or loading state could go here, for now it's just empty string while fetching */}
-            </div>
-          )}
+                    <span
+                      className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${card.tagColor}`}
+                    >
+                      {card.tag}
+                    </span>
+                  </div>
+
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    <h3 className="mb-1.5 text-base font-semibold leading-snug text-slate-900 dark:text-gray-100">
+                      {card.title}
+                    </h3>
+                    <p className="line-clamp-3 flex-1 text-sm leading-relaxed text-slate-500 dark:text-gray-400">
+                      {card.description}
+                    </p>
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-1.5 border-t border-slate-100 dark:border-gray-700 pt-3 text-xs font-semibold text-slate-400 dark:text-gray-500 transition-colors duration-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                    <span>{t("dashboard.open")}</span>
+                    <ArrowRight
+                      className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                      aria-hidden="true"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </section>
 
         {/* ── Gamification ── */}
         <section
           aria-label="Organization Engagement"
-          className="mt-8 sm:mt-12 fade-in-up stagger-3"
+          className="mt-6 sm:mt-8 fade-in-up stagger-3"
         >
-          <div className="max-w-md">
-            <TopContributorsWidget
-              organizationId={
-                userData?.organization?._id || userData?.organization
-              }
-            />
-          </div>
+          <TopContributorsWidget
+            organizationId={
+              userData?.organization?._id || userData?.organization
+            }
+          />
         </section>
       </main>
     </div>

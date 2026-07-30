@@ -26,6 +26,7 @@ import {
 import CalendarIntegrations from "../components/CalendarIntegrations.jsx";
 import useTheme from "../context/useTheme.jsx";
 import WebhooksManager from "../components/WebhooksManager.jsx";
+import DigestPreferences from "../components/DigestPreferences.jsx";
 
 const Settings = () => {
   const { userData, logoutUser } = useContext(AppContent);
@@ -39,12 +40,13 @@ const Settings = () => {
   });
   const [calendarLoading, setCalendarLoading] = useState(false);
 
-  // Notification preferences state (UI only - no backend support)
+  // Notification preferences state (UI only - no backend support except emailDigestEnabled)
   const [notificationPrefs, setNotificationPrefs] = useState({
     meetingNotifications: true,
     organizationUpdates: true,
     aiProcessingUpdates: true,
     emailNotifications: true,
+    emailDigestEnabled: userData?.emailDigestEnabled !== false,
   });
 
   const { theme, toggleTheme } = useTheme();
@@ -57,7 +59,9 @@ const Settings = () => {
         const response = await axios.get("/api/calendar/status", {
           headers: { Authorization: `Bearer ${token}` },
         });
-        setCalendarStatus(response.data.status);
+        setCalendarStatus(
+          response.data.status || { google: null, microsoft: null },
+        );
       } catch (error) {
         console.error("Error fetching calendar status:", error);
       }
@@ -115,11 +119,32 @@ const Settings = () => {
     }
   };
 
-  const handleNotificationChange = (key) => {
+  const handleNotificationChange = async (key) => {
+    const newValue = !notificationPrefs[key];
     setNotificationPrefs((prev) => ({
       ...prev,
-      [key]: !prev[key],
+      [key]: newValue,
     }));
+
+    if (key === "emailDigestEnabled") {
+      try {
+        const token = localStorage.getItem("token");
+        await axios.put(
+          "/api/user/update",
+          { emailDigestEnabled: newValue },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        toast.success("Email digest preference updated");
+      } catch (error) {
+        console.error("Error updating preference:", error);
+        toast.error("Failed to update preference");
+        // Revert on error
+        setNotificationPrefs((prev) => ({
+          ...prev,
+          [key]: !newValue,
+        }));
+      }
+    }
   };
 
   const handleThemeChange = (newTheme) => {
@@ -205,7 +230,9 @@ const Settings = () => {
       const statusResponse = await axios.get("/api/calendar/status", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setCalendarStatus(statusResponse.data.status);
+      setCalendarStatus(
+        statusResponse.data.status || { google: null, microsoft: null },
+      );
     } catch (error) {
       console.error("Error disconnecting calendar:", error);
       toast.error("Failed to disconnect calendar");
@@ -232,7 +259,9 @@ const Settings = () => {
       const statusResponse = await axios.get("/api/calendar/status", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setCalendarStatus(statusResponse.data.status);
+      setCalendarStatus(
+        statusResponse.data.status || { google: null, microsoft: null },
+      );
     } catch (error) {
       console.error("Error resyncing calendar:", error);
       toast.error("Failed to sync calendar");
@@ -565,7 +594,53 @@ const Settings = () => {
                   />
                 </button>
               </div>
+
+              <div className="flex items-center justify-between py-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                    Receive email digest after meetings
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Get an automated summary of completed meetings
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleNotificationChange("emailDigestEnabled")}
+                  className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                    notificationPrefs.emailDigestEnabled
+                      ? "bg-blue-600"
+                      : "bg-slate-200 dark:bg-slate-700"
+                  }`}
+                  aria-pressed={notificationPrefs.emailDigestEnabled}
+                >
+                  <span
+                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
+                      notificationPrefs.emailDigestEnabled
+                        ? "translate-x-5"
+                        : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
+          </div>
+
+          {/* Email Digest Section */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm fade-in-up stagger-4">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl">
+                <Mail className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Email Digest
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Configure your email digest schedule and content
+                </p>
+              </div>
+            </div>
+            <DigestPreferences />
           </div>
 
           {/* Calendar Integrations */}

@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { ChevronDown, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-
 const FAQItem = ({ faq, index, isOpen, onClick }) => {
   const ref = useRef(null);
 

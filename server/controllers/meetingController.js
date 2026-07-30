@@ -21,6 +21,7 @@ import { ValidationError, UnauthorizedError } from "../utils/errors.js";
 import AuditService from "../services/AuditService.js";
 import { sendSuccess } from "../utils/responseHandler.js";
 import * as activityService from "../services/activityService.js";
+import MeetingDigestService from "../services/MeetingDigestService.js";
 
 const pushMeetingToIntegrations = (...args) =>
   import("../services/calendarSyncService.js").then((mod) =>
@@ -331,6 +332,13 @@ export const summarizeMeeting = async (req, res, next) => {
         "Minutes generation started in the background. Please wait...",
         202,
       );
+    }
+
+    // Fire and forget email digest
+    if (result.meetingId) {
+      MeetingDigestService.sendMeetingDigest(result.meetingId).catch((err) => {
+        console.error("Failed to send meeting digest automatically:", err);
+      });
     }
 
     return sendSuccess(

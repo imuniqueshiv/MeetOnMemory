@@ -7,73 +7,74 @@ export const ROLE_HIERARCHY = {
   admin: 4,
   moderator: 3,
   member: 2,
-  guest: 1,
+  viewer: 1,
+  guest: 0,
 };
 
 // Resource permissions
 export const PERMISSIONS = {
   // Meeting permissions
   meetings: {
-    view: ["owner", "admin", "moderator", "member", "guest"],
-    create: ["owner", "admin", "moderator"],
-    edit: ["owner", "admin", "moderator"],
+    view: ["owner", "admin", "moderator", "member", "viewer", "guest"],
+    create: ["owner", "admin", "moderator", "member"],
+    edit: ["owner", "admin", "moderator", "member"],
     delete: ["owner", "admin"],
     export: ["owner", "admin", "moderator", "member"],
     transcribe: ["owner", "admin", "moderator", "member"],
   },
   // Policy permissions
   policies: {
-    view: ["owner", "admin", "moderator", "member", "guest"],
-    create: ["owner", "admin", "moderator"],
-    edit: ["owner", "admin", "moderator"],
+    view: ["owner", "admin", "moderator", "member", "viewer", "guest"],
+    create: ["owner", "admin", "moderator", "member"],
+    edit: ["owner", "admin", "moderator", "member"],
     delete: ["owner", "admin"],
     approve: ["owner", "admin"],
   },
   // Task permissions
   tasks: {
-    view: ["owner", "admin", "moderator", "member", "guest"],
-    create: ["owner", "admin", "moderator"],
-    edit: ["owner", "admin", "moderator"],
+    view: ["owner", "admin", "moderator", "member", "viewer", "guest"],
+    create: ["owner", "admin", "moderator", "member"],
+    edit: ["owner", "admin", "moderator", "member"],
     delete: ["owner", "admin", "moderator"],
     assign: ["owner", "admin", "moderator"],
   },
   // Calendar permissions
   calendar: {
-    view: ["owner", "admin", "moderator", "member", "guest"],
-    create: ["owner", "admin", "moderator"],
-    edit: ["owner", "admin", "moderator"],
+    view: ["owner", "admin", "moderator", "member", "viewer", "guest"],
+    create: ["owner", "admin", "moderator", "member"],
+    edit: ["owner", "admin", "moderator", "member"],
     delete: ["owner", "admin", "moderator"],
   },
   // AI Search permissions
   ai_search: {
-    view: ["owner", "admin", "moderator", "member", "guest"],
-    search: ["owner", "admin", "moderator", "member"],
+    view: ["owner", "admin", "moderator", "member", "viewer", "guest"],
+    search: ["owner", "admin", "moderator", "member", "viewer"],
   },
   // Team Members permissions
   team_members: {
-    view: ["owner", "admin", "moderator", "member", "guest"],
-    invite: ["owner", "admin", "moderator"],
+    view: ["owner", "admin", "moderator", "member", "viewer", "guest"],
+    invite: ["owner", "admin"],
     remove: ["owner", "admin"],
     change_role: ["owner", "admin"],
   },
   // Organization permissions
   organizations: {
-    view: ["owner", "admin", "moderator", "member", "guest"],
+    view: ["owner", "admin", "moderator", "member", "viewer", "guest"],
     create: ["owner", "admin"],
     edit: ["owner", "admin"],
     delete: ["owner"],
-    leave: ["owner", "admin", "moderator", "member", "guest"],
+    leave: ["owner", "admin", "moderator", "member", "viewer", "guest"],
   },
   // Settings permissions
   settings: {
-    view: ["owner", "admin", "moderator"],
+    view: ["owner", "admin", "moderator", "member"],
     edit: ["owner", "admin"],
-    self_view: ["owner", "admin", "moderator", "member", "guest"],
-    self_edit: ["owner", "admin", "moderator", "member", "guest"],
+    self_view: ["owner", "admin", "moderator", "member", "viewer", "guest"],
+    self_edit: ["owner", "admin", "moderator", "member", "viewer", "guest"],
   },
   // Reports permissions
   reports: {
-    view: ["owner", "admin", "moderator"],
+    view: ["owner", "admin", "moderator", "member"],
     export: ["owner", "admin", "moderator"],
   },
   // Admin Panel permissions
@@ -83,22 +84,19 @@ export const PERMISSIONS = {
   },
   // Knowledge Base permissions
   knowledge: {
-    view: ["owner", "admin", "moderator", "member", "guest"],
+    view: ["owner", "admin", "moderator", "member", "viewer", "guest"],
     create: ["owner", "admin", "moderator", "member"],
     edit: ["owner", "admin", "moderator", "member"],
     delete: ["owner", "admin", "moderator"],
-    // Merging/consolidating memories mutates the graph in bulk, so it's
-    // restricted like other structural knowledge-base changes.
     consolidate: ["owner", "admin", "moderator"],
-    // Running a contradiction scan or resolving a conflict mutates graph
-    // metadata (status/supersededByMemory) for other users' memories, so
-    // it's restricted the same way as consolidate.
     resolve_conflicts: ["owner", "admin", "moderator"],
+    manage_lifecycle: ["owner", "admin", "moderator"],
   },
   // Notifications permissions
   notifications: {
-    view: ["owner", "admin", "moderator", "member", "guest"],
+    view: ["owner", "admin", "moderator", "member", "viewer", "guest"],
     manage: ["owner", "admin"],
+    self_manage: ["owner", "admin", "moderator", "member", "viewer", "guest"],
   },
   // Audit Logs permissions
   audit_logs: {
@@ -108,10 +106,6 @@ export const PERMISSIONS = {
 
 /**
  * Check if a role has permission for a specific action on a resource
- * @param {string} role - User's role
- * @param {string} resource - Resource type (e.g., 'meetings', 'policies')
- * @param {string} action - Action type (e.g., 'view', 'create', 'edit', 'delete')
- * @returns {boolean}
  */
 export const hasPermission = (role, resource, action) => {
   if (!role || !resource || !action) {
@@ -133,43 +127,18 @@ export const hasPermission = (role, resource, action) => {
   return actionPermissions.includes(role);
 };
 
-/**
- * Check if a role has any of the specified permissions
- * @param {string} role - User's role
- * @param {string} resource - Resource type
- * @param {string[]} actions - Array of actions to check
- * @returns {boolean}
- */
 export const hasAnyPermission = (role, resource, actions) => {
   return actions.some((action) => hasPermission(role, resource, action));
 };
 
-/**
- * Check if a role has all of the specified permissions
- * @param {string} role - User's role
- * @param {string} resource - Resource type
- * @param {string[]} actions - Array of actions to check
- * @returns {boolean}
- */
 export const hasAllPermissions = (role, resource, actions) => {
   return actions.every((action) => hasPermission(role, resource, action));
 };
 
-/**
- * Check if role1 has higher or equal hierarchy than role2
- * @param {string} role1 - First role
- * @param {string} role2 - Second role
- * @returns {boolean}
- */
 export const hasHigherOrEqualRole = (role1, role2) => {
-  return ROLE_HIERARCHY[role1] >= ROLE_HIERARCHY[role2];
+  return (ROLE_HIERARCHY[role1] || 0) >= (ROLE_HIERARCHY[role2] || 0);
 };
 
-/**
- * Get all permissions for a specific role
- * @param {string} role - User's role
- * @returns {Object} - Object containing all permissions for the role
- */
 export const getRolePermissions = (role) => {
   const permissions = {};
 
@@ -183,11 +152,6 @@ export const getRolePermissions = (role) => {
   return permissions;
 };
 
-/**
- * Validate if a role is valid
- * @param {string} role - Role to validate
- * @returns {boolean}
- */
 export const isValidRole = (role) => {
-  return ROLE_HIERARCHY.hasOwnProperty(role);
+  return Object.prototype.hasOwnProperty.call(ROLE_HIERARCHY, role);
 };

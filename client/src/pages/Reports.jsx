@@ -96,7 +96,10 @@ const Reports = () => {
   };
 
   const pieData = {
-    labels: [t("reports.completedMeetings", "Completed Meetings"), t("reports.pendingMeetings", "Pending Meetings")],
+    labels: [
+      t("reports.completedMeetings", "Completed Meetings"),
+      t("reports.pendingMeetings", "Pending Meetings"),
+    ],
     datasets: [
       {
         data: [

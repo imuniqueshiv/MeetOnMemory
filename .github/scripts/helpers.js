@@ -1,5 +1,6 @@
 import { EXPECTED_REPOSITORY } from "./constants.js";
 import {
+  extractLinkedIssueNumbers,
   formatError,
   hasMarker,
   logError,
@@ -195,6 +196,66 @@ export async function listOpenAssignedIssues(github, context, core) {
   return (records || []).filter(
     (item) => !item.pull_request && (item.assignees || []).length > 0,
   );
+}
+
+/**
+ * Find OPEN PRs (including drafts) that link to the given issue number.
+ * Uses a scoped search + body/title parse to avoid listing every PR.
+ * Results are suitable for expiration freeze (any open linked PR freezes).
+ */
+export async function listOpenLinkedPullRequests(
+  github,
+  context,
+  core,
+  issueNumber,
+  cache = null,
+) {
+  const key = String(issueNumber);
+  if (cache && cache.has(key)) return cache.get(key);
+
+  const owner = context.repo.owner;
+  const repo = context.repo.repo;
+  const q = `repo:${owner}/${repo} is:pr is:open ${issueNumber} in:body,title`;
+  const items = await safeCall(
+    core,
+    "search.issuesAndPullRequests(linked open PRs)",
+    () =>
+      github.paginate(github.rest.search.issuesAndPullRequests, {
+        q,
+        per_page: 30,
+      }),
+    [],
+  );
+
+  const linked = (items || []).filter((pr) => {
+    const isPr =
+      Boolean(pr.pull_request) || String(pr.html_url || "").includes("/pull/");
+    if (!isPr) return false;
+    const numbers = extractLinkedIssueNumbers(
+      `${pr.title || ""}\n${pr.body || ""}`,
+    );
+    return numbers.includes(Number(issueNumber));
+  });
+
+  if (cache) cache.set(key, linked);
+  return linked;
+}
+
+export async function hasOpenLinkedPullRequest(
+  github,
+  context,
+  core,
+  issueNumber,
+  cache = null,
+) {
+  const linked = await listOpenLinkedPullRequests(
+    github,
+    context,
+    core,
+    issueNumber,
+    cache,
+  );
+  return linked.length > 0;
 }
 
 export async function getCollaboratorPermission(

@@ -29,6 +29,14 @@ import {
   restoreMeeting,
   notifyLiveMeeting, // NEW: Notify participants of a live meeting
 } from "../controllers/meetingController.js";
+import {
+  resendDigest,
+  previewDigest,
+} from "../controllers/digestController.js";
+import {
+  getReactionSummary,
+  getReactionTimeline,
+} from "../controllers/reactionController.js";
 import { exportMeeting } from "../controllers/exportController.js";
 import {
   startRecording,
@@ -257,6 +265,41 @@ router.post(
   writeLimiter,
   requirePermission("meetings", "create"),
   notifyLiveMeeting,
+);
+
+// ✅ Resend Meeting Digest
+router.post(
+  "/:id/digest/resend",
+  userAuth,
+  writeLimiter,
+  requireOwnerOrAdmin(Meeting),
+  resendDigest,
+);
+
+// ✅ Preview Meeting Digest
+router.get(
+  "/:id/digest/preview",
+  userAuth,
+  requireOwnerOrAdmin(Meeting),
+  previewDigest,
+);
+
+// ✅ Get Reaction Summary
+router.get(
+  "/:id/reactions/summary",
+  userAuth,
+  requireOrgAccess(Meeting),
+  requirePermission("meetings", "view"),
+  getReactionSummary,
+);
+
+// ✅ Get Reaction Timeline
+router.get(
+  "/:id/reactions/timeline",
+  userAuth,
+  requireOrgAccess(Meeting),
+  requirePermission("meetings", "view"),
+  getReactionTimeline,
 );
 
 export default router;

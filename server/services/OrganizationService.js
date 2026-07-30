@@ -8,6 +8,9 @@ import Organization from "../models/organizationModel.js";
 import userModel from "../models/userModel.js";
 import Membership from "../models/membershipModel.js";
 import MembershipRequest from "../models/membershipRequestModel.js";
+import Invitation from "../models/invitationModel.js";
+import AuditLog from "../models/auditLogModel.js";
+import EmailService from "./EmailService.js";
 import eventBus from "./eventBus.js";
 import AuditService from "./AuditService.js";
 import mongoose from "mongoose";
@@ -18,6 +21,7 @@ import {
   ConflictError,
   ValidationError,
 } from "../utils/errors.js";
+import { normalizeImageUrl } from "../utils/imageUrl.js";
 
 // ═══════════════════════════════════════════════════════════════
 // Private helpers
@@ -206,6 +210,25 @@ export const createOrJoinOrganization = async (userId, orgName) => {
       members: [userId],
     });
 
+    // Create admin membership for the creator (RBAC); unique index prevents duplicates
+    try {
+      await Membership.create({
+        user: userId,
+        organization: organization._id,
+        role: "admin",
+        status: "active",
+      });
+    } catch (error) {
+      // Roll back the org if membership creation fails to avoid inconsistent state
+      await Organization.findByIdAndDelete(organization._id);
+      if (error.code === 11000) {
+        throw new ConflictError(
+          "You are already a member of this organization.",
+        );
+      }
+      throw error;
+    }
+
     await userModel.findByIdAndUpdate(userId, {
       role: "admin",
       organization: organization._id,
@@ -392,8 +415,8 @@ export const getPublicOrganizationBySlug = async (slug) => {
 
   // Find organization by slug - only select public fields
   const organization = await Organization.findOne(
-    { slug },
-    "name slug description logo visibility createdAt metadata",
+    { slug, visibility: "public" },
+    "name slug description logo bannerUrl visibility createdAt metadata",
   );
 
   if (!organization) {
@@ -408,16 +431,19 @@ export const getPublicOrganizationBySlug = async (slug) => {
 
   // Extract public metadata fields (website, social links, tags)
   const metadata = organization.metadata || {};
+  const logoUrl = organization.logo || "";
   const publicData = {
     _id: organization._id,
     name: organization.name,
     slug: organization.slug,
     description: organization.description,
-    logo: organization.logo,
+    logo: logoUrl,
+    logoUrl,
+    bannerUrl: organization.bannerUrl || "",
     visibility: organization.visibility,
     createdAt: organization.createdAt,
     memberCount,
-    website: metadata.website || null,
+    website: metadata.website || organization.website || null,
     socialLinks: metadata.socialLinks || null,
     tags: metadata.tags || [],
   };
@@ -493,7 +519,7 @@ export const browsePublicOrganizations = async ({
   const [organizations, total] = await Promise.all([
     Organization.find(finalQuery)
       .select(
-        "name slug description logo visibility createdAt members metadata",
+        "name slug description logo bannerUrl visibility createdAt members metadata",
       )
       .sort(sortObj)
       .skip(skip)
@@ -544,7 +570,7 @@ export const searchOrganizations = async (q, page = 1, limit = 12) => {
   const [organizations, total] = await Promise.all([
     Organization.find(query)
       .select(
-        "name slug description logo visibility createdAt members metadata",
+        "name slug description logo bannerUrl visibility createdAt members metadata",
       )
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -583,7 +609,7 @@ export const getUserOrganizations = async (userId) => {
   })
     .populate(
       "organization",
-      "name slug description logo visibility members updatedAt",
+      "name slug description logo bannerUrl visibility members updatedAt",
     )
     .lean();
 
@@ -604,7 +630,16 @@ export const getUserOrganizations = async (userId) => {
  */
 export const createOrganization = async (
   userId,
-  { name, description, logo, visibility, joinPolicy, metadata },
+  {
+    name,
+    description,
+    logo,
+    logoUrl,
+    bannerUrl,
+    visibility,
+    joinPolicy,
+    metadata,
+  },
 ) => {
   if (!name || !name.trim()) {
     throw new ValidationError("Organization name is required.");
@@ -617,6 +652,29 @@ export const createOrganization = async (
   }
   if (joinPolicy && !isValidJoinPolicy(joinPolicy)) {
     throw new ValidationError("Invalid join policy.");
+  }
+
+  const logoInput = logoUrl !== undefined ? logoUrl : logo;
+  let normalizedLogo = "";
+  if (
+    logoInput !== undefined &&
+    logoInput !== null &&
+    String(logoInput).trim()
+  ) {
+    const result = normalizeImageUrl(logoInput, "Logo URL");
+    if (!result.ok) throw new ValidationError(result.message);
+    normalizedLogo = result.value || "";
+  }
+
+  let normalizedBanner = "";
+  if (
+    bannerUrl !== undefined &&
+    bannerUrl !== null &&
+    String(bannerUrl).trim()
+  ) {
+    const result = normalizeImageUrl(bannerUrl, "Banner URL");
+    if (!result.ok) throw new ValidationError(result.message);
+    normalizedBanner = result.value || "";
   }
 
   // Check if organization with same name exists (case-insensitive)
@@ -637,7 +695,8 @@ export const createOrganization = async (
     name: orgName,
     slug,
     description: description || "",
-    logo: logo || "",
+    logo: normalizedLogo,
+    bannerUrl: normalizedBanner,
     visibility: visibility || "private",
     joinPolicy: joinPolicy || "open",
     owner: userId,
@@ -670,7 +729,12 @@ export const createOrganization = async (
 /**
  * ✅ Get All Organizations (Paginated)
  */
-export const getOrganizations = async (visibility, page = 1, limit = 20) => {
+export const getOrganizations = async (
+  userId,
+  visibility,
+  page = 1,
+  limit = 20,
+) => {
   // Validate visibility value
   const validVisibility =
     visibility && isValidVisibility(visibility)
@@ -684,17 +748,47 @@ export const getOrganizations = async (visibility, page = 1, limit = 20) => {
   const pageNum = Math.max(1, parseInt(page) || 1);
   const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
 
-  // Build safe query filter with only validated values
+  // Build safe query filter
   const safeFilter = {};
+
   if (validVisibility) {
+    // Specific visibility requested — filter by it directly
     safeFilter.visibility = validVisibility;
+  } else {
+    // No visibility filter: show public orgs + orgs where user is member/owner
+    const userMemberships = await Membership.find({
+      user: userId,
+      status: "active",
+    })
+      .select("organization")
+      .lean();
+
+    const memberOrgIds = userMemberships
+      .map((m) => m.organization)
+      .filter(Boolean);
+
+    safeFilter.$or = [
+      { visibility: "public" },
+      { owner: new mongoose.Types.ObjectId(String(userId)) },
+      ...(memberOrgIds.length > 0
+        ? [
+            {
+              _id: {
+                $in: memberOrgIds.map(
+                  (id) => new mongoose.Types.ObjectId(String(id)),
+                ),
+              },
+            },
+          ]
+        : []),
+    ];
   }
 
   const organizations = await Organization.find(safeFilter)
     .sort({ createdAt: -1 })
     .skip((pageNum - 1) * limitNum)
     .limit(limitNum)
-    .select("name slug description logo visibility owner createdAt")
+    .select("name slug description logo bannerUrl visibility owner createdAt")
     .lean();
 
   const total = await Organization.countDocuments(safeFilter);
@@ -781,6 +875,8 @@ export const getOrganizationSettings = async (userId, orgIdOrSlug = null) => {
       industry: organization.industry || "",
       location: organization.location || "",
       logo: organization.logo || "",
+      logoUrl: organization.logo || "",
+      bannerUrl: organization.bannerUrl || "",
       visibility: organization.visibility || "private",
       joinPolicy: organization.joinPolicy || "open",
       owner: organization.owner,
@@ -798,7 +894,7 @@ export const getOrganizationSettings = async (userId, orgIdOrSlug = null) => {
 /**
  * ✅ Get Organization by ID or Slug
  */
-export const getOrganizationById = async (idOrSlug) => {
+export const getOrganizationById = async (idOrSlug, userId) => {
   // Validate input - only allow alphanumeric, hyphens, and underscores for slug
   const slugRegex = /^[a-zA-Z0-9-_]+$/;
   if (!slugRegex.test(idOrSlug)) {
@@ -813,13 +909,30 @@ export const getOrganizationById = async (idOrSlug) => {
 
   const organization = await Organization.findOne(query)
     .select(
-      "name slug description about website contactEmail industry location logo visibility joinPolicy owner createdAt updatedAt metadata",
+      "name slug description about website contactEmail industry location logo bannerUrl visibility joinPolicy owner createdAt updatedAt metadata",
     )
     .populate("owner", "name email")
     .lean();
 
   if (!organization) {
     throw new NotFoundError("Organization not found.");
+  }
+
+  // Authorization check: private orgs require membership or ownership
+  if (organization.visibility !== "public") {
+    const isOwner = organization.owner?._id
+      ? organization.owner._id.toString() === userId.toString()
+      : organization.owner?.toString() === userId.toString();
+
+    const membership = await Membership.findOne({
+      user: userId,
+      organization: organization._id,
+      status: "active",
+    }).lean();
+
+    if (!membership && !isOwner && !isLegacyMember(organization, userId)) {
+      throw new ForbiddenError("Not authorized to view this organization.");
+    }
   }
 
   const memberCount = await Membership.countDocuments({
@@ -852,6 +965,8 @@ export const updateOrganization = async (
     industry,
     location,
     logo,
+    logoUrl,
+    bannerUrl,
     visibility,
     joinPolicy,
     metadata,
@@ -981,8 +1096,28 @@ export const updateOrganization = async (
     organization.location = trimmedLoc;
   }
 
-  if (logo !== undefined)
-    organization.logo = String(logo).trim().substring(0, 500);
+  // Prefer logoUrl when provided (issue #510 naming); fall back to logo.
+  const logoInput = logoUrl !== undefined ? logoUrl : logo;
+  if (logoInput !== undefined) {
+    const normalized = normalizeImageUrl(logoInput, "Logo URL");
+    if (!normalized.ok) {
+      throw new ValidationError(normalized.message);
+    }
+    if (normalized.value !== undefined) {
+      organization.logo = normalized.value;
+    }
+  }
+
+  if (bannerUrl !== undefined) {
+    const normalized = normalizeImageUrl(bannerUrl, "Banner URL");
+    if (!normalized.ok) {
+      throw new ValidationError(normalized.message);
+    }
+    if (normalized.value !== undefined) {
+      organization.bannerUrl = normalized.value;
+    }
+  }
+
   if (cleanVisibility) organization.visibility = cleanVisibility;
   if (cleanJoinPolicy) organization.joinPolicy = cleanJoinPolicy;
   if (metadata)
@@ -1181,4 +1316,427 @@ export const awardEngagementPoints = async (userId, organizationId, points) => {
   } catch (error) {
     console.error("❌ Failed to award engagement points:", error);
   }
+};
+
+/**
+ * ✅ Invite Member to Organization by Email
+ */
+export const inviteMemberToOrganization = async (
+  actorId,
+  orgId,
+  { email, role = "member", message = "" },
+) => {
+  if (!isValidObjectId(actorId) || !isValidObjectId(orgId)) {
+    throw new ValidationError("Invalid parameters provided.");
+  }
+
+  const organization = await Organization.findById(orgId);
+  if (!organization) {
+    throw new NotFoundError("Organization not found.");
+  }
+
+  // Permission check: actor must be owner or admin
+  const actorMembership = await Membership.findOne({
+    user: actorId,
+    organization: orgId,
+    status: "active",
+  });
+
+  const isOwner = organization.owner?.toString() === actorId.toString();
+  const isAdmin =
+    actorMembership?.role === "admin" || actorMembership?.role === "owner";
+  if (!isOwner && !isAdmin) {
+    throw new ForbiddenError("Only owners and admins can invite members.");
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const validRole = ["admin", "member", "viewer"].includes(role)
+    ? role
+    : "member";
+
+  // Generate token and create invitation
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+  const invitation = await Invitation.create({
+    organization: orgId,
+    email: cleanEmail,
+    invitedBy: actorId,
+    token,
+    role: validRole,
+    status: "pending",
+    expiresAt,
+    message,
+  });
+
+  // Check if target user exists
+  const existingUser = await userModel.findOne({ email: cleanEmail });
+
+  // Update embedded organization members list if user exists
+  if (existingUser) {
+    const existingMemberIdx = organization.members.findIndex(
+      (m) => m.userId?.toString() === existingUser._id.toString(),
+    );
+
+    if (existingMemberIdx >= 0) {
+      organization.members[existingMemberIdx].status = "invited";
+      organization.members[existingMemberIdx].role = validRole;
+    } else {
+      organization.members.push({
+        userId: existingUser._id,
+        role: validRole,
+        invitedBy: actorId,
+        joinedAt: new Date(),
+        status: "invited",
+      });
+    }
+    await organization.save();
+  }
+
+  // Send invitation email via EmailService
+  try {
+    const inviter = await userModel.findById(actorId);
+    await EmailService.sendInvitation({
+      to: cleanEmail,
+      organizationName: organization.name,
+      invitedBy: inviter?.name || "An administrator",
+      inviteLink: `${process.env.CLIENT_URL || "http://localhost:5173"}/invite/${token}`,
+    });
+  } catch (emailErr) {
+    console.warn("⚠️ Failed to send invitation email:", emailErr.message);
+  }
+
+  // Log audit action
+  await AuditService.logAction({
+    actorId,
+    action: "ORGANIZATION_MEMBER_INVITED",
+    entity: "Organization",
+    entityId: orgId,
+    organizationId: orgId,
+    details: {
+      email: cleanEmail,
+      role: validRole,
+      invitationId: invitation._id,
+    },
+  });
+
+  return {
+    success: true,
+    message: "Invitation sent successfully.",
+    invitation,
+  };
+};
+
+/**
+ * ✅ Accept Organization Invitation Token
+ */
+export const acceptOrganizationInviteToken = async (token, userId) => {
+  if (!token) throw new ValidationError("Invitation token required.");
+  if (!isValidObjectId(userId)) throw new ValidationError("Invalid user ID.");
+
+  const invitation = await Invitation.findOne({ token, status: "pending" });
+  if (!invitation)
+    throw new NotFoundError("Invalid or expired invitation token.");
+
+  if (invitation.expiresAt && invitation.expiresAt < new Date()) {
+    invitation.status = "expired";
+    await invitation.save();
+    throw new ValidationError("Invitation token has expired.");
+  }
+
+  const organization = await Organization.findById(invitation.organization);
+  if (!organization) throw new NotFoundError("Organization not found.");
+
+  // Upsert membership
+  let membership = await Membership.findOne({
+    user: userId,
+    organization: organization._id,
+  });
+  if (membership) {
+    membership.status = "active";
+    membership.role = invitation.role || "member";
+    await membership.save();
+  } else {
+    membership = await Membership.create({
+      user: userId,
+      organization: organization._id,
+      role: invitation.role || "member",
+      status: "active",
+      joinedAt: new Date(),
+    });
+  }
+
+  // Update embedded members in Organization
+  const existingIdx = organization.members.findIndex(
+    (m) => m.userId?.toString() === userId.toString(),
+  );
+  if (existingIdx >= 0) {
+    organization.members[existingIdx].status = "active";
+    organization.members[existingIdx].role = invitation.role || "member";
+  } else {
+    organization.members.push({
+      userId,
+      role: invitation.role || "member",
+      invitedBy: invitation.invitedBy,
+      joinedAt: new Date(),
+      status: "active",
+    });
+  }
+  await organization.save();
+
+  // Mark invitation accepted
+  invitation.status = "accepted";
+  invitation.acceptedAt = new Date();
+  invitation.acceptedBy = userId;
+  await invitation.save();
+
+  // Update user's active organization and role
+  await userModel.findByIdAndUpdate(userId, {
+    organization: organization._id,
+    role: invitation.role || "member",
+  });
+
+  // Log audit action
+  await AuditService.logAction({
+    actorId: userId,
+    action: "ORGANIZATION_INVITE_ACCEPTED",
+    entity: "Organization",
+    entityId: organization._id,
+    organizationId: organization._id,
+    details: { invitationId: invitation._id, role: invitation.role },
+  });
+
+  return {
+    success: true,
+    message: "Invitation accepted successfully.",
+    organization: {
+      _id: organization._id,
+      name: organization.name,
+      slug: organization.slug,
+    },
+  };
+};
+
+/**
+ * ✅ Update Member Role in Organization
+ */
+export const updateMemberRole = async (
+  actorId,
+  orgId,
+  targetUserId,
+  newRole,
+) => {
+  if (
+    !isValidObjectId(actorId) ||
+    !isValidObjectId(orgId) ||
+    !isValidObjectId(targetUserId)
+  ) {
+    throw new ValidationError("Invalid arguments provided.");
+  }
+
+  const validRoles = ["owner", "admin", "member", "viewer"];
+  if (!validRoles.includes(newRole)) {
+    throw new ValidationError("Invalid role specified.");
+  }
+
+  const organization = await Organization.findById(orgId);
+  if (!organization) throw new NotFoundError("Organization not found.");
+
+  // Permission check: actor must be owner or admin
+  const actorMembership = await Membership.findOne({
+    user: actorId,
+    organization: orgId,
+    status: "active",
+  });
+  const isOwner = organization.owner?.toString() === actorId.toString();
+  const isAdmin =
+    actorMembership?.role === "admin" || actorMembership?.role === "owner";
+  if (!isOwner && !isAdmin) {
+    throw new ForbiddenError("Only owners and admins can update member roles.");
+  }
+
+  // Update Membership record
+  const targetMembership = await Membership.findOne({
+    user: targetUserId,
+    organization: orgId,
+  });
+  const oldRole = targetMembership?.role || "member";
+  if (targetMembership) {
+    targetMembership.role = newRole;
+    await targetMembership.save();
+  }
+
+  // Update embedded Organization.members array
+  const memberIdx = organization.members.findIndex(
+    (m) => m.userId?.toString() === targetUserId.toString(),
+  );
+  if (memberIdx >= 0) {
+    organization.members[memberIdx].role = newRole;
+  } else {
+    organization.members.push({
+      userId: targetUserId,
+      role: newRole,
+      joinedAt: new Date(),
+      status: "active",
+    });
+  }
+
+  if (newRole === "owner" && isOwner) {
+    organization.owner = targetUserId;
+  }
+  await organization.save();
+
+  // Also update user's active role in userModel if target user currently has this active org
+  const targetUser = await userModel.findById(targetUserId);
+  if (targetUser && targetUser.organization?.toString() === orgId.toString()) {
+    targetUser.role = newRole;
+    await targetUser.save();
+  }
+
+  // Log audit action
+  await AuditService.logAction({
+    actorId,
+    action: "MEMBER_ROLE_CHANGED",
+    entity: "User",
+    entityId: targetUserId,
+    organizationId: orgId,
+    details: { oldRole, newRole, targetUserId },
+  });
+
+  return {
+    success: true,
+    message: `Member role updated to ${newRole}.`,
+  };
+};
+
+/**
+ * ✅ Remove Member from Organization
+ */
+export const removeMemberFromOrganization = async (
+  actorId,
+  orgId,
+  targetUserId,
+) => {
+  if (
+    !isValidObjectId(actorId) ||
+    !isValidObjectId(orgId) ||
+    !isValidObjectId(targetUserId)
+  ) {
+    throw new ValidationError("Invalid arguments provided.");
+  }
+
+  const organization = await Organization.findById(orgId);
+  if (!organization) throw new NotFoundError("Organization not found.");
+
+  if (organization.owner?.toString() === targetUserId.toString()) {
+    throw new ForbiddenError("Cannot remove the organization owner.");
+  }
+
+  const actorMembership = await Membership.findOne({
+    user: actorId,
+    organization: orgId,
+    status: "active",
+  });
+  const isOwner = organization.owner?.toString() === actorId.toString();
+  const isAdmin =
+    actorMembership?.role === "admin" || actorMembership?.role === "owner";
+  if (!isOwner && !isAdmin) {
+    throw new ForbiddenError("Only owners and admins can remove members.");
+  }
+
+  // Delete/deactivate Membership record
+  await Membership.findOneAndUpdate(
+    { user: targetUserId, organization: orgId },
+    { status: "removed" },
+  );
+
+  // Remove from embedded Organization.members array
+  organization.members = organization.members.filter(
+    (m) => m.userId?.toString() !== targetUserId.toString(),
+  );
+  await organization.save();
+
+  // Reset target user's active organization if it matched
+  const targetUser = await userModel.findById(targetUserId);
+  if (targetUser && targetUser.organization?.toString() === orgId.toString()) {
+    targetUser.organization = null;
+    targetUser.role = "member";
+    await targetUser.save();
+  }
+
+  // Log audit action
+  await AuditService.logAction({
+    actorId,
+    action: "MEMBER_REMOVED",
+    entity: "User",
+    entityId: targetUserId,
+    organizationId: orgId,
+    details: { targetUserId },
+  });
+
+  return {
+    success: true,
+    message: "Member removed from organization successfully.",
+  };
+};
+
+/**
+ * ✅ Get Paginated Audit Logs for Organization
+ */
+export const getOrganizationAuditLogsService = async (
+  actorId,
+  orgId,
+  { page = 1, limit = 20, startDate, endDate, action, actor } = {},
+) => {
+  if (!isValidObjectId(actorId) || !isValidObjectId(orgId)) {
+    throw new ValidationError("Invalid arguments provided.");
+  }
+
+  const organization = await Organization.findById(orgId);
+  if (!organization) throw new NotFoundError("Organization not found.");
+
+  const actorMembership = await Membership.findOne({
+    user: actorId,
+    organization: orgId,
+    status: "active",
+  });
+  const isOwner = organization.owner?.toString() === actorId.toString();
+  const isAdmin =
+    actorMembership?.role === "admin" || actorMembership?.role === "owner";
+  if (!isOwner && !isAdmin) {
+    throw new ForbiddenError("Only owners and admins can view audit logs.");
+  }
+
+  const filter = { organization: orgId };
+  if (action) filter.action = action;
+  if (actor && isValidObjectId(actor)) filter.actor = actor;
+  if (startDate || endDate) {
+    filter.createdAt = {};
+    if (startDate) filter.createdAt.$gte = new Date(startDate);
+    if (endDate) filter.createdAt.$lte = new Date(endDate);
+  }
+
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+  const skip = (pageNum - 1) * limitNum;
+
+  const logs = await AuditLog.find(filter)
+    .populate("actor", "name email profilePic")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limitNum)
+    .lean();
+
+  const total = await AuditLog.countDocuments(filter);
+
+  return {
+    success: true,
+    logs,
+    pagination: {
+      total,
+      page: pageNum,
+      limit: limitNum,
+      pages: Math.ceil(total / limitNum) || 1,
+    },
+  };
 };

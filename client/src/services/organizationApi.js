@@ -29,4 +29,16 @@ export const organizationApi = {
         ? `/api/organizations/${orgId}/leaderboard`
         : "/api/organizations/current/leaderboard",
     ),
+  inviteMember: (orgId, data) =>
+    apiClient.post(`/api/organizations/${orgId}/invite`, data),
+  acceptInviteToken: (token) =>
+    apiClient.post(`/api/organizations/invite/${token}/accept`),
+  updateMemberRole: (orgId, userId, role) =>
+    apiClient.patch(`/api/organizations/${orgId}/members/${userId}/role`, {
+      role,
+    }),
+  removeMember: (orgId, userId) =>
+    apiClient.delete(`/api/organizations/${orgId}/members/${userId}`),
+  getAuditLogs: (orgId, params) =>
+    apiClient.get(`/api/organizations/${orgId}/audit-log`, { params }),
 };

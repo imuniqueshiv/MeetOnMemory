@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { toast } from "react-toastify";
-import { meetingApi, meetingTemplateApi } from "../../../services";
+import {
+  meetingApi,
+  meetingTemplateApi,
+  meetingSeriesApi,
+} from "../../../services";
 import { useEffect } from "react";
 
 export const useScheduleMeeting = () => {
@@ -14,6 +18,10 @@ export const useScheduleMeeting = () => {
     location: "",
     venue: "",
     syncToCalendar: true,
+    recurrencePattern: "none",
+    endDate: "",
+    dayOfWeek: "",
+    dayOfMonth: "",
   });
   const [participants, setParticipants] = useState([]);
   const [newParticipant, setNewParticipant] = useState({ name: "", email: "" });
@@ -29,7 +37,17 @@ export const useScheduleMeeting = () => {
       try {
         const res = await meetingTemplateApi.getTemplates();
         if (res.data?.success) {
-          setTemplates(res.data.templates);
+          const tpls = res.data.templates || [];
+          setTemplates(tpls);
+
+          const urlParams = new URLSearchParams(window.location.search);
+          const tplParamId = urlParams.get("templateId");
+          if (tplParamId) {
+            const found = tpls.find((t) => t._id === tplParamId);
+            if (found) {
+              applyTemplate(found);
+            }
+          }
         }
       } catch (error) {
         console.error("Failed to fetch templates:", error);
@@ -38,6 +56,53 @@ export const useScheduleMeeting = () => {
     fetchTemplates();
   }, []);
 
+  const applyTemplate = (template) => {
+    if (!template) return;
+    setSelectedTemplateId(template._id);
+
+    setScheduleData((prev) => ({
+      ...prev,
+      title: template.title || template.name || prev.title,
+      description: template.description || prev.description,
+      duration: template.defaultDuration
+        ? String(template.defaultDuration)
+        : prev.duration,
+    }));
+
+    if (
+      Array.isArray(template.agendaBlocks) &&
+      template.agendaBlocks.length > 0
+    ) {
+      const newBlocks = template.agendaBlocks.map((block) => ({
+        text: block.title,
+        description: block.description || "",
+        duration: block.duration || 10,
+        id: Date.now().toString() + Math.random(),
+      }));
+      setAgendaItems(newBlocks);
+    }
+
+    if (
+      Array.isArray(template.defaultParticipants) &&
+      template.defaultParticipants.length > 0
+    ) {
+      const defaultParts = template.defaultParticipants.map(
+        (emailOrName, idx) => ({
+          id: Date.now() + idx,
+          name: emailOrName.includes("@")
+            ? emailOrName.split("@")[0]
+            : emailOrName,
+          email: emailOrName.includes("@")
+            ? emailOrName
+            : `${emailOrName}@example.com`,
+        }),
+      );
+      setParticipants(defaultParts);
+    }
+
+    toast.info(`Applied template: "${template.name || template.title}"`);
+  };
+
   const handleTemplateSelect = (e) => {
     const templateId = e.target.value;
     setSelectedTemplateId(templateId);
@@ -45,14 +110,7 @@ export const useScheduleMeeting = () => {
     if (templateId) {
       const template = templates.find((t) => t._id === templateId);
       if (template) {
-        const newBlocks = template.agendaBlocks.map((block) => ({
-          text: block.title,
-          description: block.description,
-          duration: block.duration,
-          id: Date.now().toString() + Math.random(),
-        }));
-        setAgendaItems(newBlocks);
-        toast.info("Template agenda applied");
+        applyTemplate(template);
       }
     }
   };
@@ -118,10 +176,32 @@ export const useScheduleMeeting = () => {
         agendaItems,
       };
 
-      const response = await meetingApi.scheduleMeeting(payload);
+      // Type-cast specific fields for meeting series if needed
+      if (
+        scheduleData.recurrencePattern &&
+        scheduleData.recurrencePattern !== "none"
+      ) {
+        payload.dayOfWeek = scheduleData.dayOfWeek
+          ? parseInt(scheduleData.dayOfWeek, 10)
+          : undefined;
+        payload.dayOfMonth = scheduleData.dayOfMonth
+          ? parseInt(scheduleData.dayOfMonth, 10)
+          : undefined;
+      }
+
+      const response =
+        scheduleData.recurrencePattern &&
+        scheduleData.recurrencePattern !== "none"
+          ? await meetingSeriesApi.createSeries(payload)
+          : await meetingApi.scheduleMeeting(payload);
 
       if (response.data?.success) {
-        toast.success("✅ Meeting scheduled and synced to calendars!");
+        toast.success(
+          scheduleData.recurrencePattern &&
+            scheduleData.recurrencePattern !== "none"
+            ? "✅ Meeting series scheduled successfully!"
+            : "✅ Meeting scheduled and synced to calendars!",
+        );
 
         // Trigger calendar integration
         if (response.data.calendarLinks) {
@@ -139,6 +219,10 @@ export const useScheduleMeeting = () => {
           location: "",
           venue: "",
           syncToCalendar: true,
+          recurrencePattern: "none",
+          endDate: "",
+          dayOfWeek: "",
+          dayOfMonth: "",
         });
         setParticipants([]);
         setAgendaItems([]);

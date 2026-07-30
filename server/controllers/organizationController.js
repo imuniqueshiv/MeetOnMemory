@@ -279,7 +279,12 @@ export const getOrganizations = async (req, res) => {
   try {
     const { visibility, page = 1, limit = 20 } = req.query;
 
+    if (!req.user || !req.user.id) {
+      return sendError(res, 401, "Authentication failed.");
+    }
+
     const result = await OrganizationService.getOrganizations(
+      req.user.id,
       visibility,
       page,
       limit,
@@ -298,8 +303,13 @@ export const getOrganizations = async (req, res) => {
  */
 export const getOrganizationById = async (req, res) => {
   try {
+    if (!req.user || !req.user.id) {
+      return sendError(res, 401, "Authentication failed.");
+    }
+
     const result = await OrganizationService.getOrganizationById(
       req.params.idOrSlug,
+      req.user.id,
     );
 
     sendSuccess(res, result);
@@ -424,6 +434,148 @@ export const getOrganizationLeaderboard = async (req, res) => {
     sendSuccess(res, result);
   } catch (error) {
     console.error("❌ Error fetching organization leaderboard:", error);
+    sendError(res, error.statusCode || 500, error.message || "Server error");
+  }
+};
+
+/**
+ * ✅ Invite Member to Organization
+ * POST /api/organizations/:id/invite
+ */
+export const inviteMember = async (req, res) => {
+  try {
+    if (!req.user || (!req.user.id && !req.user._id)) {
+      return sendError(res, 401, "Authentication failed.");
+    }
+
+    const userId = req.user.id || req.user._id;
+    const orgId = req.params.id;
+    const { email, role, message } = req.body;
+
+    if (!email) {
+      return sendError(res, 400, "Email address is required.");
+    }
+
+    const result = await OrganizationService.inviteMemberToOrganization(
+      userId,
+      orgId,
+      { email, role, message },
+    );
+
+    sendSuccess(res, result, null, 201);
+  } catch (error) {
+    console.error("❌ Error inviting member:", error);
+    sendError(res, error.statusCode || 500, error.message || "Server error");
+  }
+};
+
+/**
+ * ✅ Accept Invite Token
+ * POST /api/organizations/invite/:token/accept
+ */
+export const acceptInviteToken = async (req, res) => {
+  try {
+    if (!req.user || (!req.user.id && !req.user._id)) {
+      return sendError(res, 401, "Authentication failed.");
+    }
+
+    const userId = req.user.id || req.user._id;
+    const { token } = req.params;
+
+    const result = await OrganizationService.acceptOrganizationInviteToken(
+      token,
+      userId,
+    );
+
+    sendSuccess(res, result);
+  } catch (error) {
+    console.error("❌ Error accepting invite:", error);
+    sendError(res, error.statusCode || 500, error.message || "Server error");
+  }
+};
+
+/**
+ * ✅ Update Member Role
+ * PATCH /api/organizations/:id/members/:userId/role
+ */
+export const updateMemberRole = async (req, res) => {
+  try {
+    if (!req.user || (!req.user.id && !req.user._id)) {
+      return sendError(res, 401, "Authentication failed.");
+    }
+
+    const actorId = req.user.id || req.user._id;
+    const orgId = req.params.id;
+    const targetUserId = req.params.userId;
+    const { role } = req.body;
+
+    if (!role) {
+      return sendError(res, 400, "Role is required.");
+    }
+
+    const result = await OrganizationService.updateMemberRole(
+      actorId,
+      orgId,
+      targetUserId,
+      role,
+    );
+
+    sendSuccess(res, result);
+  } catch (error) {
+    console.error("❌ Error updating member role:", error);
+    sendError(res, error.statusCode || 500, error.message || "Server error");
+  }
+};
+
+/**
+ * ✅ Remove Member from Organization
+ * DELETE /api/organizations/:id/members/:userId
+ */
+export const removeMember = async (req, res) => {
+  try {
+    if (!req.user || (!req.user.id && !req.user._id)) {
+      return sendError(res, 401, "Authentication failed.");
+    }
+
+    const actorId = req.user.id || req.user._id;
+    const orgId = req.params.id;
+    const targetUserId = req.params.userId;
+
+    const result = await OrganizationService.removeMemberFromOrganization(
+      actorId,
+      orgId,
+      targetUserId,
+    );
+
+    sendSuccess(res, result);
+  } catch (error) {
+    console.error("❌ Error removing member:", error);
+    sendError(res, error.statusCode || 500, error.message || "Server error");
+  }
+};
+
+/**
+ * ✅ Get Paginated Audit Logs
+ * GET /api/organizations/:id/audit-log
+ */
+export const getPaginatedAuditLogs = async (req, res) => {
+  try {
+    if (!req.user || (!req.user.id && !req.user._id)) {
+      return sendError(res, 401, "Authentication failed.");
+    }
+
+    const actorId = req.user.id || req.user._id;
+    const orgId = req.params.id;
+
+    const result = await OrganizationService.getOrganizationAuditLogsService(
+      actorId,
+      orgId,
+      req.query,
+    );
+
+    sendSuccess(res, result);
+  } catch (error) {
+    console.error("❌ Error fetching audit logs:", error);
     sendError(res, error.statusCode || 500, error.message || "Server error");
   }
 };

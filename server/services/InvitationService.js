@@ -63,7 +63,7 @@ const isValidStatus = (status) => allowedStatuses.includes(status);
 /**
  * Whitelist allowed role values
  */
-const allowedRoles = ["admin", "member"];
+const allowedRoles = ["admin", "member", "viewer"];
 const isValidRole = (role) => allowedRoles.includes(role);
 
 /**

@@ -1,4 +1,4 @@
-import { AUTOMATION, COMMANDS } from "./constants.js";
+import { AUTOMATION, COMMANDS, reminderMarker } from "./constants.js";
 
 import { withMarker } from "./utils.js";
 
@@ -29,8 +29,13 @@ export const comments = {
 
   wrongIssueAuthorClaimAttempt: ({ user, issueAuthor }) =>
     `Hi @${user}, thank you for your interest in this issue! 🙏\n\n` +
-    `This particular issue was opened by @${issueAuthor}, and for contributor-opened issues, automatic claiming is limited to the issue author.\n\n` +
-    `We really appreciate your eagerness to contribute — please feel free to browse our other open issues, there's likely a great fit for you!`,
+    `This particular issue was opened by @${issueAuthor}. Contributor-opened issues have an exclusive **48-hour** claim window for the author.\n\n` +
+    `After that window ends, anyone may claim the issue with \`${COMMANDS.claim}\`. In the meantime, please feel free to browse our other open issues!`,
+
+  manualAssignmentProtected: ({ actor, assignee }) =>
+    `Hi @${actor}, thanks for checking in! 😊\n\n` +
+    `This issue was assigned by a maintainer to @${assignee}. Only a maintainer can release or reassign it.\n\n` +
+    `If you believe this needs attention, please tag a maintainer — thanks!`,
 
   duplicateClaim: ({ user }) =>
     `Hi @${user}, good news — you already have this issue assigned to you! ✅\n\n` +
@@ -67,47 +72,15 @@ export const comments = {
     `We're so glad to have you here. Start with **CONTRIBUTING.md**, and feel free to ask questions in Discussions anytime you need a hand getting started.\n\n` +
     `Excited to see what you'll bring to the project! 💙`,
 
-  reminder8h: ({ assignee }) =>
+  reminder: ({ assignee, hours }) =>
     withMarker(
-      AUTOMATION.reminder8Marker,
+      reminderMarker(hours),
       `Hi @${assignee}, just a friendly check-in! 👋\n\n` +
-        `It's been about **8 hours** since this issue was assigned to you. If you're actively working on it, that's great — just leave a short progress update or open a draft PR to keep your claim active.\n\n` +
+        `It's been about **${hours} hours** since this issue was assigned to you. If you're actively working on it, that's great — just leave a short progress update or open a draft PR to keep your claim active.\n\n` +
         `No pressure, we just want to keep things moving smoothly for everyone. 😊`,
     ),
 
-  reminder16h: ({ assignee }) =>
-    withMarker(
-      AUTOMATION.reminder16Marker,
-      `Hi @${assignee}, another friendly reminder! ⏰\n\n` +
-        `It's been around **16 hours** without any activity on this claim. If you're still working on it, please leave a quick update so we can keep it assigned to you.\n\n` +
-        `We'd hate to see you lose your spot — just a small update is all it takes! 💙`,
-    ),
-
-  reminder24h: ({ assignee }) =>
-    withMarker(
-      AUTOMATION.reminder24Marker,
-      `Hi @${assignee}, just a friendly check-in! 👋\n\n` +
-        `It's been about **24 hours** since this issue was assigned to you. If you're actively working on it, that's great — just leave a short progress update or open a draft PR to keep your claim active.\n\n` +
-        `No pressure, we just want to keep things moving smoothly for everyone. 😊`,
-    ),
-
-  reminder32h: ({ assignee }) =>
-    withMarker(
-      AUTOMATION.reminder32Marker,
-      `Hi @${assignee}, another friendly reminder! ⏰\n\n` +
-        `It's been around **32 hours** without any activity on this claim. If you're still working on it, please leave a quick update so we can keep it assigned to you.\n\n` +
-        `We'd hate to see you lose your spot — just a small update is all it takes! 💙`,
-    ),
-
-  reminder40h: ({ assignee }) =>
-    withMarker(
-      AUTOMATION.reminder40Marker,
-      `Hi @${assignee}, just a friendly check-in! 👋\n\n` +
-        `It's been about **40 hours** since this issue was assigned to you. If you're actively working on it, that's great — just leave a short progress update or open a draft PR to keep your claim active.\n\n` +
-        `No pressure, we just want to keep things moving smoothly for everyone. 😊`,
-    ),
-
-  expiration48h: ({ assignee }) =>
+  expiration: ({ assignee }) =>
     withMarker(
       AUTOMATION.expiredMarker,
       `Hi @${assignee}, thank you again for your interest in this issue! 🙏\n\n` +

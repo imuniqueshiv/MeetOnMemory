@@ -193,17 +193,13 @@ export const createWebhook = async (req, res, next) => {
 
     const webhook = await Webhook.create(webhookData);
 
+    const webhookResponse = webhook.toObject();
+    delete webhookResponse.secret;
+
     return sendSuccess(
       res,
       {
-        webhook: {
-          _id: webhook._id,
-          organizationId: webhook.organizationId,
-          targetUrl: webhook.targetUrl,
-          events: webhook.events,
-          secret: webhook.secret,
-          isActive: webhook.isActive,
-        },
+        webhook: webhookResponse,
       },
       "Webhook registered successfully.",
       201,
@@ -296,7 +292,14 @@ export const updateWebhook = async (req, res, next) => {
 
     await webhook.save();
 
-    return sendSuccess(res, { webhook }, "Webhook updated successfully.");
+    const webhookResponse = webhook.toObject();
+    delete webhookResponse.secret;
+
+    return sendSuccess(
+      res,
+      { webhook: webhookResponse },
+      "Webhook updated successfully.",
+    );
   } catch (error) {
     next(error);
   }

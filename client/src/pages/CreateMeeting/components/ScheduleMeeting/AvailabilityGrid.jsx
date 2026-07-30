@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { Calendar, Clock, User, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  User,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Sparkles,
+} from "lucide-react";
 
 const AvailabilityGrid = ({ participants, selectedDate, onSlotSelect }) => {
   const [loading, setLoading] = useState(false);
@@ -25,7 +33,7 @@ const AvailabilityGrid = ({ participants, selectedDate, onSlotSelect }) => {
     try {
       const token = localStorage.getItem("token");
       const attendeeEmails = participants.map((p) => p.email).filter(Boolean);
-      
+
       if (attendeeEmails.length === 0) {
         setAvailabilityData(null);
         setLoading(false);
@@ -35,7 +43,7 @@ const AvailabilityGrid = ({ participants, selectedDate, onSlotSelect }) => {
       // Set time range for the selected date (8 AM to 6 PM)
       const timeMin = new Date(selectedDate);
       timeMin.setHours(8, 0, 0, 0);
-      
+
       const timeMax = new Date(selectedDate);
       timeMax.setHours(18, 0, 0, 0);
 
@@ -47,21 +55,20 @@ const AvailabilityGrid = ({ participants, selectedDate, onSlotSelect }) => {
           timeMax: timeMax.toISOString(),
         },
         {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          withCredentials: true,
+        },
       );
 
       setAvailabilityData(response.data.data);
     } catch (error) {
       console.error("Error fetching availability:", error);
-      // Don't show error for missing calendar connections - just show as unknown
       setAvailabilityData(null);
     } finally {
       setLoading(false);
     }
   }, [selectedDate, participants]);
 
-  // Fetch availability when date or participants change
   useEffect(() => {
     if (selectedDate && participants.length > 0) {
       fetchAvailability();
@@ -70,11 +77,11 @@ const AvailabilityGrid = ({ participants, selectedDate, onSlotSelect }) => {
 
   const getSlotAvailability = (timeSlot) => {
     if (!availabilityData) return "unknown";
-    
+
     const [hours, minutes] = timeSlot.split(":");
     const slotStart = new Date(selectedDate);
     slotStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-    
+
     const slotEnd = new Date(slotStart.getTime() + 30 * 60000);
 
     // Check Google availability
@@ -95,23 +102,26 @@ const AvailabilityGrid = ({ participants, selectedDate, onSlotSelect }) => {
 
     // Check Microsoft availability
     let microsoftAvailable = true;
-    if (availabilityData.microsoft && Array.isArray(availabilityData.microsoft)) {
+    if (
+      availabilityData.microsoft &&
+      Array.isArray(availabilityData.microsoft)
+    ) {
       availabilityData.microsoft.forEach((schedule) => {
         if (schedule.availabilityView) {
-          const slotIndex = Math.floor((slotStart.getHours() - 8) * 2 + (slotStart.getMinutes() / 30));
-          if (schedule.availabilityView[slotIndex] === '1') {
+          const slotIndex = Math.floor(
+            (slotStart.getHours() - 8) * 2 + slotStart.getMinutes() / 30,
+          );
+          if (schedule.availabilityView[slotIndex] === "1") {
             microsoftAvailable = false;
           }
         }
       });
     }
 
-    // If no data from either provider, return unknown
     if (!availabilityData.google && !availabilityData.microsoft) {
       return "unknown";
     }
 
-    // Return available if both providers agree (or only one has data)
     if (availabilityData.google && availabilityData.microsoft) {
       return googleAvailable && microsoftAvailable ? "available" : "busy";
     }
@@ -120,9 +130,19 @@ const AvailabilityGrid = ({ participants, selectedDate, onSlotSelect }) => {
 
   const handleSlotClick = (timeSlot) => {
     const availability = getSlotAvailability(timeSlot);
-    if (availability === "available") {
+    if (availability !== "busy") {
       setSelectedSlot(timeSlot);
-      onSlotSelect(timeSlot);
+      if (onSlotSelect) onSlotSelect(timeSlot);
+    }
+  };
+
+  const handleSuggestSlot = () => {
+    const firstAvailable = timeSlots.find(
+      (slot) => getSlotAvailability(slot) !== "busy",
+    );
+    if (firstAvailable) {
+      setSelectedSlot(firstAvailable);
+      if (onSlotSelect) onSlotSelect(firstAvailable);
     }
   };
 
@@ -141,7 +161,9 @@ const AvailabilityGrid = ({ participants, selectedDate, onSlotSelect }) => {
   const getSlotIcon = (availability) => {
     switch (availability) {
       case "available":
-        return <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />;
+        return (
+          <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+        );
       case "busy":
         return <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />;
       case "unknown":
@@ -181,7 +203,19 @@ const AvailabilityGrid = ({ participants, selectedDate, onSlotSelect }) => {
             Scheduling Assistant
           </h3>
         </div>
-        {loading && <Loader2 className="w-5 h-5 animate-spin text-blue-600" />}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSuggestSlot}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 border border-purple-200 dark:border-purple-800 rounded-lg transition-colors cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Suggest Slot
+          </button>
+          {loading && (
+            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+          )}
+        </div>
       </div>
 
       <div className="mb-4">
@@ -195,14 +229,15 @@ const AvailabilityGrid = ({ participants, selectedDate, onSlotSelect }) => {
         {timeSlots.map((timeSlot) => {
           const availability = getSlotAvailability(timeSlot);
           const isSelected = selectedSlot === timeSlot;
-          
+
           return (
             <button
               key={timeSlot}
+              type="button"
               onClick={() => handleSlotClick(timeSlot)}
               disabled={availability === "busy" || loading}
               className={`
-                relative p-3 rounded-lg border-2 transition-all
+                relative p-3 rounded-lg border-2 transition-all cursor-pointer
                 ${getSlotColor(availability)}
                 ${isSelected ? "ring-2 ring-blue-500 ring-offset-2" : ""}
               `}
@@ -229,7 +264,9 @@ const AvailabilityGrid = ({ participants, selectedDate, onSlotSelect }) => {
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600" />
-          <span className="text-slate-600 dark:text-slate-400">Unknown</span>
+          <span className="text-slate-600 dark:text-slate-400">
+            Unknown (Opt-in)
+          </span>
         </div>
       </div>
     </div>

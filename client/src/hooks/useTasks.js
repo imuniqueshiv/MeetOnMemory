@@ -48,6 +48,11 @@ export default function useTasks() {
               item.sourceMeetingId?.organization?.name || "Personal",
             description: item.description || item.text,
             importanceScore: item.importanceScore ?? null,
+            remindersEnabled: item.remindersEnabled !== false,
+            reminderSent: item.reminderSent || {
+              upcoming: false,
+              overdue: false,
+            },
           }));
           setTasks(items);
         } else {
@@ -200,6 +205,36 @@ export default function useTasks() {
     }
   };
 
+  const toggleTaskReminder = async (taskId, currentEnabled) => {
+    try {
+      const newEnabled = !currentEnabled;
+      const res = await knowledgeApi.toggleActionItemReminder(
+        taskId,
+        newEnabled,
+      );
+      if (res.data?.success) {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId ? { ...t, remindersEnabled: newEnabled } : t,
+          ),
+        );
+        toast.success(
+          newEnabled
+            ? "Reminders enabled for action item"
+            : "Reminders disabled for action item",
+        );
+        return true;
+      } else {
+        toast.error(res.data?.message || "Failed to toggle reminder");
+        return false;
+      }
+    } catch (err) {
+      console.error("Error toggled action item reminder:", err);
+      toast.error(err.response?.data?.message || "Failed to toggle reminder");
+      return false;
+    }
+  };
+
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
@@ -240,6 +275,7 @@ export default function useTasks() {
     sortedTasks,
     handleSort,
     updateTaskStatus,
+    toggleTaskReminder,
     clearFilters,
     hasActiveFilters,
   };

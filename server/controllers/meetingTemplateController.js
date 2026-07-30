@@ -5,13 +5,23 @@ import MeetingTemplate from "../models/meetingTemplateModel.js";
 // @access  Private (Org Admin)
 export const createTemplate = async (req, res) => {
   try {
-    const { title, agendaBlocks } = req.body;
-    const organizationId = req.user.organization; // Assuming user has organization ref
+    const {
+      name,
+      title,
+      description,
+      category,
+      defaultDuration,
+      agendaBlocks,
+      defaultParticipants,
+    } = req.body;
+    const organizationId = req.user.organization;
 
-    if (!title) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Title is required" });
+    const templateName = name || title;
+    if (!templateName) {
+      return res.status(400).json({
+        success: false,
+        message: "Template name or title is required",
+      });
     }
 
     if (!organizationId) {
@@ -21,9 +31,17 @@ export const createTemplate = async (req, res) => {
     }
 
     const template = await MeetingTemplate.create({
-      title,
+      name: templateName,
+      title: title || templateName,
+      description: description || "",
+      category: category || "General",
+      defaultDuration: Number(defaultDuration) || 30,
+      agendaBlocks: Array.isArray(agendaBlocks) ? agendaBlocks : [],
+      defaultParticipants: Array.isArray(defaultParticipants)
+        ? defaultParticipants
+        : [],
       organizationId,
-      agendaBlocks: agendaBlocks || [],
+      createdBy: req.user._id,
     });
 
     res.status(201).json({ success: true, template });
@@ -41,15 +59,49 @@ export const getTemplates = async (req, res) => {
     const organizationId = req.user.organization;
 
     if (!organizationId) {
-      return res.status(200).json({ success: true, templates: [] }); // User without org
+      return res.status(200).json({ success: true, templates: [] });
     }
 
-    const templates = await MeetingTemplate.find({ organizationId }).sort({
-      createdAt: -1,
-    });
+    const templates = await MeetingTemplate.find({ organizationId })
+      .populate("createdBy", "name email")
+      .sort({ createdAt: -1 });
+
     res.status(200).json({ success: true, templates });
   } catch (error) {
     console.error("Error fetching templates:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// @desc    Get a single template by ID
+// @route   GET /api/templates/:id
+// @access  Private
+export const getTemplateById = async (req, res) => {
+  try {
+    const templateId = req.params.id;
+    const template = await MeetingTemplate.findById(templateId).populate(
+      "createdBy",
+      "name email",
+    );
+
+    if (!template) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Template not found" });
+    }
+
+    if (
+      template.organizationId.toString() !== req.user.organization.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to access this template",
+      });
+    }
+
+    res.status(200).json({ success: true, template });
+  } catch (error) {
+    console.error("Error fetching template by ID:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -59,7 +111,15 @@ export const getTemplates = async (req, res) => {
 // @access  Private (Org Admin)
 export const updateTemplate = async (req, res) => {
   try {
-    const { title, agendaBlocks } = req.body;
+    const {
+      name,
+      title,
+      description,
+      category,
+      defaultDuration,
+      agendaBlocks,
+      defaultParticipants,
+    } = req.body;
     const templateId = req.params.id;
 
     const template = await MeetingTemplate.findById(templateId);
@@ -70,7 +130,6 @@ export const updateTemplate = async (req, res) => {
         .json({ success: false, message: "Template not found" });
     }
 
-    // Ensure user's org matches template's org
     if (
       template.organizationId.toString() !== req.user.organization.toString()
     ) {
@@ -80,8 +139,15 @@ export const updateTemplate = async (req, res) => {
       });
     }
 
+    if (name) template.name = name;
     if (title) template.title = title;
-    if (agendaBlocks) template.agendaBlocks = agendaBlocks;
+    if (description !== undefined) template.description = description;
+    if (category) template.category = category;
+    if (defaultDuration !== undefined)
+      template.defaultDuration = Number(defaultDuration);
+    if (Array.isArray(agendaBlocks)) template.agendaBlocks = agendaBlocks;
+    if (Array.isArray(defaultParticipants))
+      template.defaultParticipants = defaultParticipants;
 
     const updatedTemplate = await template.save();
     res.status(200).json({ success: true, template: updatedTemplate });

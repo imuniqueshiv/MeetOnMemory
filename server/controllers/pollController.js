@@ -148,6 +148,12 @@ export const castVote = async (req, res) => {
       return res.status(400).json({ message: "Poll is closed" });
     }
 
+    if (poll.expiresAt && new Date(poll.expiresAt) <= new Date()) {
+      poll.isClosed = true;
+      await poll.save();
+      return res.status(400).json({ message: "Poll has expired" });
+    }
+
     if (poll.organization.toString() !== req.user.organization.toString()) {
       return res
         .status(403)

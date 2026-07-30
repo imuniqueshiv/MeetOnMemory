@@ -16,9 +16,9 @@ genuinely different — not just differently-worded — values:
 
 This is a different problem from the existing **Memory Consolidation
 Engine** (`server/services/memoryConsolidationService.js`), which merges
-*paraphrases of the same fact* ("I live in Delhi" / "My home city is
-Delhi"). Contradiction Detection looks for *the same topic, different
-asserted value* instead, and — because reasonable people can disagree
+_paraphrases of the same fact_ ("I live in Delhi" / "My home city is
+Delhi"). Contradiction Detection looks for _the same topic, different
+asserted value_ instead, and — because reasonable people can disagree
 about which value is correct — it never auto-merges. It surfaces the
 conflict for a human to resolve, and keeps every version intact.
 
@@ -72,15 +72,15 @@ Two things are true regardless of whether an LLM is configured:
 
 See `server/models/conflictModel.js`. Key fields:
 
-| Field | Purpose |
-|---|---|
-| `memberIds` | The 2+ memories involved |
-| `memberSnapshots` | Text/owner/status captured at detection time, so the record stays reviewable even if a member is later edited |
+| Field               | Purpose                                                                                                              |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `memberIds`         | The 2+ memories involved                                                                                             |
+| `memberSnapshots`   | Text/owner/status captured at detection time, so the record stays reviewable even if a member is later edited        |
 | `pairwiseConflicts` | Every pairwise contradiction that justified grouping these members together, with signals + explanation + confidence |
-| `confidence` | Highest pairwise confidence in the set (0–100) |
-| `explanation` | Human-readable summary shown in the resolution UI |
-| `status` | `open` → `resolved` \| `dismissed` |
-| `resolution` | What was decided and by whom (see below) |
+| `confidence`        | Highest pairwise confidence in the set (0–100)                                                                       |
+| `explanation`       | Human-readable summary shown in the resolution UI                                                                    |
+| `status`            | `open` → `resolved` \| `dismissed`                                                                                   |
+| `resolution`        | What was decided and by whom (see below)                                                                             |
 
 Nothing is ever deleted. A `ConflictSet` is an audit record in its own
 right, independent of what later happens to the underlying memories.
@@ -134,11 +134,11 @@ rbacPermissions.js`):
 
 ## API summary
 
-| Method | Path | Permission |
-|---|---|---|
-| `POST` | `/api/knowledge/conflicts/scan` | `resolve_conflicts` |
-| `GET` | `/api/knowledge/conflicts` | `view` |
-| `GET` | `/api/knowledge/conflicts/:id` | `view` |
+| Method | Path                                   | Permission          |
+| ------ | -------------------------------------- | ------------------- |
+| `POST` | `/api/knowledge/conflicts/scan`        | `resolve_conflicts` |
+| `GET`  | `/api/knowledge/conflicts`             | `view`              |
+| `GET`  | `/api/knowledge/conflicts/:id`         | `view`              |
 | `POST` | `/api/knowledge/conflicts/:id/resolve` | `resolve_conflicts` |
 
 ## Tests

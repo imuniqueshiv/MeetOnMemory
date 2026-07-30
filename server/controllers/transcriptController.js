@@ -7,6 +7,7 @@ import {
   indexMeeting,
 } from "../utils/embeddingUtils.js";
 import { indexTranscriptChunks } from "../utils/transcriptEmbeddingUtils.js";
+import { getContentDispositionHeader } from "../utils/fileUtils.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
 import fs from "fs";
 import path from "path";
@@ -700,7 +701,7 @@ export const exportTranscriptAsText = async (req, res) => {
 
     const filename = `transcript-${meetingId}.txt`;
     res.setHeader("Content-Type", "text/plain");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Disposition", getContentDispositionHeader(filename));
     res.send(textContent.join("\n"));
   } catch (error) {
     console.error("Error exporting transcript as text:", error);
@@ -730,7 +731,7 @@ export const exportTranscriptAsPDF = async (req, res) => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="transcript-${meetingId}.pdf"`,
+      getContentDispositionHeader(`transcript-${meetingId}.pdf`),
     );
 
     doc.pipe(res);

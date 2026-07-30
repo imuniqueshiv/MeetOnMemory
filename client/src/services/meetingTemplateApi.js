@@ -1,8 +1,9 @@
 import apiClient from "./apiClient";
 
 export const meetingTemplateApi = {
-  createTemplate: (data) => apiClient.post("/templates", data),
-  getTemplates: () => apiClient.get("/templates"),
-  updateTemplate: (id, data) => apiClient.put(`/templates/${id}`, data),
-  deleteTemplate: (id) => apiClient.delete(`/templates/${id}`),
+  createTemplate: (data) => apiClient.post("/api/templates", data),
+  getTemplates: () => apiClient.get("/api/templates"),
+  getTemplateById: (id) => apiClient.get(`/api/templates/${id}`),
+  updateTemplate: (id, data) => apiClient.put(`/api/templates/${id}`, data),
+  deleteTemplate: (id) => apiClient.delete(`/api/templates/${id}`),
 };

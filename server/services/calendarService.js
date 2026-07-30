@@ -1,12 +1,15 @@
 import { google } from "googleapis";
 import CryptoJS from "crypto-js";
+import axios from "axios";
 import { ClientSecretCredential } from "@azure/identity"; // eslint-disable-line no-unused-vars
 import { Client } from "@microsoft/microsoft-graph-client";
 import CalendarConnection from "../models/calendarConnectionModel.js";
 
-// Encryption key from environment (should be a long random string)
+// Encryption key from environment
 const ENCRYPTION_KEY =
-  process.env.CALENDAR_ENCRYPTION_KEY || "default-key-change-in-production";
+  process.env.CALENDAR_ENCRYPTION_KEY ||
+  process.env.TOKEN_ENCRYPTION_KEY ||
+  "default-key-change-in-production";
 
 /**
  * Encrypt a token for storage
@@ -71,6 +74,55 @@ const refreshGoogleToken = async (connection) => {
 };
 
 /**
+ * Refresh Microsoft access token if expired
+ */
+export const refreshMicrosoftToken = async (connection) => {
+  try {
+    const refreshToken = decryptToken(connection.refreshToken);
+    if (!refreshToken) {
+      throw new Error("No refresh token available");
+    }
+    const msClientId =
+      process.env.MICROSOFT_CLIENT_ID || process.env.MS_CLIENT_ID;
+    const msClientSecret =
+      process.env.MICROSOFT_CLIENT_SECRET || process.env.MS_CLIENT_SECRET;
+    const msTenantId =
+      process.env.MICROSOFT_TENANT_ID || process.env.MS_TENANT_ID || "common";
+
+    const params = new URLSearchParams({
+      client_id: msClientId,
+      client_secret: msClientSecret,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    });
+
+    const res = await axios.post(
+      `https://login.microsoftonline.com/${msTenantId}/oauth2/v2.0/token`,
+      params,
+    );
+
+    connection.accessToken = encryptToken(res.data.access_token);
+    if (res.data.refresh_token) {
+      connection.refreshToken = encryptToken(res.data.refresh_token);
+    }
+    connection.tokenExpiresAt = new Date(
+      Date.now() + (res.data.expires_in || 3600) * 1000,
+    );
+    connection.syncStatus = "connected";
+    connection.syncError = null;
+    await connection.save();
+
+    return res.data.access_token;
+  } catch (error) {
+    console.error("Error refreshing Microsoft token:", error.message);
+    connection.syncStatus = "needs_reauth";
+    connection.syncError = "Token refresh failed";
+    await connection.save();
+    throw error;
+  }
+};
+
+/**
  * Get Google OAuth2 client with automatic token refresh
  */
 export const getGoogleOAuth2Client = async (connection) => {
@@ -105,7 +157,7 @@ export const getGoogleOAuth2Client = async (connection) => {
  * Get Microsoft Graph client with automatic token refresh
  */
 export const getMicrosoftClient = async (connection) => {
-  const accessToken = decryptToken(connection.accessToken);
+  let accessToken = decryptToken(connection.accessToken);
 
   if (!accessToken) {
     throw new Error("No access token available");
@@ -113,12 +165,11 @@ export const getMicrosoftClient = async (connection) => {
 
   // Check if token is expired
   if (connection.tokenExpiresAt && new Date() >= connection.tokenExpiresAt) {
-    // Microsoft token refresh would go here
-    // For now, mark as needs reauth
-    connection.syncStatus = "needs_reauth";
-    connection.syncError = "Token expired - needs re-authentication";
-    await connection.save();
-    throw new Error("Token expired");
+    try {
+      accessToken = await refreshMicrosoftToken(connection);
+    } catch (_err) {
+      throw new Error("Token expired and refresh failed");
+    }
   }
 
   const authProvider = {
@@ -340,7 +391,7 @@ export const createMicrosoftEvent = async (userId, meetingDetails) => {
   try {
     const connection = await CalendarConnection.findOne({
       user: userId,
-      provider: "microsoft",
+      provider: { $in: ["microsoft", "outlook"] },
       syncStatus: "connected",
     });
 
@@ -417,7 +468,7 @@ export const updateMicrosoftEvent = async (userId, meetingDetails, eventId) => {
   try {
     const connection = await CalendarConnection.findOne({
       user: userId,
-      provider: "microsoft",
+      provider: { $in: ["microsoft", "outlook"] },
       syncStatus: "connected",
     });
 
@@ -490,7 +541,7 @@ export const deleteMicrosoftEvent = async (userId, eventId) => {
   try {
     const connection = await CalendarConnection.findOne({
       user: userId,
-      provider: "microsoft",
+      provider: { $in: ["microsoft", "outlook"] },
       syncStatus: "connected",
     });
 

@@ -18,6 +18,7 @@ import {
   downloadPolicy,
   deletePolicy,
   analyzePolicy,
+  comparePolicyVersions,
 } from "../controllers/policyController.js";
 
 const router = express.Router();
@@ -177,6 +178,13 @@ router.get(
   requireOrgAccess(Policy),
   requirePermission("policies", "view"),
   downloadPolicy,
+);
+router.get(
+  "/:id/diff",
+  userAuth,
+  requireOrgAccess(Policy),
+  requirePermission("policies", "view"),
+  comparePolicyVersions,
 );
 router.delete(
   "/:id",

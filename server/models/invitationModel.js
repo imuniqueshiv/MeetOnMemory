@@ -26,7 +26,7 @@ const invitationSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "member"],
+      enum: ["admin", "member", "viewer"],
       default: "member",
     },
     status: {

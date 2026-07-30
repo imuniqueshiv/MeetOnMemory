@@ -26,8 +26,16 @@ const MODEL_OPTIONS = [
   { value: "actionItem", label: "Action Items" },
 ];
 
+const STATUS_OPTIONS = [
+  { value: "open", label: "Open Conflicts" },
+  { value: "resolved", label: "Resolved" },
+  { value: "dismissed", label: "Dismissed" },
+  { value: "all", label: "All Conflicts" },
+];
+
 const ConflictResolution = () => {
   const [selectedModel, setSelectedModel] = useState("decision");
+  const [selectedStatus, setSelectedStatus] = useState("open");
   const [scanning, setScanning] = useState(false);
   const [conflicts, setConflicts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,17 +47,18 @@ const ConflictResolution = () => {
     try {
       const res = await knowledgeApi.getConflicts({
         model: selectedModel,
-        status: "open",
+        status: selectedStatus,
       });
       if (res.data?.success) {
         setConflicts(res.data.conflicts || []);
       }
     } catch (err) {
       console.error("Failed to load conflicts", err);
+      toast.error("Failed to load conflicts.");
     } finally {
       setLoading(false);
     }
-  }, [selectedModel]);
+  }, [selectedModel, selectedStatus]);
 
   useEffect(() => {
     loadConflicts();
@@ -122,17 +131,30 @@ const ConflictResolution = () => {
             </p>
           </div>
 
-          <select
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-          >
-            {MODEL_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-3">
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+            >
+              {MODEL_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+            >
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-3">

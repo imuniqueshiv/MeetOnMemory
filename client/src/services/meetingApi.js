@@ -25,4 +25,19 @@ export const meetingApi = {
       responseType: "blob",
       timeout: 60000,
     }),
+
+  getReactionSummary: (id) =>
+    apiClient.get(`/api/meetings/${id}/reactions/summary`),
+  getReactionTimeline: (id) =>
+    apiClient.get(`/api/meetings/${id}/reactions/timeline`),
+
+  // Agenda Timer Endpoints
+  startAgendaItem: (meetingId, itemId) =>
+    apiClient.put(`/api/meetings/timer/${meetingId}/agenda/${itemId}/start`),
+  stopAgendaItem: (meetingId, itemId) =>
+    apiClient.put(`/api/meetings/timer/${meetingId}/agenda/${itemId}/stop`),
+  skipAgendaItem: (meetingId, itemId) =>
+    apiClient.put(`/api/meetings/timer/${meetingId}/agenda/${itemId}/skip`),
+  getAgendaPacingReport: (meetingId) =>
+    apiClient.get(`/api/meetings/timer/${meetingId}/pacing`),
 };

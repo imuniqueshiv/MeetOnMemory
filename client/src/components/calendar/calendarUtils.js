@@ -6,28 +6,32 @@ export const getStatusStyle = (status) => {
       return {
         bg: "bg-emerald-50 hover:bg-emerald-100/80 border-emerald-200 text-emerald-800",
         dot: "bg-emerald-500",
-        badge: "bg-emerald-50 text-emerald-700 border-emerald-100",
+        badge:
+          "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
         icon: CheckCircle,
       };
     case "processing":
       return {
         bg: "bg-amber-50 hover:bg-amber-100/80 border-amber-200 text-amber-800 animate-pulse",
         dot: "bg-amber-500",
-        badge: "bg-amber-50 text-amber-700 border-amber-100",
+        badge:
+          "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
         icon: Loader2,
       };
     case "failed":
       return {
         bg: "bg-rose-50 hover:bg-rose-100/80 border-rose-200 text-rose-800",
         dot: "bg-rose-500",
-        badge: "bg-rose-50 text-rose-700 border-rose-100",
+        badge:
+          "bg-rose-50 text-rose-700 border-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
         icon: AlertCircle,
       };
     default: // uploaded / upcoming
       return {
         bg: "bg-blue-50 hover:bg-blue-100/80 border-blue-200 text-blue-800",
         dot: "bg-blue-500",
-        badge: "bg-blue-50 text-blue-700 border-blue-100",
+        badge:
+          "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
         icon: HelpCircle,
       };
   }

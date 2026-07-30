@@ -1,7 +1,8 @@
 import axios from "axios";
 import { getCsrfToken, refreshCsrfToken } from "./csrfService.js";
+import { getBackendUrl } from "../config/backendConfig.js";
 
-const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
+const backendUrl = getBackendUrl();
 
 const apiClient = axios.create({
   baseURL: backendUrl,
@@ -19,7 +20,11 @@ function isCsrfError(error) {
 function applyFriendlyMessage(error, friendlyMessage) {
   if (!error.response) {
     error.response = { data: { message: friendlyMessage }, status: 0 };
-  } else if (error.response.data) {
+  } else if (
+    error.response.data &&
+    typeof error.response.data === "object" &&
+    !Array.isArray(error.response.data)
+  ) {
     error.response.data.message = friendlyMessage;
   } else {
     error.response.data = { message: friendlyMessage };
@@ -27,14 +32,31 @@ function applyFriendlyMessage(error, friendlyMessage) {
   error.message = friendlyMessage;
 }
 
-// Attach credentials + latest CSRF token on every request
+let clerkTokenGetter = null;
+
+export const setClerkTokenGetter = (getterFn) => {
+  clerkTokenGetter = getterFn;
+};
+
+// Attach credentials + latest CSRF token + Clerk token on every request
 apiClient.interceptors.request.use(
-  (config) => {
+  async (config) => {
     config.withCredentials = true;
+    config.headers = config.headers || {};
+
+    if (clerkTokenGetter && typeof clerkTokenGetter === "function") {
+      try {
+        const clerkToken = await clerkTokenGetter();
+        if (clerkToken) {
+          config.headers["Authorization"] = `Bearer ${clerkToken}`;
+        }
+      } catch (err) {
+        console.warn("Failed to retrieve Clerk token for API request", err);
+      }
+    }
 
     const token = getCsrfToken();
     if (token) {
-      config.headers = config.headers || {};
       config.headers["X-CSRF-Token"] = token;
     }
 
@@ -46,6 +68,15 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Guard against null/undefined so malformed reject payloads never crash.
+    if (error == null) {
+      const friendlyMessage = "An unexpected error occurred. Please try again.";
+      return Promise.reject({
+        message: friendlyMessage,
+        response: { data: { message: friendlyMessage }, status: 0 },
+      });
+    }
+
     const originalRequest = error.config;
     let friendlyMessage = "An unexpected error occurred. Please try again.";
 
