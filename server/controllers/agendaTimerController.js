@@ -1,9 +1,18 @@
 import Meeting from "../models/meetingModel.js";
 
-// Utility to check permissions (Organizer or Admin)
-const hasPermission = (meeting, userId) => {
-  return meeting.uploadedBy.toString() === userId;
-  // TODO: Add logic to check for Org Admin if required by the org structure.
+// Utility to check permissions (Organizer or Org Admin/Owner)
+const hasPermission = (meeting, user) => {
+  if (!user) return false;
+  const userIdStr = (user._id || user.id)?.toString();
+  const isUploader = meeting.uploadedBy?.toString() === userIdStr;
+
+  const isOrgAdminOrOwner =
+    (user.role === "admin" || user.role === "owner") &&
+    meeting.organization &&
+    user.organization &&
+    meeting.organization.toString() === user.organization.toString();
+
+  return isUploader || isOrgAdminOrOwner;
 };
 
 export const startAgendaItem = async (req, res) => {
@@ -18,7 +27,7 @@ export const startAgendaItem = async (req, res) => {
         .json({ success: false, message: "Meeting not found" });
     }
 
-    if (!hasPermission(meeting, userId)) {
+    if (!hasPermission(meeting, req.user)) {
       return res
         .status(403)
         .json({ success: false, message: "Not authorized to manage timers" });
@@ -77,7 +86,7 @@ export const stopAgendaItem = async (req, res) => {
         .json({ success: false, message: "Meeting not found" });
     }
 
-    if (!hasPermission(meeting, userId)) {
+    if (!hasPermission(meeting, req.user)) {
       return res
         .status(403)
         .json({ success: false, message: "Not authorized to manage timers" });
@@ -142,7 +151,7 @@ export const skipAgendaItem = async (req, res) => {
         .json({ success: false, message: "Meeting not found" });
     }
 
-    if (!hasPermission(meeting, userId)) {
+    if (!hasPermission(meeting, req.user)) {
       return res
         .status(403)
         .json({ success: false, message: "Not authorized to manage timers" });
