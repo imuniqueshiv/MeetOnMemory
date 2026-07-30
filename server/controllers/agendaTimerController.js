@@ -204,12 +204,18 @@ export const getAgendaPacingReport = async (req, res) => {
     const { meetingId } = req.params;
 
     const meeting = await Meeting.findById(meetingId).select(
-      "agendaItems agendaProgress",
+      "agendaItems agendaProgress organization uploadedBy",
     );
     if (!meeting) {
       return res
         .status(404)
         .json({ success: false, message: "Meeting not found" });
+    }
+
+    if (!hasPermission(meeting, req.user)) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Not authorized to view agenda report" });
     }
 
     const reportData = meeting.agendaItems.map((item) => ({

@@ -8,11 +8,10 @@ jest.unstable_mockModule("../models/meetingModel.js", () => ({
   },
 }));
 
-const { startAgendaItem, stopAgendaItem, skipAgendaItem } = await import(
-  "../controllers/agendaTimerController.js"
-);
+const { startAgendaItem, stopAgendaItem, skipAgendaItem, getAgendaPacingReport } =
+  await import("../controllers/agendaTimerController.js");
 
-describe("agendaTimerController authorization (#818)", () => {
+describe("agendaTimerController authorization (#818, #884)", () => {
   let req, res;
 
   beforeEach(() => {
@@ -48,6 +47,9 @@ describe("agendaTimerController authorization (#818)", () => {
 
   it("should allow the uploader to start an agenda item", async () => {
     const meeting = createMockMeeting();
+    mockFindById.mockReturnValue({
+      select: jest.fn().mockResolvedValue(meeting),
+    });
     mockFindById.mockResolvedValue(meeting);
 
     req = {
@@ -173,6 +175,47 @@ describe("agendaTimerController authorization (#818)", () => {
     expect(res.json).toHaveBeenCalledWith({
       success: false,
       message: "Not authorized to manage timers",
+    });
+  });
+
+  describe("getAgendaPacingReport authorization (#884)", () => {
+    it("should allow authorized user to view agenda pacing report", async () => {
+      const meeting = createMockMeeting();
+      mockFindById.mockReturnValue({
+        select: jest.fn().mockResolvedValue(meeting),
+      });
+
+      req = {
+        params: { meetingId: "meeting123" },
+        user: { _id: "uploader_1", id: "uploader_1", role: "member", organization: "org_1" },
+      };
+
+      await getAgendaPacingReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, reportData: expect.any(Array) }),
+      );
+    });
+
+    it("should reject unauthorized user from viewing agenda pacing report with 403 Forbidden", async () => {
+      const meeting = createMockMeeting();
+      mockFindById.mockReturnValue({
+        select: jest.fn().mockResolvedValue(meeting),
+      });
+
+      req = {
+        params: { meetingId: "meeting123" },
+        user: { _id: "unauthorized_user", id: "unauthorized_user", role: "member", organization: "org_1" },
+      };
+
+      await getAgendaPacingReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: "Not authorized to view agenda report",
+      });
     });
   });
 });
