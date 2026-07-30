@@ -17,12 +17,12 @@ export default function ActivityFeed() {
   const [, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
-  const { currentOrganization } = useSelector((state) => state.auth);
+  const { organization } = useSelector((state) => state.auth);
   const observer = useRef();
 
   const loadActivities = useCallback(
     async (pageNum, append = false) => {
-      if (!currentOrganization) return;
+      if (!organization) return;
       try {
         setLoading(true);
         const data = await getActivities({ page: pageNum, limit: 20 });
@@ -38,19 +38,19 @@ export default function ActivityFeed() {
         setLoading(false);
       }
     },
-    [currentOrganization],
+    [organization],
   );
 
   useEffect(() => {
-    if (currentOrganization) {
+    if (organization) {
       setPage(1);
       loadActivities(1, false);
     }
-  }, [currentOrganization, loadActivities]);
+  }, [organization, loadActivities]);
 
   // Real-time updates via Socket.IO
   useEffect(() => {
-    if (!currentOrganization) return;
+    if (!organization) return;
 
     const socket = io(backendUrl, {
       withCredentials: true,
@@ -75,7 +75,7 @@ export default function ActivityFeed() {
     return () => {
       socket.disconnect();
     };
-  }, [currentOrganization]);
+  }, [organization]);
 
   const lastActivityElementRef = useCallback(
     (node) => {
@@ -92,7 +92,7 @@ export default function ActivityFeed() {
       });
       if (node) observer.current.observe(node);
     },
-    [loading, hasMore, currentOrganization, loadActivities],
+    [loading, hasMore, organization, loadActivities],
   );
 
   const getIconForAction = (action) => {

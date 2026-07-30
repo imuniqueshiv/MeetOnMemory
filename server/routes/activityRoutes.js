@@ -9,7 +9,7 @@ import { requireOrgMembership } from "../middleware/rbac.js";
 const router = express.Router();
 
 router.use(userAuth);
-router.use(requireOrgMembership); // Ensures req.user.currentOrganization is set and valid
+router.use(requireOrgMembership); // Ensures req.user.organization is set and valid
 
 router.get("/", getActivities);
 router.get("/stats", getActivityStats);
