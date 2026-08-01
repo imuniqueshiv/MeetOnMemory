@@ -13,6 +13,7 @@ import TaskFilterPanel from "../components/tasks/TaskFilterPanel";
 import TaskSortBar from "../components/tasks/TaskSortBar";
 import TaskCard from "../components/tasks/TaskCard";
 import TaskDetailsModal from "../components/tasks/TaskDetailsModal";
+import Pagination from "../components/meetings/Pagination";
 
 const Tasks = () => {
   const navigate = useNavigate();
@@ -108,6 +109,12 @@ const Tasks = () => {
                 toggleTaskReminder={taskState.toggleTaskReminder}
               />
             ))}
+            
+            <Pagination
+              currentPage={taskState.page}
+              totalPages={taskState.totalPages}
+              onPageChange={taskState.setPage}
+            />
           </div>
         )}
 

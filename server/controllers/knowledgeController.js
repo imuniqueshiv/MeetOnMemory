@@ -103,76 +103,165 @@ export const getOpenActionItems = async (req, res) => {
       return sendError(res, 400, "Invalid status");
     }
 
-    if (
-      typeof sortBy !== "string" ||
-      !Object.prototype.hasOwnProperty.call(ALLOWED_SORT_FIELDS, sortBy)
-    ) {
-      return sendError(
-        res,
-        400,
-        `Invalid sortBy. Allowed values: ${Object.keys(ALLOWED_SORT_FIELDS).join(", ")}`,
-      );
+    const sortFieldMap = {
+      dueDate: "dueDate",
+      createdDate: "createdAt",
+      createdAt: "createdAt",
+      priority: "priority",
+      status: "status",
+      alphabetical: "text",
+      importance: "importanceScore",
+    };
+
+    const sortField = sortFieldMap[sortBy] || "createdAt";
+    const sortDirection = req.query.sortOrder === "desc" ? -1 : 1;
+
+    let initialMatch = {};
+    
+    if (organization) {
+      initialMatch.organization = new mongoose.Types.ObjectId(organization);
+    }
+    
+    if (status !== "all") {
+      initialMatch.status = status;
     }
 
-    let query;
-    if (status === "all") {
-      query = ActionItem.find({ organization });
-    } else if (status === "open") {
-      query = ActionItem.find({
-        organization,
-        status: "open",
-      });
-    } else if (status === "in-progress") {
-      query = ActionItem.find({
-        organization,
-        status: "in-progress",
-      });
-    } else if (status === "resolved") {
-      query = ActionItem.find({
-        organization,
-        status: "resolved",
-      });
-    } else if (status === "superseded") {
-      query = ActionItem.find({
-        organization,
-        status: "superseded",
-      });
+    if (req.query.owner && req.query.owner !== "all") {
+      initialMatch.owner = req.query.owner;
     }
 
-    if (search && typeof search === "string") {
-      query = query.where({ text: { $regex: search, $options: "i" } });
+    if (req.query.priority && req.query.priority !== "all") {
+      if (req.query.priority === "medium") {
+        initialMatch.$or = [
+          { priority: "medium" }, 
+          { priority: { $exists: false } }, 
+          { priority: null }
+        ];
+      } else {
+        initialMatch.priority = req.query.priority;
+      }
     }
 
     if (
       lifecycleState &&
       ["active", "dormant", "archived", "expired"].includes(lifecycleState)
     ) {
-      query = query.where({ lifecycleState });
+      initialMatch.lifecycleState = lifecycleState;
     } else if (includeArchived !== "true") {
-      query = query.where({
-        lifecycleState: { $nin: ["archived", "expired"] },
-      });
+      initialMatch.lifecycleState = { $nin: ["archived", "expired"] };
     }
 
     const page = parseInt(req.query.page, 10) || 1;
     const limit = Math.min(parseInt(req.query.limit, 10) || 10, 100);
     const skip = (page - 1) * limit;
 
-    const total =
-      typeof ActionItem.countDocuments === "function" &&
-      typeof query.getFilter === "function"
-        ? await ActionItem.countDocuments(query.getFilter())
-        : 0;
+    const pipeline = [
+      { $match: initialMatch },
+      // Lookup meetings to allow search by meeting title and filter by organization name
+      {
+        $lookup: {
+          from: "meetings",
+          localField: "sourceMeetingId",
+          foreignField: "_id",
+          as: "meetingDoc"
+        }
+      },
+      {
+        $addFields: {
+          meeting: { $arrayElemAt: ["$meetingDoc", 0] },
+          priorityWeight: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$priority", "high"] }, then: 0 },
+                { case: { $eq: ["$priority", "medium"] }, then: 1 },
+                { case: { $eq: ["$priority", "low"] }, then: 2 }
+              ],
+              default: 1
+            }
+          },
+          statusWeight: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$status", "open"] }, then: 0 },
+                { case: { $eq: ["$status", "in-progress"] }, then: 1 },
+                { case: { $eq: ["$status", "resolved"] }, then: 2 },
+                { case: { $eq: ["$status", "superseded"] }, then: 3 }
+              ],
+              default: 0
+            }
+          }
+        }
+      },
+      // Lookup organization from meeting to get the org name for organizationFilter
+      {
+        $lookup: {
+          from: "organizations",
+          localField: "meeting.organization",
+          foreignField: "_id",
+          as: "orgDoc"
+        }
+      },
+      {
+        $addFields: {
+          orgName: {
+            $cond: {
+              if: { $gt: [{ $size: "$orgDoc" }, 0] },
+              then: { $arrayElemAt: ["$orgDoc.name", 0] },
+              else: "Personal"
+            }
+          }
+        }
+      }
+    ];
 
-    let itemsQuery = query
-      .populate("sourceMeetingId", "title date")
-      .sort(ALLOWED_SORT_FIELDS[sortBy]);
-
-    if (typeof itemsQuery.skip === "function") {
-      itemsQuery = itemsQuery.skip(skip).limit(limit);
+    const postMatch = {};
+    if (search && typeof search === "string") {
+      postMatch.$or = [
+        { text: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { owner: { $regex: search, $options: "i" } },
+        { "meeting.title": { $regex: search, $options: "i" } }
+      ];
     }
 
-    const items = await itemsQuery;
+    if (req.query.organization && req.query.organization !== "all") {
+      postMatch.orgName = req.query.organization;
+    }
+
+    if (Object.keys(postMatch).length > 0) {
+      pipeline.push({ $match: postMatch });
+    }
+
+    let actualSortField = sortField;
+    if (sortField === "priority") actualSortField = "priorityWeight";
+    if (sortField === "status") actualSortField = "statusWeight";
+
+    const finalSort = { [actualSortField]: sortDirection };
+    
+    // We always want a secondary deterministic sort when weights tie
+    if (actualSortField !== "createdAt") {
+      finalSort.createdAt = -1; 
+    }
+
+    pipeline.push({ $sort: finalSort });
+
+    pipeline.push({
+      $facet: {
+        metadata: [{ $count: "total" }],
+        items: [{ $skip: skip }, { $limit: limit }]
+      }
+    });
+
+    const results = await ActionItem.aggregate(pipeline);
+    const total = results[0].metadata[0] ? results[0].metadata[0].total : 0;
+    let items = results[0].items;
+
+    // Use Mongoose to populate so it returns standard instances exactly as before
+    items = await ActionItem.populate(items, {
+      path: "sourceMeetingId",
+      select: "title date organization",
+      populate: { path: "organization", select: "name" }
+    });
 
     // Retrieving this list counts as accessing each memory in it; refresh
     // their importance scores in the background without blocking the response.

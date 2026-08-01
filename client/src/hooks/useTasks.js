@@ -19,8 +19,27 @@ export default function useTasks() {
   const [sortBy, setSortBy] = useState("dueDate");
   const [sortOrder, setSortOrder] = useState("asc");
 
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+
   // UI state
   const [showFilters, setShowFilters] = useState(false);
+
+  // Reset page to 1 when filters or sorting change
+  useEffect(() => {
+    setPage(1);
+  }, [
+    searchQuery,
+    statusFilter,
+    priorityFilter,
+    organizationFilter,
+    assignedFilter,
+    sortBy,
+    sortOrder,
+  ]);
 
   // Fetch action items
   useEffect(() => {
@@ -29,7 +48,16 @@ export default function useTasks() {
         setLoading(true);
         setError(null);
 
-        const res = await knowledgeApi.getActionItems("all");
+        const options = {
+          search: searchQuery || undefined,
+          owner: assignedFilter !== "all" ? assignedFilter : undefined,
+          priority: priorityFilter !== "all" ? priorityFilter : undefined,
+          organization: organizationFilter !== "all" ? organizationFilter : undefined,
+          page,
+          limit,
+          sortOrder,
+        };
+        const res = await knowledgeApi.getActionItems(statusFilter, sortBy, options);
 
         if (res.data?.success) {
           const items = res.data.actionItems.map((item) => ({
@@ -55,6 +83,8 @@ export default function useTasks() {
             },
           }));
           setTasks(items);
+          setTotalPages(res.data.pagination?.totalPages || 1);
+          setTotal(res.data.pagination?.total || 0);
         } else {
           setError(res.data?.message || "Failed to load tasks");
           toast.error(res.data?.message || "Failed to load tasks");
@@ -69,7 +99,17 @@ export default function useTasks() {
     };
 
     fetchTasks();
-  }, []);
+  }, [
+    page,
+    limit,
+    statusFilter,
+    priorityFilter,
+    organizationFilter,
+    assignedFilter,
+    sortBy,
+    sortOrder,
+    searchQuery,
+  ]);
 
   // Get unique values for filters
   const organizations = useMemo(
@@ -81,98 +121,8 @@ export default function useTasks() {
     [tasks],
   );
 
-  // Filter tasks
-  const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
-      // Search filter
-      const searchLower = searchQuery.toLowerCase();
-      const matchesSearch =
-        task.title?.toLowerCase().includes(searchLower) ||
-        task.meetingTitle?.toLowerCase().includes(searchLower) ||
-        task.owner?.toLowerCase().includes(searchLower) ||
-        task.description?.toLowerCase().includes(searchLower);
-
-      // Status filter
-      const matchesStatus =
-        statusFilter === "all" || task.status === statusFilter;
-
-      // Priority filter
-      const matchesPriority =
-        priorityFilter === "all" || task.priority === priorityFilter;
-
-      // Organization filter
-      const matchesOrganization =
-        organizationFilter === "all" ||
-        task.organization === organizationFilter;
-
-      // Assigned user filter
-      const matchesAssigned =
-        assignedFilter === "all" || task.owner === assignedFilter;
-
-      return (
-        matchesSearch &&
-        matchesStatus &&
-        matchesPriority &&
-        matchesOrganization &&
-        matchesAssigned
-      );
-    });
-  }, [
-    tasks,
-    searchQuery,
-    statusFilter,
-    priorityFilter,
-    organizationFilter,
-    assignedFilter,
-  ]);
-
-  // Sort tasks
-  const sortedTasks = useMemo(() => {
-    return [...filteredTasks].sort((a, b) => {
-      let comparison = 0;
-
-      switch (sortBy) {
-        case "dueDate": {
-          if (!a.dueDate) comparison = 1;
-          else if (!b.dueDate) comparison = -1;
-          else comparison = new Date(a.dueDate) - new Date(b.dueDate);
-          break;
-        }
-        case "createdDate": {
-          comparison = new Date(a.meetingDate) - new Date(b.meetingDate);
-          break;
-        }
-        case "priority": {
-          const priorityOrder = { high: 0, medium: 1, low: 2 };
-          comparison = priorityOrder[a.priority] - priorityOrder[b.priority];
-          break;
-        }
-        case "status": {
-          const statusOrder = {
-            open: 0,
-            "in-progress": 1,
-            resolved: 2,
-            superseded: 3,
-          };
-          comparison = statusOrder[a.status] - statusOrder[b.status];
-          break;
-        }
-        case "alphabetical": {
-          comparison = a.title.localeCompare(b.title);
-          break;
-        }
-        case "importance": {
-          comparison = (b.importanceScore ?? 0) - (a.importanceScore ?? 0);
-          break;
-        }
-        default: {
-          comparison = 0;
-        }
-      }
-
-      return sortOrder === "asc" ? comparison : -comparison;
-    });
-  }, [filteredTasks, sortBy, sortOrder]);
+  // Removed client-side filtering and sorting for Issue #903
+  const sortedTasks = tasks;
 
   const handleSort = (field) => {
     if (sortBy === field) {
@@ -278,5 +228,11 @@ export default function useTasks() {
     toggleTaskReminder,
     clearFilters,
     hasActiveFilters,
+    page,
+    setPage,
+    limit,
+    setLimit,
+    totalPages,
+    total,
   };
 }

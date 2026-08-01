@@ -4,11 +4,14 @@ export const knowledgeApi = {
   getActionItems: (status = "all", sortBy = "createdAt", options = {}) => {
     let url = `/api/knowledge/action-items?status=${status}&sortBy=${sortBy}`;
     if (options.includeArchived) url += `&includeArchived=true`;
-    if (options.lifecycleState)
-      url += `&lifecycleState=${options.lifecycleState}`;
+    if (options.lifecycleState) url += `&lifecycleState=${options.lifecycleState}`;
     if (options.search) url += `&search=${encodeURIComponent(options.search)}`;
     if (options.page) url += `&page=${options.page}`;
     if (options.limit) url += `&limit=${options.limit}`;
+    if (options.owner) url += `&owner=${encodeURIComponent(options.owner)}`;
+    if (options.priority) url += `&priority=${encodeURIComponent(options.priority)}`;
+    if (options.organization) url += `&organization=${encodeURIComponent(options.organization)}`;
+    if (options.sortOrder) url += `&sortOrder=${encodeURIComponent(options.sortOrder)}`;
     return apiClient.get(url);
   },
   updateActionItemStatus: (id, status) =>
