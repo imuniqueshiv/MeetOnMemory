@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FileText, ExternalLink } from "lucide-react";
+import { toast } from "react-toastify";
 
 const MeetingTranscript = ({ meeting }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -28,7 +29,7 @@ const MeetingTranscript = ({ meeting }) => {
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(transcript);
-      alert("Transcript copied to clipboard!");
+      toast.success("Transcript copied to clipboard!");
     } catch (err) {
       console.error("Failed to copy:", err);
     }

@@ -9,6 +9,7 @@ import HybridSearchToggle from "../components/ai-search/HybridSearchToggle.jsx";
 import SearchSkeleton from "../components/ai-search/SearchSkeleton.jsx";
 import SearchEmptyState from "../components/ai-search/SearchEmptyState.jsx";
 import { apiClient } from "../services";
+import { toast } from "react-toastify";
 
 // Modal Component for showing full details
 const ResultModal = ({ result, onClose }) => {
@@ -199,7 +200,7 @@ const AiSearch = () => {
     if (textToCopy) {
       try {
         await navigator.clipboard.writeText(textToCopy);
-        alert(t("aiSearch.copiedToClipboard"));
+        toast.success(t("aiSearch.copiedToClipboard"));
       } catch (err) {
         console.error("Failed to copy:", err);
       }

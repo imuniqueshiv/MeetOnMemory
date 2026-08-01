@@ -8,6 +8,7 @@ import {
   closePoll,
   deletePoll,
 } from "../../api/pollApi";
+import { toast } from "react-toastify";
 
 const PollSection = ({ meetingId }) => {
   const { userData, backendUrl } = useContext(AppContent);
@@ -94,7 +95,7 @@ const PollSection = ({ meetingId }) => {
     e.preventDefault();
     const validOptions = options.filter((opt) => opt.trim() !== "");
     if (!question.trim() || validOptions.length < 2) {
-      alert("Please provide a question and at least two valid options.");
+      toast.error("Please provide a question and at least two valid options.");
       return;
     }
 
@@ -121,7 +122,7 @@ const PollSection = ({ meetingId }) => {
       setExpiresInMinutes("");
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || "Error creating poll");
+      toast.error(err.response?.data?.message || "Error creating poll");
     }
   };
 
@@ -143,7 +144,7 @@ const PollSection = ({ meetingId }) => {
       await castVote(pollId, selectedOptionIds);
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || "Error casting vote");
+      toast.error(err.response?.data?.message || "Error casting vote");
     }
   };
 
@@ -165,7 +166,7 @@ const PollSection = ({ meetingId }) => {
         await castVote(poll._id, selected);
       } catch (err) {
         console.error(err);
-        alert(err.response?.data?.message || "Error casting votes");
+        toast.error(err.response?.data?.message || "Error casting votes");
       }
     };
 
