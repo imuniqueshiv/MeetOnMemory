@@ -11,6 +11,16 @@ export const knowledgeApi = {
     if (options.limit) url += `&limit=${options.limit}`;
     return apiClient.get(url);
   },
+  getUnifiedArchive: (options = {}) => {
+    let url = `/api/knowledge/archive/all?`;
+    const params = new URLSearchParams();
+    if (options.includeArchived) params.append("includeArchived", "true");
+    if (options.lifecycleState) params.append("lifecycleState", options.lifecycleState);
+    if (options.search) params.append("search", options.search);
+    if (options.page) params.append("page", options.page);
+    if (options.limit) params.append("limit", options.limit);
+    return apiClient.get(url + params.toString());
+  },
   updateActionItemStatus: (id, status) =>
     apiClient.patch(`/api/knowledge/action-items/${id}`, { status }),
   toggleActionItemReminder: (id, enabled) =>

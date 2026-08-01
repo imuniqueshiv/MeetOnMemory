@@ -10,6 +10,12 @@ import {
 } from "../services/importanceScoringService.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
 import {
+  scanForConflicts,
+  getConflicts,
+  getConflictDetail,
+  resolveConflict,
+} from "../controllers/conflictController.js";
+import {
   recalculateImportanceQueue,
   memoryLifecycleQueue,
 } from "../services/queueService.js";
@@ -291,6 +297,87 @@ export const getDecisions = async (req, res) => {
     sendError(res, 500, "Failed to fetch decisions");
   }
 };
+
+export const getUnifiedArchive = async (req, res) => {
+  try {
+    const { includeArchived, lifecycleState, search } = req.query || {};
+    const organization = sanitizeOrg(req.user?.organization);
+
+    const filter = { organization: new mongoose.Types.ObjectId(organization) };
+
+    if (search && typeof search === "string") {
+      filter.text = { $regex: search, $options: "i" };
+    }
+
+    if (
+      lifecycleState &&
+      ["active", "dormant", "archived", "expired"].includes(lifecycleState)
+    ) {
+      filter.lifecycleState = lifecycleState;
+    } else if (includeArchived !== "true") {
+      filter.lifecycleState = { $nin: ["archived", "expired"] };
+    }
+
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 100);
+    const skip = (page - 1) * limit;
+
+    const pipeline = [
+      { $match: filter },
+      { $addFields: { type: "decision" } },
+      {
+        $unionWith: {
+          coll: "actionitems",
+          pipeline: [
+            { $match: filter },
+            { $addFields: { type: "action-item" } },
+          ],
+        },
+      },
+      {
+        $sort: {
+          archivedAt: -1,
+          updatedAt: -1,
+        },
+      },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          items: [{ $skip: skip }, { $limit: limit }],
+        },
+      },
+    ];
+
+    const results = await Decision.aggregate(pipeline);
+    const total = results[0].metadata[0] ? results[0].metadata[0].total : 0;
+    let items = results[0].items;
+
+    items = await Decision.populate(items, {
+      path: "sourceMeetingId",
+      select: "title date",
+    });
+
+    const decisionIds = items.filter((i) => i.type === "decision").map((i) => i._id);
+    const actionItemIds = items.filter((i) => i.type === "action-item").map((i) => i._id);
+    
+    if (decisionIds.length) recordMemoryAccessBatch("decision", decisionIds);
+    if (actionItemIds.length) recordMemoryAccessBatch("actionItem", actionItemIds);
+
+    sendSuccess(res, {
+      items,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error("getUnifiedArchive error:", error);
+    sendError(res, 500, "Failed to fetch unified archive");
+  }
+};
+
 
 /**
  * Records explicit user feedback (1-5 rating) on how useful a memory

@@ -54,13 +54,6 @@ const KnowledgeArchive = () => {
   const loadArchivedMemories = useCallback(async () => {
     setLoading(true);
     try {
-      let decisionList = [];
-      let actionList = [];
-      let totalDecisions = 0;
-      let totalActions = 0;
-      let dPages = 1;
-      let aPages = 1;
-
       const queryOpts = {
         includeArchived: true,
         lifecycleState: "archived",
@@ -69,56 +62,72 @@ const KnowledgeArchive = () => {
         ...(searchQuery ? { search: searchQuery } : {}),
       };
 
-      if (selectedType === "all" || selectedType === "decision") {
-        const dRes = await knowledgeApi.getDecisions(
-          "createdAt",
-          null,
-          queryOpts,
-        );
-        if (dRes.data?.success) {
-          decisionList = (dRes.data.decisions || []).map((d) => ({
-            ...d,
-            type: "decision",
-          }));
-          totalDecisions = dRes.data.pagination?.total || decisionList.length;
-          dPages = dRes.data.pagination?.totalPages || 1;
+      if (selectedType === "all") {
+        const res = await knowledgeApi.getUnifiedArchive(queryOpts);
+        if (res.data?.success) {
+          setArchivedMemories(res.data.items || []);
+          setTotalCount(res.data.pagination?.total || 0);
+          setTotalPages(res.data.pagination?.totalPages || 1);
         }
-      }
+      } else {
+        let decisionList = [];
+        let actionList = [];
+        let totalDecisions = 0;
+        let totalActions = 0;
+        let dPages = 1;
+        let aPages = 1;
 
-      if (selectedType === "all" || selectedType === "action-item") {
-        const aRes = await knowledgeApi.getActionItems(
-          "all",
-          "createdAt",
-          queryOpts,
-        );
-        if (aRes.data?.success) {
-          actionList = (aRes.data.actionItems || []).map((a) => ({
-            ...a,
-            type: "action-item",
-          }));
-          totalActions = aRes.data.pagination?.total || actionList.length;
-          aPages = aRes.data.pagination?.totalPages || 1;
+        if (selectedType === "decision") {
+          const dRes = await knowledgeApi.getDecisions(
+            "createdAt",
+            null,
+            queryOpts,
+          );
+          if (dRes.data?.success) {
+            decisionList = (dRes.data.decisions || []).map((d) => ({
+              ...d,
+              type: "decision",
+            }));
+            totalDecisions = dRes.data.pagination?.total || decisionList.length;
+            dPages = dRes.data.pagination?.totalPages || 1;
+          }
         }
+
+        if (selectedType === "action-item") {
+          const aRes = await knowledgeApi.getActionItems(
+            "all",
+            "createdAt",
+            queryOpts,
+          );
+          if (aRes.data?.success) {
+            actionList = (aRes.data.actionItems || []).map((a) => ({
+              ...a,
+              type: "action-item",
+            }));
+            totalActions = aRes.data.pagination?.total || actionList.length;
+            aPages = aRes.data.pagination?.totalPages || 1;
+          }
+        }
+
+        const combined = [...decisionList, ...actionList].sort(
+          (a, b) =>
+            new Date(b.archivedAt || b.updatedAt) -
+            new Date(a.archivedAt || a.updatedAt),
+        );
+
+        setArchivedMemories(combined);
+
+        const computedTotal =
+          selectedType === "decision"
+            ? totalDecisions
+            : selectedType === "action-item"
+              ? totalActions
+              : totalDecisions + totalActions;
+        setTotalCount(computedTotal);
+
+        const maxPages = Math.max(dPages, aPages);
+        setTotalPages(maxPages > 0 ? maxPages : 1);
       }
-
-      const combined = [...decisionList, ...actionList].sort(
-        (a, b) =>
-          new Date(b.archivedAt || b.updatedAt) -
-          new Date(a.archivedAt || a.updatedAt),
-      );
-
-      setArchivedMemories(combined);
-
-      const computedTotal =
-        selectedType === "decision"
-          ? totalDecisions
-          : selectedType === "action-item"
-            ? totalActions
-            : totalDecisions + totalActions;
-      setTotalCount(computedTotal);
-
-      const maxPages = Math.max(dPages, aPages);
-      setTotalPages(maxPages > 0 ? maxPages : 1);
     } catch (err) {
       console.error("Failed to load archived memories:", err);
       toast.error("Failed to fetch archived knowledge items.");

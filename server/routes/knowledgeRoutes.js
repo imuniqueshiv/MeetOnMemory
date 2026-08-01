@@ -12,6 +12,7 @@ import {
   toggleActionItemReminderStatus,
   runMemoryLifecycleSweep,
   updateMemoryLifecycleState,
+  getUnifiedArchive,
 } from "../controllers/knowledgeController.js";
 import {
   runConsolidation,
@@ -73,6 +74,12 @@ router.get(
   requireOrgMembership,
   requirePermission("knowledge", "view"),
   getDecisions,
+);
+router.get(
+  "/archive/all",
+  requireOrgMembership,
+  requirePermission("knowledge", "view"),
+  getUnifiedArchive,
 );
 router.get(
   "/decisions/:id/lineage",
