@@ -292,6 +292,9 @@ const PollSection = ({ meetingId }) => {
                   return (
                     <div
                       key={opt._id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Vote for ${opt.text}`}
                       className={`relative overflow-hidden rounded-md border p-3 cursor-pointer transition-colors ${
                         !poll.isAnonymous &&
                         opt.votes.some(
@@ -308,6 +311,17 @@ const PollSection = ({ meetingId }) => {
                           poll.options,
                         )
                       }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleVote(
+                            poll._id,
+                            poll.pollType,
+                            opt._id,
+                            poll.options,
+                          );
+                        }
+                      }}
                     >
                       {/* Progress bar background */}
                       <div
