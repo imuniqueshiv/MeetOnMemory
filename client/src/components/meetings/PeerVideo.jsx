@@ -12,7 +12,7 @@ export default function PeerVideo({ peer, userInfo }) {
   }, [peer]);
 
   return (
-    <div className="relative bg-black rounded-2xl overflow-hidden shadow-lg aspect-video flex-1 min-w-[280px] max-w-[600px] border border-gray-800">
+    <div className="relative bg-black rounded-2xl overflow-hidden shadow-lg aspect-video w-full border border-gray-800">
       <video
         playsInline
         autoPlay

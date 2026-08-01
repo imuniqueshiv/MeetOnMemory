@@ -94,6 +94,14 @@ const MeetingRoom = () => {
     joinMeeting(null);
   };
 
+  const totalParticipants = peers.length + 1;
+  let gridColsClass = "grid-cols-1";
+  if (totalParticipants === 2) gridColsClass = "grid-cols-1 md:grid-cols-2";
+  else if (totalParticipants >= 3 && totalParticipants <= 4) gridColsClass = "grid-cols-2";
+  else if (totalParticipants >= 5 && totalParticipants <= 6) gridColsClass = "grid-cols-2 lg:grid-cols-3";
+  else if (totalParticipants >= 7) gridColsClass = "grid-cols-3 lg:grid-cols-4";
+
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-900 relative overflow-hidden font-sans">
       {/* ---------- DEVICE SETUP / INTRO SCREEN ---------- */}
@@ -138,9 +146,9 @@ const MeetingRoom = () => {
                 showNotes ? "hidden md:flex" : "flex"
               }`}
             >
-              <div className="w-full h-full max-w-5xl flex flex-col md:flex-row gap-6 items-center justify-center min-h-[300px]">
+              <div className={`w-full max-w-7xl grid gap-4 place-content-center items-center min-h-[300px] mx-auto ${gridColsClass}`}>
                 {/* Local Stream */}
-                <div className="relative bg-black rounded-2xl overflow-hidden shadow-lg aspect-video flex-1 min-w-[280px] max-w-[600px] border border-gray-800">
+                <div className="relative bg-black rounded-2xl overflow-hidden shadow-lg aspect-video w-full border border-gray-800">
                   <video
                     ref={userVideoRef}
                     autoPlay
