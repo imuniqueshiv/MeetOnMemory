@@ -20,3 +20,4 @@ export * from "./meetingFeedbackApi";
 export * from "./meetingCostApi";
 export * from "./personalNoteApi";
 export { default as aiSummaryTemplateApi } from "./aiSummaryTemplateApi";
+export { default as savedFilterApi } from "./savedFilterApi";

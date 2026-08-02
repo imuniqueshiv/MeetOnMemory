@@ -46,6 +46,7 @@ import templateLibraryRoutes from "./templateLibraryRoutes.js";
 import transcriptAnnotationRoutes from "./transcriptAnnotationRoutes.js";
 import glossaryRoutes from "./glossaryRoutes.js";
 import aiSummaryTemplateRoutes from "./aiSummaryTemplateRoutes.js";
+import savedFilterRoutes from "./savedFilterRoutes.js";
 
 const router = express.Router();
 
@@ -99,5 +100,6 @@ router.use("/api/template-library", templateLibraryRoutes);
 router.use("/api/transcript-annotations", transcriptAnnotationRoutes);
 router.use("/api/glossary", glossaryRoutes);
 router.use("/api/ai-summary-templates", aiSummaryTemplateRoutes);
+router.use("/api/saved-filters", savedFilterRoutes);
 
 export default router;

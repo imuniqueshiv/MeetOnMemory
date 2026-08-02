@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { jest } from "@jest/globals";
 import { expect } from "chai";
-import { app } from "../server.js";
+import "../server.js"; // Required for DB connection
 import GlossaryTerm from "../models/glossaryTermModel.js";
 import glossaryService from "../services/glossaryService.js";
 import Meeting from "../models/meetingModel.js";

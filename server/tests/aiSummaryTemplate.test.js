@@ -1,34 +1,27 @@
 import request from "supertest";
 import { app } from "../server.js";
-import { setupTestDB, teardownTestDB, clearTestDB } from "./setup.js";
 import User from "../models/userModel.js";
 import AiSummaryTemplate from "../models/aiSummaryTemplateModel.js";
+
+import { createClerkTestToken } from "./helpers/clerkTestAuth.js";
 
 let token;
 let user;
 
-beforeAll(async () => {
-  await setupTestDB();
-});
-
 beforeEach(async () => {
-  await clearTestDB();
   user = await User.create({
     name: "Test User",
     email: "test@example.com",
-    password: "password123",
+    password: "password123", // required by model
+    clerkUserId: "test_clerk_id", // Mock clerk ID
     role: "admin",
     organization: "650c82f0c7e2b819f8a3d123",
   });
 
-  const res = await request(app)
-    .post("/api/auth/login")
-    .send({ email: "test@example.com", password: "password123" });
-  token = res.body.token;
-});
-
-afterAll(async () => {
-  await teardownTestDB();
+  token = createClerkTestToken({
+    clerkUserId: user.clerkUserId,
+    email: user.email,
+  });
 });
 
 describe("AI Summary Template API", () => {
@@ -69,7 +62,7 @@ describe("AI Summary Template API", () => {
       .post("/api/ai-summary-templates")
       .set("Authorization", `Bearer ${token}`)
       .send({
-        name: "Only Name",
+        description: "Missing name",
       });
 
     expect(res.statusCode).toEqual(400);

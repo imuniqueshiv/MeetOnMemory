@@ -29,9 +29,6 @@ jest.unstable_mockModule("../services/eventBus.js", () => ({
 const { transcriptAnnotationService } =
   await import("../services/transcriptAnnotationService.js");
 const Transcript = (await import("../models/transcriptModel.js")).default;
-const TranscriptAnnotation = (
-  await import("../models/transcriptAnnotationModel.js")
-).default;
 
 describe("Transcript Annotation Service", () => {
   beforeEach(() => {

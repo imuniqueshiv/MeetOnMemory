@@ -8,6 +8,8 @@ import MeetingSearch from "./MeetingSearch.jsx";
 import MeetingFilters from "./MeetingFilters.jsx";
 import Pagination from "./Pagination.jsx";
 import EmptyState from "./EmptyState.jsx";
+import SavedFilterBar from "./SavedFilterBar.jsx";
+import SaveFilterModal from "./SaveFilterModal.jsx";
 import { useNavigate } from "react-router-dom";
 
 const MeetingRepository = () => {
@@ -27,6 +29,10 @@ const MeetingRepository = () => {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 9;
+
+  // Save Filter Modal state
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [refreshFilterBarKey, setRefreshFilterBarKey] = useState(0);
 
   // Fetch meetings
   const fetchMeetings = async () => {
@@ -242,6 +248,16 @@ const MeetingRepository = () => {
 
   return (
     <div className="space-y-6">
+      <SavedFilterBar
+        key={refreshFilterBarKey}
+        onApplyFilter={(savedFilters) => {
+          setFilters((prev) => ({ ...prev, ...savedFilters }));
+          if (savedFilters.searchQuery !== undefined) {
+            setSearchQuery(savedFilters.searchQuery);
+          }
+        }}
+      />
+
       {/* Search and Filters */}
       <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
         <MeetingSearch
@@ -287,8 +303,23 @@ const MeetingRepository = () => {
           >
             Clear all
           </button>
+
+          <button
+            onClick={() => setIsSaveModalOpen(true)}
+            className="ml-auto flex items-center gap-1 text-sm bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 px-3 py-1.5 rounded-lg transition-colors border border-blue-200 dark:border-blue-800"
+          >
+            <Filter className="w-3.5 h-3.5" />
+            Save View
+          </button>
         </div>
       )}
+
+      <SaveFilterModal
+        isOpen={isSaveModalOpen}
+        onClose={() => setIsSaveModalOpen(false)}
+        currentFilters={{ ...filters, searchQuery }}
+        onSaved={() => setRefreshFilterBarKey((prev) => prev + 1)}
+      />
 
       {/* Meeting Grid */}
       {currentMeetings.length === 0 ? (
