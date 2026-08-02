@@ -95,8 +95,22 @@ const deleteMeetingSchema = z.object({
 });
 
 const trashQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).optional().default(1),
-  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  page: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (!val) return 1;
+      const parsed = parseInt(val, 10);
+      return isNaN(parsed) || parsed < 1 ? 1 : parsed;
+    }),
+  limit: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (!val) return 20;
+      const parsed = parseInt(val, 10);
+      return isNaN(parsed) || parsed < 1 ? 20 : Math.min(parsed, 100);
+    }),
   search: z.string().trim().max(200).optional().default(""),
 });
 

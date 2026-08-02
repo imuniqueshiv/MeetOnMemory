@@ -31,5 +31,9 @@ export default {
     "calendarSyncOrganization.test.js",
     "pollExpirationBatch.test.js",
     "realtimeClerkAuthPhase4.test.js",
+    "voiceSearchTenantIsolation.test.js",
+    "sharedLinkAnalytics.test.js",
+    "ragAssistantSocketScope.test.js",
+    "dashboardController.test.js",
   ],
 };

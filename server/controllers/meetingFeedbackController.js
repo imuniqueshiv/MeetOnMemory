@@ -77,11 +77,34 @@ export const submitFeedback = async (req, res, next) => {
 export const getFeedbackForMeeting = async (req, res) => {
   try {
     const { meetingId } = req.params;
+    const userId = req.user._id;
 
     if (!mongoose.isValidObjectId(meetingId)) {
       return res
         .status(400)
         .json({ success: false, message: "Invalid meeting ID" });
+    }
+
+    // Authorize: only the meeting owner or a participant may read its feedback,
+    // matching submitFeedback in this file. Without this, any authenticated user
+    // could read another org's feedback and submitter PII (IDOR).
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Meeting not found" });
+    }
+
+    const isOwner = meeting.uploadedBy.toString() === userId.toString();
+    const isParticipant = meeting.participants?.some(
+      (p) => p.user?.toString() === userId.toString(),
+    );
+
+    if (!isOwner && !isParticipant) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to view feedback for this meeting",
+      });
     }
 
     const feedback = await MeetingFeedback.find({ meetingId }).populate(

@@ -1,76 +1,82 @@
-import DigestPreference from "../models/digestPreferenceModel.js";
+// server/controllers/digestPreferenceController.js
 
-// @desc    Get user digest preferences
-// @route   GET /api/digest-preferences
-// @access  Private
+import DigestPreference from "../models/digestPreferenceModel.js";
+import User from "../models/userModel.js";
+import transporter from "../config/nodeMailer.js";
+import MeetingDigestService from "../services/MeetingDigestService.js";
+
+/**
+ * @desc Get user digest preferences
+ * @route GET /api/digest-preferences
+ * @access Private
+ */
 export const getPreferences = async (req, res) => {
   try {
-    let preferences = await DigestPreference.findOne({
-      user: req.user._id,
-    }).populate("filterByTags", "name color");
+    const userId = req.user._id;
+    const preferences = await DigestPreference.findOne({ userId });
 
     if (!preferences) {
-      preferences = await DigestPreference.create({ user: req.user._id });
-    }
-
-    res.status(200).json(preferences);
-  } catch (error) {
-    res.status(500).json({
-      message: "Error fetching digest preferences",
-      error: error.message,
-    });
-  }
-};
-
-// @desc    Update user digest preferences
-// @route   PUT /api/digest-preferences
-// @access  Private
-export const updatePreferences = async (req, res) => {
-  try {
-    const {
-      frequency,
-      deliveryDay,
-      deliveryHour,
-      includeSections,
-      filterByTags,
-      maxItems,
-    } = req.body;
-
-    let preferences = await DigestPreference.findOne({ user: req.user._id });
-
-    if (!preferences) {
-      preferences = new DigestPreference({
-        user: req.user._id,
+      return res.status(200).json({
+        success: true,
+        data: {
+          frequency: "weekly",
+          includeSections: ["decisions", "action-items"],
+          enabled: true,
+        },
       });
     }
 
-    if (frequency) preferences.frequency = frequency;
-    if (deliveryDay !== undefined) preferences.deliveryDay = deliveryDay;
-    if (deliveryHour !== undefined) preferences.deliveryHour = deliveryHour;
-    if (includeSections) preferences.includeSections = includeSections;
-    if (filterByTags) preferences.filterByTags = filterByTags;
-    if (maxItems !== undefined) preferences.maxItems = maxItems;
-
-    await preferences.save();
-
-    res.status(200).json(preferences);
+    return res.status(200).json({
+      success: true,
+      data: preferences,
+    });
   } catch (error) {
-    res.status(500).json({
-      message: "Error updating digest preferences",
-      error: error.message,
+    console.error("Error fetching digest preferences:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch digest preferences.",
     });
   }
 };
 
-// @desc    Preview digest content without sending
-// @route   POST /api/digest-preferences/preview
-// @access  Private
+/**
+ * @desc Update user digest preferences
+ * @route PUT /api/digest-preferences
+ * @access Private
+ */
+export const updatePreferences = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { frequency, includeSections, enabled } = req.body;
+
+    const preferences = await DigestPreference.findOneAndUpdate(
+      { userId },
+      { frequency, includeSections, enabled },
+      { new: true, upsert: true, runValidators: true },
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Digest preferences updated successfully.",
+      data: preferences,
+    });
+  } catch (error) {
+    console.error("Error updating digest preferences:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update digest preferences.",
+    });
+  }
+};
+
+/**
+ * @desc Preview digest content without sending
+ * @route POST /api/digest-preferences/preview
+ * @access Private
+ */
 export const previewDigest = async (req, res) => {
   try {
-    const preferences = req.body; // Can be unsaved preferences from frontend state
-
-    // In a real app, this would query meetings/action items based on preferences
-    // and generate an HTML string. For now, we generate a mock preview based on preferences.
+    const preferences = req.body;
     const sections = preferences.includeSections || [];
 
     let html = `
@@ -92,7 +98,7 @@ export const previewDigest = async (req, res) => {
               <strong style="color: #4f46e5; display: block; margin-bottom: 4px; font-size: 16px;">Q3 Planning Meeting</strong>
               <span style="font-size: 14px; color: #4b5563; line-height: 1.5;">Discussed product roadmap, set OKRs, and allocated resources for the upcoming quarter.</span>
             </li>
-             <li style="margin-bottom: 12px; padding: 16px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+            <li style="margin-bottom: 12px; padding: 16px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
               <strong style="color: #4f46e5; display: block; margin-bottom: 4px; font-size: 16px;">Weekly Sync: Engineering</strong>
               <span style="font-size: 14px; color: #4b5563; line-height: 1.5;">Reviewed sprint progress and addressed blockers in the CI pipeline.</span>
             </li>
@@ -101,7 +107,10 @@ export const previewDigest = async (req, res) => {
       `;
     }
 
-    if (sections.includes("action_items")) {
+    if (
+      sections.includes("action_items") ||
+      sections.includes("action-items")
+    ) {
       html += `
         <div style="margin-bottom: 24px;">
           <h3 style="color: #111827; border-bottom: 2px solid #f3f4f6; padding-bottom: 8px; margin-bottom: 16px; font-size: 18px;">Action Items</h3>
@@ -113,7 +122,7 @@ export const previewDigest = async (req, res) => {
                  <div style="font-size: 12px; color: #b45309; margin-top: 4px;">Due: Tomorrow</div>
               </div>
             </li>
-             <li style="margin-bottom: 12px; padding: 12px 16px; background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 0 8px 8px 0; display: flex; align-items: flex-start; gap: 12px;">
+            <li style="margin-bottom: 12px; padding: 12px 16px; background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 0 8px 8px 0; display: flex; align-items: flex-start; gap: 12px;">
               <div style="margin-top: 2px;">⬜</div>
               <div>
                  <div style="font-weight: 500; color: #92400e;">Schedule performance reviews</div>
@@ -160,29 +169,97 @@ export const previewDigest = async (req, res) => {
       </div>
     `;
 
-    res.status(200).json({ html });
+    res.status(200).json({ success: true, html });
   } catch (error) {
     res.status(500).json({
+      success: false,
       message: "Error generating digest preview",
       error: error.message,
     });
   }
 };
 
-// @desc    Send test digest
-// @route   POST /api/digest-preferences/test
-// @access  Private
+/**
+ * @desc Send a real test digest to the user's email
+ * @route POST /api/digest-preferences/test
+ * @access Private
+ */
 export const sendTestDigest = async (req, res) => {
   try {
-    // Simulate email delivery latency
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const userId = req.user._id;
+    const preferences = req.body || {};
 
-    res
-      .status(200)
-      .json({ message: "Test digest sent successfully to your email." });
+    // 1. Validate that we have a user to send to
+    const user = await User.findById(userId).select("email name");
+    if (!user || !user.email) {
+      return res.status(400).json({
+        success: false,
+        message: "Unable to send test digest: User email not found in profile.",
+      });
+    }
+
+    // 2. Generate the actual HTML content based on the provided preferences
+    let htmlContent = "";
+    try {
+      htmlContent = await MeetingDigestService.buildDigestHtml(
+        user,
+        preferences,
+      );
+    } catch (htmlError) {
+      console.error(
+        "Error generating digest HTML for test, using fallback:",
+        htmlError,
+      );
+      htmlContent = `
+        <div style="font-family: sans-serif; padding: 24px; color: #334155; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #4f46e5; margin-bottom: 16px;">Your MeetOnMemory Test Digest</h2>
+          <p>Hello ${user.name || "User"},</p>
+          <p>This is a test of your configured digest preferences to ensure delivery is working correctly.</p>
+          <div style="background: #f8fafc; padding: 16px; border-radius: 8px; margin: 16px 0; border: 1px solid #e2e8f0;">
+            <p style="margin: 0 0 8px 0;"><strong>Frequency:</strong> ${
+              preferences.frequency || "Weekly"
+            }</p>
+            <p style="margin: 0;"><strong>Sections:</strong> ${
+              (preferences.includeSections || []).join(", ") || "None"
+            }</p>
+          </div>
+          <p style="margin-top: 24px; color: #64748b; font-size: 12px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
+            Sent by MeetOnMemory Digest System
+          </p>
+        </div>
+      `;
+    }
+
+    // 3. Attempt to send the real email via the configured service
+    const emailOptions = {
+      to: user.email,
+      subject: `[TEST] Your MeetOnMemory Digest Preview`,
+      html: htmlContent,
+    };
+
+    console.log(
+      `[Digest Test] Attempting to send test digest to ${user.email}...`,
+    );
+
+    // Execute the email send. This will throw if the email service fails.
+    await transporter.sendMail(emailOptions);
+
+    console.log(`[Digest Test] Test digest successfully sent to ${user.email}`);
+
+    // 4. Return success ONLY after the email request completes successfully
+    return res.status(200).json({
+      success: true,
+      message: `Test digest sent successfully to ${user.email}. Please check your inbox.`,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error sending test digest", error: error.message });
+    console.error("[Digest Test] CRITICAL: Error sending test digest:", error);
+
+    // Return a meaningful error to the frontend
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to send test digest. Please check your email configuration or try again later.",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
 };

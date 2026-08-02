@@ -1,3 +1,5 @@
+// client/src/pages/MemoryLifecycle.jsx
+
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar.jsx";
@@ -16,6 +18,7 @@ import {
   AlertCircle,
   Calendar,
   X,
+  ChevronDown,
 } from "lucide-react";
 
 const LIFECYCLE_STATES = [
@@ -32,11 +35,18 @@ const MEMORY_TYPES = [
   { value: "action-item", label: "Action Items" },
 ];
 
+const ITEMS_PER_PAGE = 20; // Server-side pagination limit
+
 const MemoryLifecycle = () => {
   const navigate = useNavigate();
   const [selectedState, setSelectedState] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+
   const [loading, setLoading] = useState(true);
   const [sweeping, setSweeping] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
@@ -56,62 +66,86 @@ const MemoryLifecycle = () => {
     memory: null,
   });
 
-  const loadMemories = useCallback(async () => {
-    setLoading(true);
-    try {
-      let decisionList = [];
-      let actionList = [];
+  const loadMemories = useCallback(
+    async (reset = false) => {
+      const currentPage = reset ? 1 : page;
 
-      const opts = {
-        includeArchived: true,
-        ...(selectedState !== "all" ? { lifecycleState: selectedState } : {}),
-        ...(searchQuery ? { search: searchQuery } : {}),
-      };
-
-      if (selectedType === "all" || selectedType === "decision") {
-        const dRes = await knowledgeApi.getDecisions("createdAt", null, opts);
-        if (dRes.data?.success) {
-          decisionList = (dRes.data.decisions || []).map((d) => ({
-            ...d,
-            type: "decision",
-          }));
-        }
+      if (reset) {
+        setLoading(true);
+        setMemories([]);
+        setPage(1);
+      } else {
+        setLoading(false); // Keep existing data visible while fetching more
       }
 
-      if (selectedType === "all" || selectedType === "action-item") {
-        const aRes = await knowledgeApi.getActionItems(
-          "all",
-          "createdAt",
-          opts,
+      try {
+        let decisionList = [];
+        let actionList = [];
+
+        const opts = {
+          includeArchived: true,
+          page: currentPage,
+          limit: ITEMS_PER_PAGE,
+          ...(selectedState !== "all" ? { lifecycleState: selectedState } : {}),
+          ...(searchQuery ? { search: searchQuery } : {}),
+        };
+
+        if (selectedType === "all" || selectedType === "decision") {
+          const dRes = await knowledgeApi.getDecisions("createdAt", null, opts);
+          if (dRes.data?.success) {
+            decisionList = (dRes.data.decisions || []).map((d) => ({
+              ...d,
+              type: "decision",
+            }));
+          }
+        }
+
+        if (selectedType === "all" || selectedType === "action-item") {
+          const aRes = await knowledgeApi.getActionItems(
+            "all",
+            "createdAt",
+            opts,
+          );
+          if (aRes.data?.success) {
+            actionList = (aRes.data.actionItems || []).map((a) => ({
+              ...a,
+              type: "action-item",
+            }));
+          }
+        }
+
+        const combined = [...decisionList, ...actionList].sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
         );
-        if (aRes.data?.success) {
-          actionList = (aRes.data.actionItems || []).map((a) => ({
-            ...a,
-            type: "action-item",
-          }));
+
+        // Check if we received fewer items than the limit, indicating no more pages
+        if (combined.length < ITEMS_PER_PAGE) {
+          setHasMore(false);
+        } else {
+          setHasMore(true);
         }
+
+        setMemories((prev) => (reset ? combined : [...prev, ...combined]));
+      } catch (err) {
+        console.error("Failed to load memories:", err);
+        toast.error("Failed to load knowledge lifecycle items.");
+      } finally {
+        setLoading(false);
       }
+    },
+    [selectedState, selectedType, searchQuery, page],
+  );
 
-      const combined = [...decisionList, ...actionList].sort(
-        (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
-      );
-
-      setMemories(combined);
-    } catch (err) {
-      console.error("Failed to load memories:", err);
-      toast.error("Failed to load knowledge lifecycle items.");
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedState, selectedType, searchQuery]);
-
+  // Debounced effect for filter changes (resets pagination)
   useEffect(() => {
     const timer = setTimeout(() => {
-      loadMemories();
+      loadMemories(true);
     }, 300);
     return () => clearTimeout(timer);
-  }, [loadMemories]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedState, selectedType, searchQuery]);
 
+  // Keyboard accessibility for modals
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
@@ -122,6 +156,19 @@ const MemoryLifecycle = () => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  const handleLoadMore = () => {
+    setPage((prev) => prev + 1);
+  };
+
+  // Fetch next page when `page` state increments
+  useEffect(() => {
+    if (page > 1) {
+      loadMemories(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
   const handleRunSweep = async () => {
     setSweeping(true);
     try {
@@ -130,7 +177,7 @@ const MemoryLifecycle = () => {
         toast.success(
           res.data.message || "Lifecycle sweep completed successfully.",
         );
-        await loadMemories();
+        await loadMemories(true);
       } else {
         toast.error(res.data?.message || "Failed to run lifecycle sweep.");
       }
@@ -175,7 +222,7 @@ const MemoryLifecycle = () => {
 
       if (res.data?.success) {
         toast.success(`Memory transitioned to ${targetState}.`);
-        await loadMemories();
+        await loadMemories(true); // Reset pagination on state change
       } else {
         toast.error(res.data?.message || "Failed to update lifecycle state.");
       }
@@ -227,7 +274,6 @@ const MemoryLifecycle = () => {
   return (
     <div className="min-h-screen bg-linear-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-200 pt-20">
       <Navbar />
-
       <div className="p-6 max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -241,7 +287,6 @@ const MemoryLifecycle = () => {
               retention states.
             </p>
           </div>
-
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate("/knowledge/archive")}
@@ -263,7 +308,7 @@ const MemoryLifecycle = () => {
               Run Lifecycle Sweep
             </button>
             <button
-              onClick={loadMemories}
+              onClick={() => loadMemories(true)}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm cursor-pointer"
             >
               <RefreshCw className="w-4 h-4" />
@@ -297,7 +342,7 @@ const MemoryLifecycle = () => {
               <select
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value)}
-                className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-medium"
+                className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-medium cursor-pointer"
               >
                 {MEMORY_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>
@@ -305,7 +350,6 @@ const MemoryLifecycle = () => {
                   </option>
                 ))}
               </select>
-
               <div className="relative flex-1">
                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                 <input
@@ -322,7 +366,7 @@ const MemoryLifecycle = () => {
 
         {/* Content List */}
         <div>
-          {loading && (
+          {loading && page === 1 && (
             <div className="flex items-center justify-center py-12 text-slate-500 gap-2">
               <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
               <span className="text-sm font-medium">Loading memories...</span>
@@ -344,99 +388,113 @@ const MemoryLifecycle = () => {
           )}
 
           {!loading && memories.length > 0 && (
-            <div className="space-y-3">
-              {memories.map((mem) => {
-                const currentState = mem.lifecycleState || "active";
-                return (
-                  <div
-                    key={mem._id}
-                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
-                  >
-                    <div className="space-y-2 flex-1">
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        {getStateBadge(currentState)}
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                          {mem.type === "decision" ? "Decision" : "Action Item"}
-                        </span>
-                        {mem.importanceScore !== undefined && (
-                          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                            Score:{" "}
-                            <strong className="text-slate-800 dark:text-slate-200">
-                              {mem.importanceScore}
-                            </strong>
+            <>
+              <div className="space-y-3">
+                {memories.map((mem) => {
+                  const currentState = mem.lifecycleState || "active";
+                  return (
+                    <div
+                      key={mem._id}
+                      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                    >
+                      <div className="space-y-2 flex-1">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          {getStateBadge(currentState)}
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            {mem.type === "decision"
+                              ? "Decision"
+                              : "Action Item"}
                           </span>
-                        )}
-                      </div>
-
-                      <p className="text-sm font-medium text-slate-900 dark:text-white leading-relaxed">
-                        {mem.text}
-                      </p>
-
-                      <div className="flex items-center gap-4 text-[11px] text-slate-500 dark:text-slate-400 flex-wrap">
-                        {mem.sourceMeetingId?.title && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5" />
-                            Meeting: {mem.sourceMeetingId.title}
-                          </span>
-                        )}
-                        <span>
-                          Created:{" "}
-                          {new Date(mem.createdAt).toLocaleDateString()}
-                        </span>
-                        {mem.lastAccessedAt && (
+                          {mem.importanceScore !== undefined && (
+                            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                              Score:{" "}
+                              <strong className="text-slate-800 dark:text-slate-200">
+                                {mem.importanceScore}
+                              </strong>
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm font-medium text-slate-900 dark:text-white leading-relaxed">
+                          {mem.text}
+                        </p>
+                        <div className="flex items-center gap-4 text-[11px] text-slate-500 dark:text-slate-400 flex-wrap">
+                          {mem.sourceMeetingId?.title && (
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5" />
+                              Meeting: {mem.sourceMeetingId.title}
+                            </span>
+                          )}
                           <span>
-                            Last accessed:{" "}
-                            {new Date(mem.lastAccessedAt).toLocaleDateString()}
+                            Created:{" "}
+                            {new Date(mem.createdAt).toLocaleDateString()}
                           </span>
+                          {mem.lastAccessedAt && (
+                            <span>
+                              Last accessed:{" "}
+                              {new Date(
+                                mem.lastAccessedAt,
+                              ).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap border-t md:border-t-0 pt-3 md:pt-0 border-slate-100 dark:border-slate-800">
+                        {currentState !== "active" && (
+                          <button
+                            onClick={() => openTransitionModal(mem, "active")}
+                            disabled={updatingId === mem._id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 cursor-pointer shadow-xs"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" /> Restore
+                          </button>
                         )}
+                        {currentState === "active" && (
+                          <button
+                            onClick={() => openTransitionModal(mem, "archived")}
+                            disabled={updatingId === mem._id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 cursor-pointer shadow-xs"
+                          >
+                            <Archive className="w-3.5 h-3.5" /> Archive
+                          </button>
+                        )}
+                        {currentState === "active" && (
+                          <button
+                            onClick={() => openTransitionModal(mem, "dormant")}
+                            disabled={updatingId === mem._id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
+                          >
+                            <Clock className="w-3.5 h-3.5" /> Dormant
+                          </button>
+                        )}
+                        <button
+                          onClick={() =>
+                            setHistoryModal({ isOpen: true, memory: mem })
+                          }
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+                        >
+                          History
+                        </button>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap border-t md:border-t-0 pt-3 md:pt-0 border-slate-100 dark:border-slate-800">
-                      {currentState !== "active" && (
-                        <button
-                          onClick={() => openTransitionModal(mem, "active")}
-                          disabled={updatingId === mem._id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 cursor-pointer shadow-xs"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" /> Restore
-                        </button>
-                      )}
-
-                      {currentState === "active" && (
-                        <button
-                          onClick={() => openTransitionModal(mem, "archived")}
-                          disabled={updatingId === mem._id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 cursor-pointer shadow-xs"
-                        >
-                          <Archive className="w-3.5 h-3.5" /> Archive
-                        </button>
-                      )}
-
-                      {currentState === "active" && (
-                        <button
-                          onClick={() => openTransitionModal(mem, "dormant")}
-                          disabled={updatingId === mem._id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
-                        >
-                          <Clock className="w-3.5 h-3.5" /> Dormant
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() =>
-                          setHistoryModal({ isOpen: true, memory: mem })
-                        }
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-                      >
-                        History
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+              {/* Load More Button for Pagination */}
+              {!loading && hasMore && (
+                <div className="flex justify-center pt-6">
+                  <button
+                    onClick={handleLoadMore}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors shadow-sm"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                    Load More Memories
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -460,12 +518,11 @@ const MemoryLifecycle = () => {
                     reason: "",
                   })
                 }
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <p className="text-xs text-slate-600 dark:text-slate-400">
               Are you sure you want to transition this memory to{" "}
               <strong className="text-indigo-600 dark:text-indigo-400 uppercase">
@@ -473,11 +530,9 @@ const MemoryLifecycle = () => {
               </strong>
               ?
             </p>
-
             <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 font-medium">
               "{transitionModal.memory?.text}"
             </div>
-
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Reason / Note (optional)
@@ -494,7 +549,6 @@ const MemoryLifecycle = () => {
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
               />
             </div>
-
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 onClick={() =>
@@ -511,7 +565,8 @@ const MemoryLifecycle = () => {
               </button>
               <button
                 onClick={confirmTransition}
-                className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 cursor-pointer shadow-xs"
+                disabled={updatingId === transitionModal.memory?._id}
+                className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 cursor-pointer shadow-xs"
               >
                 Confirm State Change
               </button>
@@ -531,16 +586,14 @@ const MemoryLifecycle = () => {
               </h3>
               <button
                 onClick={() => setHistoryModal({ isOpen: false, memory: null })}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">
               Memory: "{historyModal.memory?.text}"
             </p>
-
             <div className="max-h-60 overflow-y-auto space-y-3 pr-1">
               {(historyModal.memory?.lifecycleHistory || []).length === 0 ? (
                 <p className="text-xs text-slate-400 py-4 text-center">
@@ -572,7 +625,6 @@ const MemoryLifecycle = () => {
                 ))
               )}
             </div>
-
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => setHistoryModal({ isOpen: false, memory: null })}

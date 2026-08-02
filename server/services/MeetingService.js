@@ -13,6 +13,7 @@ import mongoose from "mongoose";
 import User from "../models/userModel.js";
 import Meeting from "../models/meetingModel.js";
 import Membership from "../models/membershipModel.js";
+import AiSummaryTemplate from "../models/aiSummaryTemplateModel.js";
 import { captureSnapshot } from "./graphSnapshotService.js";
 import eventBus from "./eventBus.js";
 import {
@@ -391,9 +392,45 @@ export const generateMeetingMoM = async (
 
   console.log(`🧠 Generating MoM for ${meetingId || "transcript-only"}...`);
 
+  let customInstructions = null;
+  try {
+    if (meeting) {
+      if (meeting.aiSummaryTemplate) {
+        const template = await AiSummaryTemplate.findById(
+          meeting.aiSummaryTemplate,
+        );
+        if (template) customInstructions = template.customInstructions;
+      } else if (meeting.organization) {
+        const defaultTemplate = await AiSummaryTemplate.findOne({
+          organization: meeting.organization,
+          isDefault: true,
+        });
+        if (defaultTemplate)
+          customInstructions = defaultTemplate.customInstructions;
+      }
+    } else if (user && user.organization) {
+      const defaultTemplate = await AiSummaryTemplate.findOne({
+        organization: user.organization,
+        isDefault: true,
+      });
+      if (defaultTemplate)
+        customInstructions = defaultTemplate.customInstructions;
+    }
+  } catch (err) {
+    console.error(
+      "⚠️ Failed to fetch AI summary template instructions:",
+      err.message,
+    );
+  }
+
   const { generateMoMWithAI, normalizeMoM, buildHumanReadableMoM } =
     await loadGenerativeAI();
-  const structured = await generateMoMWithAI(textToSummarize, date, title);
+  const structured = await generateMoMWithAI(
+    textToSummarize,
+    date,
+    title,
+    customInstructions,
+  );
   if (!structured) throw new Error("No summary generated");
 
   const mom = normalizeMoM(structured, title, date);
@@ -453,32 +490,71 @@ export const getAllMeetings = async (userId, orgId, queryParams = {}) => {
   const {
     page = 1,
     limit = 10,
+    search = "",
+    sortBy = "createdAt",
+    sortOrder = "desc",
+    meetingType,
     startDate,
     endDate,
     includeArchived,
   } = queryParams;
 
-  const queryOptions = [{ uploadedBy: userId }];
+  const normalizedPage = Math.max(parseInt(page, 10) || 1, 1);
+  const normalizedLimit = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
+
+  const baseConditions = [];
+
   if (orgId) {
-    queryOptions.push({ organization: orgId });
+    baseConditions.push({
+      $or: [{ uploadedBy: userId }, { organization: orgId }],
+    });
+  } else {
+    baseConditions.push({ uploadedBy: userId });
   }
 
-  const query = { $or: queryOptions };
-
   if (!includeArchived) {
-    query.archived = { $ne: true };
+    baseConditions.push({ archived: { $ne: true } });
+  }
+
+  if (meetingType) {
+    baseConditions.push({ meetingType });
   }
 
   if (startDate || endDate) {
-    query.date = {};
-    if (startDate) query.date.$gte = new Date(startDate);
-    if (endDate) query.date.$lte = new Date(endDate);
+    const dateFilter = {};
+    if (startDate) dateFilter.$gte = new Date(startDate);
+    if (endDate) dateFilter.$lte = new Date(endDate);
+    baseConditions.push({ date: dateFilter });
   }
 
-  const skip = (parseInt(page) - 1) * parseInt(limit);
+  if (search && search.trim()) {
+    const searchRegex = escapeRegExp(search.trim());
+    baseConditions.push({
+      $or: [
+        { title: { $regex: searchRegex, $options: "i" } },
+        { summary: { $regex: searchRegex, $options: "i" } },
+      ],
+    });
+  }
+
+  const query = baseConditions.length > 0 ? { $and: baseConditions } : {};
+
+  const skip = (normalizedPage - 1) * normalizedLimit;
+
+  // Sort mapping
+  const validSortFields = [
+    "title",
+    "date",
+    "createdAt",
+    "duration",
+    "meetingType",
+  ];
+  const sortField = validSortFields.includes(sortBy) ? sortBy : "createdAt";
+  const sortDirection = sortOrder === "asc" ? 1 : -1;
+  const sort = { [sortField]: sortDirection };
 
   const [meetings, total] = await Promise.all([
-    MeetingStorageService.getMeetingsQuery(query, skip, parseInt(limit)),
+    MeetingStorageService.getMeetingsQuery(query, skip, normalizedLimit, sort),
     MeetingStorageService.countMeetingsQuery(query),
   ]);
 

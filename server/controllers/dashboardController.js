@@ -14,24 +14,31 @@ export const getDashboardMetrics = async (req, res) => {
 
     const now = new Date();
 
+    const ownerIdentifiers = [
+      userId?.toString(),
+      userId,
+      req.user?.email,
+      req.user?.name,
+    ].filter(Boolean);
+
     // Fire all three queries concurrently to ensure fast response times
     const [overdueTasks, unreadNotifications, upcomingMeetings] =
       await Promise.all([
-        // 1. Overdue action items assigned to the user
+        // 1. Overdue action items assigned to the user (owner field matches user id, email, or name)
         ActionItem.countDocuments({
           organization,
-          assignees: userId,
+          owner: { $in: ownerIdentifiers },
           status: { $nin: ["resolved", "superseded"] },
           dueDate: { $lt: now },
         }),
-        // 2. Unread notifications for the user
+        // 2. Unread notifications for the user (user field)
         Notification.countDocuments({
-          recipient: userId,
+          user: userId,
           isRead: false,
         }),
-        // 3. Upcoming meetings in the organization
+        // 3. Upcoming meetings in the organization (organization field)
         Meeting.countDocuments({
-          organizationId: organization,
+          organization,
           date: { $gte: now },
         }),
       ]);

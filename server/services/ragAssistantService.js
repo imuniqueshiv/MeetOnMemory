@@ -365,12 +365,17 @@ ${contextText}
 
   const result = await chat.sendMessageStream(content);
 
+  const emitter =
+    socket && typeof socket.to === "function" && socket.sockets
+      ? socket.to([userId.toString(), `user:${userId}`, `session:${sessionId}`])
+      : socket;
+
   let fullResponse = "";
   for await (const chunk of result.stream) {
     const chunkText = chunk.text();
     fullResponse += chunkText;
-    if (socket) {
-      socket.emit("assistant_message_chunk", { sessionId, chunk: chunkText });
+    if (emitter) {
+      emitter.emit("assistant_message_chunk", { sessionId, chunk: chunkText });
     }
   }
 
@@ -399,8 +404,8 @@ ${contextText}
   session.messages.push(assistantMessage);
   await session.save();
 
-  if (socket) {
-    socket.emit("assistant_message_done", {
+  if (emitter) {
+    emitter.emit("assistant_message_done", {
       sessionId,
       message: session.messages[session.messages.length - 1],
       title: session.title,

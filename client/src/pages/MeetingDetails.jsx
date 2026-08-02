@@ -10,6 +10,7 @@ import MeetingParticipants from "../components/meeting-details/MeetingParticipan
 import MeetingAgenda from "../components/meeting-details/MeetingAgenda";
 import MeetingMetadata from "../components/meeting-details/MeetingMetadata";
 import MeetingActions from "../components/meeting-details/MeetingActions";
+import TranscriptAnnotations from "../components/meeting-details/TranscriptAnnotations";
 import ShareModal from "../components/shared-links/ShareModal";
 import MeetingFollowUpBanner from "../components/meeting-details/MeetingFollowUpBanner";
 import PresentMode from "../components/meeting-details/PresentMode";
@@ -167,6 +168,7 @@ const MeetingDetails = () => {
         <MeetingSummary meeting={meeting} />
         <MeetingCollaborativeNotes meeting={meeting} />
         <MeetingTranscript meeting={meeting} />
+        <TranscriptAnnotations meeting={meeting} />
         <MeetingParticipants meeting={meeting} />
         <MeetingAgenda meeting={meeting} />
         <MeetingMetadata meeting={meeting} />

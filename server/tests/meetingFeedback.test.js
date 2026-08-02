@@ -2,6 +2,7 @@ import {
   submitFeedback,
   getAggregateFeedback,
   deleteFeedback,
+  getFeedbackForMeeting,
 } from "../controllers/meetingFeedbackController.js";
 import MeetingFeedback from "../models/meetingFeedbackModel.js";
 import Meeting from "../models/meetingModel.js";
@@ -122,6 +123,61 @@ describe("Meeting Feedback Controller", () => {
             },
           ],
         }),
+      );
+    });
+  });
+
+  describe("getFeedbackForMeeting", () => {
+    it("returns 403 when the user is neither owner nor participant", async () => {
+      const meetingId = new mongoose.Types.ObjectId().toString();
+      req.params.meetingId = meetingId;
+
+      jest.spyOn(Meeting, "findById").mockResolvedValue({
+        _id: meetingId,
+        uploadedBy: new mongoose.Types.ObjectId().toString(),
+        participants: [],
+      });
+      const findSpy = jest.spyOn(MeetingFeedback, "find");
+
+      await getFeedbackForMeeting(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false }),
+      );
+      // Must not query/leak feedback for an unauthorized user.
+      expect(findSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 when the meeting does not exist", async () => {
+      req.params.meetingId = new mongoose.Types.ObjectId().toString();
+      jest.spyOn(Meeting, "findById").mockResolvedValue(null);
+
+      await getFeedbackForMeeting(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    it("returns feedback for a participant", async () => {
+      const meetingId = new mongoose.Types.ObjectId().toString();
+      req.params.meetingId = meetingId;
+
+      jest.spyOn(Meeting, "findById").mockResolvedValue({
+        _id: meetingId,
+        uploadedBy: new mongoose.Types.ObjectId().toString(),
+        participants: [{ user: req.user._id }],
+      });
+      jest.spyOn(MeetingFeedback, "find").mockReturnValue({
+        populate: jest
+          .fn()
+          .mockResolvedValue([{ _id: "f1", overallRating: 5 }]),
+      });
+
+      await getFeedbackForMeeting(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true }),
       );
     });
   });

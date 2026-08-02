@@ -1,5 +1,9 @@
 import { toast } from "react-toastify";
-import { meetingApi, meetingTemplateApi } from "../../../services";
+import {
+  meetingApi,
+  meetingTemplateApi,
+  aiSummaryTemplateApi,
+} from "../../../services";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import AppContent from "../../../context/AppContent";
 import {
@@ -65,6 +69,9 @@ export const useScheduleMeeting = ({
   const [loading, setLoading] = useState(false);
   const [templates, setTemplates] = useState([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [aiSummaryTemplates, setAiSummaryTemplates] = useState([]);
+  const [selectedAiSummaryTemplateId, setSelectedAiSummaryTemplateId] =
+    useState("");
   const [duplicateMetadata, setDuplicateMetadata] = useState({
     tags: [],
     policyDetails: null,
@@ -86,8 +93,14 @@ export const useScheduleMeeting = ({
       scheduleData,
       participants,
       selectedTemplateId,
+      selectedAiSummaryTemplateId,
     }),
-    [participants, scheduleData, selectedTemplateId],
+    [
+      participants,
+      scheduleData,
+      selectedTemplateId,
+      selectedAiSummaryTemplateId,
+    ],
   );
 
   const restoreDraftValues = (draft) => {
@@ -96,6 +109,9 @@ export const useScheduleMeeting = ({
     if (Array.isArray(draft?.agendaItems)) setAgendaItems(draft.agendaItems);
     if (typeof draft?.selectedTemplateId === "string") {
       setSelectedTemplateId(draft.selectedTemplateId);
+    }
+    if (typeof draft?.selectedAiSummaryTemplateId === "string") {
+      setSelectedAiSummaryTemplateId(draft.selectedAiSummaryTemplateId);
     }
   };
 
@@ -116,18 +132,40 @@ export const useScheduleMeeting = ({
   });
 
   useEffect(() => {
-    const fetchTemplates = async () => {
-      try {
-        const res = await meetingTemplateApi.getTemplates();
-        if (res.data?.success) {
-          setTemplates(res.data.templates);
-        }
-      } catch (error) {
-        console.error("Failed to fetch templates:", error);
-      }
+    let cancelled = false;
+    if (userData?.organization) {
+      meetingTemplateApi
+        .getTemplates(userData.organization._id || userData.organization)
+        .then((res) => {
+          if (!cancelled && res.data?.success) setTemplates(res.data.templates);
+        })
+        .catch((err) =>
+          console.error("Failed to fetch meeting templates:", err),
+        );
+
+      aiSummaryTemplateApi
+        .getTemplates()
+        .then((res) => {
+          if (!cancelled && res.data) {
+            setAiSummaryTemplates(res.data);
+            if (
+              res.data.length > 0 &&
+              !draftValues.selectedAiSummaryTemplateId
+            ) {
+              const defaultTemplate = res.data.find((t) => t.isDefault);
+              if (defaultTemplate)
+                setSelectedAiSummaryTemplateId(defaultTemplate._id);
+            }
+          }
+        })
+        .catch((err) =>
+          console.error("Failed to fetch AI summary templates:", err),
+        );
+    }
+    return () => {
+      cancelled = true;
     };
-    fetchTemplates();
-  }, []);
+  }, [userData, draftValues.selectedAiSummaryTemplateId]);
 
   const hydrateDuplicateMeeting = useCallback((duplicateData) => {
     const duplicated = buildDuplicateScheduleState(duplicateData);
@@ -290,6 +328,9 @@ export const useScheduleMeeting = ({
     loading,
     templates,
     selectedTemplateId,
+    aiSummaryTemplates,
+    selectedAiSummaryTemplateId,
+    setSelectedAiSummaryTemplateId,
     handleTemplateSelect,
     handleScheduleChange,
     addParticipant,

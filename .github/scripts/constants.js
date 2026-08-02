@@ -69,6 +69,14 @@ export const PR_EVENTS = Object.freeze({
 export const EXPECTED_REPOSITORY =
   process.env.AUTOMATION_REPOSITORY || process.env.GITHUB_REPOSITORY || "";
 
+export const ALLOWED_BRANCH_PREFIXES = Object.freeze([
+  "feature",
+  "fix",
+  "docs",
+  "chore",
+  "refactor",
+]);
+
 export const REQUIRED_CHECK_NAMES = Object.freeze([
   "Code Quality",
   "Backend Validation",

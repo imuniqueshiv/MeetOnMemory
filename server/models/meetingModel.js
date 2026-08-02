@@ -94,6 +94,11 @@ const meetingSchema = new mongoose.Schema(
       type: String, // Optional - additional AI notes
       default: "",
     },
+    aiSummaryTemplate: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AiSummaryTemplate",
+      default: null,
+    },
     status: {
       type: String,
       enum: ["uploaded", "processing", "completed", "failed"],

@@ -157,12 +157,21 @@ export const parseJsonOutput = (outputText) => {
  * @param {number} [context.part] 1-based chunk index, when chunked
  * @param {number} [context.totalParts]
  */
-const buildMoMPrompt = (transcriptSegment, date, title, context = {}) => {
+const buildMoMPrompt = (
+  transcriptSegment,
+  date,
+  title,
+  context = {},
+  customInstructions = null,
+) => {
   const { part, totalParts } = context;
   const chunkNotice =
     part && totalParts > 1
       ? `\n⚠️ This is part ${part} of ${totalParts} of a longer transcript. Extract only what is present in THIS part; do not invent content from the missing parts, and do not summarise the meeting as a whole.\n`
       : "";
+  const customInstructionsNotice = customInstructions
+    ? `\n⚠️ CUSTOM INSTRUCTIONS: ${customInstructions}\n`
+    : "";
 
   return `
 You are an advanced AI meeting assistant responsible for preparing *formal, well-structured Minutes of Meeting (MoM)*
@@ -171,6 +180,7 @@ from the transcript provided below.
 The MoM should be factual, concise, and formatted for professional use in organizations, universities, or institutions.
 Avoid repetition, filler words, and unnecessary phrases. Capture key insights, outcomes, and responsibilities accurately.
 ${chunkNotice}
+${customInstructionsNotice}
 🎯 Your goal is to return a clean JSON object with the following fields:
 {
   "title": "A clear, professional meeting title (e.g., 'AI Integration Strategy Discussion')",
@@ -363,9 +373,15 @@ const runLocalFallback = async (textToSummarize, date, title, degradation) => {
  * @param {string} textToSummarize
  * @param {string} date
  * @param {string} title
+ * @param {string} [customInstructions]
  * @returns {Promise<{mom: object, generation: object}>}
  */
-export const generateMoMDetailed = async (textToSummarize, date, title) => {
+export const generateMoMDetailed = async (
+  textToSummarize,
+  date,
+  title,
+  customInstructions = null,
+) => {
   const source = String(textToSummarize ?? "");
   const startedAt = Date.now();
 
@@ -402,10 +418,16 @@ export const generateMoMDetailed = async (textToSummarize, date, title) => {
 
     const parts = [];
     for (let index = 0; index < usedChunks.length; index += 1) {
-      const prompt = buildMoMPrompt(usedChunks[index], date, title, {
-        part: index + 1,
-        totalParts: usedChunks.length,
-      });
+      const prompt = buildMoMPrompt(
+        usedChunks[index],
+        date,
+        title,
+        {
+          part: index + 1,
+          totalParts: usedChunks.length,
+        },
+        customInstructions,
+      );
 
       const outputText = await generateText(
         prompt,
@@ -467,8 +489,18 @@ export const generateMoMDetailed = async (textToSummarize, date, title) => {
  * Prefer `generateMoMDetailed` in new code — it also returns the provenance
  * needed to identify (and later reprocess) degraded meetings.
  */
-export const generateMoMWithAI = async (textToSummarize, date, title) => {
-  const { mom } = await generateMoMDetailed(textToSummarize, date, title);
+export const generateMoMWithAI = async (
+  textToSummarize,
+  date,
+  title,
+  customInstructions = null,
+) => {
+  const { mom } = await generateMoMDetailed(
+    textToSummarize,
+    date,
+    title,
+    customInstructions,
+  );
   return mom;
 };
 

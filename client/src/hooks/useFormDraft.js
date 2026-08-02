@@ -68,6 +68,7 @@ export const useFormDraft = ({
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [status, setStatus] = useState("idle");
   const hasInspectedStorage = useRef(false);
+  const hasDraftRef = useRef(false);
   const skipNextSave = useRef(false);
 
   const storageAvailable = useMemo(
@@ -107,6 +108,7 @@ export const useFormDraft = ({
 
   useEffect(() => {
     hasInspectedStorage.current = false;
+    hasDraftRef.current = false;
     setRecoverableDraft(null);
     setLastSavedAt(null);
     setStatus("idle");
@@ -119,6 +121,7 @@ export const useFormDraft = ({
 
     if (!draft) {
       if (rawDraft) window.localStorage.removeItem(key);
+      skipNextSave.current = true;
       return;
     }
 
@@ -128,9 +131,11 @@ export const useFormDraft = ({
     ) {
       window.localStorage.removeItem(key);
       setStatus("expired");
+      skipNextSave.current = true;
       return;
     }
 
+    hasDraftRef.current = true;
     setRecoverableDraft(draft);
     setLastSavedAt(draft.savedAt);
     setStatus("recovery-available");
@@ -142,6 +147,7 @@ export const useFormDraft = ({
       !storageAvailable ||
       !key ||
       !hasInspectedStorage.current ||
+      hasDraftRef.current ||
       recoverableDraft
     ) {
       return undefined;

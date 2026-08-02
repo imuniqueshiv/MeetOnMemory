@@ -20,6 +20,7 @@ import MeetingTemplates from "../pages/MeetingTemplates.jsx";
 import TemplateLibrary from "../pages/TemplateLibrary.jsx";
 import UploadMeeting from "../pages/UploadMeeting.jsx";
 import Policies from "../pages/Policies.jsx";
+import AiSummaryTemplates from "../pages/AiSummaryTemplates.jsx";
 import Summaries from "../pages/Summaries.jsx";
 import Reports from "../pages/Reports.jsx";
 import ReportBuilder from "../pages/ReportBuilder.jsx";
@@ -443,6 +444,8 @@ const ProtectedRoutes = (
         </ProtectedRoute>
       }
     />
+    <Route path="/meeting-templates" element={<MeetingTemplates />} />
+    <Route path="/ai-summary-templates" element={<AiSummaryTemplates />} />
     <Route path="/access-denied" element={<AccessDenied />} />
 
     <Route
