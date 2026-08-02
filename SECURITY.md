@@ -51,11 +51,11 @@ Examples of security-related issues include:
 - Authorization issues
 - Privilege escalation
 - Sensitive data exposure
-- JWT vulnerabilities
+- Clerk session token misuse
+- Secondary JWT misuse (shared links / Slack state / exports)
 - Injection attacks
 - File upload vulnerabilities
 - Cross-Site Scripting (XSS)
-- Cross-Site Request Forgery (CSRF)
 - Remote Code Execution (RCE)
 
 ---

@@ -8,6 +8,7 @@ import {
   deleteComment,
   toggleReaction,
 } from "../../api/commentApi";
+import { createClerkSocketOptions } from "../../services/apiClient.js";
 
 const CommentSection = ({ meetingId }) => {
   const { userData, backendUrl } = useContext(AppContent);
@@ -32,100 +33,107 @@ const CommentSection = ({ meetingId }) => {
     };
     fetchComments();
 
-    // Socket connection for real-time
-    socketRef.current = io(backendUrl, {
-      withCredentials: true,
-      transports: ["websocket"],
-    });
+    let cancelled = false;
 
-    // In MeetOnMemory, clients join a room implicitly in some setups or explicitly
-    // Here we'll rely on the server side taking care of it if they use a general connection,
-    // or we might need to emit a join event if we modify meetingSocket to allow it.
-    // However, meetingSocket expects "join-meeting" to be emitted. Let's emit it.
-    socketRef.current.on("connect", () => {
-      socketRef.current.emit("join-meeting", {
-        roomId: meetingId,
-        userInfo: { name: userData?.name },
+    (async () => {
+      const opts = await createClerkSocketOptions({
+        transports: ["websocket"],
       });
-    });
+      if (cancelled) return;
 
-    socketRef.current.on("comment:new", (newCmt) => {
-      setComments((prev) => {
-        if (!newCmt.parentComment) {
-          // Top level
-          return [newCmt, ...prev];
-        } else {
-          // Reply
+      // Socket connection for real-time
+      socketRef.current = io(backendUrl, opts);
+
+      // In MeetOnMemory, clients join a room implicitly in some setups or explicitly
+      // Here we'll rely on the server side taking care of it if they use a general connection,
+      // or we might need to emit a join event if we modify meetingSocket to allow it.
+      // However, meetingSocket expects "join-meeting" to be emitted. Let's emit it.
+      socketRef.current.on("connect", () => {
+        socketRef.current.emit("join-meeting", {
+          roomId: meetingId,
+          userInfo: { name: userData?.name },
+        });
+      });
+
+      socketRef.current.on("comment:new", (newCmt) => {
+        setComments((prev) => {
+          if (!newCmt.parentComment) {
+            // Top level
+            return [newCmt, ...prev];
+          } else {
+            // Reply
+            return prev.map((c) => {
+              if (c._id === newCmt.parentComment) {
+                const replies = c.replies || [];
+                return { ...c, replies: [...replies, newCmt] };
+              }
+              return c;
+            });
+          }
+        });
+      });
+
+      socketRef.current.on("comment:update", (updatedCmt) => {
+        setComments((prev) => {
           return prev.map((c) => {
-            if (c._id === newCmt.parentComment) {
-              const replies = c.replies || [];
-              return { ...c, replies: [...replies, newCmt] };
+            if (c._id === updatedCmt._id)
+              return { ...c, ...updatedCmt, replies: c.replies };
+            if (c.replies) {
+              return {
+                ...c,
+                replies: c.replies.map((r) =>
+                  r._id === updatedCmt._id ? updatedCmt : r,
+                ),
+              };
             }
             return c;
           });
-        }
-      });
-    });
-
-    socketRef.current.on("comment:update", (updatedCmt) => {
-      setComments((prev) => {
-        return prev.map((c) => {
-          if (c._id === updatedCmt._id)
-            return { ...c, ...updatedCmt, replies: c.replies };
-          if (c.replies) {
-            return {
-              ...c,
-              replies: c.replies.map((r) =>
-                r._id === updatedCmt._id ? updatedCmt : r,
-              ),
-            };
-          }
-          return c;
         });
       });
-    });
 
-    socketRef.current.on("comment:delete", ({ id, parentComment }) => {
-      setComments((prev) => {
-        if (!parentComment) {
-          return prev.filter((c) => c._id !== id);
-        } else {
+      socketRef.current.on("comment:delete", ({ id, parentComment }) => {
+        setComments((prev) => {
+          if (!parentComment) {
+            return prev.filter((c) => c._id !== id);
+          } else {
+            return prev.map((c) => {
+              if (c._id === parentComment) {
+                return { ...c, replies: c.replies.filter((r) => r._id !== id) };
+              }
+              return c;
+            });
+          }
+        });
+      });
+
+      socketRef.current.on("comment:reaction", (updatedCmt) => {
+        setComments((prev) => {
           return prev.map((c) => {
-            if (c._id === parentComment) {
-              return { ...c, replies: c.replies.filter((r) => r._id !== id) };
+            if (c._id === updatedCmt._id)
+              return {
+                ...c,
+                reactions: updatedCmt.reactions,
+                replies: c.replies,
+              };
+            if (c.replies) {
+              return {
+                ...c,
+                replies: c.replies.map((r) =>
+                  r._id === updatedCmt._id
+                    ? { ...r, reactions: updatedCmt.reactions }
+                    : r,
+                ),
+              };
             }
             return c;
           });
-        }
-      });
-    });
-
-    socketRef.current.on("comment:reaction", (updatedCmt) => {
-      setComments((prev) => {
-        return prev.map((c) => {
-          if (c._id === updatedCmt._id)
-            return {
-              ...c,
-              reactions: updatedCmt.reactions,
-              replies: c.replies,
-            };
-          if (c.replies) {
-            return {
-              ...c,
-              replies: c.replies.map((r) =>
-                r._id === updatedCmt._id
-                  ? { ...r, reactions: updatedCmt.reactions }
-                  : r,
-              ),
-            };
-          }
-          return c;
         });
       });
-    });
+    })();
 
     return () => {
-      socketRef.current.disconnect();
+      cancelled = true;
+      socketRef.current?.disconnect();
     };
   }, [meetingId, backendUrl, userData]);
 

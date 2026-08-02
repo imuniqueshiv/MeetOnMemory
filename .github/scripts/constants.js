@@ -2,6 +2,7 @@ export const AUTOMATION = Object.freeze({
   id: "meetonmemory",
   metadataStart: "<!-- mom:metadata:start -->",
   metadataEnd: "<!-- mom:metadata:end -->",
+  prOpenedMarker: "<!-- automation:pr-opened -->",
   markerPrefix: "mom",
   expiredMarker: "mom:claim-expired",
   claimWelcomeMarker: "mom:claim-welcome",

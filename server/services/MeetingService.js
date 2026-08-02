@@ -11,8 +11,8 @@
 import fs from "fs";
 import mongoose from "mongoose";
 import User from "../models/userModel.js";
+import Meeting from "../models/meetingModel.js";
 import Membership from "../models/membershipModel.js";
-import Tag from "../models/tagModel.js";
 import { captureSnapshot } from "./graphSnapshotService.js";
 import eventBus from "./eventBus.js";
 import {
@@ -24,6 +24,11 @@ import {
 // Imported specific services and utils
 import { validatePath } from "../utils/fileUtils.js";
 import * as MeetingStorageService from "./MeetingStorageService.js";
+import { normalizeAgendaItems } from "../utils/agendaOrdering.js";
+import {
+  deletedMeetingsFilter,
+  escapeRegExp,
+} from "../utils/meetingSoftDelete.js";
 
 // AI / calendar / queue / transcription stacks are loaded on demand. Static
 // imports pull @xenova/transformers, axios diamonds, and related graphs into
@@ -111,6 +116,47 @@ const _runKnowledgeGraph = (meetingDoc, mom) => {
 // Public service methods
 // ═══════════════════════════════════════════════════════════════
 
+export const buildDuplicateMeetingData = (meeting) => {
+  if (!meeting) throw new NotFoundError("Meeting not found");
+
+  const plain =
+    typeof meeting.toObject === "function" ? meeting.toObject() : meeting;
+
+  return {
+    sourceMeetingId: plain._id?.toString?.() || String(plain._id || ""),
+    title: `${plain.title || "Untitled Meeting"} (Copy)`,
+    description: plain.description || "",
+    organization:
+      plain.organization?.toString?.() || plain.organization || null,
+    meetingType: plain.meetingType || "conference",
+    date: "",
+    time: "",
+    duration: plain.duration ?? null,
+    location: plain.location || "",
+    venue: plain.venue || "",
+    participants: (plain.participants || []).map((participant) => ({
+      name: participant.name || "",
+      email: participant.email || "",
+      role: participant.role || "",
+    })),
+    agendaItems: (plain.agendaItems || []).map((item) => ({
+      text: item.text || "",
+      description: item.description || "",
+      duration: item.duration ?? null,
+    })),
+    tags: [...(plain.tags || [])],
+    policyDetails: plain.policyDetails
+      ? {
+          policyName: plain.policyDetails.policyName || "",
+          policyVersion: plain.policyDetails.policyVersion || "",
+          effectiveDate: plain.policyDetails.effectiveDate || null,
+          approvalRequired: Boolean(plain.policyDetails.approvalRequired),
+        }
+      : null,
+    recordingType: plain.recordingType || "upload",
+  };
+};
+
 export const createMeeting = async (uploaderId, orgId, data) => {
   const meeting = await MeetingStorageService.createMeetingRecord({
     uploadedBy: uploaderId,
@@ -124,7 +170,7 @@ export const createMeeting = async (uploaderId, orgId, data) => {
     location: data.location || "",
     venue: data.venue || "",
     participants: data.participants || [],
-    agendaItems: data.agendaItems || [],
+    agendaItems: normalizeAgendaItems(data.agendaItems),
     policyDetails: data.policyDetails || null,
     recordingType: data.recordingType || "upload",
     transcript: "",
@@ -214,7 +260,6 @@ export const uploadAndTranscribeMeeting = async (
     title: body.title?.trim() || `Meeting - ${new Date().toLocaleDateString()}`,
     date: body.date ? new Date(body.date) : new Date(),
     meetingType: body.meetingType || "internal",
-    tags: body.tags || [],
     fileUrl: file.path,
     transcript: transcriptText,
     summary: "",
@@ -223,27 +268,6 @@ export const uploadAndTranscribeMeeting = async (
   });
 
   scheduleIndexMeeting(meeting);
-
-  if (body.tags && Array.isArray(body.tags) && orgId) {
-    for (const tagName of body.tags) {
-      const escapedTagName = tagName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      await Tag.findOneAndUpdate(
-        {
-          organization: orgId,
-          name: { $regex: new RegExp(`^${escapedTagName}$`, "i") },
-        },
-        {
-          $setOnInsert: {
-            name: tagName,
-            organization: orgId,
-            createdBy: uploaderId,
-          },
-          $inc: { usageCount: 1 },
-        },
-        { upsert: true, new: true },
-      );
-    }
-  }
 
   try {
     await fs.promises.unlink(validatePath(filePath));
@@ -502,6 +526,7 @@ export const updateMeeting = async (userId, meetingId, data, doc = null) => {
     location,
     venue,
     tags,
+    agendaItems,
   } = data;
 
   if (title) meeting.title = title.trim();
@@ -513,6 +538,9 @@ export const updateMeeting = async (userId, meetingId, data, doc = null) => {
   if (location !== undefined) meeting.location = location;
   if (venue !== undefined) meeting.venue = venue;
   if (tags) meeting.tags = tags;
+  if (agendaItems !== undefined) {
+    meeting.agendaItems = normalizeAgendaItems(agendaItems);
+  }
 
   await meeting.save();
 
@@ -553,85 +581,108 @@ export const updateMeeting = async (userId, meetingId, data, doc = null) => {
   return meeting;
 };
 
-export const deleteMeeting = async (doc, meetingId) => {
-  let deleted;
+export const deleteMeeting = async (doc, meetingId, actorId, reason = null) => {
+  const meeting =
+    doc ||
+    (isValidObjectId(meetingId) ? await Meeting.findById(meetingId) : null);
 
-  if (doc) {
-    const googleEventId =
-      doc.calendarEvents?.google?.eventId || doc.googleEventId;
-    const microsoftEventId = doc.calendarEvents?.microsoft?.eventId;
-    const uploadedBy = doc.uploadedBy;
-    const meetingIdToDelete = doc._id.toString();
-    await doc.deleteOne();
-
-    try {
-      eventBus.emit("meeting.deleted", doc);
-    } catch (evtErr) {
-      console.error("⚠️ Failed to emit meeting.deleted event:", evtErr.message);
-    }
-
-    // Delete from Pinecone (fire-and-forget)
-    scheduleDeleteFromPinecone(meetingIdToDelete);
-
-    // Delete from connected calendars
-    (async () => {
-      try {
-        const calendarService = await loadCalendarService();
-        if (googleEventId) {
-          await calendarService.deleteGoogleEvent(uploadedBy, googleEventId);
-        }
-        if (microsoftEventId) {
-          await calendarService.deleteMicrosoftEvent(
-            uploadedBy,
-            microsoftEventId,
-          );
-        }
-      } catch (err) {
-        console.error("⚠️ Calendar delete sync error:", err.message);
-      }
-    })();
-    return;
+  if (!meeting) throw new NotFoundError("Meeting not found");
+  if (meeting.deletedAt) {
+    throw new ValidationError("Meeting is already in the recycle bin");
   }
 
+  meeting.deletedAt = new Date();
+  meeting.deletedBy = actorId;
+  meeting.deletionReason = reason || null;
+  await meeting.save();
+
+  try {
+    eventBus.emit("meeting.soft_deleted", meeting);
+  } catch (evtErr) {
+    console.error(
+      "⚠️ Failed to emit meeting.soft_deleted event:",
+      evtErr.message,
+    );
+  }
+
+  return meeting;
+};
+
+export const getDeletedMeetings = async (
+  organizationId,
+  { page = 1, limit = 20, search = "" } = {},
+) => {
+  const normalizedPage = Math.max(Number.parseInt(page, 10) || 1, 1);
+  const normalizedLimit = Math.min(
+    Math.max(Number.parseInt(limit, 10) || 20, 1),
+    100,
+  );
+  const query = deletedMeetingsFilter({ organization: organizationId });
+
+  if (search.trim()) {
+    query.title = { $regex: escapeRegExp(search.trim()), $options: "i" };
+  }
+
+  const skip = (normalizedPage - 1) * normalizedLimit;
+  const [meetings, total] = await Promise.all([
+    Meeting.find(query)
+      .sort({ deletedAt: -1 })
+      .skip(skip)
+      .limit(normalizedLimit)
+      .select(
+        "title date meetingType status deletedAt deletedBy deletionReason createdAt",
+      )
+      .populate("deletedBy", "name email"),
+    Meeting.countDocuments(query),
+  ]);
+
+  return {
+    meetings,
+    pagination: {
+      page: normalizedPage,
+      limit: normalizedLimit,
+      total,
+      totalPages: Math.ceil(total / normalizedLimit),
+    },
+  };
+};
+
+export const restoreDeletedMeeting = async (meetingId, organizationId) => {
   if (!isValidObjectId(meetingId)) {
     throw new ValidationError("Invalid meeting ID");
   }
 
-  deleted = await MeetingStorageService.deleteMeetingById(meetingId);
-  if (!deleted) throw new NotFoundError("Meeting not found");
+  const meeting = await Meeting.findOne({
+    _id: meetingId,
+    organization: organizationId,
+    deletedAt: { $ne: null },
+  });
+  if (!meeting) throw new NotFoundError("Deleted meeting not found");
 
-  try {
-    eventBus.emit("meeting.deleted", deleted);
-  } catch (evtErr) {
-    console.error("⚠️ Failed to emit meeting.deleted event:", evtErr.message);
+  meeting.deletedAt = null;
+  meeting.deletedBy = null;
+  meeting.deletionReason = null;
+  await meeting.save();
+  eventBus.emit("meeting.restored", meeting);
+  return meeting;
+};
+
+export const permanentlyDeleteMeeting = async (meetingId, organizationId) => {
+  if (!isValidObjectId(meetingId)) {
+    throw new ValidationError("Invalid meeting ID");
   }
 
-  // Delete from Pinecone (fire-and-forget)
-  scheduleDeleteFromPinecone(meetingId);
+  const meeting = await Meeting.findOne({
+    _id: meetingId,
+    organization: organizationId,
+    deletedAt: { $ne: null },
+  });
+  if (!meeting) throw new NotFoundError("Deleted meeting not found");
 
-  // Delete from connected calendars
-  (async () => {
-    try {
-      const calendarService = await loadCalendarService();
-      const googleEventId =
-        deleted.calendarEvents?.google?.eventId || deleted.googleEventId;
-      const microsoftEventId = deleted.calendarEvents?.microsoft?.eventId;
-      if (googleEventId) {
-        await calendarService.deleteGoogleEvent(
-          deleted.uploadedBy,
-          googleEventId,
-        );
-      }
-      if (microsoftEventId) {
-        await calendarService.deleteMicrosoftEvent(
-          deleted.uploadedBy,
-          microsoftEventId,
-        );
-      }
-    } catch (err) {
-      console.error("⚠️ Calendar delete sync error:", err.message);
-    }
-  })();
+  await meeting.deleteOne();
+  scheduleDeleteFromPinecone(meetingId);
+  eventBus.emit("meeting.permanently_deleted", meeting);
+  return meeting;
 };
 
 export const archiveMeeting = async (meetingId) => {

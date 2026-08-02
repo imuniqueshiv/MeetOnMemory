@@ -56,10 +56,7 @@ const DigestPreferences = () => {
 
   const fetchPreferences = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const { data } = await apiClient.get("/api/digest-preferences", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const { data } = await apiClient.get("/api/digest-preferences");
       setPreferences({
         frequency: data.frequency || "weekly",
         deliveryDay: data.deliveryDay || "Monday",
@@ -81,13 +78,9 @@ const DigestPreferences = () => {
   const fetchPreview = async () => {
     try {
       setPreviewLoading(true);
-      const token = localStorage.getItem("token");
       const { data } = await apiClient.post(
         "/api/digest-preferences/preview",
         preferences,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
       );
       setPreviewHtml(data.html);
     } catch (error) {
@@ -104,10 +97,7 @@ const DigestPreferences = () => {
   const handleSave = async () => {
     try {
       setSaving(true);
-      const token = localStorage.getItem("token");
-      await apiClient.put("/api/digest-preferences", preferences, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await apiClient.put("/api/digest-preferences", preferences);
       toast.success("Preferences saved successfully!");
     } catch (error) {
       console.error("Failed to save preferences:", error);
@@ -119,11 +109,8 @@ const DigestPreferences = () => {
 
   const handleSendTest = async () => {
     try {
-      const token = localStorage.getItem("token");
       const toastId = toast.loading("Sending test digest...");
-      await apiClient.post("/api/digest-preferences/test", preferences, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await apiClient.post("/api/digest-preferences/test", preferences);
       toast.update(toastId, {
         render: "Test digest sent successfully!",
         type: "success",

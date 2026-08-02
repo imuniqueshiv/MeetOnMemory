@@ -279,7 +279,12 @@ export const getOrganizations = async (req, res) => {
   try {
     const { visibility, page = 1, limit = 20 } = req.query;
 
+    if (!req.user || !req.user.id) {
+      return sendError(res, 401, "Authentication failed.");
+    }
+
     const result = await OrganizationService.getOrganizations(
+      req.user.id,
       visibility,
       page,
       limit,
@@ -298,8 +303,13 @@ export const getOrganizations = async (req, res) => {
  */
 export const getOrganizationById = async (req, res) => {
   try {
+    if (!req.user || !req.user.id) {
+      return sendError(res, 401, "Authentication failed.");
+    }
+
     const result = await OrganizationService.getOrganizationById(
       req.params.idOrSlug,
+      req.user.id,
     );
 
     sendSuccess(res, result);

@@ -8,7 +8,7 @@ import {
   closePoll,
   deletePoll,
 } from "../../api/pollApi";
-import { toast } from "react-toastify";
+import { createClerkSocketOptions } from "../../services/apiClient.js";
 
 const PollSection = ({ meetingId }) => {
   const { userData, backendUrl } = useContext(AppContent);
@@ -38,41 +38,48 @@ const PollSection = ({ meetingId }) => {
     };
     fetchPolls();
 
-    // Socket connection for real-time
-    socketRef.current = io(backendUrl, {
-      withCredentials: true,
-      transports: ["websocket"],
-    });
+    let cancelled = false;
 
-    socketRef.current.on("connect", () => {
-      socketRef.current.emit("join-meeting", {
-        roomId: meetingId,
-        userInfo: { name: userData?.name },
+    (async () => {
+      const opts = await createClerkSocketOptions({
+        transports: ["websocket"],
       });
-    });
+      if (cancelled) return;
 
-    socketRef.current.on("poll:created", (newPoll) => {
-      setPolls((prev) => [newPoll, ...prev]);
-    });
+      // Socket connection for real-time
+      socketRef.current = io(backendUrl, opts);
 
-    socketRef.current.on("poll:vote", (updatedPoll) => {
-      setPolls((prev) =>
-        prev.map((p) => (p._id === updatedPoll._id ? updatedPoll : p)),
-      );
-    });
+      socketRef.current.on("connect", () => {
+        socketRef.current.emit("join-meeting", {
+          roomId: meetingId,
+          userInfo: { name: userData?.name },
+        });
+      });
 
-    socketRef.current.on("poll:closed", (updatedPoll) => {
-      setPolls((prev) =>
-        prev.map((p) => (p._id === updatedPoll._id ? updatedPoll : p)),
-      );
-    });
+      socketRef.current.on("poll:created", (newPoll) => {
+        setPolls((prev) => [newPoll, ...prev]);
+      });
 
-    socketRef.current.on("poll:deleted", ({ id }) => {
-      setPolls((prev) => prev.filter((p) => p._id !== id));
-    });
+      socketRef.current.on("poll:vote", (updatedPoll) => {
+        setPolls((prev) =>
+          prev.map((p) => (p._id === updatedPoll._id ? updatedPoll : p)),
+        );
+      });
+
+      socketRef.current.on("poll:closed", (updatedPoll) => {
+        setPolls((prev) =>
+          prev.map((p) => (p._id === updatedPoll._id ? updatedPoll : p)),
+        );
+      });
+
+      socketRef.current.on("poll:deleted", ({ id }) => {
+        setPolls((prev) => prev.filter((p) => p._id !== id));
+      });
+    })();
 
     return () => {
-      socketRef.current.disconnect();
+      cancelled = true;
+      socketRef.current?.disconnect();
     };
   }, [meetingId, backendUrl, userData]);
 

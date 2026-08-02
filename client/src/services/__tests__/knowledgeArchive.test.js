@@ -83,4 +83,28 @@ describe("knowledgeApi - Archive Browser queries", () => {
       },
     );
   });
+
+  it("should format getDecisions and getActionItems queries with page and limit pagination options (#835)", async () => {
+    apiClient.get.mockResolvedValue({
+      data: {
+        success: true,
+        decisions: [],
+        pagination: { total: 45, page: 2, limit: 10, totalPages: 5 },
+      },
+    });
+
+    await knowledgeApi.getDecisions("createdAt", null, {
+      includeArchived: true,
+      lifecycleState: "archived",
+      page: 2,
+      limit: 10,
+    });
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      expect.stringContaining("page=2"),
+    );
+    expect(apiClient.get).toHaveBeenCalledWith(
+      expect.stringContaining("limit=10"),
+    );
+  });
 });

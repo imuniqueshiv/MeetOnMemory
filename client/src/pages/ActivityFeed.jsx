@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { getBackendUrl } from "../config/backendConfig.js";
+import { createClerkSocketOptions } from "../services/apiClient.js";
 
 const backendUrl = getBackendUrl();
 
@@ -53,28 +54,35 @@ export default function ActivityFeed() {
   useEffect(() => {
     if (!currentOrganization) return;
 
-    const socket = io(backendUrl, {
-      withCredentials: true,
-      transports: ["websocket", "polling"],
-    });
+    let socket;
+    let cancelled = false;
 
-    socket.on("connect", () => {
-      // The backend should handle joining the org room, but typically it does this
-      // on authentication or we might need an explicit join.
-      // In MeetOnMemory, rooms are often handled via existing socket connections,
-      // but let's assume `activity:new` is emitted to the org room, and
-      // the user is added to it by the meeting socket or auth.
-      // If we don't have an explicit join here, it's fine for this task as
-      // the prompt says "New activities appear in real-time for connected org members"
-    });
+    (async () => {
+      const opts = await createClerkSocketOptions({
+        transports: ["websocket", "polling"],
+      });
+      if (cancelled) return;
+      socket = io(backendUrl, opts);
 
-    socket.on("activity:new", (newActivity) => {
-      // Prepend to feed
-      setActivities((prev) => [newActivity, ...prev]);
-    });
+      socket.on("connect", () => {
+        // The backend should handle joining the org room, but typically it does this
+        // on authentication or we might need an explicit join.
+        // In MeetOnMemory, rooms are often handled via existing socket connections,
+        // but let's assume `activity:new` is emitted to the org room, and
+        // the user is added to it by the meeting socket or auth.
+        // If we don't have an explicit join here, it's fine for this task as
+        // the prompt says "New activities appear in real-time for connected org members"
+      });
+
+      socket.on("activity:new", (newActivity) => {
+        // Prepend to feed
+        setActivities((prev) => [newActivity, ...prev]);
+      });
+    })();
 
     return () => {
-      socket.disconnect();
+      cancelled = true;
+      socket?.disconnect();
     };
   }, [currentOrganization]);
 

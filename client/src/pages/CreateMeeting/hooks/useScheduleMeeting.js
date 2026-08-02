@@ -1,13 +1,51 @@
-import { useState } from "react";
 import { toast } from "react-toastify";
+import { meetingApi, meetingTemplateApi } from "../../../services";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import AppContent from "../../../context/AppContent";
 import {
-  meetingApi,
-  meetingTemplateApi,
-  meetingSeriesApi,
-} from "../../../services";
-import { useEffect } from "react";
+  buildMeetingDraftKey,
+  useFormDraft,
+} from "../../../hooks/useFormDraft";
+import {
+  moveAgendaItem,
+  normalizeAgendaItems,
+} from "../../../utils/agendaOrdering";
 
-export const useScheduleMeeting = () => {
+export const buildDuplicateScheduleState = (duplicateData = {}) => ({
+  scheduleData: {
+    title: duplicateData.title || "",
+    description: duplicateData.description || "",
+    meetingType: duplicateData.meetingType || "conference",
+    date: "",
+    time: "",
+    duration: duplicateData.duration ?? "",
+    location: duplicateData.location || "",
+    venue: duplicateData.venue || "",
+    syncToCalendar: true,
+  },
+  participants: (duplicateData.participants || []).map(
+    (participant, index) => ({
+      ...participant,
+      id: `duplicate-participant-${index}`,
+    }),
+  ),
+  agendaItems: (duplicateData.agendaItems || []).map((item, index) => ({
+    ...item,
+    id: `duplicate-agenda-${index}`,
+  })),
+  metadata: {
+    tags: duplicateData.tags || [],
+    policyDetails: duplicateData.policyDetails || null,
+    recordingType: duplicateData.recordingType || "upload",
+  },
+});
+
+export const useScheduleMeeting = ({
+  mode = "create",
+  meetingId = null,
+  serverUpdatedAt = null,
+} = {}) => {
+  const { userData } = useContext(AppContent);
   const [scheduleData, setScheduleData] = useState({
     title: "",
     description: "",
@@ -18,10 +56,6 @@ export const useScheduleMeeting = () => {
     location: "",
     venue: "",
     syncToCalendar: true,
-    recurrencePattern: "none",
-    endDate: "",
-    dayOfWeek: "",
-    dayOfMonth: "",
   });
   const [participants, setParticipants] = useState([]);
   const [newParticipant, setNewParticipant] = useState({ name: "", email: "" });
@@ -31,23 +65,62 @@ export const useScheduleMeeting = () => {
   const [loading, setLoading] = useState(false);
   const [templates, setTemplates] = useState([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [duplicateMetadata, setDuplicateMetadata] = useState({
+    tags: [],
+    policyDetails: null,
+    recordingType: "upload",
+  });
+
+  const userId = userData?._id || userData?.id;
+  const organizationId =
+    userData?.organization?._id || userData?.organization || null;
+  const draftKey = buildMeetingDraftKey({
+    userId,
+    organizationId,
+    mode,
+    meetingId,
+  });
+
+  const draftValues = useMemo(
+    () => ({
+      scheduleData,
+      participants,
+      selectedTemplateId,
+    }),
+    [participants, scheduleData, selectedTemplateId],
+  );
+
+  const restoreDraftValues = (draft) => {
+    if (draft?.scheduleData) setScheduleData(draft.scheduleData);
+    if (Array.isArray(draft?.participants)) setParticipants(draft.participants);
+    if (Array.isArray(draft?.agendaItems)) setAgendaItems(draft.agendaItems);
+    if (typeof draft?.selectedTemplateId === "string") {
+      setSelectedTemplateId(draft.selectedTemplateId);
+    }
+  };
+
+  const {
+    recoverableDraft,
+    lastSavedAt,
+    status: draftStatus,
+    restoreDraft,
+    discardDraft,
+    clearDraft,
+  } = useFormDraft({
+    key: draftKey,
+    values: draftValues,
+    enabled: Boolean(draftKey) && !loading,
+    maxAgeMs: 7 * 24 * 60 * 60 * 1000,
+    serverUpdatedAt,
+    onRestore: restoreDraftValues,
+  });
 
   useEffect(() => {
     const fetchTemplates = async () => {
       try {
         const res = await meetingTemplateApi.getTemplates();
         if (res.data?.success) {
-          const tpls = res.data.templates || [];
-          setTemplates(tpls);
-
-          const urlParams = new URLSearchParams(window.location.search);
-          const tplParamId = urlParams.get("templateId");
-          if (tplParamId) {
-            const found = tpls.find((t) => t._id === tplParamId);
-            if (found) {
-              applyTemplate(found);
-            }
-          }
+          setTemplates(res.data.templates);
         }
       } catch (error) {
         console.error("Failed to fetch templates:", error);
@@ -56,52 +129,14 @@ export const useScheduleMeeting = () => {
     fetchTemplates();
   }, []);
 
-  const applyTemplate = (template) => {
-    if (!template) return;
-    setSelectedTemplateId(template._id);
-
-    setScheduleData((prev) => ({
-      ...prev,
-      title: template.title || template.name || prev.title,
-      description: template.description || prev.description,
-      duration: template.defaultDuration
-        ? String(template.defaultDuration)
-        : prev.duration,
-    }));
-
-    if (
-      Array.isArray(template.agendaBlocks) &&
-      template.agendaBlocks.length > 0
-    ) {
-      const newBlocks = template.agendaBlocks.map((block) => ({
-        text: block.title,
-        description: block.description || "",
-        duration: block.duration || 10,
-        id: Date.now().toString() + Math.random(),
-      }));
-      setAgendaItems(newBlocks);
-    }
-
-    if (
-      Array.isArray(template.defaultParticipants) &&
-      template.defaultParticipants.length > 0
-    ) {
-      const defaultParts = template.defaultParticipants.map(
-        (emailOrName, idx) => ({
-          id: Date.now() + idx,
-          name: emailOrName.includes("@")
-            ? emailOrName.split("@")[0]
-            : emailOrName,
-          email: emailOrName.includes("@")
-            ? emailOrName
-            : `${emailOrName}@example.com`,
-        }),
-      );
-      setParticipants(defaultParts);
-    }
-
-    toast.info(`Applied template: "${template.name || template.title}"`);
-  };
+  const hydrateDuplicateMeeting = useCallback((duplicateData) => {
+    const duplicated = buildDuplicateScheduleState(duplicateData);
+    setScheduleData(duplicated.scheduleData);
+    setParticipants(duplicated.participants);
+    setAgendaItems(duplicated.agendaItems);
+    setSelectedTemplateId("");
+    setDuplicateMetadata(duplicated.metadata);
+  }, []);
 
   const handleTemplateSelect = (e) => {
     const templateId = e.target.value;
@@ -110,7 +145,15 @@ export const useScheduleMeeting = () => {
     if (templateId) {
       const template = templates.find((t) => t._id === templateId);
       if (template) {
-        applyTemplate(template);
+        const newBlocks = template.agendaBlocks.map((block) => ({
+          text: block.title,
+          description: block.description,
+          duration: block.duration,
+          id: Date.now().toString() + Math.random(),
+        }));
+        setAgendaItems(newBlocks);
+        setAgendaItems(normalizeAgendaItems(newBlocks));
+        toast.info("Template agenda applied");
       }
     }
   };
@@ -136,14 +179,25 @@ export const useScheduleMeeting = () => {
 
   const addAgendaItem = () => {
     if (newAgenda.trim()) {
-      setAgendaItems([...agendaItems, { text: newAgenda, id: Date.now() }]);
+      setAgendaItems((current) =>
+        normalizeAgendaItems([
+          ...current,
+          { text: newAgenda, id: crypto.randomUUID?.() || String(Date.now()) },
+        ]),
+      );
       setNewAgenda("");
       toast.success("Agenda item added");
     }
   };
 
   const removeAgendaItem = (id) => {
-    setAgendaItems(agendaItems.filter((a) => a.id !== id));
+    setAgendaItems((current) =>
+      normalizeAgendaItems(current.filter((a) => a.id !== id)),
+    );
+  };
+
+  const reorderAgendaItem = (fromIndex, toIndex) => {
+    setAgendaItems((current) => moveAgendaItem(current, fromIndex, toIndex));
   };
 
   const handleAttachmentUpload = (e) => {
@@ -173,35 +227,16 @@ export const useScheduleMeeting = () => {
       const payload = {
         ...scheduleData,
         participants,
-        agendaItems,
+        tags: duplicateMetadata.tags,
+        policyDetails: duplicateMetadata.policyDetails,
+        recordingType: duplicateMetadata.recordingType,
+        agendaItems: normalizeAgendaItems(agendaItems),
       };
 
-      // Type-cast specific fields for meeting series if needed
-      if (
-        scheduleData.recurrencePattern &&
-        scheduleData.recurrencePattern !== "none"
-      ) {
-        payload.dayOfWeek = scheduleData.dayOfWeek
-          ? parseInt(scheduleData.dayOfWeek, 10)
-          : undefined;
-        payload.dayOfMonth = scheduleData.dayOfMonth
-          ? parseInt(scheduleData.dayOfMonth, 10)
-          : undefined;
-      }
-
-      const response =
-        scheduleData.recurrencePattern &&
-        scheduleData.recurrencePattern !== "none"
-          ? await meetingSeriesApi.createSeries(payload)
-          : await meetingApi.scheduleMeeting(payload);
+      const response = await meetingApi.scheduleMeeting(payload);
 
       if (response.data?.success) {
-        toast.success(
-          scheduleData.recurrencePattern &&
-            scheduleData.recurrencePattern !== "none"
-            ? "✅ Meeting series scheduled successfully!"
-            : "✅ Meeting scheduled and synced to calendars!",
-        );
+        toast.success("✅ Meeting scheduled and synced to calendars!");
 
         // Trigger calendar integration
         if (response.data.calendarLinks) {
@@ -219,14 +254,17 @@ export const useScheduleMeeting = () => {
           location: "",
           venue: "",
           syncToCalendar: true,
-          recurrencePattern: "none",
-          endDate: "",
-          dayOfWeek: "",
-          dayOfMonth: "",
         });
         setParticipants([]);
         setAgendaItems([]);
         setAttachments([]);
+        setDuplicateMetadata({
+          tags: [],
+          policyDetails: null,
+          recordingType: "upload",
+        });
+        setSelectedTemplateId("");
+        clearDraft();
       } else {
         toast.error(response.data?.message || "Failed to schedule meeting");
       }
@@ -246,7 +284,6 @@ export const useScheduleMeeting = () => {
     participants,
     newParticipant,
     setNewParticipant,
-    agendaItems,
     newAgenda,
     setNewAgenda,
     attachments,
@@ -259,8 +296,16 @@ export const useScheduleMeeting = () => {
     removeParticipant,
     addAgendaItem,
     removeAgendaItem,
+    reorderAgendaItem,
     handleAttachmentUpload,
     removeAttachment,
     handleScheduleSubmit,
+    hydrateDuplicateMeeting,
+    recoverableDraft,
+    lastSavedAt,
+    draftStatus,
+    restoreDraft,
+    discardDraft,
+    setAgendaItems,
   };
 };

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { jest } from "@jest/globals";
 import { ROLE_HIERARCHY, hasPermission } from "../utils/rbacPermissions.js";
 import {
   inviteMemberToOrganization,
@@ -13,17 +13,17 @@ import userModel from "../models/userModel.js";
 import AuditService from "../services/AuditService.js";
 import EmailService from "../services/EmailService.js";
 
-vi.mock("../models/organizationModel.js");
-vi.mock("../models/membershipModel.js");
-vi.mock("../models/invitationModel.js");
-vi.mock("../models/userModel.js");
-vi.mock("../models/auditLogModel.js");
-vi.mock("../services/AuditService.js");
-vi.mock("../services/EmailService.js");
+jest.mock("../models/organizationModel.js");
+jest.mock("../models/membershipModel.js");
+jest.mock("../models/invitationModel.js");
+jest.mock("../models/userModel.js");
+jest.mock("../models/auditLogModel.js");
+jest.mock("../services/AuditService.js");
+jest.mock("../services/EmailService.js");
 
 describe("Organization RBAC Overhaul, Admin Dashboard, and Audit Log (#496)", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    jest.clearAllMocks();
   });
 
   describe("4-Tier Roles & Permissions Matrix", () => {
@@ -61,29 +61,31 @@ describe("Organization RBAC Overhaul, Admin Dashboard, and Audit Log (#496)", ()
     const targetUserId = "507f1f77bcf86cd799439033";
 
     it("should create invitation and send email when invited by owner/admin", async () => {
-      vi.spyOn(Organization, "findById").mockResolvedValue({
+      jest.spyOn(Organization, "findById").mockResolvedValue({
         _id: orgId,
         name: "Test Corp",
         owner: actorId,
         members: [],
-        save: vi.fn(),
+        save: jest.fn(),
       });
-      vi.spyOn(Membership, "findOne").mockResolvedValue({
+      jest.spyOn(Membership, "findOne").mockResolvedValue({
         user: actorId,
         organization: orgId,
         role: "owner",
         status: "active",
       });
-      vi.spyOn(Invitation, "create").mockResolvedValue({
+      jest.spyOn(Invitation, "create").mockResolvedValue({
         _id: "inv123",
         token: "tok123",
         email: "test@example.com",
         role: "viewer",
       });
-      vi.spyOn(userModel, "findOne").mockResolvedValue(null);
-      vi.spyOn(userModel, "findById").mockResolvedValue({ name: "Admin User" });
-      vi.spyOn(EmailService, "sendInvitation").mockResolvedValue(true);
-      vi.spyOn(AuditService, "logAction").mockResolvedValue(true);
+      jest.spyOn(userModel, "findOne").mockResolvedValue(null);
+      jest
+        .spyOn(userModel, "findById")
+        .mockResolvedValue({ name: "Admin User" });
+      jest.spyOn(EmailService, "sendInvitation").mockResolvedValue(true);
+      jest.spyOn(AuditService, "logAction").mockResolvedValue(true);
 
       const res = await inviteMemberToOrganization(actorId, orgId, {
         email: "test@example.com",
@@ -103,30 +105,30 @@ describe("Organization RBAC Overhaul, Admin Dashboard, and Audit Log (#496)", ()
     });
 
     it("should allow accepting valid invite token", async () => {
-      vi.spyOn(Invitation, "findOne").mockResolvedValue({
+      jest.spyOn(Invitation, "findOne").mockResolvedValue({
         _id: "inv123",
         token: "tok123",
         organization: orgId,
         role: "member",
         status: "pending",
         expiresAt: new Date(Date.now() + 100000),
-        save: vi.fn(),
+        save: jest.fn(),
       });
-      vi.spyOn(Organization, "findById").mockResolvedValue({
+      jest.spyOn(Organization, "findById").mockResolvedValue({
         _id: orgId,
         name: "Test Corp",
         slug: "test-corp",
         members: [],
-        save: vi.fn(),
+        save: jest.fn(),
       });
-      vi.spyOn(Membership, "findOne").mockResolvedValue(null);
-      vi.spyOn(Membership, "create").mockResolvedValue({
+      jest.spyOn(Membership, "findOne").mockResolvedValue(null);
+      jest.spyOn(Membership, "create").mockResolvedValue({
         user: targetUserId,
         organization: orgId,
         role: "member",
       });
-      vi.spyOn(userModel, "findByIdAndUpdate").mockResolvedValue({});
-      vi.spyOn(AuditService, "logAction").mockResolvedValue(true);
+      jest.spyOn(userModel, "findByIdAndUpdate").mockResolvedValue({});
+      jest.spyOn(AuditService, "logAction").mockResolvedValue(true);
 
       const res = await acceptOrganizationInviteToken("tok123", targetUserId);
 
@@ -141,28 +143,28 @@ describe("Organization RBAC Overhaul, Admin Dashboard, and Audit Log (#496)", ()
     });
 
     it("should update member role and write audit log", async () => {
-      vi.spyOn(Organization, "findById").mockResolvedValue({
+      jest.spyOn(Organization, "findById").mockResolvedValue({
         _id: orgId,
         owner: actorId,
         members: [{ userId: targetUserId, role: "member" }],
-        save: vi.fn(),
+        save: jest.fn(),
       });
-      vi.spyOn(Membership, "findOne").mockImplementation((query) => {
+      jest.spyOn(Membership, "findOne").mockImplementation((query) => {
         if (query.user === actorId) {
           return Promise.resolve({ role: "owner", status: "active" });
         }
         return Promise.resolve({
           role: "member",
           status: "active",
-          save: vi.fn(),
+          save: jest.fn(),
         });
       });
-      vi.spyOn(userModel, "findById").mockResolvedValue({
+      jest.spyOn(userModel, "findById").mockResolvedValue({
         _id: targetUserId,
         organization: orgId,
-        save: vi.fn(),
+        save: jest.fn(),
       });
-      vi.spyOn(AuditService, "logAction").mockResolvedValue(true);
+      jest.spyOn(AuditService, "logAction").mockResolvedValue(true);
 
       const res = await updateMemberRole(
         actorId,
@@ -182,19 +184,19 @@ describe("Organization RBAC Overhaul, Admin Dashboard, and Audit Log (#496)", ()
     });
 
     it("should remove member from organization and write audit log", async () => {
-      vi.spyOn(Organization, "findById").mockResolvedValue({
+      jest.spyOn(Organization, "findById").mockResolvedValue({
         _id: orgId,
         owner: actorId,
         members: [{ userId: targetUserId, role: "member" }],
-        save: vi.fn(),
+        save: jest.fn(),
       });
-      vi.spyOn(Membership, "findOne").mockResolvedValue({
+      jest.spyOn(Membership, "findOne").mockResolvedValue({
         role: "owner",
         status: "active",
       });
-      vi.spyOn(Membership, "findOneAndUpdate").mockResolvedValue({});
-      vi.spyOn(userModel, "findById").mockResolvedValue(null);
-      vi.spyOn(AuditService, "logAction").mockResolvedValue(true);
+      jest.spyOn(Membership, "findOneAndUpdate").mockResolvedValue({});
+      jest.spyOn(userModel, "findById").mockResolvedValue(null);
+      jest.spyOn(AuditService, "logAction").mockResolvedValue(true);
 
       const res = await removeMemberFromOrganization(
         actorId,

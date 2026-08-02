@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-import { MongoMemoryServer } from "mongodb-memory-server";
 
 let mongoServer;
 
@@ -50,6 +49,7 @@ const connectDB = async () => {
         console.warn(
           "⚠️ Local MongoDB connection refused. Falling back to in-memory MongoDB server...",
         );
+        const { MongoMemoryServer } = await import("mongodb-memory-server");
         mongoServer = await MongoMemoryServer.create();
         const memoryUri = mongoServer.getUri();
         await mongoose.connect(memoryUri, { dbName });

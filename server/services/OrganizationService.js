@@ -143,7 +143,7 @@ const joinOrganization = async (userId, organization) => {
   }
 
   if (!Array.isArray(organization.members)) organization.members = [];
-  organization.members.push(userId);
+  organization.members.push({ userId, role: "member" });
   await organization.save();
 
   await userModel.findByIdAndUpdate(userId, {
@@ -207,8 +207,27 @@ export const createOrJoinOrganization = async (userId, orgName) => {
       slug: uniqueSlug,
       owner: userId,
       createdBy: userId,
-      members: [userId],
+      members: [{ userId, role: "admin" }],
     });
+
+    // Create admin membership for the creator (RBAC); unique index prevents duplicates
+    try {
+      await Membership.create({
+        user: userId,
+        organization: organization._id,
+        role: "admin",
+        status: "active",
+      });
+    } catch (error) {
+      // Roll back the org if membership creation fails to avoid inconsistent state
+      await Organization.findByIdAndDelete(organization._id);
+      if (error.code === 11000) {
+        throw new ConflictError(
+          "You are already a member of this organization.",
+        );
+      }
+      throw error;
+    }
 
     await userModel.findByIdAndUpdate(userId, {
       role: "admin",
@@ -396,7 +415,7 @@ export const getPublicOrganizationBySlug = async (slug) => {
 
   // Find organization by slug - only select public fields
   const organization = await Organization.findOne(
-    { slug },
+    { slug, visibility: "public" },
     "name slug description logo bannerUrl visibility createdAt metadata",
   );
 
@@ -510,10 +529,24 @@ export const browsePublicOrganizations = async ({
     Organization.countDocuments(finalQuery),
   ]);
 
-  // Calculate member counts for each organization
+  // Calculate member counts for each organization from Membership model
+  const orgIds = organizations.map((org) => org._id);
+  const membershipCounts =
+    typeof Membership.aggregate === "function"
+      ? await Membership.aggregate([
+          { $match: { organization: { $in: orgIds }, status: "active" } },
+          { $group: { _id: "$organization", count: { $sum: 1 } } },
+        ])
+      : [];
+  const countMap = new Map(
+    membershipCounts.map((item) => [item._id.toString(), item.count]),
+  );
+
   const organizationsWithCounts = organizations.map((org) => ({
     ...org,
-    memberCount: org.members ? org.members.length : 0,
+    memberCount:
+      countMap.get(org._id.toString()) ??
+      (org.members ? org.members.length : 0),
   }));
 
   return {
@@ -561,9 +594,23 @@ export const searchOrganizations = async (q, page = 1, limit = 12) => {
   ]);
 
   // Calculate member counts
+  const searchOrgIds = organizations.map((org) => org._id);
+  const searchMembershipCounts =
+    typeof Membership.aggregate === "function"
+      ? await Membership.aggregate([
+          { $match: { organization: { $in: searchOrgIds }, status: "active" } },
+          { $group: { _id: "$organization", count: { $sum: 1 } } },
+        ])
+      : [];
+  const searchCountMap = new Map(
+    searchMembershipCounts.map((item) => [item._id.toString(), item.count]),
+  );
+
   const organizationsWithCounts = organizations.map((org) => ({
     ...org,
-    memberCount: org.members ? org.members.length : 0,
+    memberCount:
+      searchCountMap.get(org._id.toString()) ??
+      (org.members ? org.members.length : 0),
   }));
 
   return {
@@ -681,7 +728,7 @@ export const createOrganization = async (
     visibility: visibility || "private",
     joinPolicy: joinPolicy || "open",
     owner: userId,
-    members: [userId],
+    members: [{ userId, role: "admin" }],
     metadata: metadata || {},
   });
 
@@ -710,7 +757,12 @@ export const createOrganization = async (
 /**
  * ✅ Get All Organizations (Paginated)
  */
-export const getOrganizations = async (visibility, page = 1, limit = 20) => {
+export const getOrganizations = async (
+  userId,
+  visibility,
+  page = 1,
+  limit = 20,
+) => {
   // Validate visibility value
   const validVisibility =
     visibility && isValidVisibility(visibility)
@@ -724,10 +776,40 @@ export const getOrganizations = async (visibility, page = 1, limit = 20) => {
   const pageNum = Math.max(1, parseInt(page) || 1);
   const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
 
-  // Build safe query filter with only validated values
+  // Build safe query filter
   const safeFilter = {};
+
   if (validVisibility) {
+    // Specific visibility requested — filter by it directly
     safeFilter.visibility = validVisibility;
+  } else {
+    // No visibility filter: show public orgs + orgs where user is member/owner
+    const userMemberships = await Membership.find({
+      user: userId,
+      status: "active",
+    })
+      .select("organization")
+      .lean();
+
+    const memberOrgIds = userMemberships
+      .map((m) => m.organization)
+      .filter(Boolean);
+
+    safeFilter.$or = [
+      { visibility: "public" },
+      { owner: new mongoose.Types.ObjectId(String(userId)) },
+      ...(memberOrgIds.length > 0
+        ? [
+            {
+              _id: {
+                $in: memberOrgIds.map(
+                  (id) => new mongoose.Types.ObjectId(String(id)),
+                ),
+              },
+            },
+          ]
+        : []),
+    ];
   }
 
   const organizations = await Organization.find(safeFilter)
@@ -840,7 +922,7 @@ export const getOrganizationSettings = async (userId, orgIdOrSlug = null) => {
 /**
  * ✅ Get Organization by ID or Slug
  */
-export const getOrganizationById = async (idOrSlug) => {
+export const getOrganizationById = async (idOrSlug, userId) => {
   // Validate input - only allow alphanumeric, hyphens, and underscores for slug
   const slugRegex = /^[a-zA-Z0-9-_]+$/;
   if (!slugRegex.test(idOrSlug)) {
@@ -862,6 +944,23 @@ export const getOrganizationById = async (idOrSlug) => {
 
   if (!organization) {
     throw new NotFoundError("Organization not found.");
+  }
+
+  // Authorization check: private orgs require membership or ownership
+  if (organization.visibility !== "public") {
+    const isOwner = organization.owner?._id
+      ? organization.owner._id.toString() === userId.toString()
+      : organization.owner?.toString() === userId.toString();
+
+    const membership = await Membership.findOne({
+      user: userId,
+      organization: organization._id,
+      status: "active",
+    }).lean();
+
+    if (!membership && !isOwner && !isLegacyMember(organization, userId)) {
+      throw new ForbiddenError("Not authorized to view this organization.");
+    }
   }
 
   const memberCount = await Membership.countDocuments({

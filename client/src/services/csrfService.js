@@ -1,8 +1,7 @@
 import axios from "axios";
 import apiClient from "./apiClient";
-import { getBackendUrl } from "../config/backendConfig.js";
 
-const backendUrl = getBackendUrl();
+const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
 
 let csrfToken = null;
 let inFlightFetch = null;

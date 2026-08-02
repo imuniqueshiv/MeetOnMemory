@@ -4,9 +4,58 @@ import Policy from "../models/policyModel.js";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { hasPermission } from "../utils/rbacPermissions.js";
 
 const generateHash = () => {
   return crypto.randomBytes(16).toString("hex");
+};
+
+const analyticsPermissionFor = (resourceModel) =>
+  resourceModel === "Policy" ? "policies" : "meetings";
+
+const canViewAnalytics = (user, resourceModel) =>
+  hasPermission(
+    user?.role || "guest",
+    analyticsPermissionFor(resourceModel),
+    "edit",
+  );
+
+const toPublicLink = (link, includeAnalytics) => {
+  const base = {
+    _id: link._id,
+    hash: link.hash,
+    expirationDate: link.expirationDate,
+    hasPasscode: !!link.passcode,
+    active: link.active,
+    createdAt: link.createdAt,
+  };
+
+  if (!includeAnalytics) return base;
+
+  return {
+    ...base,
+    totalViews: link.totalViews || 0,
+    lastAccessed: link.lastAccessed || null,
+    failedPasscodeAttempts: link.failedPasscodeAttempts || 0,
+  };
+};
+
+/** Fire-and-forget analytics — never blocks or fails the access response. */
+const recordSuccessfulAccess = (linkId) => {
+  SharedLink.findByIdAndUpdate(linkId, {
+    $inc: { totalViews: 1 },
+    $set: { lastAccessed: new Date() },
+  }).catch((err) =>
+    console.error("Failed to record shared link view:", err.message),
+  );
+};
+
+const recordFailedPasscodeAttempt = (linkId) => {
+  SharedLink.findByIdAndUpdate(linkId, {
+    $inc: { failedPasscodeAttempts: 1 },
+  }).catch((err) =>
+    console.error("Failed to record failed passcode attempt:", err.message),
+  );
 };
 
 export const createLink = async (req, res) => {
@@ -25,7 +74,6 @@ export const createLink = async (req, res) => {
         .json({ success: false, message: "Invalid resource type" });
     }
 
-    // Optionally check if user has access to this resource, assuming they do because of auth middleware
     let hashedPasscode = null;
     if (passcode) {
       const salt = await bcrypt.genSalt(10);
@@ -48,14 +96,7 @@ export const createLink = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      link: {
-        _id: newLink._id,
-        hash: newLink.hash,
-        expirationDate: newLink.expirationDate,
-        hasPasscode: !!newLink.passcode,
-        active: newLink.active,
-        createdAt: newLink.createdAt,
-      },
+      link: toPublicLink(newLink, canViewAnalytics(req.user, resourceType)),
     });
   } catch (error) {
     console.error("Error creating shared link:", error);
@@ -97,6 +138,7 @@ export const getActiveLinks = async (req, res) => {
 export const getActiveLinksFixed = async (req, res) => {
   try {
     const { resourceType, resourceId } = req.params;
+    const includeAnalytics = canViewAnalytics(req.user, resourceType);
 
     const links = await SharedLink.find({
       resourceId,
@@ -107,13 +149,7 @@ export const getActiveLinksFixed = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      links: links.map((link) => ({
-        _id: link._id,
-        hash: link.hash,
-        expirationDate: link.expirationDate,
-        hasPasscode: !!link.passcode,
-        createdAt: link.createdAt,
-      })),
+      links: links.map((link) => toPublicLink(link, includeAnalytics)),
     });
   } catch (error) {
     console.error("Error fetching active links:", error);
@@ -186,6 +222,7 @@ export const verifyPasscode = async (req, res) => {
 
     const isMatch = await bcrypt.compare(passcode, link.passcode);
     if (!isMatch) {
+      recordFailedPasscodeAttempt(link._id);
       return res
         .status(401)
         .json({ success: false, message: "Incorrect passcode" });
@@ -232,7 +269,7 @@ export const getPublicResource = async (req, res) => {
     }
 
     if (link.passcode) {
-      const token = req.cookies.shared_access_token;
+      const token = req.cookies?.shared_access_token;
       if (!token) {
         return res.status(401).json({
           success: false,
@@ -288,6 +325,9 @@ export const getPublicResource = async (req, res) => {
       }
       resourceData = policy;
     }
+
+    // Record view only after successful access; never include analytics in public payload
+    recordSuccessfulAccess(link._id);
 
     res.status(200).json({
       success: true,

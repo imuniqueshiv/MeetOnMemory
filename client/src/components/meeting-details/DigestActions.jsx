@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import axios from "axios";
 import { toast } from "react-toastify";
 import { Mail, Eye, X, Loader2 } from "lucide-react";
+import apiClient from "../../services/apiClient.js";
 
 const DigestActions = ({ meetingId }) => {
   const [loading, setLoading] = useState(false);
@@ -12,13 +12,8 @@ const DigestActions = ({ meetingId }) => {
   const handleResend = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
-      const { data } = await axios.post(
+      const { data } = await apiClient.post(
         `/api/meetings/${meetingId}/digest/resend`,
-        {},
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
       );
       if (data.success) {
         toast.success(data.message || "Email digest resent successfully");
@@ -39,12 +34,8 @@ const DigestActions = ({ meetingId }) => {
     try {
       setPreviewLoading(true);
       setModalOpen(true);
-      const token = localStorage.getItem("token");
-      const { data } = await axios.get(
+      const { data } = await apiClient.get(
         `/api/meetings/${meetingId}/digest/preview`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
       );
       setPreviewHtml(data);
     } catch (err) {

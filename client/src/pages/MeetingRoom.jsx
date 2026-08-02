@@ -2,14 +2,15 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Loader2, CheckCircle2 } from "lucide-react";
-import ErrorState from "../components/ErrorState.jsx";
 import CollaborativeEditor from "../components/meetings/CollaborativeEditor.jsx";
 import PeerVideo from "../components/meetings/PeerVideo.jsx";
 import MeetingHeader from "../components/meetings/MeetingHeader.jsx";
 import MeetingControlBar from "../components/meetings/MeetingControlBar.jsx";
 import TranscriptPanel from "../components/meetings/TranscriptPanel.jsx";
 import LiveCaptions from "../components/meetings/LiveCaptions.jsx";
+import DeviceSetupModal from "../components/meetings/DeviceSetupModal.jsx";
 import useWebRTC from "../hooks/useWebRTC";
+import useDevicePermission from "../hooks/useDevicePermission";
 import useLiveTranscription from "../hooks/useLiveTranscription";
 import useReactions from "../hooks/useReactions.js";
 import ReactionBar from "../components/meetings/ReactionBar.jsx";
@@ -27,13 +28,15 @@ const MeetingRoom = () => {
   const [transcriptSegments, setTranscriptSegments] = useState([]);
   const [transcriptionEnabled, setTranscriptionEnabled] = useState(false);
 
+  // Device permission setup
+  const [deviceSetupDone, setDeviceSetupDone] = useState(false);
+  const permission = useDevicePermission();
+
   // WebRTC
   const {
     joined,
     loading,
     meetingEnded,
-    mediaError,
-    setMediaError,
     micOn,
     cameraOn,
     isScreenSharing,
@@ -81,52 +84,31 @@ const MeetingRoom = () => {
     toast.success("Meeting link copied!");
   };
 
+  const handleJoinWithStream = (stream) => {
+    setDeviceSetupDone(true);
+    joinMeeting(stream);
+  };
+
+  const handleJoinWithout = () => {
+    setDeviceSetupDone(true);
+    joinMeeting(null);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-900 relative overflow-hidden font-sans">
-      {/* ---------- INTRO SCREEN ---------- */}
-      {!joined && !meetingEnded && (
-        <div className="flex-1 flex flex-col items-center justify-center relative z-10 px-6 md:px-8 text-center bg-gradient-to-br from-indigo-50 via-white to-purple-100 dark:from-slate-950 dark:via-slate-900 dark:to-purple-950/20">
-          <div className="absolute top-0 left-0 w-72 h-72 bg-indigo-200 dark:bg-indigo-900/10 opacity-20 blur-3xl rounded-full animate-pulse"></div>
-          <div className="absolute bottom-0 right-0 w-80 h-80 bg-purple-200 dark:bg-purple-900/10 opacity-30 blur-3xl rounded-full animate-pulse"></div>
+      {/* ---------- DEVICE SETUP / INTRO SCREEN ---------- */}
+      {!joined && !meetingEnded && !deviceSetupDone && (
+        <DeviceSetupModal
+          permission={permission}
+          onJoin={handleJoinWithStream}
+          onContinueWithout={handleJoinWithout}
+        />
+      )}
 
-          <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 dark:text-white mb-3 flex items-center justify-center gap-3">
-            🎥 MeetOnMemory{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
-              Live Room
-            </span>
-          </h1>
-
-          <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto leading-relaxed text-base md:text-lg">
-            Join room <strong>{roomId}</strong> with real-time transcription and
-            automatic AI-generated MoMs.
-          </p>
-
-          {mediaError ? (
-            <div className="w-full max-w-lg mx-auto">
-              <ErrorState
-                title="Device Access Error"
-                message={mediaError}
-                onRetry={() => {
-                  setMediaError(null);
-                  joinMeeting();
-                }}
-              />
-            </div>
-          ) : loading ? (
-            <button
-              disabled
-              className="px-8 py-3 bg-indigo-600 text-white rounded-full font-semibold shadow-md flex items-center justify-center gap-2 mx-auto cursor-not-allowed"
-            >
-              <Loader2 className="animate-spin" size={20} /> Connecting...
-            </button>
-          ) : (
-            <button
-              onClick={joinMeeting}
-              className="px-8 py-3 bg-indigo-600 text-white rounded-full font-semibold shadow-md hover:bg-indigo-700 hover:shadow-xl active:scale-95 transition-all duration-300 cursor-pointer"
-            >
-              🚀 Join Meeting
-            </button>
-          )}
+      {!joined && !meetingEnded && deviceSetupDone && loading && (
+        <div className="flex-1 flex flex-col items-center justify-center bg-gray-900">
+          <Loader2 className="animate-spin text-indigo-500" size={40} />
+          <p className="text-gray-400 mt-4 text-lg">Connecting to meeting...</p>
         </div>
       )}
 

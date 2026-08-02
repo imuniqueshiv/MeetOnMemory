@@ -23,14 +23,15 @@ eventBus.on("mom.generated", async (meeting) => {
     // One in-flight/queued scan per organization at a time — a burst of
     // meetings finishing MoM generation back-to-back shouldn't spawn a
     // pile of redundant scans of the same knowledge graph.
+    //
+    // Issue #975: the retention overrides that used to be spelled out here are
+    // now part of the queue's shared defaults (see queueRegistry.js), which
+    // also supply the `attempts`/`backoff` this call was missing — previously a
+    // single transient failure discarded the scan outright.
     await conflictScanQueue.add(
       "scan",
       { organization },
-      {
-        jobId: `conflict-scan-${organization || "global"}`,
-        removeOnComplete: true,
-        removeOnFail: 50,
-      },
+      { jobId: `conflict-scan-${organization || "global"}` },
     );
   } catch (err) {
     console.error("⚠️ Failed to enqueue conflict scan:", err.message);

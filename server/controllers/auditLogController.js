@@ -10,6 +10,7 @@ import {
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
 import fs from "fs";
 import path from "path";
+import { getContentDispositionHeader } from "../utils/fileUtils.js";
 
 const LARGE_EXPORT_THRESHOLD = 10000;
 const EXPORT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -98,7 +99,7 @@ export const getOrganizationAuditLogs = async (req, res) => {
       );
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="${filename}"`,
+        getContentDispositionHeader(filename),
       );
       if (format === "csv") return streamCsvExport(res, filter);
       return streamXlsxExport(res, filter);
@@ -175,7 +176,8 @@ export const downloadAuditLogExport = async (req, res) => {
     ) {
       return sendError(res, 404, "Audit log export file not found.");
     }
-    return res.download(filePath, `audit-logs.${exportRecord.format}`);
+    const downloadName = `audit-logs.${exportRecord.format}`;
+    return res.download(filePath, downloadName);
   } catch (_error) {
     return sendError(res, 500, "Server error downloading audit log export.");
   }

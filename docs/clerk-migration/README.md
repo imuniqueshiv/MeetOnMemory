@@ -1,8 +1,10 @@
 # Clerk Authentication Migration — Official Guide
 
-**Status:** Planning only. No migration code has been merged.  
-**Scope:** Replace identity/session (JWT cookie + CSRF OTP auth) with Clerk.  
-**Preserve:** MongoDB, Organizations, Memberships, RBAC, Meetings, Policies, AI, Analytics, Calendar (Google API OAuth), Notifications, Tasks, Slack, shared links.
+**Status:** Production cutover complete for identity (Issue #974). Clerk is the sole identity provider.  
+**Scope:** Identity/session = Clerk Bearer tokens. Authorization = MongoDB RBAC.  
+**Preserve:** Organizations, Memberships, RBAC, Meetings, Policies, AI, Analytics, Calendar (Google API OAuth), Notifications, Tasks, Slack, shared-link/export/Slack-state JWTs.
+
+Historical planning docs below remain for audit; prefer README + `.env.example` for current setup.
 
 This directory is the source of truth for the MeetOnMemory Clerk migration program.
 

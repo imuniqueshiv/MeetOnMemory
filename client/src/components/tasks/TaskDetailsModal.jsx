@@ -34,7 +34,7 @@ export default function TaskDetailsModal({
             onClick={() => setSelectedTask(null)}
             className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
           >
-            <X className="w-5 h-5 text-slate-600" />
+            <X className="w-5 h-5 text-slate-600 dark:text-slate-400" />
           </button>
         </div>
 
@@ -127,14 +127,14 @@ export default function TaskDetailsModal({
             </div>
 
             {/* Related Meeting */}
-            <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <div className="p-4 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-100 dark:border-blue-900/50">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="flex items-center gap-2 text-sm text-blue-600 mb-1">
+                  <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 mb-1">
                     <FileText className="w-4 h-4" />
                     Related Meeting
                   </div>
-                  <p className="font-medium text-slate-900">
+                  <p className="font-medium text-slate-900 dark:text-white">
                     {selectedTask.meetingTitle}
                   </p>
                 </div>
@@ -143,7 +143,7 @@ export default function TaskDetailsModal({
                     setSelectedTask(null);
                     navigate(`/meeting/${selectedTask.meetingId}`);
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors"
                 >
                   View Meeting
                   <ExternalLink className="w-3.5 h-3.5" />

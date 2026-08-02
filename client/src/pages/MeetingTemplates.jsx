@@ -121,6 +121,20 @@ const MeetingTemplates = () => {
     setSelectedTemplate(null);
   };
 
+  useEffect(() => {
+    if (!modalMode) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeModal();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [modalMode]);
+
   const handleAgendaChange = (index, field, value) => {
     setFormData((prev) => {
       const updated = [...prev.agendaBlocks];
@@ -426,18 +440,28 @@ const MeetingTemplates = () => {
       {/* Create / Edit Modal */}
       {(modalMode === "create" || modalMode === "edit") && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl space-y-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="meeting-template-editor-title"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl space-y-4"
+          >
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+              <h3
+                id="meeting-template-editor-title"
+                className="text-lg font-bold text-slate-900 dark:text-white"
+              >
                 {modalMode === "create"
                   ? "Create Meeting Template"
                   : "Edit Meeting Template"}
               </h3>
               <button
+                type="button"
                 onClick={closeModal}
+                aria-label="Close template editor"
                 className="text-slate-400 hover:text-slate-600"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
 
@@ -636,21 +660,31 @@ const MeetingTemplates = () => {
       {/* Preview Modal */}
       {modalMode === "preview" && selectedTemplate && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="meeting-template-preview-title"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4"
+          >
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">
                   Template Preview
                 </span>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                <h3
+                  id="meeting-template-preview-title"
+                  className="text-lg font-bold text-slate-900 dark:text-white"
+                >
                   {selectedTemplate.name || selectedTemplate.title}
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={closeModal}
+                aria-label="Close template preview"
                 className="text-slate-400 hover:text-slate-600"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
 
@@ -718,8 +752,16 @@ const MeetingTemplates = () => {
       {/* Delete Modal */}
       {modalMode === "delete" && selectedTemplate && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="meeting-template-delete-title"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4"
+          >
+            <h3
+              id="meeting-template-delete-title"
+              className="text-base font-bold text-slate-900 dark:text-white"
+            >
               Delete Template?
             </h3>
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">

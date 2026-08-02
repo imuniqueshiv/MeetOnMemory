@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { X, Globe, Lock, Shield, RefreshCw, Loader2 } from "lucide-react";
 import { toast } from "react-toastify";
 import { webhookApi } from "../services";
@@ -27,6 +27,7 @@ const WebhookModal = ({
   webhook = null,
   organizationId,
   onSuccess,
+  triggerRef,
 }) => {
   const isEdit = !!webhook;
 
@@ -38,6 +39,10 @@ const WebhookModal = ({
   const [secret, setSecret] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [loading, setLoading] = useState(false);
+
+  const modalRef = useRef(null);
+  const backdropRef = useRef(null);
+  const previousActiveElementRef = useRef(null);
 
   useEffect(() => {
     if (webhook) {
@@ -52,6 +57,98 @@ const WebhookModal = ({
       setIsActive(true);
     }
   }, [webhook, isOpen]);
+
+  // Store previous active element when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      // If triggerRef is provided, use it; otherwise store current active element
+      if (triggerRef?.current) {
+        previousActiveElementRef.current = triggerRef.current;
+      } else {
+        previousActiveElementRef.current = document.activeElement;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Handle Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [isOpen, onClose]);
+
+  // Handle backdrop click
+  const handleBackdropClick = useCallback(
+    (e) => {
+      if (e.target === backdropRef.current) {
+        onClose();
+      }
+    },
+    [onClose],
+  );
+
+  // Focus trap implementation
+  const trapFocus = useCallback((e) => {
+    if (!modalRef.current) return;
+
+    const focusableElements = modalRef.current.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    if (e.key === "Tab") {
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement?.focus();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement?.focus();
+        }
+      }
+    }
+  }, []);
+
+  // Set up focus trap when modal opens
+  useEffect(() => {
+    if (isOpen && modalRef.current) {
+      const modal = modalRef.current;
+      const focusableElements = modal.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      const firstElement = focusableElements[0];
+
+      // Focus first element after a small delay to ensure modal is rendered
+      setTimeout(() => {
+        firstElement?.focus();
+      }, 50);
+
+      modal.addEventListener("keydown", trapFocus);
+      return () => {
+        modal.removeEventListener("keydown", trapFocus);
+      };
+    }
+  }, [isOpen, trapFocus]);
+
+  // Restore focus to previous element when modal closes
+  useEffect(() => {
+    if (!isOpen && previousActiveElementRef.current) {
+      setTimeout(() => {
+        previousActiveElementRef.current?.focus();
+      }, 50);
+    }
+  }, [isOpen]);
 
   function generateRandomSecret() {
     const chars = "abcdef0123456789";
@@ -124,8 +221,20 @@ const WebhookModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div
+      ref={backdropRef}
+      onClick={handleBackdropClick}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4"
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="webhook-modal-title"
+        aria-describedby="webhook-modal-description"
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-3">
@@ -133,10 +242,16 @@ const WebhookModal = ({
               <Globe className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-slate-900 dark:text-white text-lg">
+              <h3
+                id="webhook-modal-title"
+                className="font-semibold text-slate-900 dark:text-white text-lg"
+              >
                 {isEdit ? "Edit Webhook Subscription" : "Register Webhook"}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p
+                id="webhook-modal-description"
+                className="text-xs text-slate-500 dark:text-slate-400"
+              >
                 Receive real-time event payloads to your HTTP endpoint
               </p>
             </div>

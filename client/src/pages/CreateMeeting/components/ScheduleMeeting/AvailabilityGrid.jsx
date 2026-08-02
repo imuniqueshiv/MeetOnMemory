@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import axios from "axios";
 import {
   Calendar,
   Clock,
@@ -9,6 +8,7 @@ import {
   XCircle,
   Sparkles,
 } from "lucide-react";
+import apiClient from "../../../../services/apiClient.js";
 
 const AvailabilityGrid = ({ participants, selectedDate, onSlotSelect }) => {
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,6 @@ const AvailabilityGrid = ({ participants, selectedDate, onSlotSelect }) => {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
       const attendeeEmails = participants.map((p) => p.email).filter(Boolean);
 
       if (attendeeEmails.length === 0) {
@@ -47,18 +46,11 @@ const AvailabilityGrid = ({ participants, selectedDate, onSlotSelect }) => {
       const timeMax = new Date(selectedDate);
       timeMax.setHours(18, 0, 0, 0);
 
-      const response = await axios.post(
-        "/api/calendar/freebusy",
-        {
-          attendeeEmails,
-          timeMin: timeMin.toISOString(),
-          timeMax: timeMax.toISOString(),
-        },
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          withCredentials: true,
-        },
-      );
+      const response = await apiClient.post("/api/calendar/freebusy", {
+        attendeeEmails,
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+      });
 
       setAvailabilityData(response.data.data);
     } catch (error) {

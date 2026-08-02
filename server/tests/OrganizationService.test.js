@@ -72,6 +72,7 @@ describe("OrganizationService", () => {
         createdBy: "user1",
       };
       Organization.create.mockResolvedValue(mockOrg);
+      Membership.create.mockResolvedValue({});
 
       userModel.findByIdAndUpdate.mockResolvedValue(true);
       userModel.findById.mockReturnValue({
@@ -92,9 +93,62 @@ describe("OrganizationService", () => {
       expect(result.success).toBe(true);
       expect(result.message).toBe("Organization created successfully!");
       expect(Organization.create).toHaveBeenCalled();
+      expect(Membership.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user: "user1",
+          organization: "org123",
+          role: "admin",
+          status: "active",
+        }),
+      );
+      expect(userModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        "user1",
+        expect.objectContaining({
+          role: "admin",
+          organization: "org123",
+        }),
+      );
       expect(AuditService.logAction).toHaveBeenCalledWith(
         expect.objectContaining({ action: "ORGANIZATION_CREATED" }),
       );
+    });
+
+    it("should roll back the org if membership creation fails", async () => {
+      Organization.findOne.mockResolvedValue(null);
+      Organization.create.mockResolvedValue({
+        _id: "org123",
+        name: "Acme",
+        slug: "acme-abc123",
+      });
+      Organization.findByIdAndDelete.mockResolvedValue({});
+      Membership.create.mockRejectedValue(new Error("Membership write failed"));
+
+      await expect(
+        OrganizationService.createOrJoinOrganization("user1", "Acme"),
+      ).rejects.toThrow("Membership write failed");
+
+      expect(Organization.findByIdAndDelete).toHaveBeenCalledWith("org123");
+      expect(userModel.findByIdAndUpdate).not.toHaveBeenCalled();
+      expect(AuditService.logAction).not.toHaveBeenCalled();
+    });
+
+    it("should prevent duplicate membership when creating an organization", async () => {
+      Organization.findOne.mockResolvedValue(null);
+      Organization.create.mockResolvedValue({
+        _id: "org123",
+        name: "Acme",
+        slug: "acme-abc123",
+      });
+      Organization.findByIdAndDelete.mockResolvedValue({});
+      const duplicateError = new Error("E11000 duplicate key");
+      duplicateError.code = 11000;
+      Membership.create.mockRejectedValue(duplicateError);
+
+      await expect(
+        OrganizationService.createOrJoinOrganization("user1", "Acme"),
+      ).rejects.toThrow("You are already a member of this organization.");
+
+      expect(Organization.findByIdAndDelete).toHaveBeenCalledWith("org123");
     });
 
     it("should join existing org when it exists", async () => {

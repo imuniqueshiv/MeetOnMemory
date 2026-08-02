@@ -5,6 +5,8 @@ import {
   deleteSession,
   listSessions,
   processMessage,
+  setPinnedContext,
+  clearPinnedContext,
 } from "../services/ragAssistantService.js";
 import userAuth from "../middleware/userAuth.js";
 import rateLimit from "express-rate-limit";
@@ -63,6 +65,57 @@ router.delete("/sessions/:id", async (req, res) => {
   }
 });
 
+// Pin or replace pinned context for a session
+router.put("/sessions/:id/pinned-context", async (req, res) => {
+  try {
+    const { type, refId, title } = req.body || {};
+    if (!type || !refId) {
+      return res
+        .status(400)
+        .json({ error: "type and refId are required to pin context." });
+    }
+
+    const session = await setPinnedContext(
+      req.params.id,
+      req.user._id,
+      req.user.organization,
+      { type, refId, title },
+    );
+    res.json({
+      pinnedContext: session.pinnedContext,
+      sessionId: session._id,
+    });
+  } catch (error) {
+    console.error("Error pinning context:", error);
+    const status =
+      error.message?.includes("not found") ||
+      error.message?.includes("not accessible")
+        ? 403
+        : error.message?.includes("Invalid")
+          ? 400
+          : 500;
+    res.status(status).json({
+      error: error.message || "Failed to pin context",
+    });
+  }
+});
+
+// Remove pinned context
+router.delete("/sessions/:id/pinned-context", async (req, res) => {
+  try {
+    const session = await clearPinnedContext(req.params.id, req.user._id);
+    res.json({
+      pinnedContext: session.pinnedContext,
+      sessionId: session._id,
+    });
+  } catch (error) {
+    console.error("Error clearing pinned context:", error);
+    res.status(error.message === "Session not found" ? 404 : 500).json({
+      error: error.message || "Failed to clear pinned context",
+    });
+  }
+});
+
 // Send a message
 router.post("/sessions/:id/message", messageLimiter, async (req, res) => {
   try {
@@ -72,10 +125,8 @@ router.post("/sessions/:id/message", messageLimiter, async (req, res) => {
     }
 
     const sessionId = req.params.id;
-    // Get socket io instance to broadcast streaming events
     const io = req.app.get("io");
 
-    // Process message in the background and stream over socket
     processMessage(sessionId, req.user._id, content, io).catch((err) => {
       console.error("Error processing message:", err);
       io.emit("assistant_error", {

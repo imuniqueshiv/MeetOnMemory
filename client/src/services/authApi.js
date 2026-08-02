@@ -1,13 +1,10 @@
 import apiClient from "./apiClient";
 
+/** Clerk-era auth API — identity is owned by Clerk; these probe/sync Mongo. */
 export const authApi = {
-  login: (credentials) => apiClient.post("/api/auth/login", credentials),
-  register: (userData) => apiClient.post("/api/auth/register", userData),
-  logout: () => apiClient.post("/api/auth/logout", {}),
-  getAuthState: () => apiClient.get("/api/auth/is-auth"),
-  getUserData: () => apiClient.get("/api/auth/user-data"),
-  sendVerifyOtp: () => apiClient.post("/api/auth/send-verify-otp", {}),
-  verifyAccount: (data) => apiClient.post("/api/auth/verify-email", data),
-  sendResetOtp: (data) => apiClient.post("/api/auth/send-reset-otp", data),
-  resetPassword: (data) => apiClient.post("/api/auth/reset-password", data),
+  logout: (config) => apiClient.post("/api/auth/logout", {}, config),
+  getAuthState: (config) => apiClient.get("/api/auth/is-auth", config),
+  getUserData: (config) => apiClient.get("/api/auth/user-data", config),
+  syncClerkUser: (payload = {}, config) =>
+    apiClient.post("/api/auth/sync-clerk-user", payload, config),
 };

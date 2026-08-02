@@ -4,7 +4,6 @@ import { toast } from "react-toastify";
 import {
   Paperclip,
   Upload,
-  X,
   File,
   Download,
   Trash2,
@@ -226,6 +225,7 @@ const AttachmentPanel = ({ meetingId }) => {
                   onClick={() => handleDownload(file)}
                   className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                   title="Download"
+                  aria-label="Download attachment"
                 >
                   <Download className="w-4 h-4" />
                 </button>
@@ -233,6 +233,7 @@ const AttachmentPanel = ({ meetingId }) => {
                   onClick={() => handleDelete(file._id)}
                   className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                   title="Delete"
+                  aria-label="Delete attachment"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

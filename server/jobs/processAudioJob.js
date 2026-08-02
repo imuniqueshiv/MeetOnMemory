@@ -10,7 +10,7 @@ import User from "../models/userModel.js";
 
 import { indexMeeting } from "../utils/embeddingUtils.js";
 import {
-  generateMoMWithAI,
+  generateMoMDetailed,
   normalizeMoM,
   buildHumanReadableMoM,
 } from "../services/GenerativeAIService.js";
@@ -43,10 +43,25 @@ export default async function processAudioJob(job, _app) {
   let structured = null;
   let humanReadable = "";
 
-  structured = await generateMoMWithAI(textToSummarize, date, title);
+  // Issue #976: the detailed entry point also returns provenance, so a MoM
+  // produced by the reduced-capability fallback is flagged rather than being
+  // persisted as if it were a complete result.
+  const { mom: generated, generation } = await generateMoMDetailed(
+    textToSummarize,
+    date,
+    title,
+  );
+  structured = generated;
+
+  if (generation?.degraded) {
+    console.warn(
+      `⚠️ MoM for ${meetingId || "transcript-only"} was generated in degraded mode ` +
+        `(${generation.provider}, reason: ${generation.reason}). Consider reprocessing.`,
+    );
+  }
 
   if (structured) {
-    const mom = normalizeMoM(structured, title, date);
+    const mom = normalizeMoM(structured, title, date, generation);
     humanReadable = buildHumanReadableMoM(mom);
 
     let meetingToUpdate = meeting;

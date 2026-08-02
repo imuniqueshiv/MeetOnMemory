@@ -1,53 +1,11 @@
-import jwt from "jsonwebtoken";
 import Transcript from "../models/transcriptModel.js";
 import Meeting from "../models/meetingModel.js";
 import { hasPermission } from "../utils/rbacPermissions.js";
-
-const parseCookie = (str) =>
-  str
-    .split(";")
-    .map((v) => v.split("="))
-    .reduce((acc, v) => {
-      if (v[0] && v[1] !== undefined) {
-        acc[decodeURIComponent(v[0].trim())] = decodeURIComponent(v[1].trim());
-      }
-      return acc;
-    }, {});
+import authenticateSocket from "../middleware/socketAuth.js";
 
 export default (io) => {
-  // Authentication Middleware
-  io.use(async (socket, next) => {
-    try {
-      const cookieHeader = socket.request.headers.cookie;
-      if (!cookieHeader) {
-        return next(new Error("Authentication error: No cookies found"));
-      }
-
-      const cookies = parseCookie(cookieHeader);
-      const token = cookies.token;
-
-      if (!token) {
-        return next(new Error("Authentication error: No token found"));
-      }
-
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.userId = decoded.id;
-
-      // Fetch user with role and organization
-      const userModel = (await import("../models/userModel.js")).default;
-      const user = await userModel.findById(decoded.id);
-      if (!user) {
-        return next(new Error("Authentication error: User not found"));
-      }
-
-      socket.userRole = user.role;
-      socket.userOrganization = user.organization;
-      next();
-    } catch (error) {
-      console.error("Socket authentication error:", error.message);
-      return next(new Error("Authentication error"));
-    }
-  });
+  // Authentication Middleware with Clerk & Dual Auth support
+  io.use(authenticateSocket);
 
   io.on("connection", (socket) => {
     console.log("🟢 User connected to transcript socket:", socket.id);

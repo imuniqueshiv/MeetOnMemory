@@ -18,6 +18,7 @@ import TopContributorsWidget from "../components/organization/TopContributorsWid
 import DashboardMetricsWidget from "../components/dashboard/DashboardMetricsWidget.jsx";
 import OrganizationLogo from "../components/organization/OrganizationLogo.jsx";
 import OrganizationBanner from "../components/organization/OrganizationBanner.jsx";
+import PersonalNotesSidebar from "../components/PersonalNotesSidebar.jsx";
 
 /* ─── Role Badge ──────────────────────────────────────────────────────────── */
 const ROLE_STYLES = {
@@ -34,6 +35,7 @@ const ROUTE_MAP = {
   policies: "/policies",
   reports: "/reports",
   "attendance-analytics": "/attendance-analytics",
+  "meeting-cost-analytics": "/meeting-cost-analytics",
 };
 
 /* ─── Dashboard ───────────────────────────────────────────────────────────── */
@@ -125,6 +127,19 @@ const Dashboard = () => {
       tag: "Analytics",
       tagColor: "bg-pink-50 text-pink-700 border-pink-100",
       accentRing: "group-hover:ring-pink-100",
+    },
+    {
+      id: "meeting-cost-analytics",
+      icon: BarChart3,
+      title: "Meeting Cost Analytics",
+      description:
+        "Analyze organizational cost and time investment across all meetings.",
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue-600",
+      tag: "Cost",
+      tagColor: "bg-blue-50 text-blue-700 border-blue-100",
+      accentRing: "group-hover:ring-blue-100",
+      adminOnly: true,
     },
   ];
 
@@ -332,16 +347,17 @@ const Dashboard = () => {
           </div>
         </section>
 
-        {/* ── Gamification ── */}
+        {/* ── Additional Widgets (Gamification & Notes) ── */}
         <section
-          aria-label="Organization Engagement"
-          className="mt-6 sm:mt-8 fade-in-up stagger-3"
+          aria-label="Additional Widgets"
+          className="mt-6 sm:mt-8 fade-in-up stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-6"
         >
           <TopContributorsWidget
             organizationId={
               userData?.organization?._id || userData?.organization
             }
           />
+          <PersonalNotesSidebar />
         </section>
       </main>
     </div>

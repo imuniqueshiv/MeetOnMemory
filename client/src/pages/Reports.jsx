@@ -4,17 +4,28 @@ import Navbar from "../components/Navbar.jsx";
 import { toast } from "react-toastify";
 import AppContent from "../context/AppContent";
 import { analyticsApi } from "../services";
+import reportApi from "../services/reportApi";
 import { Bar, Line, Pie } from "react-chartjs-2";
 import { Chart, registerables } from "chart.js";
-import { Loader2, Brain, BarChart4, PieChart } from "lucide-react";
+import {
+  Loader2,
+  Brain,
+  BarChart4,
+  PieChart,
+  Plus,
+  FileText,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 Chart.register(...registerables);
 
 const Reports = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [aiInsights, setAiInsights] = useState("");
+  const [templates, setTemplates] = useState([]);
 
   useEffect(() => {
     // 🧠 Generate Gemini-based insights
@@ -34,13 +45,20 @@ const Reports = () => {
 
     const fetchAnalytics = async () => {
       try {
-        const res = await analyticsApi.getAnalytics();
+        const [res, templatesRes] = await Promise.all([
+          analyticsApi.getAnalytics(),
+          reportApi.getTemplates().catch(() => ({ data: [] })),
+        ]);
 
         if (res.data.success) {
           setData(res.data);
           await fetchAIInsights(res.data.summary);
         } else {
           toast.error(t("reports.failedToLoad"));
+        }
+
+        if (templatesRes && templatesRes.data) {
+          setTemplates(templatesRes.data);
         }
       } catch (error) {
         console.error("Error loading analytics:", error);
@@ -171,6 +189,59 @@ const Reports = () => {
             {t("reports.meetingDistribution")}
           </h2>
           <Pie data={pieData} />
+        </div>
+
+        {/* Custom Report Builder */}
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md border dark:border-gray-800 text-left mb-10">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold dark:text-white flex items-center gap-2">
+              <FileText className="text-blue-600 dark:text-blue-400 w-6 h-6" />
+              Custom Reports
+            </h2>
+            <button
+              onClick={() => navigate("/reports/builder")}
+              className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors text-sm font-medium"
+            >
+              <Plus size={16} className="mr-2" />
+              New Template
+            </button>
+          </div>
+
+          {templates.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
+              No custom report templates yet. Create one to generate aggregated
+              meeting reports.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {templates.map((template) => (
+                <div
+                  key={template._id}
+                  className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-blue-500 dark:hover:border-blue-400 transition-colors bg-gray-50 dark:bg-gray-800/50"
+                >
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    {template.name}
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4 truncate">
+                    {template.description || "No description"}
+                  </p>
+                  <div className="flex justify-between items-center mt-auto">
+                    <span className="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-gray-600 dark:text-gray-300">
+                      {template.sections?.length || 0} sections
+                    </span>
+                    <button
+                      onClick={() =>
+                        navigate(`/reports/builder/${template._id}`)
+                      }
+                      className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                    >
+                      View / Generate &rarr;
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* AI Insights Section */}

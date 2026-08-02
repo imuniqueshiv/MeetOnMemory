@@ -112,6 +112,16 @@ const MemoryLifecycle = () => {
     return () => clearTimeout(timer);
   }, [loadMemories]);
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setTransitionModal((prev) => ({ ...prev, isOpen: false }));
+        setHistoryModal((prev) => ({ ...prev, isOpen: false }));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
   const handleRunSweep = async () => {
     setSweeping(true);
     try {

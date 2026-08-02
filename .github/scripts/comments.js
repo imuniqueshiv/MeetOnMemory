@@ -7,7 +7,9 @@ export const comments = {
     withMarker(
       AUTOMATION.claimWelcomeMarker,
       `Hi @${user}, thanks so much for volunteering to take this on! 🎉\n\n` +
-        `Issue #${issueNumber} is now officially assigned to you. Before you dive in, please take a moment to review **CONTRIBUTING.md**, and try to keep your PR focused on this issue so it's easy to review.\n\n` +
+        `Issue #${issueNumber} is now officially assigned to you.\n\n` +
+        `💬 Welcome! For faster communication and project updates, please join our Discord community:\nhttps://discord.gg/c29cwdVMG\n\n` +
+        `Before you dive in, please take a moment to review **CONTRIBUTING.md**, and try to keep your PR focused on this issue so it's easy to review.\n\n` +
         `⏳ Please open your PR within **48 hours**. If you need a bit more time, no worries — just leave a quick progress update here and you're good to continue.\n\n` +
         `Excited to see what you build. Happy coding! 🚀`,
     ),
@@ -63,9 +65,14 @@ export const comments = {
         `If anything blocks you along the way, just leave a short update here — we're happy to help. Looking forward to your contribution! 🚀`,
     ),
 
-  prOpened: ({ user, prNumber, prTitle }) =>
-    `Hi @${user}, thank you so much for opening PR #${prNumber} (**${prTitle}**)! 🎉\n\n` +
-    `A quick validation pass is running now. If anything is missing, you'll see it below with clear next steps — nothing to worry about, we're here to help you get it merge-ready. 💙`,
+  prOpened: ({ user }) =>
+    withMarker(
+      AUTOMATION.prOpenedMarker,
+      `Hi @${user} 👋\n\n` +
+        `Thanks for your contribution! 🚀\n\n` +
+        `For faster updates and support, please join our Discord community:\nhttps://discord.gg/c29cwdVMG\n\n` +
+        `If you'd like an early review, kindly mention @imuniqueshiv in this PR after all CI checks have passed. Thanks!`,
+    ),
 
   welcomeMessage: ({ user }) =>
     `Hi @${user}, welcome to **MeetOnMemory**! 🎉\n\n` +
@@ -129,9 +136,10 @@ export const comments = {
   firstContributorWelcome: ({ user }) =>
     withMarker(
       AUTOMATION.firstWelcomeMarker,
-      `Hi @${user}, welcome to **MeetOnMemory**! 🎉\n\n` +
-        `It's wonderful to have your very first contribution here — thank you for taking the time! Please start with **CONTRIBUTING.md**, and use Discussions anytime you'd like feedback or help.\n\n` +
-        `We're so glad you're here. Here's to many more contributions ahead! 💙`,
+      `Hi @${user} 👋\n\n` +
+        `Thanks for your contribution! 🚀\n` +
+        `For faster updates and support, please join our Discord community:\nhttps://discord.gg/c29cwdVMG\n\n` +
+        `If you'd like an early review, kindly mention @imuniqueshiv in this PR after all CI checks have passed. Thanks!`,
     ),
 
   naturalLanguageClaimGuidance: ({ user }) =>

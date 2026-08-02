@@ -1,5 +1,5 @@
 import * as Y from "yjs";
-import jwt from "jsonwebtoken";
+import jwt from "jsonwebtoken"; // eslint-disable-line no-unused-vars
 import { createClient } from "redis";
 import {
   loadDocumentState,
@@ -7,6 +7,7 @@ import {
 } from "../services/documentService.js";
 import Meeting from "../models/meetingModel.js";
 import User from "../models/userModel.js";
+import authenticateSocket from "../middleware/socketAuth.js";
 
 // In-memory registry
 //     docRegistry[meetingId] = {
@@ -78,18 +79,6 @@ if (redisUri) {
     redisSub = null;
   }
 }
-
-// JWT Cookie Auth helper
-const parseCookie = (str = "") =>
-  str
-    .split(";")
-    .map((v) => v.split("="))
-    .reduce((acc, v) => {
-      if (v[0] && v[1] !== undefined) {
-        acc[decodeURIComponent(v[0].trim())] = decodeURIComponent(v[1].trim());
-      }
-      return acc;
-    }, {});
 
 // Debounced save — resets the timer on every new update
 const scheduleSave = (meetingId, ydoc) => {
@@ -179,25 +168,8 @@ export default (io) => {
   // Create a dedicated namespace for document synchronization
   syncNamespace = io.of("/sync");
 
-  // Auth Middleware — validate JWT cookie on every connection
-  syncNamespace.use((socket, next) => {
-    try {
-      const cookieHeader = socket.request.headers.cookie || "";
-      const cookies = parseCookie(cookieHeader);
-      const token = cookies.token;
-
-      if (!token) {
-        return next(new Error("Authentication error: No token found"));
-      }
-
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.userId = decoded.id;
-      next();
-    } catch (err) {
-      console.error("[documentSync] Auth error:", err.message);
-      return next(new Error("Authentication error"));
-    }
-  });
+  // Auth Middleware — Clerk & Dual Auth support
+  syncNamespace.use(authenticateSocket);
 
   // Connection handler
   syncNamespace.on("connection", (socket) => {

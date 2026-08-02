@@ -78,9 +78,10 @@ export default function LiveChatWidget({
         />
         <button
           type="submit"
+          aria-label="Send message"
           className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition shrink-0"
         >
-          <Send className="w-3.5 h-3.5" />
+          <Send className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
       </form>
     </div>

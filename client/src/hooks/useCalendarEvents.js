@@ -1,11 +1,9 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { meetingApi } from "../services";
-import axios from "axios";
-import AppContent from "../context/AppContent";
+import apiClient from "../services/apiClient.js";
 
 export const useCalendarEvents = () => {
-  const { backendUrl } = useContext(AppContent);
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -33,10 +31,7 @@ export const useCalendarEvents = () => {
 
         // Fetch external events
         try {
-          const { data: extData } = await axios.get(
-            `${backendUrl || "http://localhost:4000"}/api/calendar/events`,
-            { withCredentials: true },
-          );
+          const { data: extData } = await apiClient.get("/api/calendar/events");
           if (extData.success && extData.events) {
             const externalEvents = extData.events.map((e) => ({
               _id: e.id,
@@ -69,7 +64,7 @@ export const useCalendarEvents = () => {
     };
 
     fetchMeetings();
-  }, [backendUrl]);
+  }, []);
 
   // Filter Logic
   const filteredMeetings = meetings.filter((meeting) => {

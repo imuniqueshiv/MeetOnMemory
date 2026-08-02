@@ -4,7 +4,12 @@ import { Link } from "react-router-dom";
 const SourceCitation = ({ source, index }) => {
   const { refType, refId, title } = source;
 
-  const linkUrl = refType === "meeting" ? `/meetings/${refId}` : `/policies`; // or another policy route if specific policy view exists
+  const linkUrl =
+    refType === "meeting"
+      ? `/meeting/${refId}`
+      : refType === "knowledge"
+        ? `/knowledge/${refId}`
+        : `/policies`;
 
   return (
     <Link

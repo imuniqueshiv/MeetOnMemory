@@ -20,6 +20,10 @@ export default function TaskCard({
   navigate,
   updateTaskStatus,
   toggleTaskReminder,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
+  selectionDisabled = false,
 }) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isTogglingReminder, setIsTogglingReminder] = useState(false);
@@ -64,12 +68,31 @@ export default function TaskCard({
     <div
       onClick={() => setSelectedTask(task)}
       className={`group bg-white dark:bg-slate-900 border rounded-xl p-5 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition-all cursor-pointer ${
-        isOverdue
-          ? "border-red-300 dark:border-red-900/60 bg-red-50/20 dark:bg-red-950/10"
-          : "border-slate-200 dark:border-slate-700"
+        selected
+          ? "border-blue-400 dark:border-blue-600 ring-1 ring-blue-200 dark:ring-blue-900"
+          : isOverdue
+            ? "border-red-300 dark:border-red-900/60 bg-red-50/20 dark:bg-red-950/10"
+            : "border-slate-200 dark:border-slate-700"
       }`}
     >
       <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+        {selectable && (
+          <div className="pt-1 shrink-0">
+            <input
+              type="checkbox"
+              checked={selected}
+              disabled={selectionDisabled && !selected}
+              aria-label={`Select action item: ${task.title}`}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                e.stopPropagation();
+                onToggleSelect?.(task.id, e.target.checked);
+              }}
+              className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            />
+          </div>
+        )}
+
         {/* Task Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-3 mb-2 flex-wrap">

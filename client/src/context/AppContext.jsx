@@ -3,8 +3,14 @@ import { toast } from "react-toastify";
 import AppContent from "./AppContent.js";
 import { RBACProvider } from "./RBACContext.jsx";
 import { useNavigate } from "react-router-dom";
-import { authApi, csrfService } from "../services";
+import { authApi } from "../services";
 import { getBackendUrl } from "../config/backendConfig.js";
+
+const isClerkConfigured = () =>
+  Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.trim());
+
+const bearerConfig = (authorization) =>
+  authorization ? { headers: { Authorization: authorization } } : undefined;
 
 export const AppContextProvider = ({ children }) => {
   const backendUrl = getBackendUrl();
@@ -20,9 +26,9 @@ export const AppContextProvider = ({ children }) => {
     localStorage.removeItem("userData");
   }, []);
 
-  const getUserData = useCallback(async () => {
+  const getUserData = useCallback(async (requestConfig) => {
     try {
-      const { data } = await authApi.getUserData();
+      const { data } = await authApi.getUserData(requestConfig);
 
       if (data.success && data.user) {
         setUserData(data.user);
@@ -41,28 +47,22 @@ export const AppContextProvider = ({ children }) => {
     }
   }, []);
 
-  // Single bootstrap path for refresh, login, and registration
+  /**
+   * Probe is-auth + user-data and set Mongo session state.
+   * Optional `authorization` (e.g. "Bearer <jwt>") attaches the Clerk token
+   * even if the shared token getter was cleared during a re-render race.
+   */
   const initializeAuth = useCallback(
-    async ({ quiet = false } = {}) => {
+    async ({ authorization } = {}) => {
+      const requestConfig = bearerConfig(authorization);
       try {
-        try {
-          await csrfService.fetchToken();
-        } catch (csrfErr) {
-          console.error("Failed to fetch CSRF token", csrfErr);
-          if (!quiet) {
-            toast.error(
-              "Failed to initialize secure session. Please check your connection and refresh.",
-            );
-          }
-        }
-
-        const { data } = await authApi.getAuthState();
+        const { data } = await authApi.getAuthState(requestConfig);
         if (!data.success) {
           clearAuthState();
           return null;
         }
 
-        const user = await getUserData();
+        const user = await getUserData(requestConfig);
         if (!user) {
           clearAuthState();
           return null;
@@ -71,26 +71,46 @@ export const AppContextProvider = ({ children }) => {
         setIsLoggedin(true);
         return user;
       } catch {
-        console.log("User not authenticated");
         clearAuthState();
         return null;
-      } finally {
-        setLoading(false);
       }
     },
     [clearAuthState, getUserData],
   );
 
   useEffect(() => {
-    initializeAuth({ quiet: true });
+    // ClerkSessionSync owns post-login bootstrap once a Bearer token exists.
+    // Racing is-auth/user-data here without a token clears session and trips
+    // a login ↔ dashboard redirect loop.
+    if (isClerkConfigured()) {
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await initializeAuth();
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [initializeAuth]);
 
   const logoutUser = async () => {
     try {
-      await authApi.logout();
+      try {
+        await authApi.logout();
+      } catch {
+        // Best-effort server acknowledgement
+      }
       clearAuthState();
-      csrfService.clearToken();
-
+      window.dispatchEvent(
+        new CustomEvent("meetonmemory:request-clerk-signout"),
+      );
       toast.success("Logged out successfully");
       navigate("/");
     } catch {
@@ -108,6 +128,7 @@ export const AppContextProvider = ({ children }) => {
     initializeAuth,
     logoutUser,
     loading,
+    setLoading,
   };
 
   return (

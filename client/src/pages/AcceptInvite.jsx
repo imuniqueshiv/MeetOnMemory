@@ -51,7 +51,12 @@ const AcceptInvite = () => {
       toast.info(
         "Please log in or create an account to accept the invitation.",
       );
-      navigate("/login", { state: { redirect: `/invite/${token}` } });
+      navigate("/login", {
+        state: {
+          from: { pathname: `/invite/${token}` },
+          redirect: `/invite/${token}`,
+        },
+      });
       return;
     }
 

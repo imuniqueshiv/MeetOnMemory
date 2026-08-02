@@ -10,20 +10,58 @@
  *  5. POST /api/slack/events - generic event_callback acknowledgement
  *  6. GET  /api/slack/install - missing organizationId
  *  7. GET  /api/slack/oauth_redirect - missing code
+ *
+ * Jest ESM note (Node 24+):
+ * Importing the real `axios` or `@clerk/express` packages under
+ * `--experimental-vm-modules` throws "module is already linked" (and a follow-on
+ * post-teardown require). Those graphs are pulled in by `server.js` /
+ * `slackService.js` / `userAuth.js`. Mock them *before* any app imports, and
+ * mount only the Slack stack instead of loading `server.js`.
  */
 
 import request from "supertest";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
-import axios from "axios";
+import express from "express";
 import { jest } from "@jest/globals";
+import { createClerkTestToken, authHeader } from "./helpers/clerkTestAuth.js";
 
-import { app } from "../server.js";
-import User from "../models/userModel.js";
-import Organization from "../models/organizationModel.js";
-import Membership from "../models/membershipModel.js";
-import { verifySlackSignature } from "../services/slackService.js";
+const axiosPost = jest.fn().mockResolvedValue({
+  status: 200,
+  data: {
+    ok: true,
+    access_token: "xoxb-test-token",
+    team: { id: "T12345TEST", name: "Test Workspace" },
+    incoming_webhook: { channel_id: "C12345TEST" },
+  },
+});
+
+jest.unstable_mockModule("axios", () => ({
+  default: {
+    post: axiosPost,
+    get: jest.fn(),
+    create: jest.fn(() => ({ post: axiosPost, get: jest.fn() })),
+  },
+}));
+
+jest.unstable_mockModule("@clerk/express", () => ({
+  verifyToken: jest.fn(),
+  clerkMiddleware: jest.fn(),
+}));
+
+const { verifySlackSignature } = await import("../services/slackService.js");
+const { slackWebhookParser } =
+  await import("../middleware/slackWebhookParser.js");
+const slackRoutes = (await import("../routes/slackRoutes.js")).default;
+const User = (await import("../models/userModel.js")).default;
+const Organization = (await import("../models/organizationModel.js")).default;
+const Membership = (await import("../models/membershipModel.js")).default;
+
+// Mirror production Slack mount order (see config/express.js) without booting
+// the full application graph from server.js.
+const app = express();
+app.use("/api/slack", slackWebhookParser, slackRoutes);
 
 // Test helpers
 
@@ -49,30 +87,21 @@ const generateSlackSignature = (
   return { signature, timestamp: String(timestamp) };
 };
 
-// Mocks
+// Mocks / env
 
-let axiosSpy;
-
-beforeAll(() => {
-  // Prevent real HTTP calls to Slack API
-  axiosSpy = jest.spyOn(axios, "post").mockResolvedValue({
-    status: 200,
-    data: {
-      ok: true,
-      access_token: "xoxb-test-token",
-      team: { id: "T12345TEST", name: "Test Workspace" },
-      incoming_webhook: { channel_id: "C12345TEST" },
-    },
-  });
+beforeAll(async () => {
   process.env.SLACK_SIGNING_SECRET = SIGNING_SECRET;
   process.env.SLACK_CLIENT_ID = "test_client_id";
   process.env.SLACK_CLIENT_SECRET = "test_client_secret";
   process.env.SLACK_REDIRECT_URI =
     "http://localhost:4000/api/slack/oauth_redirect";
+
+  if (mongoose.connection.readyState !== 1) {
+    await mongoose.connect(process.env.TEST_MONGODB_URI);
+  }
 });
 
 afterAll(() => {
-  axiosSpy.mockRestore();
   delete process.env.SLACK_SIGNING_SECRET;
   delete process.env.SLACK_CLIENT_ID;
   delete process.env.SLACK_CLIENT_SECRET;
@@ -272,14 +301,16 @@ describe("GET /api/slack/install", () => {
       password: "password123",
       role: "admin",
     });
-    const token = jwt.sign(
-      { id: user._id },
-      process.env.JWT_SECRET || "fallback_secret",
-    );
+    user.clerkUserId = `user_test_${user._id}`;
+    await user.save();
+    const token = createClerkTestToken({
+      clerkUserId: user.clerkUserId,
+      email: user.email,
+    });
 
     const res = await request(app)
       .get("/api/slack/install")
-      .set("Authorization", `Bearer ${token}`);
+      .set(authHeader(token));
 
     // No organizationId in query or user.organization → 400
     expect(res.status).toBe(400);
