@@ -1,6 +1,7 @@
 // Handles persistence of Yjs CRDT state to/from MongoDB
 
 import Meeting from "../models/meetingModel.js";
+import { snapshotNoteVersion } from "../controllers/noteVersionController.js";
 
 /**
  * Loads the serialized Yjs binary state for a given meeting from MongoDB.
@@ -68,6 +69,18 @@ export const saveDocumentState = async (
     console.log(
       `💾 [documentService] Saved CRDT state for meeting: ${meetingId} (${stateVector.byteLength} bytes)`,
     );
+
+    try {
+      await snapshotNoteVersion(
+        meetingId,
+        "collaborativeNotes",
+        plainText,
+        "user_edit",
+        null, // We don't easily have the user ID here from the Yjs sync protocol unless passed down
+      );
+    } catch (err) {
+      console.error("⚠️ Failed to snapshot collaborativeNotes:", err.message);
+    }
   } catch (error) {
     console.error(
       `❌ [documentService] Failed to save state for ${meetingId}:`,

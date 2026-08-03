@@ -50,7 +50,7 @@ const Hero = () => {
   const mockupRef = useFadeIn();
 
   const handleGetStarted = () => {
-    navigate("/login?mode=signup");
+    navigate("/signup");
   };
 
   const handleLearnMore = () => {

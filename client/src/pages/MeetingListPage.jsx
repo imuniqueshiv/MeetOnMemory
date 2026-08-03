@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import AppContent from "../context/AppContent";
 import Navbar from "../components/Navbar.jsx";
 import MeetingRepository from "../components/meetings/MeetingRepository.jsx";
-import { PlusCircle, Calendar } from "lucide-react";
+import { PlusCircle, Calendar, Trash2 } from "lucide-react";
 
 const MeetingListPage = () => {
   const { userData } = useContext(AppContent);
@@ -41,13 +41,22 @@ const MeetingListPage = () => {
             Meeting Repository
           </h2>
 
-          <button
-            onClick={handleCreateMeeting}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-full transition-all duration-200 cursor-pointer"
-          >
-            <PlusCircle className="w-5 h-5" />
-            Create New Meeting
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate("/meetings/recycle-bin")}
+              className="flex items-center gap-2 border border-gray-300 dark:border-gray-700 px-4 py-2.5 rounded-full"
+            >
+              <Trash2 className="w-5 h-5" />
+              Recycle Bin
+            </button>
+            <button
+              onClick={handleCreateMeeting}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-full transition-all duration-200 cursor-pointer"
+            >
+              <PlusCircle className="w-5 h-5" />
+              Create New Meeting
+            </button>
+          </div>
         </div>
 
         {/* Meeting Repository Component */}

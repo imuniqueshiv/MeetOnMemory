@@ -143,7 +143,7 @@ const joinOrganization = async (userId, organization) => {
   }
 
   if (!Array.isArray(organization.members)) organization.members = [];
-  organization.members.push(userId);
+  organization.members.push({ userId, role: "member" });
   await organization.save();
 
   await userModel.findByIdAndUpdate(userId, {
@@ -207,7 +207,7 @@ export const createOrJoinOrganization = async (userId, orgName) => {
       slug: uniqueSlug,
       owner: userId,
       createdBy: userId,
-      members: [userId],
+      members: [{ userId, role: "admin" }],
     });
 
     // Create admin membership for the creator (RBAC); unique index prevents duplicates
@@ -529,10 +529,24 @@ export const browsePublicOrganizations = async ({
     Organization.countDocuments(finalQuery),
   ]);
 
-  // Calculate member counts for each organization
+  // Calculate member counts for each organization from Membership model
+  const orgIds = organizations.map((org) => org._id);
+  const membershipCounts =
+    typeof Membership.aggregate === "function"
+      ? await Membership.aggregate([
+          { $match: { organization: { $in: orgIds }, status: "active" } },
+          { $group: { _id: "$organization", count: { $sum: 1 } } },
+        ])
+      : [];
+  const countMap = new Map(
+    membershipCounts.map((item) => [item._id.toString(), item.count]),
+  );
+
   const organizationsWithCounts = organizations.map((org) => ({
     ...org,
-    memberCount: org.members ? org.members.length : 0,
+    memberCount:
+      countMap.get(org._id.toString()) ??
+      (org.members ? org.members.length : 0),
   }));
 
   return {
@@ -580,9 +594,23 @@ export const searchOrganizations = async (q, page = 1, limit = 12) => {
   ]);
 
   // Calculate member counts
+  const searchOrgIds = organizations.map((org) => org._id);
+  const searchMembershipCounts =
+    typeof Membership.aggregate === "function"
+      ? await Membership.aggregate([
+          { $match: { organization: { $in: searchOrgIds }, status: "active" } },
+          { $group: { _id: "$organization", count: { $sum: 1 } } },
+        ])
+      : [];
+  const searchCountMap = new Map(
+    searchMembershipCounts.map((item) => [item._id.toString(), item.count]),
+  );
+
   const organizationsWithCounts = organizations.map((org) => ({
     ...org,
-    memberCount: org.members ? org.members.length : 0,
+    memberCount:
+      searchCountMap.get(org._id.toString()) ??
+      (org.members ? org.members.length : 0),
   }));
 
   return {
@@ -700,7 +728,7 @@ export const createOrganization = async (
     visibility: visibility || "private",
     joinPolicy: joinPolicy || "open",
     owner: userId,
-    members: [userId],
+    members: [{ userId, role: "admin" }],
     metadata: metadata || {},
   });
 

@@ -3,6 +3,7 @@ import { io } from "socket.io-client";
 import { toast } from "react-toastify";
 import { meetingApi } from "../services";
 import useExport from "./useExport";
+import { createClerkSocketOptions } from "../services/apiClient.js";
 
 export default function useMeetingSummary({
   userData,
@@ -18,8 +19,15 @@ export default function useMeetingSummary({
   const { exportMeeting, isExporting } = useExport();
 
   useEffect(() => {
-    if (userData && backendUrl) {
-      const socket = io(backendUrl, { withCredentials: true });
+    if (!userData || !backendUrl) return;
+
+    let socket;
+    let cancelled = false;
+
+    (async () => {
+      const opts = await createClerkSocketOptions();
+      if (cancelled) return;
+      socket = io(backendUrl, opts);
       socket.on("mom-generation-complete", (data) => {
         if (data && data.meetingId) {
           setSummary(
@@ -29,10 +37,12 @@ export default function useMeetingSummary({
           setIsSummarizing(false);
         }
       });
-      return () => {
-        socket.disconnect();
-      };
-    }
+    })();
+
+    return () => {
+      cancelled = true;
+      socket?.disconnect();
+    };
   }, [userData, backendUrl]);
 
   const handleGenerateSummary = async () => {

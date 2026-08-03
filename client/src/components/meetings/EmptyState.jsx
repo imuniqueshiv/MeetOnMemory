@@ -4,7 +4,7 @@ import { Calendar, Search, FileText } from "lucide-react";
 const EmptyState = ({ type }) => {
   const states = {
     noMeetings: {
-      icon: <Calendar size={64} className="text-gray-300" />,
+      icon: <Calendar size={64} className="text-gray-300 dark:text-gray-600" />,
       title: "No Meetings Yet",
       description:
         "You haven't uploaded any meetings yet. Start by uploading your first meeting to see it here.",
@@ -12,7 +12,7 @@ const EmptyState = ({ type }) => {
       actionLink: "/upload-meeting",
     },
     noResults: {
-      icon: <Search size={64} className="text-gray-300" />,
+      icon: <Search size={64} className="text-gray-300 dark:text-gray-600" />,
       title: "No Meetings Found",
       description:
         "We couldn't find any meetings matching your search or filters. Try adjusting your criteria.",
@@ -20,7 +20,7 @@ const EmptyState = ({ type }) => {
       actionLink: null,
     },
     noScheduled: {
-      icon: <FileText size={64} className="text-gray-300" />,
+      icon: <FileText size={64} className="text-gray-300 dark:text-gray-600" />,
       title: "No Scheduled Meetings",
       description:
         "You don't have any scheduled meetings. Schedule a new meeting to get started.",
@@ -34,10 +34,10 @@ const EmptyState = ({ type }) => {
   return (
     <div className="flex flex-col items-center justify-center py-20 px-4">
       <div className="mb-6">{state.icon}</div>
-      <h3 className="text-2xl font-semibold text-gray-900 mb-3">
+      <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-3">
         {state.title}
       </h3>
-      <p className="text-gray-600 text-center max-w-md mb-8">
+      <p className="text-gray-600 dark:text-gray-400 text-center max-w-md mb-8">
         {state.description}
       </p>
       {state.actionLink && (

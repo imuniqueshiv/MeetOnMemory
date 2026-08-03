@@ -3,7 +3,6 @@ import Navbar from "../components/Navbar.jsx";
 import AppContent from "../context/AppContent";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import axios from "axios";
 import {
   User,
   Mail,
@@ -27,6 +26,11 @@ import CalendarIntegrations from "../components/CalendarIntegrations.jsx";
 import useTheme from "../context/useTheme.jsx";
 import WebhooksManager from "../components/WebhooksManager.jsx";
 import DigestPreferences from "../components/DigestPreferences.jsx";
+import RecapPreferences from "../components/RecapPreferences.jsx";
+import { ClerkManageAccountButton } from "../components/ClerkUserControls.jsx";
+import apiClient from "../services/apiClient.js";
+
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 const Settings = () => {
   const { userData, logoutUser } = useContext(AppContent);
@@ -55,10 +59,7 @@ const Settings = () => {
   useEffect(() => {
     const fetchCalendarStatus = async () => {
       try {
-        const token = localStorage.getItem("token");
-        const response = await axios.get("/api/calendar/status", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await apiClient.get("/api/calendar/status");
         setCalendarStatus(
           response.data.status || { google: null, microsoft: null },
         );
@@ -128,12 +129,9 @@ const Settings = () => {
 
     if (key === "emailDigestEnabled") {
       try {
-        const token = localStorage.getItem("token");
-        await axios.put(
-          "/api/user/update",
-          { emailDigestEnabled: newValue },
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
+        await apiClient.put("/api/user/update", {
+          emailDigestEnabled: newValue,
+        });
         toast.success("Email digest preference updated");
       } catch (error) {
         console.error("Error updating preference:", error);
@@ -157,10 +155,7 @@ const Settings = () => {
   const handleConnectGoogle = async () => {
     try {
       setCalendarLoading(true);
-      const token = localStorage.getItem("token");
-      const response = await axios.get("/api/calendar/google/auth-url", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiClient.get("/api/calendar/google/auth-url");
 
       // Open OAuth popup
       const authWindow = window.open(
@@ -188,10 +183,7 @@ const Settings = () => {
   const handleConnectMicrosoft = async () => {
     try {
       setCalendarLoading(true);
-      const token = localStorage.getItem("token");
-      const response = await axios.get("/api/calendar/microsoft/auth-url", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiClient.get("/api/calendar/microsoft/auth-url");
 
       // Open OAuth popup
       const authWindow = window.open(
@@ -219,17 +211,12 @@ const Settings = () => {
   const handleDisconnect = async (provider) => {
     try {
       setCalendarLoading(true);
-      const token = localStorage.getItem("token");
-      await axios.delete(`/api/calendar/${provider}/disconnect`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await apiClient.delete(`/api/calendar/${provider}/disconnect`);
       toast.success(
         `${provider.charAt(0).toUpperCase() + provider.slice(1)} Calendar disconnected`,
       );
       // Refresh status
-      const statusResponse = await axios.get("/api/calendar/status", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const statusResponse = await apiClient.get("/api/calendar/status");
       setCalendarStatus(
         statusResponse.data.status || { google: null, microsoft: null },
       );
@@ -244,21 +231,12 @@ const Settings = () => {
   const handleResync = async (provider) => {
     try {
       setCalendarLoading(true);
-      const token = localStorage.getItem("token");
-      await axios.post(
-        `/api/calendar/${provider}/resync`,
-        {},
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      await apiClient.post(`/api/calendar/${provider}/resync`);
       toast.success(
         `${provider.charAt(0).toUpperCase() + provider.slice(1)} Calendar synced`,
       );
       // Refresh status
-      const statusResponse = await axios.get("/api/calendar/status", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const statusResponse = await apiClient.get("/api/calendar/status");
       setCalendarStatus(
         statusResponse.data.status || { google: null, microsoft: null },
       );
@@ -272,10 +250,7 @@ const Settings = () => {
 
   const fetchCalendarStatus = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get("/api/calendar/status", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiClient.get("/api/calendar/status");
       setCalendarStatus(response.data.status);
     } catch (error) {
       console.error("Error fetching calendar status:", error);
@@ -643,6 +618,24 @@ const Settings = () => {
             <DigestPreferences />
           </div>
 
+          {/* Meeting Recaps Section */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm fade-in-up stagger-4">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-xl">
+                <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Meeting Recaps
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Configure automatic email recaps for processed meetings
+                </p>
+              </div>
+            </div>
+            <RecapPreferences />
+          </div>
+
           {/* Calendar Integrations */}
           <CalendarIntegrations />
           {/* Calendar Integrations Section */}
@@ -777,23 +770,36 @@ const Settings = () => {
             </div>
 
             <div className="space-y-4">
-              <button
-                onClick={() => navigate("/reset-password")}
-                className="w-full flex items-center justify-between py-3 px-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer group"
-              >
-                <div className="flex items-center gap-3">
-                  <Lock className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300" />
-                  <div className="text-left">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
-                      Change Password
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Update your password
-                    </p>
+              {clerkPubKey && clerkPubKey.trim().length > 0 ? (
+                <ClerkManageAccountButton className="w-full flex items-center justify-between py-3 px-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer group">
+                  <div className="flex items-center gap-3">
+                    <Lock className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300" />
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                        Manage account security
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Password, email, and connected accounts via Clerk
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300" />
+                </ClerkManageAccountButton>
+              ) : (
+                <div className="w-full flex items-center justify-between py-3 px-4 rounded-xl opacity-60">
+                  <div className="flex items-center gap-3">
+                    <Lock className="w-4 h-4 text-slate-400" />
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                        Account security
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Configure VITE_CLERK_PUBLISHABLE_KEY to manage security
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300" />
-              </button>
+              )}
 
               <div className="w-full flex items-center justify-between py-3 px-4 rounded-xl opacity-50 cursor-not-allowed">
                 <div className="flex items-center gap-3">

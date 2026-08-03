@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../services/apiClient.js";
+import { speakerMappingApi } from "../services/speakerMappingApi.js";
 import {
   FileText,
   Search,
@@ -17,7 +18,24 @@ import {
 import { toast } from "react-toastify";
 import MeetingSentimentChart from "../components/MeetingSentimentChart";
 import AppContent from "../context/AppContent.js";
-import { getBackendUrl } from "../config/backendConfig.js";
+
+const HighlightedText = ({ text, query }) => {
+  if (!query) return <>{text}</>;
+  const parts = text.split(new RegExp(`(${query})`, "gi"));
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase() ? (
+          <mark key={i} className="bg-yellow-300 text-black">
+            {part}
+          </mark>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
+};
 
 const TranscriptViewer = () => {
   const { meetingId } = useParams();
@@ -32,27 +50,11 @@ const TranscriptViewer = () => {
   const { userData } = useContext(AppContent);
   const [editingSpeakerIndex, setEditingSpeakerIndex] = useState(null);
   const [newSpeakerName, setNewSpeakerName] = useState("");
-  const [isBulkUpdate, setIsBulkUpdate] = useState(true);
-
-  const backendUrl = getBackendUrl();
 
   const fetchTranscript = useCallback(async () => {
     try {
       setLoading(true);
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("token="))
-        ?.split("=")[1];
-
-      const response = await axios.get(
-        `${backendUrl}/api/transcripts/meeting/${meetingId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
-        },
-      );
+      const response = await api.get(`/transcripts/meeting/${meetingId}`);
 
       setTranscript(response.data);
     } catch (error) {
@@ -61,7 +63,7 @@ const TranscriptViewer = () => {
     } finally {
       setLoading(false);
     }
-  }, [meetingId, backendUrl]);
+  }, [meetingId]);
 
   useEffect(() => {
     fetchTranscript();
@@ -71,34 +73,16 @@ const TranscriptViewer = () => {
     if (!newSpeakerName.trim()) return;
 
     try {
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("token="))
-        ?.split("=")[1];
-
-      const response = await axios.put(
-        `${backendUrl}/api/transcripts/${transcript._id}/speakers`,
-        {
-          oldSpeaker,
-          newSpeaker: newSpeakerName.trim(),
-          segmentIndex: isBulkUpdate ? null : index,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
-        },
+      // Use the new Speaker Mapping API
+      await speakerMappingApi.saveAndApplyMapping(
+        meetingId,
+        oldSpeaker,
+        newSpeakerName.trim(),
       );
 
-      if (response.data.success) {
-        toast.success("Speaker updated successfully");
-        setTranscript(
-          response.data.data || response.data.transcript || response.data,
-        );
-        // Refresh transcript fully to ensure UI sync
-        fetchTranscript();
-      }
+      toast.success("Speaker mapped successfully");
+      // Refresh transcript fully to ensure UI sync
+      fetchTranscript();
     } catch (error) {
       console.error("Error updating speaker:", error);
       toast.error(error.response?.data?.message || "Failed to update speaker");
@@ -114,20 +98,9 @@ const TranscriptViewer = () => {
     }
 
     try {
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("token="))
-        ?.split("=")[1];
-
-      const response = await axios.post(
-        `${backendUrl}/api/transcripts/meeting/${meetingId}/search`,
+      const response = await api.post(
+        `/transcripts/meeting/${meetingId}/search`,
         { query: searchQuery },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
-        },
       );
 
       setSearchResults(response.data.matches || []);
@@ -139,18 +112,9 @@ const TranscriptViewer = () => {
 
   const handleExportText = async () => {
     try {
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("token="))
-        ?.split("=")[1];
-
-      const response = await axios.get(
-        `${backendUrl}/api/transcripts/meeting/${meetingId}/export/text`,
+      const response = await api.get(
+        `/transcripts/meeting/${meetingId}/export/text`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
           responseType: "blob",
         },
       );
@@ -171,18 +135,9 @@ const TranscriptViewer = () => {
 
   const handleExportPDF = async () => {
     try {
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("token="))
-        ?.split("=")[1];
-
-      const response = await axios.get(
-        `${backendUrl}/api/transcripts/meeting/${meetingId}/export/pdf`,
+      const response = await api.get(
+        `/transcripts/meeting/${meetingId}/export/pdf`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
           responseType: "blob",
         },
       );
@@ -205,15 +160,6 @@ const TranscriptViewer = () => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const highlightText = (text, query) => {
-    if (!query) return text;
-    const regex = new RegExp(`(${query})`, "gi");
-    return text.replace(
-      regex,
-      '<mark class="bg-yellow-300 text-black">$1</mark>',
-    );
   };
 
   const scrollToSegment = (index) => {
@@ -375,7 +321,17 @@ const TranscriptViewer = () => {
           {/* Transcript Content */}
           <div className="lg:col-span-2 space-y-4">
             {/* Sentiment Chart */}
-            <MeetingSentimentChart transcript={transcript} />
+            <MeetingSentimentChart
+              transcript={transcript}
+              onPointClick={(segmentData) => {
+                const index = transcript.segments.findIndex(
+                  (s) => s.startTime === segmentData.startTime,
+                );
+                if (index !== -1) {
+                  scrollToSegment(index);
+                }
+              }}
+            />
 
             {transcript.segments?.length === 0 ? (
               <div className="bg-white dark:bg-slate-800 rounded-lg p-8 text-center">
@@ -414,15 +370,7 @@ const TranscriptViewer = () => {
                           </datalist>
                           <div className="flex items-center gap-1">
                             <label className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={isBulkUpdate}
-                                onChange={(e) =>
-                                  setIsBulkUpdate(e.target.checked)
-                                }
-                                className="rounded text-indigo-600"
-                              />
-                              Update all '{segment.speaker}'
+                              Map all '{segment.speaker}' globally
                             </label>
                           </div>
                           <button
@@ -446,7 +394,6 @@ const TranscriptViewer = () => {
                             if (canEdit) {
                               setEditingSpeakerIndex(index);
                               setNewSpeakerName(segment.speaker);
-                              setIsBulkUpdate(true);
                             }
                           }}
                           className={`px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-medium rounded ${canEdit ? "cursor-pointer hover:bg-indigo-200 dark:hover:bg-indigo-800/50 transition-colors" : ""}`}
@@ -466,12 +413,9 @@ const TranscriptViewer = () => {
                       </span>
                     </div>
                   </div>
-                  <p
-                    className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed"
-                    dangerouslySetInnerHTML={{
-                      __html: highlightText(segment.text, searchQuery),
-                    }}
-                  />
+                  <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
+                    <HighlightedText text={segment.text} query={searchQuery} />
+                  </p>
                 </div>
               ))
             )}

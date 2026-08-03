@@ -38,12 +38,23 @@ const sharedLinkSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Lightweight aggregate analytics (no visitor identity / IP)
+    totalViews: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    lastAccessed: {
+      type: Date,
+      default: null,
+    },
+    failedPasscodeAttempts: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   { timestamps: true },
 );
-
-// Create index for automatic expiry of documents? No, better to keep it soft-deleted or just check expiration date.
-// If we want automatic deletion, we could use a TTL index, but keeping the record for audit is better.
-// sharedLinkSchema.index({ expirationDate: 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model("SharedLink", sharedLinkSchema);

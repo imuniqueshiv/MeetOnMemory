@@ -10,12 +10,18 @@ import {
 } from "../services/calendarService.js";
 import { triggerManualSync } from "../jobs/calendarSyncJob.js";
 
+const getUserId = (req) => {
+  const id = req.user?._id || req.user?.id;
+  if (!id) throw new Error("Unauthorized: User ID missing");
+  return id;
+};
+
 /**
  * Get calendar connection status for a user
  */
 export const getConnectionStatus = async (req, res) => {
   try {
-    const userId = req.user.id || req.user._id;
+    const userId = getUserId(req);
     const connections = await CalendarConnection.find({ user: userId });
 
     const status = {

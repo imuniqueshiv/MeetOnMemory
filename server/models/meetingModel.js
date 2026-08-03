@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { normalizeAgendaItems } from "../utils/agendaOrdering.js";
 
 const meetingSchema = new mongoose.Schema(
   {
@@ -57,22 +58,10 @@ const meetingSchema = new mongoose.Schema(
       {
         text: { type: String, required: true },
         description: { type: String, default: "" },
-        duration: { type: Number, default: null }, // planned duration in minutes
-        actualDuration: { type: Number, default: 0 }, // actual duration in milliseconds
-        startedAt: { type: Date, default: null },
-        completedAt: { type: Date, default: null },
-        status: {
-          type: String,
-          enum: ["pending", "active", "completed", "skipped"],
-          default: "pending",
-        },
+        duration: { type: Number, default: null },
+        position: { type: Number, min: 0, default: 0 },
       },
     ],
-    agendaProgress: {
-      type: String,
-      enum: ["not_started", "in_progress", "completed"],
-      default: "not_started",
-    },
     policyDetails: {
       // For policy-type meetings
       policyName: { type: String, default: "" },
@@ -105,6 +94,11 @@ const meetingSchema = new mongoose.Schema(
       type: String, // Optional - additional AI notes
       default: "",
     },
+    aiSummaryTemplate: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AiSummaryTemplate",
+      default: null,
+    },
     status: {
       type: String,
       enum: ["uploaded", "processing", "completed", "failed"],
@@ -136,6 +130,24 @@ const meetingSchema = new mongoose.Schema(
       default: false,
     },
 
+    // Soft-delete lifecycle (Issue #1013)
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    deletionReason: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: null,
+    },
+
     // Google Calendar integration
     googleEventId: {
       type: String,
@@ -151,21 +163,24 @@ const meetingSchema = new mongoose.Schema(
       type: String, // Plain-text snapshot for read-only views and semantic search
       default: "",
     },
-    series: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "MeetingSeries",
-      default: null,
-    },
-    seriesOccurrence: {
-      type: Number,
-      default: null,
-    },
   },
   { timestamps: true },
 );
 
+meetingSchema.pre("validate", function normalizeAgendaOrder(next) {
+  if (this.isModified("agendaItems") || this.isNew) {
+    this.agendaItems = normalizeAgendaItems(
+      (this.agendaItems || []).map((item) =>
+        typeof item.toObject === "function" ? item.toObject() : item,
+      ),
+    );
+  }
+  next();
+});
+
 // Indexes for query performance
 meetingSchema.index({ organization: 1, createdAt: -1 });
+meetingSchema.index({ organization: 1, deletedAt: 1, createdAt: -1 });
 meetingSchema.index({ uploadedBy: 1, createdAt: -1 });
 meetingSchema.index({ status: 1 });
 meetingSchema.index({ title: "text", summary: "text" });

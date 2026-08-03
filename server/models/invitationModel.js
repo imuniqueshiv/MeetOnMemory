@@ -58,7 +58,6 @@ const invitationSchema = new mongoose.Schema(
 );
 
 // Indexes for performance and uniqueness
-invitationSchema.index({ token: 1 }, { unique: true });
 invitationSchema.index({ email: 1, organization: 1, status: 1 });
 invitationSchema.index({ organization: 1, status: 1 });
 invitationSchema.index({ invitedBy: 1 });

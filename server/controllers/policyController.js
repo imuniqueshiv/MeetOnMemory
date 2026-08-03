@@ -20,6 +20,7 @@ import { ValidationError, UnauthorizedError } from "../utils/errors.js";
 import AuditService from "../services/AuditService.js";
 import { sendSuccess } from "../utils/responseHandler.js";
 import * as activityService from "../services/activityService.js";
+import { getContentDispositionHeader } from "../utils/fileUtils.js";
 // ═══════════════════════════════════════════════════════════════
 // Zod validation schemas
 // ═══════════════════════════════════════════════════════════════
@@ -126,7 +127,13 @@ export const uploadPolicy = async (req, res, next) => {
    ───────────────────────────────────────────────────────────── */
 export const analyzePolicy = async (req, res, next) => {
   try {
-    const policy = await PolicyService.reanalyzePolicy(req.params.id);
+    const userId = getUserId(req);
+    const orgId = req.user?.organization || null;
+    const policy = await PolicyService.reanalyzePolicy(
+      req.params.id,
+      userId,
+      orgId,
+    );
 
     return sendSuccess(
       res,
@@ -166,15 +173,19 @@ export const getPolicies = async (req, res, next) => {
    ───────────────────────────────────────────────────────────── */
 export const downloadPolicy = async (req, res, next) => {
   try {
+    const userId = getUserId(req);
+    const orgId = req.user?.organization || null;
     const { safeFilePath, fileName } =
-      await PolicyService.getPolicyDownloadPath(req.params.id);
+      await PolicyService.getPolicyDownloadPath(req.params.id, userId, orgId);
 
     res.setHeader(
       "Cache-Control",
       "public, max-age=3600, stale-while-revalidate=86400",
     );
 
-    return res.download(safeFilePath, fileName);
+    res.setHeader("Content-Disposition", getContentDispositionHeader(fileName));
+
+    return res.sendFile(safeFilePath);
   } catch (err) {
     next(err);
   }

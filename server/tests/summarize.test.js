@@ -1,9 +1,8 @@
-import request from "supertest"; // eslint-disable-line no-unused-vars
-import jwt from "jsonwebtoken";
+import request from "supertest";
 import mongoose from "mongoose";
 import { jest } from "@jest/globals";
-import { app } from "../server.js"; // eslint-disable-line no-unused-vars
-import { createCsrfAgent } from "./helpers/csrfHelper.js";
+import { app } from "../server.js";
+import { createClerkTestToken, authHeader } from "./helpers/clerkTestAuth.js";
 import User from "../models/userModel.js";
 import Organization from "../models/organizationModel.js";
 import Membership from "../models/membershipModel.js";
@@ -29,8 +28,6 @@ describe("Meeting Summarization Authentication and Authorization", () => {
   let tokenC;
   let meetingA;
   let geminiSpy;
-  let agent;
-  let csrfToken;
 
   beforeAll(() => {
     geminiSpy = jest
@@ -84,10 +81,12 @@ describe("Meeting Summarization Authentication and Authorization", () => {
       organization: orgA._id,
       role: "member",
     });
-    tokenA = jwt.sign(
-      { id: userA._id },
-      process.env.JWT_SECRET || "fallback_secret",
-    );
+    userA.clerkUserId = `user_test_${userA._id}`;
+    await userA.save();
+    tokenA = createClerkTestToken({
+      clerkUserId: userA.clerkUserId,
+      email: userA.email,
+    });
 
     userB = await User.create({
       name: "User B",
@@ -96,10 +95,12 @@ describe("Meeting Summarization Authentication and Authorization", () => {
       organization: orgB._id,
       role: "member",
     });
-    tokenB = jwt.sign(
-      { id: userB._id },
-      process.env.JWT_SECRET || "fallback_secret",
-    );
+    userB.clerkUserId = `user_test_${userB._id}`;
+    await userB.save();
+    tokenB = createClerkTestToken({
+      clerkUserId: userB.clerkUserId,
+      email: userB.email,
+    });
 
     userC = await User.create({
       name: "User C",
@@ -107,10 +108,12 @@ describe("Meeting Summarization Authentication and Authorization", () => {
       password: "password123",
       role: "member", // no organization membership
     });
-    tokenC = jwt.sign(
-      { id: userC._id },
-      process.env.JWT_SECRET || "fallback_secret",
-    );
+    userC.clerkUserId = `user_test_${userC._id}`;
+    await userC.save();
+    tokenC = createClerkTestToken({
+      clerkUserId: userC.clerkUserId,
+      email: userC.email,
+    });
 
     // Create memberships
     await Membership.create({
@@ -135,15 +138,12 @@ describe("Meeting Summarization Authentication and Authorization", () => {
       transcript: "This is the transcript of a confidential meeting in Org A.",
       status: "completed",
     });
-
-    ({ agent, csrfToken } = await createCsrfAgent());
   });
 
   describe("POST /api/meetings/summarize", () => {
     it("should reject unauthenticated requests with 401", async () => {
-      const res = await agent
+      const res = await request(app)
         .post("/api/meetings/summarize")
-        .set("X-CSRF-Token", csrfToken)
         .send({ meetingId: meetingA._id, date: new Date().toISOString() });
 
       expect(res.statusCode).toEqual(401);
@@ -151,10 +151,9 @@ describe("Meeting Summarization Authentication and Authorization", () => {
     });
 
     it("should reject requests from user without organization membership with 403", async () => {
-      const res = await agent
+      const res = await request(app)
         .post("/api/meetings/summarize")
-        .set("Authorization", `Bearer ${tokenC}`)
-        .set("X-CSRF-Token", csrfToken)
+        .set(authHeader(tokenC))
         .send({ meetingId: meetingA._id, date: new Date().toISOString() });
 
       expect(res.statusCode).toEqual(403);
@@ -162,10 +161,9 @@ describe("Meeting Summarization Authentication and Authorization", () => {
     });
 
     it("should reject cross-organization summarization requests with 403", async () => {
-      const res = await agent
+      const res = await request(app)
         .post("/api/meetings/summarize")
-        .set("Authorization", `Bearer ${tokenB}`)
-        .set("X-CSRF-Token", csrfToken)
+        .set(authHeader(tokenB))
         .send({ meetingId: meetingA._id, date: new Date().toISOString() });
 
       expect(res.statusCode).toEqual(403);
@@ -173,10 +171,9 @@ describe("Meeting Summarization Authentication and Authorization", () => {
     });
 
     it("should allow authorized user from same organization to summarize meeting", async () => {
-      const res = await agent
+      const res = await request(app)
         .post("/api/meetings/summarize")
-        .set("Authorization", `Bearer ${tokenA}`)
-        .set("X-CSRF-Token", csrfToken)
+        .set(authHeader(tokenA))
         .send({ meetingId: meetingA._id, date: new Date().toISOString() });
 
       expect([200, 202]).toContain(res.statusCode);

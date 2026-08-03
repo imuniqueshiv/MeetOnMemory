@@ -1,7 +1,7 @@
 import apiClient from "./apiClient";
 
-export const getDecisionGraph = async () => {
-  const response = await apiClient.get("/api/decision-graph");
+export const getDecisionGraph = async (params = {}) => {
+  const response = await apiClient.get("/api/decision-graph", { params });
   return response.data;
 };
 

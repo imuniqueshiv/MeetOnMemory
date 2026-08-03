@@ -49,10 +49,14 @@ export const knowledgeApi = {
       `/api/knowledge/consolidation/history?model=${model}&limit=${limit}`,
     ),
   // Memory Graph Snapshot & Time-Travel
-  getGraphSnapshots: ({ limit = 50, before } = {}) =>
-    apiClient.get(
-      `/api/knowledge/graph/snapshots?limit=${limit}${before ? `&before=${before}` : ""}`,
-    ),
+  getGraphSnapshots: ({ limit = 20, before, page } = {}) => {
+    const params = new URLSearchParams();
+    if (limit) params.append("limit", limit);
+    if (before) params.append("before", before);
+    if (page) params.append("page", page);
+    return apiClient.get(`/api/knowledge/graph/snapshots?${params.toString()}`);
+  },
+
   getGraphSnapshot: (id) =>
     apiClient.get(`/api/knowledge/graph/snapshots/${id}`),
   exportGraphSnapshot: (id) =>

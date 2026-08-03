@@ -1,7 +1,69 @@
 import React, { useState, useEffect, useId, useRef } from "react";
-import { Copy, Trash2, X, Plus, Calendar, Lock, Globe } from "lucide-react";
+import {
+  Copy,
+  Trash2,
+  X,
+  Plus,
+  Calendar,
+  Lock,
+  Globe,
+  Eye,
+  Clock,
+  AlertTriangle,
+} from "lucide-react";
 import { toast } from "react-toastify";
 import { sharedLinkApi } from "../../services";
+import RoleGate from "../RoleGate.jsx";
+
+const formatLastAccessed = (value) => {
+  if (!value) return "Never";
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return "Never";
+  }
+};
+
+const LinkAnalytics = ({ link }) => {
+  const views = link.totalViews ?? 0;
+  const failedAttempts = link.failedPasscodeAttempts ?? 0;
+  const hasActivity =
+    views > 0 || failedAttempts > 0 || Boolean(link.lastAccessed);
+
+  if (!hasActivity) {
+    return (
+      <p
+        className="mt-2 text-xs text-gray-500 dark:text-gray-400"
+        data-testid="shared-link-analytics-empty"
+      >
+        No access activity yet
+      </p>
+    );
+  }
+
+  return (
+    <div
+      className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600 dark:text-gray-300"
+      data-testid="shared-link-analytics"
+    >
+      <span className="inline-flex items-center gap-1">
+        <Eye className="w-3 h-3" aria-hidden="true" />
+        {views} {views === 1 ? "view" : "views"}
+      </span>
+      <span className="inline-flex items-center gap-1">
+        <Clock className="w-3 h-3" aria-hidden="true" />
+        Last: {formatLastAccessed(link.lastAccessed)}
+      </span>
+      {failedAttempts > 0 && (
+        <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+          <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+          {failedAttempts} failed passcode
+          {failedAttempts === 1 ? " attempt" : " attempts"}
+        </span>
+      )}
+    </div>
+  );
+};
 
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -212,27 +274,33 @@ const ShareModal = ({ isOpen, onClose, resourceId, resourceType, title }) => {
                 </div>
 
                 {loading ? (
-                  <div className="animate-pulse space-y-3">
-                    <div className="h-12 bg-gray-100 dark:bg-gray-700 rounded"></div>
-                    <div className="h-12 bg-gray-100 dark:bg-gray-700 rounded"></div>
+                  <div
+                    className="animate-pulse space-y-3"
+                    data-testid="shared-links-loading"
+                  >
+                    <div className="h-16 bg-gray-100 dark:bg-gray-700 rounded"></div>
+                    <div className="h-16 bg-gray-100 dark:bg-gray-700 rounded"></div>
                   </div>
                 ) : links.length === 0 ? (
-                  <div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm">
+                  <div
+                    className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm"
+                    data-testid="shared-links-empty"
+                  >
                     No active shared links. Create one to share this resource
                     externally.
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                  <div className="space-y-3 max-h-72 overflow-y-auto pr-2">
                     {links.map((link) => (
                       <div
                         key={link._id}
-                        className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 flex justify-between items-center bg-gray-50 dark:bg-gray-900"
+                        className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 flex justify-between items-start bg-gray-50 dark:bg-gray-900"
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                             {window.location.origin}/shared/{link.hash}
                           </p>
-                          <div className="mt-1 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                          <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
                             {link.expirationDate ? (
                               <span className="flex items-center gap-1">
                                 <Calendar
@@ -260,8 +328,22 @@ const ShareModal = ({ isOpen, onClose, resourceId, resourceType, title }) => {
                               </span>
                             )}
                           </div>
+                          <RoleGate
+                            resource={
+                              resourceType === "Policy"
+                                ? "policies"
+                                : "meetings"
+                            }
+                            action="edit"
+                          >
+                            {"totalViews" in link ||
+                            "failedPasscodeAttempts" in link ||
+                            "lastAccessed" in link ? (
+                              <LinkAnalytics link={link} />
+                            ) : null}
+                          </RoleGate>
                         </div>
-                        <div className="ml-4 flex items-center gap-2">
+                        <div className="ml-4 flex items-center gap-2 shrink-0">
                           <button
                             type="button"
                             onClick={() => handleCopy(link.hash)}

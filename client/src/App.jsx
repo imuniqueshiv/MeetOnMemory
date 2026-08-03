@@ -10,7 +10,6 @@ import ProtectedRoutes from "./routes/ProtectedRoutes.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
 import ScrollNavigator from "./components/ScrollNavigator";
-import CustomCursor from "./components/CustomCursor.jsx";
 import FloatingAssistant from "./components/FloatingAssistant.jsx";
 
 // --- Components ---
@@ -22,8 +21,11 @@ const App = () => {
   const location = useLocation();
   const { isLoggedin } = useContext(AppContent);
 
-  const hideFooterRoutes = ["/login"];
-  const shouldShowFooter = !hideFooterRoutes.includes(location.pathname);
+  const hideFooterRoutes = ["/login", "/signup"];
+  const shouldShowFooter = !hideFooterRoutes.some(
+    (route) =>
+      location.pathname === route || location.pathname.startsWith(`${route}/`),
+  );
 
   // Only activate navigation controller panel when exactly on the landing page fold
   const shouldShowScrollNavigator = location.pathname === "/";
@@ -63,8 +65,6 @@ const App = () => {
 
         {/* Global Footer */}
         {shouldShowFooter && <Footer />}
-
-        <CustomCursor />
       </ErrorBoundary>
     </div>
   );

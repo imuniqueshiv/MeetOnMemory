@@ -63,8 +63,8 @@ const MeetingFilters = ({ filters, onFilterChange, onClearFilters }) => {
         onClick={() => setShowDropdown(!showDropdown)}
         className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border transition-all ${
           hasActiveFilters
-            ? "bg-blue-50 border-blue-300 text-blue-700"
-            : "bg-white border-gray-300 text-gray-700 hover:border-gray-400"
+            ? "bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-300"
+            : "bg-white border-gray-300 text-gray-700 hover:border-gray-400 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200 dark:hover:border-gray-600"
         }`}
       >
         <Filter size={18} />
@@ -81,16 +81,18 @@ const MeetingFilters = ({ filters, onFilterChange, onClearFilters }) => {
       </button>
 
       {showDropdown && (
-        <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-50 w-80 max-h-[80vh] overflow-y-auto">
+        <div className="absolute right-0 top-full mt-2 bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 z-50 w-80 max-h-[80vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900">Filter Meetings</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-white">
+              Filter Meetings
+            </h3>
             {hasActiveFilters && (
               <button
                 onClick={() => {
                   onClearFilters();
                   setShowDropdown(false);
                 }}
-                className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-1"
               >
                 <X size={14} />
                 Clear All
@@ -101,13 +103,13 @@ const MeetingFilters = ({ filters, onFilterChange, onClearFilters }) => {
           <div className="space-y-4">
             {filterOptions.map((filter) => (
               <div key={filter.key}>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {filter.label}
                 </label>
                 <select
                   value={filters[filter.key]}
                   onChange={(e) => onFilterChange(filter.key, e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none text-sm"
                 >
                   {filter.options.map((option) => (
                     <option key={option.value} value={option.value}>

@@ -6,7 +6,8 @@ import * as activityService from "../services/activityService.js";
  */
 export const getActivities = async (req, res) => {
   try {
-    const orgId = req.user.currentOrganization;
+    const orgId = req.user.organization;
+
     if (!orgId) {
       return res.status(400).json({ error: "No organization selected." });
     }
@@ -14,8 +15,8 @@ export const getActivities = async (req, res) => {
     const { page, limit, action, actor } = req.query;
 
     const result = await activityService.getOrgActivities(orgId, {
-      page: parseInt(page) || 1,
-      limit: parseInt(limit) || 20,
+      page: parseInt(page, 10) || 1,
+      limit: parseInt(limit, 10) || 20,
       action,
       actor,
     });
@@ -33,7 +34,8 @@ export const getActivities = async (req, res) => {
  */
 export const getActivityStats = async (req, res) => {
   try {
-    const orgId = req.user.currentOrganization;
+    const orgId = req.user.organization;
+
     if (!orgId) {
       return res.status(400).json({ error: "No organization selected." });
     }

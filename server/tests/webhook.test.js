@@ -1,9 +1,10 @@
 import request from "supertest";
-import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import axios from "axios";
+import dns from "dns/promises";
 import { jest } from "@jest/globals";
 import { app } from "../server.js";
+import { createClerkTestToken } from "./helpers/clerkTestAuth.js";
 import User from "../models/userModel.js";
 import Organization from "../models/organizationModel.js";
 import Membership from "../models/membershipModel.js";
@@ -24,10 +25,16 @@ import * as dispatcher from "../services/webhookDispatcherService.js";
 // Mock axios post to avoid hitting real endpoints
 let axiosSpy;
 let queueSpy;
+let dnsLookupSpy;
+
+const publicDnsAnswer = [{ address: "93.184.216.34", family: 4 }];
+
 beforeAll(() => {
   axiosSpy = jest
     .spyOn(axios, "post")
     .mockResolvedValue({ status: 200, data: {} });
+
+  dnsLookupSpy = jest.spyOn(dns, "lookup").mockResolvedValue(publicDnsAnswer);
 
   if (dispatcher.webhookQueue) {
     queueSpy = jest
@@ -41,6 +48,7 @@ beforeAll(() => {
 
 afterAll(() => {
   axiosSpy.mockRestore();
+  dnsLookupSpy.mockRestore();
   if (queueSpy) queueSpy.mockRestore();
 });
 
@@ -67,10 +75,12 @@ describe("Webhook Endpoints & Dispatcher", () => {
       organization: organization._id,
       role: "member",
     });
-    userToken = jwt.sign(
-      { id: user._id },
-      process.env.JWT_SECRET || "fallback_secret",
-    );
+    user.clerkUserId = `user_test_${user._id}`;
+    await user.save();
+    userToken = createClerkTestToken({
+      clerkUserId: user.clerkUserId,
+      email: user.email,
+    });
 
     // Create admin user (owner of organization)
     adminUser = await User.create({
@@ -80,10 +90,12 @@ describe("Webhook Endpoints & Dispatcher", () => {
       organization: organization._id,
       role: "admin",
     });
-    adminToken = jwt.sign(
-      { id: adminUser._id },
-      process.env.JWT_SECRET || "fallback_secret",
-    );
+    adminUser.clerkUserId = `user_test_${adminUser._id}`;
+    await adminUser.save();
+    adminToken = createClerkTestToken({
+      clerkUserId: adminUser.clerkUserId,
+      email: adminUser.email,
+    });
 
     // Update organization owner to the adminUser
     organization.owner = adminUser._id;
@@ -252,12 +264,40 @@ describe("Webhook Endpoints & Dispatcher", () => {
       expect(
         callArgs[2].headers["x-meetonmemory-request-timestamp"],
       ).toBeDefined();
+      expect(callArgs[2].maxRedirects).toBe(0);
+      expect(typeof callArgs[2].lookup).toBe("function");
 
       // Verify WebhookDelivery log record created
       const logs = await WebhookDelivery.find({ webhookId: hook._id });
       expect(logs.length).toBe(1);
       expect(logs[0].status).toBe("success");
       expect(logs[0].event).toBe("meeting.created");
+    });
+
+    it("should block delivery when destination revalidates to a private IP", async () => {
+      const hook = await Webhook.create({
+        organizationId: organization._id,
+        targetUrl: "https://example.com/private-now",
+        events: ["meeting.created"],
+        secret: "secret",
+      });
+
+      axiosSpy.mockClear();
+      dnsLookupSpy.mockResolvedValueOnce([{ address: "10.0.0.5", family: 4 }]);
+
+      await expect(
+        dispatcher.performDispatch(hook._id, {
+          event: "meeting.created",
+          data: { title: "Should not deliver" },
+        }),
+      ).rejects.toThrow(/Unsafe webhook destination blocked/);
+
+      expect(axiosSpy).not.toHaveBeenCalled();
+
+      const logs = await WebhookDelivery.find({ webhookId: hook._id });
+      expect(logs.length).toBe(1);
+      expect(logs[0].status).toBe("failed");
+      expect(logs[0].errorReason).toMatch(/Unsafe webhook destination blocked/);
     });
   });
 

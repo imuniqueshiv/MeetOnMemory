@@ -1,104 +1,217 @@
 # 🤝 Contributing to MeetOnMemory
 
-First of all, thank you for considering contributing to **MeetOnMemory**! 🎉
-
-Every contribution—whether it's fixing a bug, improving documentation, enhancing the UI, or implementing a new feature—helps make the project better for everyone.
-
-Please read this guide before contributing.
+Thanks for considering a contribution to **MeetOnMemory**! Every contribution — bug fix, docs, UI, or new feature — helps.
 
 ---
 
-# 📋 Contribution Workflow
+## 📚 Table of Contents
 
-Please follow this workflow for every contribution.
+1. [Contribution Workflow](#-contribution-workflow)
+2. [Issue First Policy](#-issue-first-policy)
+3. [Local Setup](#️-local-setup)
+4. [Development](#-development)
+5. [Validation](#-validation)
+6. [Git Workflow](#-git-workflow)
+7. [Pull Requests](#-pull-requests)
+8. [CI/CD Pipeline](#️-cicd-pipeline)
+9. [Troubleshooting](#-troubleshooting)
+10. [FAQ](#-faq)
+
+---
+
+## 🔁 Contribution Workflow
 
 1. 🍴 Fork the repository.
-2. 📌 Open an Issue (or claim an existing one).
-3. ⏳ Wait until the issue is assigned to you.
-4. 🌿 Create a new branch.
-5. 💻 Make your changes.
-6. 🧪 Verify formatting, lint, and build locally (when applicable).
-7. 📦 Commit your changes.
-8. 🚀 Push your branch.
-9. 🔁 Open a Pull Request.
-
----
-
-# 📌 Issue First Policy
-
-Before writing any code:
-
-- ✅ Search existing Issues first.
-- ✅ If the issue already exists, comment:
-
-```text
-/claim
-```
-
-- ✅ Wait until the issue is assigned to you.
-- ✅ Start working only after assignment.
-
-If no suitable issue exists:
-
-- Create a new Issue.
-- Wait for maintainer approval before starting implementation.
-
----
-
-# 🔓 Releasing an Issue
-
-If you're unable to continue working on an assigned issue, simply comment:
-
-```text
-/unclaim
-```
-
-This allows another contributor to work on it.
-
----
-
-# 🚫 Important Contribution Rules
-
-Please follow these rules carefully.
-
-### ✅ Do
-
-- Open or claim an Issue first.
-- Wait for assignment (`/claim`).
-- Keep one Pull Request focused on one Issue.
-- Write clean, readable code.
-- Follow the existing project structure.
-- Test your changes locally.
-- Update documentation when required.
-
-### ❌ Don't
-
-- Work on an Issue without claiming it.
-- Submit multiple unrelated changes in one PR.
-- Rename the project, logo, branding, package names, or repository references unless the Issue explicitly requests it or a maintainer approves it.
-- Submit AI-generated code without reviewing and understanding it.
-- Copy code from other repositories without proper attribution.
-- Force push after review without explanation.
-
----
-
-# 🍴 Fork the Repository
-
-Click **Fork** on GitHub to create your own copy.
-
-Clone your fork:
+2. 📥 Clone your fork.
+3. 🔗 Add the upstream remote.
+4. 🔄 Sync with upstream `main`.
+5. 📌 Claim an issue (`/claim`) and wait for assignment.
+6. 🌿 Create a feature branch.
+7. 💻 Implement only the assigned issue.
+8. 🧪 Run local validation.
+9. 📦 Commit and push.
+10. 🔁 Open a Pull Request.
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/MeetOnMemory.git
-
 cd MeetOnMemory
+
+git remote add upstream https://github.com/imuniqueshiv/MeetOnMemory.git
+git fetch upstream
+git merge upstream/main
 ```
 
 ---
 
-# 🌿 Create a Branch
+## 📌 Issue First Policy
 
-Always create a new branch.
+- Search existing issues first.
+- If one exists, comment `/claim` and wait for assignment.
+- If none exists, open one and wait for maintainer approval before coding.
+- To release an issue you can't finish, comment `/unclaim`.
+
+### ✅ Do
+
+- Claim before starting work.
+- Keep one PR scoped to one issue.
+- Follow existing project structure.
+- Test changes locally before pushing.
+
+### ❌ Don't
+
+- Work on an unclaimed issue.
+- Bundle unrelated changes in one PR.
+- Rename project/branding/package names without explicit issue/maintainer approval.
+- Submit unreviewed AI-generated code.
+- Force-push after review without explanation.
+
+---
+
+## ⚙️ Local Setup
+
+### Root
+
+```bash
+npm install
+```
+
+Set up environment variables (root `.env` — see `.env.example` if present).
+
+### Client
+
+```bash
+cd client
+npm install
+```
+
+Configure Clerk keys (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`) in `client/.env`.
+
+```bash
+npm run dev
+```
+
+### Server
+
+```bash
+cd server
+npm install
+```
+
+Configure `.env` (MongoDB URI, Clerk secret key, JWT secret for shared-link/integration tokens).
+
+```bash
+npm run server
+```
+
+---
+
+## 🔐 Authentication
+
+- **Clerk** is the sole authentication provider (frontend + backend session verification).
+- **MongoDB** remains the source of truth for authorization (RBAC — roles/permissions).
+- Secondary **JWTs** are used only for specific features (e.g. shared links, integration tokens) — not for primary auth.
+- Legacy login/session-based auth flow has been fully removed; do not reintroduce it.
+
+---
+
+## ✨ Development
+
+### Coding Standards
+
+**Frontend**
+
+- Functional components only.
+- Small, reusable components.
+- Follow existing folder structure.
+
+**Backend**
+
+- Keep controllers modular.
+- Validate all request data.
+- Handle errors consistently.
+- Follow existing API structure.
+
+**General**
+
+- Meaningful variable names, no dead code.
+- Avoid unnecessary complexity.
+- One feature/bug per PR.
+
+### Commit Messages
+
+```bash
+git commit -m "feat: add semantic search filters"
+git commit -m "fix: resolve login validation issue"
+git commit -m "docs: update README"
+git commit -m "refactor: simplify meeting controller"
+```
+
+Prefixes: `feat`, `fix`, `docs`, `refactor`, `style`, `test`, `chore`
+
+---
+
+## 🧪 Validation
+
+Husky + lint-staged auto-run ESLint/Prettier on staged files at commit time; a failing check aborts the commit.
+
+### Root-level checks
+
+```bash
+npm run lint
+npm run build
+npx prettier . --check
+```
+
+### Frontend (`client/`)
+
+```bash
+npm run format:check:changed --prefix client
+npm run lint:changed --prefix client
+npm run test:related --prefix client
+npm run validate:pr --prefix client
+```
+
+Frontend build (required if `client/**` changed):
+
+```bash
+npm run build --prefix client
+```
+
+### Backend (`server/`)
+
+```bash
+npm run format:check:changed --prefix server
+npm run lint:changed --prefix server
+npm run test:related --prefix server
+npm run validate:pr --prefix server
+```
+
+Server has no build step.
+
+### Git
+
+```bash
+git diff --check
+```
+
+### Auto-format
+
+```bash
+npm run format
+```
+
+### ☑️ Pre-Push Checklist
+
+- [ ] Formatting passes
+- [ ] Linting passes
+- [ ] Build passes (if `client/**` changed)
+- [ ] Related tests pass
+- [ ] `git diff --check` clean
+- [ ] Branch synced with upstream `main`
+
+---
+
+## 🌿 Git Workflow
 
 ```bash
 git checkout -b feature/your-feature-name
@@ -108,287 +221,150 @@ Examples:
 
 ```bash
 git checkout -b feature/semantic-search
-```
-
-```bash
 git checkout -b fix/login-validation
 ```
 
----
-
-# ⚙️ Local Setup
-
-## Backend
+Common commands:
 
 ```bash
-cd server
-
-npm install
-```
-
-Create a `.env` file.
-
-Run:
-
-```bash
-npm run server
+git fetch upstream
+git merge upstream/main
+git checkout -b feature/issue-name
+git push -u origin feature/issue-name
 ```
 
 ---
 
-## Frontend
+## 🚀 Pull Requests
 
-```bash
-cd client
-
-npm install
-
-npm run dev
-```
-
----
-
-# ✨ Coding Standards
-
-## Frontend
-
-- React Functional Components
-- Reusable Components
-- Keep Components Small
-- Follow Existing Folder Structure
-
-## Backend
-
-- Keep Controllers Modular
-- Validate Request Data
-- Handle Errors Properly
-- Follow Existing API Structure
-
-## General
-
-- Use meaningful variable names.
-- Remove unused code.
-- Avoid unnecessary complexity.
-- Keep code readable.
-- Keep PRs focused on one feature or bug.
-
----
-
-# 🧹 Before You Commit & CI/CD Pipeline
-
-To ensure code quality, we use **Husky** and **lint-staged** to automatically run ESLint and Prettier on your staged files before a commit is created. This ensures unformatted or lint-error-prone code never gets committed.
-If the linting or formatting fails, the commit will be aborted until the errors are fixed.
-
-Pull Requests run lightweight, path-filtered quality checks via **GitHub Actions**. This keeps feedback fast while maintaining code quality.
-
-### ⚙️ CI/CD Pipeline Checks
-
-Every Pull Request runs the following status checks (path-filtered; not all jobs run on every PR):
-
-- **Detect Changes**: Selects which CI jobs to run based on changed paths.
-- **Root Prettier**: Changed-file Prettier check at the repository root.
-- **Frontend Validation** (when `client/**` changes):
-  - ESLint (changed files)
-  - Prettier (changed client files)
-  - Production build (`npm run build`)
-- **Server Validation** (when `server/**` changes):
-  - ESLint (changed files)
-  - Prettier (changed server files)
-
-Pull Requests do **not** run backend tests, frontend tests, integration tests, startup tests, security audits, or CodeQL. Those checks run in separate maintenance workflows after merge or on a schedule.
-
-### 💻 Local Validation
-
-Contributors can verify their changes locally using:
-
-```bash
-npm run format:check:changed
-```
-
-Run changed-file linting from the package you modified:
-
-```bash
-cd client
-npm run lint:changed
-```
-
-```bash
-cd server
-npm run lint:changed
-```
-
-If frontend files were modified:
-
-```bash
-cd client
-npm run build
-```
-
-The server has no build step.
-
-To automatically format files:
-
-```bash
-npm run format
-```
-
-Resolve all linting, formatting, and build issues before opening a Pull Request.
-
----
-
-# 💬 Commit Message Convention
-
-Use meaningful commit messages.
-
-Examples:
-
-```bash
-git commit -m "feat: add semantic search filters"
-```
-
-```bash
-git commit -m "fix: resolve login validation issue"
-```
-
-```bash
-git commit -m "docs: update README"
-```
-
-```bash
-git commit -m "refactor: simplify meeting controller"
-```
-
-Common prefixes:
-
-- feat
-- fix
-- docs
-- refactor
-- style
-- test
-- chore
-
----
-
-# 🚀 Pull Request Process
-
-1. Sync your fork with the latest changes.
-2. Create a feature branch.
-3. Implement your changes.
-4. Verify formatting, lint, and build locally.
-5. Format your code.
-6. Commit.
-7. Push your branch.
-8. Open a Pull Request.
-
-Example:
+1. Sync fork with upstream `main`.
+2. Create/confirm feature branch.
+3. Implement changes.
+4. Run local validation (root + client/server as applicable).
+5. Format code (`npm run format`).
+6. Commit and push.
+7. Open PR.
 
 ```bash
 git add .
-
 git commit -m "feat: improve semantic search"
-
 git push origin feature/semantic-search
 ```
 
----
+### ✅ PR Checklist
 
-# ✅ Pull Request Checklist
-
-Before opening a Pull Request, ensure:
-
-- [ ] Related Issue is linked.
-- [ ] Issue was assigned before starting work.
-- [ ] Formatting passes (`npm run format:check:changed`).
-- [ ] Lint passes (`npm run lint:changed` in `client/` or `server/` as applicable).
-- [ ] Frontend builds successfully when client changes are made (`npm run build` in `client/`).
-- [ ] Documentation updated (if needed).
-- [ ] No unnecessary files included.
-- [ ] No merge conflicts.
-- [ ] PR addresses only one Issue.
-- [ ] Existing functionality is not broken.
-
----
-
-# 🐞 Reporting Bugs
-
-Please include:
-
-- Steps to reproduce
-- Expected behavior
-- Actual behavior
-- Screenshots (if applicable)
-- Browser / OS information
+- [ ] Linked issue (`Closes #...`)
+- [ ] Issue was assigned before work started
+- [ ] Screenshots included (for UI changes)
+- [ ] Root validation passed (`lint`, `build`, `prettier . --check`)
+- [ ] Client/server `format:check:changed`, `lint:changed`, `test:related`, `validate:pr` passed (as applicable)
+- [ ] Frontend build passes (if `client/**` changed)
+- [ ] `git diff --check` clean
+- [ ] Documentation updated (if required)
+- [ ] No unnecessary files included
+- [ ] No merge conflicts
+- [ ] PR addresses exactly one issue
+- [ ] Clean commit history
+- [ ] Existing functionality not broken
 
 ---
 
-# 💡 Feature Requests
+## ⚙️ CI/CD Pipeline
 
-Please include:
+GitHub Actions runs path-filtered checks on every PR — not all jobs run on every PR.
 
-- Clear description
-- Use case
-- Expected benefit
-- Possible implementation
+| Job                     | Trigger             | Checks                                                                               |
+| ----------------------- | ------------------- | ------------------------------------------------------------------------------------ |
+| **Detect Changes**      | Always              | Determines which downstream jobs run based on changed paths                          |
+| **Root Prettier**       | Always              | Prettier check on changed root files                                                 |
+| **Frontend Validation** | `client/**` changed | ESLint (changed files), Prettier (changed files), production build (`npm run build`) |
+| **Server Validation**   | `server/**` changed | ESLint (changed files), Prettier (changed files)                                     |
 
----
+### ❌ Not run on every PR
 
-# 🎯 Areas Open for Contribution
-
-- AI Search Improvements
-- Meeting Management
-- Policy Repository
-- Reports & Analytics
-- UI/UX Improvements
-- Accessibility
-- Documentation
-- Testing
-- Performance Optimization
-- Security Improvements
-- Mobile Responsiveness
+Backend tests, frontend tests, integration tests, startup tests, security audits, CodeQL — these run in separate scheduled/post-merge workflows, not on PR checks.
 
 ---
 
-# 👀 Review Process
+## 🐛 Troubleshooting
 
-Every Pull Request is reviewed by the maintainers.
+**Frontend Validation fails**
 
-During review you may be asked to:
+```bash
+cd client
+npm run lint:changed
+npm run format:check:changed
+npm run build
+```
 
-- Fix bugs
-- Improve code quality
-- Resolve review comments
-- Update documentation
-- Re-test your implementation
+**Server Validation fails**
 
-Please be patient while waiting for review.
+```bash
+cd server
+npm run lint:changed
+npm run format:check:changed
+```
+
+**Root Prettier fails**
+
+```bash
+npx prettier . --check
+npm run format
+```
+
+**Build failures**
+
+- Reproduce locally with `npm run build --prefix client`.
+- Check for missing env vars (Clerk keys) or type errors.
+
+**Formatting/Lint failures**
+
+- Run `npm run format` at root, or the changed-file variants above, before committing.
 
 ---
 
-# 📜 Code of Conduct
+## ❓ FAQ
+
+**Q: Do I need to run backend/frontend tests before opening a PR?**
+Not required for CI (they don't run on PRs), but `test:related` is recommended to catch regressions early.
+
+**Q: My PR only touches `server/`, do I need to run client checks?**
+No — CI only runs Frontend Validation when `client/**` changes, and vice versa for Server Validation.
+
+**Q: How do I keep my branch up to date?**
+
+```bash
+git fetch upstream
+git merge upstream/main
+```
+
+**Q: Where do I ask questions?**
+Open a Discussion, open an Issue, or join Discord: https://discord.gg/c29cwdVMG
+
+---
+
+## 🐞 Reporting Bugs
+
+Include: steps to reproduce, expected behavior, actual behavior, screenshots (if applicable), browser/OS info.
+
+## 💡 Feature Requests
+
+Include: clear description, use case, expected benefit, possible implementation.
+
+## 🎯 Areas Open for Contribution
+
+AI Search Improvements · Meeting Management · Policy Repository · Reports & Analytics · UI/UX · Accessibility · Documentation · Testing · Performance · Security · Mobile Responsiveness
+
+## 👀 Review Process
+
+Every PR is reviewed by maintainers. You may be asked to fix bugs, improve code quality, resolve comments, update docs, or re-test. Please be patient.
+
+## 📜 Code of Conduct
 
 Be respectful, professional, and welcoming.
 
-We aim to maintain a positive and inclusive open-source community.
-
 ---
 
-# ❓ Questions
+## ❤️ Thank You
 
-If you have any questions:
-
-- Open a Discussion
-- Open an Issue
-- Contact a Maintainer
-
-We're happy to help.
-
----
-
-# ❤️ Thank You
-
-Thank you for contributing to **MeetOnMemory**!
-
-Your contributions help make the project better for everyone.
-
-Happy Coding! 🚀
+Thanks for contributing to **MeetOnMemory**! Happy coding! 🚀

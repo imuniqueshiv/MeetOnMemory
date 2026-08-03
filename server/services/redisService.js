@@ -67,6 +67,36 @@ export const overrideRedisClientForTesting = (client) => {
   customTestClient = client;
 };
 
+/**
+ * Closes the shared Redis client (Issue #975).
+ *
+ * Nothing previously closed this connection on shutdown, so the process held an
+ * open socket that could keep the event loop alive past `server.close()` — one
+ * of the reasons the old shutdown path could hang until SIGKILL.
+ *
+ * Prefers `quit()` (drains pending replies) and falls back to `disconnect()`.
+ * Never throws: shutdown must continue even if the connection is already gone.
+ */
+export const closeRedis = async () => {
+  const client = redisClient;
+  redisClient = null;
+  isRedisDisabled = true;
+
+  if (!client) return false;
+
+  try {
+    if (typeof client.quit === "function") {
+      await client.quit();
+    } else if (typeof client.disconnect === "function") {
+      await client.disconnect();
+    }
+    return true;
+  } catch (err) {
+    console.warn("⚠️ Redis close failed (ignoring):", err.message);
+    return false;
+  }
+};
+
 export const getRedisClient = () =>
   customTestClient !== null
     ? customTestClient

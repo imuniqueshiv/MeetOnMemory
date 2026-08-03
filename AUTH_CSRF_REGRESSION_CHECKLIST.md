@@ -1,58 +1,16 @@
-# Auth & CSRF Regression Checklist
+# AUTH_CSRF_REGRESSION_CHECKLIST — RETIRED
 
-Manual checks for production authentication and CSRF behavior.
-Automated coverage lives in:
+**Status:** Obsolete after Clerk-only cutover (Issue #974 / Phase 5).
 
-- `server/tests/authCsrfRegression.test.js`
-- `server/tests/csrfErrors.test.js`
-- `client/src/services/__tests__/csrfService.test.js`
-- `client/src/services/__tests__/apiClient.test.js`
-- `client/src/context/__tests__/AppContext.session.test.jsx`
-- `client/src/components/__tests__/ProtectedRoute.test.jsx`
+Cookie-based user sessions and the global `csurf` middleware have been removed.
+Application authentication uses Clerk Bearer tokens only.
 
-## Browsers
+Use Clerk session QA instead:
 
-- [ ] Chrome
-- [ ] Firefox
-- [ ] Edge
-- [ ] Brave
-- [ ] Safari
-- [ ] Android Chrome
-- [ ] Incognito / Private window
-
-## Session flows
-
-- [ ] Register creates a session and lands in the app without a hard refresh
-- [ ] Login restores the session without a hard refresh
-- [ ] Logout clears the session and blocks protected routes
-- [ ] Hard refresh keeps the user signed in
-- [ ] Opening a second tab stays signed in
-- [ ] Expired/invalid session redirects to login cleanly
-
-## CSRF & cookies
-
-- [ ] Authenticated POST/PATCH/PUT/DELETE requests succeed with a valid CSRF token
-- [ ] Mutating requests fail cleanly when the CSRF token is missing/stale, then succeed after refresh
-- [ ] Auth cookie is `HttpOnly`
-- [ ] Production cookie uses `Secure` + appropriate `SameSite`
-- [ ] Cookies persist across refresh on the deployed HTTPS origin
-
-## Protected features
-
-- [ ] Organization create / join
-- [ ] Membership requests
-- [ ] AI Search
-- [ ] Meeting upload
-- [ ] Policy upload
-- [ ] Other authenticated write endpoints used in the release
-
-## Notes
-
-Record browser, date, and any failures below:
-
-```
-Browser:
-Date:
-Result:
-Notes:
-```
+- [ ] Sign in / sign up via Clerk UI (`/login`, `/signup`)
+- [ ] Protected routes require a Clerk session
+- [ ] API requests send `Authorization: Bearer <Clerk JWT>`
+- [ ] Socket.IO / WebRTC connect with `auth.token` from Clerk
+- [ ] Sign out clears Clerk session and MeetOnMemory AppContext
+- [ ] Organization switch / RBAC still use MongoDB roles
+- [ ] Shared-link passcodes, Slack state JWTs, and export download tokens still work

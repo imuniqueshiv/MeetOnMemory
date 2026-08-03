@@ -7,10 +7,15 @@ import {
   isExpectedRepository,
   safeCall,
   summarizeCheckStates,
+  summarizeRequiredCheckStates,
 } from "./helpers.js";
 import { processPrActivityRefresh } from "./activity.js";
 import { extractLinkedIssueNumbers, hasMarker } from "./utils.js";
-import { AUTOMATION } from "./constants.js";
+import {
+  AUTOMATION,
+  ALLOWED_BRANCH_PREFIXES,
+  REQUIRED_CHECK_NAMES,
+} from "./constants.js";
 
 function isMeaningfulDescription(text) {
   const value = String(text || "").trim();
@@ -38,6 +43,28 @@ export async function processPrValidation({ github, context, core }) {
   const pr = context.payload.pull_request;
   if (!pr) return;
 
+  if (action === "opened") {
+    const existingWelcomeComment = await findCommentByMarker(
+      github,
+      context,
+      core,
+      pr.number,
+      AUTOMATION.prOpenedMarker,
+    );
+
+    if (!existingWelcomeComment) {
+      await createComment(
+        github,
+        context,
+        core,
+        pr.number,
+        comments.prOpened({
+          user: pr.user.login,
+        }),
+      );
+    }
+  }
+
   // Refresh assignee inactivity timers for linked issues (drafts included).
   await processPrActivityRefresh({ github, context, core });
 
@@ -50,10 +77,14 @@ export async function processPrValidation({ github, context, core }) {
   lines.push(
     checklistLine("PR description present", isMeaningfulDescription(body)),
   );
+  const branchPattern = new RegExp(
+    `^(${ALLOWED_BRANCH_PREFIXES.join("|")})\\/[a-z0-9._-]+$`,
+    "i",
+  );
   lines.push(
     checklistLine(
       "Branch naming valid",
-      /^((feature|fix|docs|chore|refactor)\/)[a-z0-9._-]+$/i.test(pr.head.ref),
+      branchPattern.test(pr.head.ref),
       `branch: ${pr.head.ref}`,
     ),
   );
@@ -84,20 +115,21 @@ export async function processPrValidation({ github, context, core }) {
       lines.push(
         checklistLine(`Issue #${issueNumber} open`, issue.state === "open"),
       );
-      const assignee = issue.assignees?.[0]?.login || null;
-      if (assignee && assignee !== pr.user.login) {
+      const assignees = issue.assignees?.map((a) => a.login) || [];
+      if (assignees.length > 0 && !assignees.includes(pr.user.login)) {
+        const assigneesStr = assignees.join(", ");
         lines.push(
           checklistLine(
             `Issue #${issueNumber} assigned contributor`,
             false,
-            `assigned to @${assignee}`,
+            `assigned to ${assignees.map((a) => `@${a}`).join(", ")}`,
           ),
         );
         lines.push(
           checklistLine(
             "Assignment policy",
             false,
-            comments.missingAssignment({ issueNumber, assignee }),
+            comments.missingAssignment({ issueNumber, assignee: assigneesStr }),
           ),
         );
       } else {
@@ -119,18 +151,19 @@ export async function processPrValidation({ github, context, core }) {
       }),
     { data: { check_runs: [] } },
   );
-  const checkSummary = summarizeCheckStates(
+  const checkSummary = summarizeRequiredCheckStates(
     checkRunsResponse?.data?.check_runs || [],
+    REQUIRED_CHECK_NAMES,
   );
   lines.push(
     checklistLine(
-      "Build and lint status",
-      checkSummary.failedCount === 0,
+      "Required CI Checks",
+      checkSummary.allCompleted && checkSummary.failedCount === 0,
       checkSummary.failedCount
-        ? `failing checks: ${checkSummary.failedNames.join(", ")}`
-        : checkSummary.pendingCount
+        ? `failing checks: ${checkSummary.failedRuns.map((r) => r.name).join(", ")}`
+        : !checkSummary.allCompleted || checkSummary.pendingCount
           ? "checks pending"
-          : "all reported checks passing",
+          : "all required checks passing",
     ),
   );
 

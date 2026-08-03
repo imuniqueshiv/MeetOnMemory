@@ -1,46 +1,6 @@
 import React, { useContext } from "react";
 import AppContent from "../context/AppContent";
-
-/**
- * Role & Permission Hierarchy for frontend gates
- */
-const ROLE_HIERARCHY = {
-  owner: 5,
-  admin: 4,
-  moderator: 3,
-  member: 2,
-  viewer: 1,
-  guest: 0,
-};
-
-const PERMISSIONS = {
-  meetings: {
-    view: ["owner", "admin", "moderator", "member", "viewer"],
-    create: ["owner", "admin", "moderator", "member"],
-    edit: ["owner", "admin", "moderator", "member"],
-    delete: ["owner", "admin"],
-  },
-  policies: {
-    view: ["owner", "admin", "moderator", "member", "viewer"],
-    create: ["owner", "admin", "moderator", "member"],
-    edit: ["owner", "admin", "moderator", "member"],
-    delete: ["owner", "admin"],
-    approve: ["owner", "admin"],
-  },
-  team_members: {
-    view: ["owner", "admin", "moderator", "member", "viewer"],
-    invite: ["owner", "admin"],
-    remove: ["owner", "admin"],
-    change_role: ["owner", "admin"],
-  },
-  audit_logs: {
-    view: ["owner", "admin"],
-  },
-  admin_panel: {
-    view: ["owner", "admin"],
-    manage: ["owner", "admin"],
-  },
-};
+import { ROLE_HIERARCHY, hasPermission } from "../utils/rbacPermissions.js";
 
 /**
  * RoleGate Component
@@ -77,13 +37,9 @@ const RoleGate = ({
     }
   }
 
-  // Check resource permission
+  // Check resource permission (shared map — mirrors backend)
   if (resource && action) {
-    const allowedForAction = PERMISSIONS[resource]?.[action] || [
-      "owner",
-      "admin",
-    ];
-    if (!allowedForAction.includes(userRole)) {
+    if (!hasPermission(userRole, resource, action)) {
       return fallback;
     }
   }

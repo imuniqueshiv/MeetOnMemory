@@ -10,45 +10,41 @@ export const getMemberAttendanceStats = async (req, res) => {
     const orgId = req.user.organization;
     const { startDate, endDate } = req.query;
 
-    const query = { organization: orgId };
+    const matchQuery = { organization: orgId };
     if (startDate && endDate) {
-      query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+      matchQuery.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
     }
 
-    const meetings = await Meeting.find(query)
-      .select("date participants.name participants.email")
-      .lean();
+    const [totalMeetings, memberAgg] = await Promise.all([
+      Meeting.countDocuments(matchQuery),
+      Meeting.aggregate([
+        { $match: matchQuery },
+        { $unwind: "$participants" },
+        {
+          $group: {
+            _id: {
+              $ifNull: ["$participants.email", "$participants.name"],
+            },
+            name: { $first: "$participants.name" },
+            email: { $first: "$participants.email" },
+            attended: { $sum: 1 },
+            datesAttended: {
+              $addToSet: {
+                $dateToString: { format: "%Y-%m-%d", date: "$date" },
+              },
+            },
+          },
+        },
+      ]),
+    ]);
 
-    const totalMeetings = meetings.length;
-
-    // Map: member name/email -> { count, sparklineData }
-    const memberStats = {};
-
-    meetings.forEach((meeting) => {
-      const meetingDate = new Date(meeting.date).toISOString().split("T")[0];
-
-      meeting.participants.forEach((p) => {
-        const key = p.email || p.name;
-        if (!memberStats[key]) {
-          memberStats[key] = {
-            name: p.name,
-            email: p.email,
-            attended: 0,
-            datesAttended: new Set(),
-          };
-        }
-        memberStats[key].attended += 1;
-        memberStats[key].datesAttended.add(meetingDate);
-      });
-    });
-
-    const statsArray = Object.values(memberStats).map((member) => ({
+    const statsArray = memberAgg.map((member) => ({
       name: member.name,
       email: member.email,
       attended: member.attended,
       attendanceRate:
         totalMeetings > 0 ? (member.attended / totalMeetings) * 100 : 0,
-      sparkline: Array.from(member.datesAttended), // Array of dates they attended
+      sparkline: Array.from(member.datesAttended),
     }));
 
     res.status(200).json({ stats: statsArray, totalMeetings });
@@ -68,28 +64,28 @@ export const getAttendanceHeatmap = async (req, res) => {
     const orgId = req.user.organization;
     const { startDate, endDate } = req.query;
 
-    const query = { organization: orgId };
+    const matchQuery = { organization: orgId };
     if (startDate && endDate) {
-      query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+      matchQuery.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
     }
 
-    const meetings = await Meeting.find(query).select("date").lean();
-
-    const heatmapData = {};
-
-    meetings.forEach((meeting) => {
-      const dateKey = new Date(meeting.date).toISOString().split("T")[0];
-      if (!heatmapData[dateKey]) {
-        heatmapData[dateKey] = 0;
-      }
-      heatmapData[dateKey] += 1;
-    });
-
-    // Format for typical calendar heatmap (array of { date, count })
-    const formattedData = Object.keys(heatmapData).map((date) => ({
-      date,
-      count: heatmapData[date],
-    }));
+    const formattedData = await Meeting.aggregate([
+      { $match: matchQuery },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$date" } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+      {
+        $project: {
+          _id: 0,
+          date: "$_id",
+          count: 1,
+        },
+      },
+    ]);
 
     res.status(200).json(formattedData);
   } catch (error) {
@@ -109,58 +105,58 @@ export const getAttendanceTrends = async (req, res) => {
   try {
     const orgId = req.user.organization;
     const { startDate, endDate, granularity = "daily" } = req.query;
-    // granularity can be 'daily', 'weekly', 'monthly'
 
-    const query = { organization: orgId };
+    const matchQuery = { organization: orgId };
     if (startDate && endDate) {
-      query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+      matchQuery.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
     }
 
-    const meetings = await Meeting.find(query)
-      .select("date participants")
-      .sort("date")
-      .lean();
+    let dateGroupExpression;
+    if (granularity === "weekly") {
+      dateGroupExpression = {
+        $concat: [
+          { $dateToString: { format: "%G-W", date: "$date" } },
+          { $dateToString: { format: "%V", date: "$date" } },
+        ],
+      };
+    } else if (granularity === "monthly") {
+      dateGroupExpression = {
+        $dateToString: { format: "%Y-%m", date: "$date" },
+      };
+    } else {
+      dateGroupExpression = {
+        $dateToString: { format: "%Y-%m-%d", date: "$date" },
+      };
+    }
 
-    const trendMap = {};
-
-    meetings.forEach((meeting) => {
-      const dateObj = new Date(meeting.date);
-      let key = dateObj.toISOString().split("T")[0]; // daily
-
-      if (granularity === "weekly") {
-        // Group by ISO week year-week (simplified)
-        const d = new Date(
-          Date.UTC(
-            dateObj.getFullYear(),
-            dateObj.getMonth(),
-            dateObj.getDate(),
-          ),
-        );
-        const dayNum = d.getUTCDay() || 7;
-        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-        const weekNo = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
-        key = `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, "0")}`;
-      } else if (granularity === "monthly") {
-        key = `${dateObj.getFullYear()}-${(dateObj.getMonth() + 1).toString().padStart(2, "0")}`;
-      }
-
-      if (!trendMap[key]) {
-        trendMap[key] = {
-          dateLabel: key,
-          meetings: 0,
-          totalParticipants: 0,
-        };
-      }
-
-      trendMap[key].meetings += 1;
-      trendMap[key].totalParticipants += meeting.participants.length;
-    });
-
-    const trends = Object.values(trendMap).map((t) => ({
-      ...t,
-      avgParticipants: t.meetings > 0 ? t.totalParticipants / t.meetings : 0,
-    }));
+    const trends = await Meeting.aggregate([
+      { $match: matchQuery },
+      {
+        $group: {
+          _id: dateGroupExpression,
+          meetings: { $sum: 1 },
+          totalParticipants: {
+            $sum: { $size: { $ifNull: ["$participants", []] } },
+          },
+        },
+      },
+      { $sort: { _id: 1 } },
+      {
+        $project: {
+          _id: 0,
+          dateLabel: "$_id",
+          meetings: 1,
+          totalParticipants: 1,
+          avgParticipants: {
+            $cond: [
+              { $gt: ["$meetings", 0] },
+              { $divide: ["$totalParticipants", "$meetings"] },
+              0,
+            ],
+          },
+        },
+      },
+    ]);
 
     res.status(200).json(trends);
   } catch (error) {
@@ -181,23 +177,27 @@ export const getMeetingTypeBreakdown = async (req, res) => {
     const orgId = req.user.organization;
     const { startDate, endDate } = req.query;
 
-    const query = { organization: orgId };
+    const matchQuery = { organization: orgId };
     if (startDate && endDate) {
-      query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+      matchQuery.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
     }
 
-    const meetings = await Meeting.find(query).select("meetingType").lean();
-
-    const typeCounts = {};
-    meetings.forEach((m) => {
-      const type = m.meetingType || "uncategorized";
-      typeCounts[type] = (typeCounts[type] || 0) + 1;
-    });
-
-    const breakdown = Object.keys(typeCounts).map((type) => ({
-      name: type,
-      value: typeCounts[type],
-    }));
+    const breakdown = await Meeting.aggregate([
+      { $match: matchQuery },
+      {
+        $group: {
+          _id: { $ifNull: ["$meetingType", "uncategorized"] },
+          value: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          name: "$_id",
+          value: 1,
+        },
+      },
+    ]);
 
     res.status(200).json(breakdown);
   } catch (error) {

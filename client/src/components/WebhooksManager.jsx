@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Globe,
   Plus,
@@ -32,6 +32,10 @@ const WebhooksManager = ({ organizationId }) => {
 
   const [visibleSecrets, setVisibleSecrets] = useState({});
   const [copiedId, setCopiedId] = useState(null);
+
+  const addWebhookButtonRef = useRef(null);
+  const emptyStateButtonRef = useRef(null);
+  const editButtonRefs = useRef({});
 
   const fetchWebhooks = useCallback(async () => {
     if (!organizationId) return;
@@ -149,6 +153,7 @@ const WebhooksManager = ({ organizationId }) => {
         </div>
 
         <button
+          ref={addWebhookButtonRef}
           onClick={() => {
             setEditingWebhook(null);
             setShowModal(true);
@@ -178,6 +183,7 @@ const WebhooksManager = ({ organizationId }) => {
             are created, MoMs are generated, or policies change.
           </p>
           <button
+            ref={emptyStateButtonRef}
             onClick={() => {
               setEditingWebhook(null);
               setShowModal(true);
@@ -277,6 +283,9 @@ const WebhooksManager = ({ organizationId }) => {
                     </button>
 
                     <button
+                      ref={(el) => {
+                        if (el) editButtonRefs.current[hook._id] = el;
+                      }}
                       onClick={() => {
                         setEditingWebhook(hook);
                         setShowModal(true);
@@ -323,6 +332,13 @@ const WebhooksManager = ({ organizationId }) => {
         webhook={editingWebhook}
         organizationId={organizationId}
         onSuccess={fetchWebhooks}
+        triggerRef={
+          editingWebhook
+            ? editButtonRefs.current[editingWebhook._id]
+            : webhooks.length === 0
+              ? emptyStateButtonRef
+              : addWebhookButtonRef
+        }
       />
 
       <WebhookDeliveryLogsModal

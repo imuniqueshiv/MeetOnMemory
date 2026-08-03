@@ -38,10 +38,14 @@ const uri = mongoServer.getUri();
 process.env.TEST_MONGODB_URI = uri.replace(/\/$/, "");
 process.env.NODE_ENV = "test";
 process.env.JWT_SECRET = process.env.JWT_SECRET || "test_jwt_secret";
+process.env.AUTH_PROVIDER = "clerk";
+process.env.CLERK_TEST_AUTH = "jwt";
+process.env.CLERK_SECRET_KEY =
+  process.env.CLERK_SECRET_KEY || "test_clerk_secret";
 
 // Force Redis disabled for tests to prevent ioredis from hanging while retrying connections
-delete process.env.REDIS_URI;
-delete process.env.REDIS_URL;
+process.env.REDIS_URI = "";
+process.env.REDIS_URL = "";
 
 // ─── Teardown ──────────────────────────────────────────────────────────────
 afterAll(async () => {

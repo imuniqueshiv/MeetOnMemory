@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar.jsx";
 import { policyComplianceApi } from "../services";
@@ -8,20 +8,21 @@ import {
   ShieldCheck,
   Link2,
   ShieldQuestion,
+  Shield,
   CheckCircle2,
   XCircle,
   RotateCcw,
   Loader2,
   ExternalLink,
   FileText,
+  Filter,
 } from "lucide-react";
 
 /**
  * PolicyCompliance.jsx
- * Dashboard of meeting decisions flagged as potentially conflicting with
- * (or otherwise related to) an organizational policy. Detection/flagging
- * only — acknowledging or dismissing a flag never alters the underlying
- * meeting decision.
+ * Dashboard of meeting decisions evaluated against organizational policies.
+ * Supports filtering by status and all compliance classifications
+ * (potential_conflict, aligned, references, unrelated, unclassified, all).
  */
 
 const CLASSIFICATION_STYLES = {
@@ -62,6 +63,19 @@ const CLASSIFICATION_STYLES = {
   },
 };
 
+const CLASSIFICATION_TABS = [
+  { value: "all", label: "All Classifications", icon: Shield },
+  {
+    value: "potential_conflict",
+    label: "Potential Conflicts",
+    icon: ShieldAlert,
+  },
+  { value: "aligned", label: "Aligned", icon: ShieldCheck },
+  { value: "references", label: "References", icon: Link2 },
+  { value: "unrelated", label: "Unrelated", icon: ShieldQuestion },
+  { value: "unclassified", label: "Needs Retry", icon: ShieldQuestion },
+];
+
 const STATUS_TABS = [
   { value: "unresolved", label: "Unresolved" },
   { value: "acknowledged", label: "Acknowledged" },
@@ -76,16 +90,14 @@ const PolicyCompliance = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [statusTab, setStatusTab] = useState("unresolved");
+  const [classificationTab, setClassificationTab] = useState("all");
   const [actioningId, setActioningId] = useState(null);
 
-  const fetchFlags = useCallback(async (status) => {
+  const fetchFlags = useCallback(async (status, classification) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await policyComplianceApi.getFlags(
-        status,
-        "potential_conflict",
-      );
+      const res = await policyComplianceApi.getFlags(status, classification);
       if (res.data?.success) {
         setFlags(res.data.flags || []);
       } else {
@@ -100,8 +112,26 @@ const PolicyCompliance = () => {
   }, []);
 
   useEffect(() => {
-    fetchFlags(statusTab);
-  }, [statusTab, fetchFlags]);
+    fetchFlags(statusTab, classificationTab);
+  }, [statusTab, classificationTab, fetchFlags]);
+
+  // Compute counts per classification for summary cards
+  const countsByClassification = useMemo(() => {
+    const counts = {
+      all: flags.length,
+      potential_conflict: 0,
+      aligned: 0,
+      references: 0,
+      unrelated: 0,
+      unclassified: 0,
+    };
+    flags.forEach((flag) => {
+      if (counts[flag.classification] !== undefined) {
+        counts[flag.classification]++;
+      }
+    });
+    return counts;
+  }, [flags]);
 
   const handleReview = async (flagId, status) => {
     try {
@@ -139,32 +169,65 @@ const PolicyCompliance = () => {
       <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <ShieldAlert className="w-6 h-6 text-red-500" />
+            <Shield className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
             Policy Compliance
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Meeting decisions flagged as potentially conflicting with an
-            organizational policy. This is a detection layer only — review and
-            acknowledge or dismiss each flag; nothing here blocks or
-            auto-rejects a decision.
+            Meeting decisions evaluated against organizational policies. Explore
+            all policy compliance classifications including potential conflicts,
+            aligned decisions, references, and unclassified items.
           </p>
         </div>
 
         {/* Status tabs */}
-        <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex gap-2 mb-4 border-b border-slate-200 dark:border-slate-800">
           {STATUS_TABS.map((tab) => (
             <button
               key={tab.value}
               onClick={() => setStatusTab(tab.value)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
                 statusTab === tab.value
-                  ? "border-red-500 text-red-600 dark:text-red-400"
+                  ? "border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400"
                   : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               }`}
             >
               {tab.label}
             </button>
           ))}
+        </div>
+
+        {/* Classification Filter Chips / Tabs (Issue #911) */}
+        <div className="mb-6 flex flex-wrap gap-2 items-center bg-slate-100/70 dark:bg-slate-900/60 p-2 rounded-xl border border-slate-200/60 dark:border-slate-800/80">
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1 ml-1 mr-2">
+            <Filter className="w-3.5 h-3.5" />
+            Classification:
+          </span>
+          {CLASSIFICATION_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isSelected = classificationTab === tab.value;
+            return (
+              <button
+                key={tab.value}
+                onClick={() => setClassificationTab(tab.value)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  isSelected
+                    ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs border border-slate-200 dark:border-slate-700"
+                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
+                }`}
+              >
+                <Icon
+                  className={`w-3.5 h-3.5 ${isSelected ? "text-indigo-600 dark:text-indigo-400" : ""}`}
+                />
+                {tab.label}
+                {classificationTab === "all" &&
+                  countsByClassification[tab.value] !== undefined && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-[10px] font-semibold text-slate-700 dark:text-slate-300">
+                      {countsByClassification[tab.value]}
+                    </span>
+                  )}
+              </button>
+            );
+          })}
         </div>
 
         {loading && (
@@ -181,7 +244,11 @@ const PolicyCompliance = () => {
         {!loading && !error && flags.length === 0 && (
           <div className="text-center py-16 text-slate-400 dark:text-slate-500">
             <ShieldCheck className="w-10 h-10 mx-auto mb-3 text-emerald-400" />
-            No {statusTab === "all" ? "" : statusTab} flags found.
+            No{" "}
+            {classificationTab !== "all"
+              ? classificationTab.replace("_", " ")
+              : ""}{" "}
+            {statusTab === "all" ? "" : statusTab} compliance records found.
           </div>
         )}
 
@@ -201,7 +268,7 @@ const PolicyCompliance = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-2">
                       <span
-                        className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${style.bgColor} ${style.textColor}`}
+                        className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${style.bgColor} ${style.textColor}`}
                       >
                         <Icon className="w-3.5 h-3.5" />
                         {style.label}
@@ -232,7 +299,7 @@ const PolicyCompliance = () => {
                         onClick={() =>
                           navigate(`/meeting/${flag.sourceMeetingId._id}`)
                         }
-                        className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                       >
                         <ExternalLink className="w-3 h-3" />
                         {flag.sourceMeetingId.title}
@@ -246,7 +313,7 @@ const PolicyCompliance = () => {
                       <button
                         disabled={actioningId === flag._id}
                         onClick={() => handleReview(flag._id, "acknowledged")}
-                        className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60 disabled:opacity-50"
+                        className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60 disabled:opacity-50 cursor-pointer"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Acknowledge
@@ -256,7 +323,7 @@ const PolicyCompliance = () => {
                       <button
                         disabled={actioningId === flag._id}
                         onClick={() => handleReview(flag._id, "dismissed")}
-                        className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 disabled:opacity-50"
+                        className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 disabled:opacity-50 cursor-pointer"
                       >
                         <XCircle className="w-3.5 h-3.5" />
                         Dismiss
@@ -266,7 +333,7 @@ const PolicyCompliance = () => {
                       <button
                         disabled={actioningId === flag._id}
                         onClick={() => handleReview(flag._id, "unresolved")}
-                        className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 disabled:opacity-50"
+                        className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
                         Reopen

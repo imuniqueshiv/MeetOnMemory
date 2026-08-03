@@ -1,3 +1,4 @@
+import userModel from "../models/userModel.js";
 import CalendarConnection from "../models/calendarConnectionModel.js";
 import Meeting from "../models/meetingModel.js";
 import {
@@ -62,6 +63,9 @@ const syncUserCalendar = async (userId, provider) => {
     let syncedCount = 0;
     let conflictCount = 0;
 
+    const user = await userModel.findById(userId).select("organization");
+    const userOrganization = user?.organization || null;
+
     for (const externalEvent of events) {
       const externalEventId = externalEvent.id;
       const externalEventTitle =
@@ -81,6 +85,13 @@ const syncUserCalendar = async (userId, provider) => {
 
       if (existingMeeting) {
         // Event already synced - check for updates
+        let updated = false;
+
+        if (!existingMeeting.organization && userOrganization) {
+          existingMeeting.organization = userOrganization;
+          updated = true;
+        }
+
         const lastSyncTime =
           existingMeeting.calendarEvents?.[provider]?.syncedAt;
 
@@ -101,9 +112,13 @@ const syncUserCalendar = async (userId, provider) => {
               existingMeeting.description = externalEvent.description;
 
             existingMeeting.calendarEvents[provider].syncedAt = new Date();
-            await existingMeeting.save();
-            syncedCount++;
+            updated = true;
           }
+        }
+
+        if (updated) {
+          await existingMeeting.save();
+          syncedCount++;
         }
       } else {
         // New external event - create a meeting record
@@ -113,6 +128,7 @@ const syncUserCalendar = async (userId, provider) => {
 
         const _newMeeting = await Meeting.create({
           uploadedBy: userId,
+          organization: userOrganization,
           title: externalEventTitle,
           description: externalEvent.description || "",
           date: externalEventStart ? new Date(externalEventStart) : new Date(),

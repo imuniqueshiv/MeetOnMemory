@@ -5,11 +5,10 @@
  * exercises the most important API flows end-to-end using supertest:
  *
  *   • Health check
- *   • Authentication (register, login, CSRF)
+ *   • Authentication (Clerk test token → is-auth / user-data)
  *   • Organizations (CRUD)
- *   • Meetings (create, list)
- *   • Invitations (send, accept)
- *   • Policies (create, list)
+ *   • Meetings (list)
+ *   • Policies (list)
  *
  * This file is executed as a dedicated CI job and can also be run locally:
  *   cd server
@@ -18,6 +17,8 @@
 
 import request from "supertest";
 import { app } from "../server.js";
+import User from "../models/userModel.js";
+import { createClerkTestToken, authHeader } from "./helpers/clerkTestAuth.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -25,52 +26,27 @@ const uniqueEmail = (prefix) =>
   `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@test.com`;
 
 /**
- * Creates a supertest agent pre-configured with a CSRF cookie.
- * Returns { agent, csrfToken }.
+ * Creates a Mongo user with clerkUserId and returns a Clerk test Bearer token.
  */
-async function createCsrfAgent() {
-  const agent = request.agent(app);
-  const res = await agent.get("/api/csrf-token");
-  return { agent, csrfToken: res.body.csrfToken };
-}
-
-/**
- * Fetches a fresh CSRF token for an existing agent (tokens may rotate).
- */
-async function refreshCsrfToken(agent) {
-  const res = await agent.get("/api/csrf-token");
-  return res.body.csrfToken;
-}
-
-/**
- * Registers and logs in a user, returning { agent, csrfToken, user }.
- */
-async function registerAndLogin(overrides = {}) {
-  const { agent, csrfToken } = await createCsrfAgent();
-  const userData = {
-    name: overrides.name || "Test User",
-    email: overrides.email || uniqueEmail("integ"),
+async function createAuthenticatedUser(overrides = {}) {
+  const email = overrides.email || uniqueEmail("integ");
+  const name = overrides.name || "Test User";
+  const user = await User.create({
+    name,
+    email,
     password: overrides.password || "password123",
-  };
+    role: overrides.role || "member",
+  });
+  user.clerkUserId = overrides.clerkUserId || `user_test_${user._id}`;
+  await user.save();
 
-  await agent
-    .post("/api/auth/register")
-    .set("X-CSRF-Token", csrfToken)
-    .send(userData);
+  const token = createClerkTestToken({
+    clerkUserId: user.clerkUserId,
+    email: user.email,
+  });
 
-  const loginCsrf = await refreshCsrfToken(agent);
-  await agent
-    .post("/api/auth/login")
-    .set("X-CSRF-Token", loginCsrf)
-    .send({ email: userData.email, password: userData.password });
-
-  const finalCsrf = await refreshCsrfToken(agent);
-  return { agent, csrfToken: finalCsrf, user: userData };
+  return { user, token, headers: authHeader(token) };
 }
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// HEALTH CHECK
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 describe("Integration: Health Check", () => {
   it("GET /api/health returns 200 with status UP", async () => {
@@ -88,88 +64,48 @@ describe("Integration: Health Check", () => {
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// CSRF TOKEN
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-describe("Integration: CSRF Token", () => {
-  it("GET /api/csrf-token returns a non-empty token", async () => {
-    const res = await request(app).get("/api/csrf-token");
-    expect(res.status).toBe(200);
-    expect(res.body.csrfToken).toBeTruthy();
-  });
-});
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// AUTHENTICATION
+// AUTHENTICATION (Clerk)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 describe("Integration: Authentication", () => {
-  it("registers a new user and returns 201", async () => {
-    const { agent, csrfToken } = await createCsrfAgent();
-    const res = await agent
-      .post("/api/auth/register")
-      .set("X-CSRF-Token", csrfToken)
-      .send({
-        name: "Integration User",
-        email: uniqueEmail("auth-reg"),
-        password: "password123",
-      });
-
-    expect(res.status).toBe(201);
-    expect(res.body.success).toBe(true);
-  });
-
-  it("logs in a registered user and sets a JWT cookie", async () => {
-    const email = uniqueEmail("auth-login");
-    const { agent, csrfToken } = await createCsrfAgent();
-
-    await agent
-      .post("/api/auth/register")
-      .set("X-CSRF-Token", csrfToken)
-      .send({ name: "Login User", email, password: "password123" });
-
-    const loginCsrf = await refreshCsrfToken(agent);
-    const res = await agent
-      .post("/api/auth/login")
-      .set("X-CSRF-Token", loginCsrf)
-      .send({ email, password: "password123" });
-
+  it("GET /api/auth/is-auth returns 200 with a Clerk test token", async () => {
+    const { headers } = await createAuthenticatedUser({
+      email: uniqueEmail("auth-ok"),
+    });
+    const res = await request(app).get("/api/auth/is-auth").set(headers);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-
-    const cookies = res.headers["set-cookie"];
-    expect(cookies).toBeDefined();
-    expect(cookies.some((c) => c.startsWith("token="))).toBe(true);
   });
 
-  it("rejects login with wrong password", async () => {
-    const email = uniqueEmail("auth-bad-pw");
-    const { agent, csrfToken } = await createCsrfAgent();
-
-    await agent
-      .post("/api/auth/register")
-      .set("X-CSRF-Token", csrfToken)
-      .send({ name: "Bad PW", email, password: "password123" });
-
-    const loginCsrf = await refreshCsrfToken(agent);
-    const res = await agent
-      .post("/api/auth/login")
-      .set("X-CSRF-Token", loginCsrf)
-      .send({ email, password: "wrong" });
-
-    // Auth controller returns 400 for invalid credentials
-    expect([400, 401]).toContain(res.status);
-  });
-
-  it("GET /api/auth/is-auth returns 200 for an authenticated user", async () => {
-    const { agent } = await registerAndLogin();
-    const res = await agent.get("/api/auth/is-auth");
+  it("GET /api/auth/user-data returns the authenticated user", async () => {
+    const { user, headers } = await createAuthenticatedUser({
+      email: uniqueEmail("auth-data"),
+      name: "Clerk Data User",
+    });
+    const res = await request(app).get("/api/auth/user-data").set(headers);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+    expect(res.body.user).toMatchObject({
+      email: user.email,
+      name: "Clerk Data User",
+    });
   });
 
   it("GET /api/auth/is-auth returns 401 for an unauthenticated request", async () => {
     const res = await request(app).get("/api/auth/is-auth");
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects tokens that lack a Clerk sub claim", async () => {
+    const jwt = await import("jsonwebtoken");
+    const badToken = jwt.default.sign(
+      { id: "not-a-clerk-sub" },
+      process.env.JWT_SECRET || "test_jwt_secret",
+      { expiresIn: "1h" },
+    );
+    const res = await request(app)
+      .get("/api/auth/is-auth")
+      .set(authHeader(badToken));
     expect(res.status).toBe(401);
   });
 });
@@ -180,11 +116,11 @@ describe("Integration: Authentication", () => {
 
 describe("Integration: Organizations", () => {
   it("creates an organization", async () => {
-    const { agent, csrfToken } = await registerAndLogin();
+    const { headers } = await createAuthenticatedUser();
 
-    const res = await agent
+    const res = await request(app)
       .post("/api/organizations")
-      .set("X-CSRF-Token", csrfToken)
+      .set(headers)
       .send({ name: `Integ Org ${Date.now()}` });
 
     expect(res.status).toBe(201);
@@ -193,16 +129,14 @@ describe("Integration: Organizations", () => {
   });
 
   it("lists organizations for the authenticated user", async () => {
-    const { agent, csrfToken } = await registerAndLogin();
+    const { headers } = await createAuthenticatedUser();
 
-    // Create one org first
-    await agent
+    await request(app)
       .post("/api/organizations")
-      .set("X-CSRF-Token", csrfToken)
+      .set(headers)
       .send({ name: `List Org ${Date.now()}` });
 
-    // Use /user endpoint which returns the user's joined organizations
-    const res = await agent.get("/api/organizations/user");
+    const res = await request(app).get("/api/organizations/user").set(headers);
     expect(res.status).toBe(200);
   });
 
@@ -218,27 +152,24 @@ describe("Integration: Organizations", () => {
 
 describe("Integration: Meetings", () => {
   it("returns 401 when listing meetings without auth", async () => {
-    // Use the /all endpoint — auth check should fire first.
     const res = await request(app).get("/api/meetings/all");
     expect(res.status).toBe(401);
   });
 
   it("lists meetings for an organization (authenticated)", async () => {
-    const { agent, csrfToken } = await registerAndLogin();
+    const { headers } = await createAuthenticatedUser();
 
-    // Create org and select it (sets organizationId on session)
-    const orgRes = await agent
+    const orgRes = await request(app)
       .post("/api/organizations")
-      .set("X-CSRF-Token", csrfToken)
+      .set(headers)
       .send({ name: `Meet Org ${Date.now()}` });
 
     const orgId = orgRes.body.organization._id;
 
-    // The meetings list route is GET /api/meetings/all with orgId header
-    const res = await agent
+    const res = await request(app)
       .get("/api/meetings/all")
+      .set(headers)
       .set("x-organization-id", orgId);
-    // Should return 200 with meetings list
     expect(res.status).toBe(200);
   });
 });
@@ -278,20 +209,19 @@ describe("Integration: Policies", () => {
   });
 
   it("returns policies list for an authenticated user's organization", async () => {
-    const { agent, csrfToken } = await registerAndLogin();
+    const { headers } = await createAuthenticatedUser();
 
-    // Create org
-    const orgRes = await agent
+    const orgRes = await request(app)
       .post("/api/organizations")
-      .set("X-CSRF-Token", csrfToken)
+      .set(headers)
       .send({ name: `Policy Org ${Date.now()}` });
 
     const orgId = orgRes.body.organization._id;
 
-    const res = await agent
+    const res = await request(app)
       .get("/api/policies/")
+      .set(headers)
       .set("x-organization-id", orgId);
-    // Expect 200 with policies array
     expect(res.status).toBe(200);
   });
 });
@@ -305,7 +235,6 @@ describe("Integration: Assistant", () => {
     const res = await request(app)
       .post("/api/assistant/query")
       .send({ query: "test" });
-    // Expect 401 or 403 — route is auth-protected
     expect([401, 403]).toContain(res.status);
   });
 });

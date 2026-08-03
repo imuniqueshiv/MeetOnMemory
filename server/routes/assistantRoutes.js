@@ -125,15 +125,25 @@ router.post("/sessions/:id/message", messageLimiter, async (req, res) => {
     }
 
     const sessionId = req.params.id;
+    const userId = req.user._id?.toString() || req.user.id?.toString();
     const io = req.app.get("io");
+    const targetSocket = io
+      ? io.to(
+          [userId, `user:${userId}`, `session:${sessionId}`].filter(Boolean),
+        )
+      : null;
 
-    processMessage(sessionId, req.user._id, content, io).catch((err) => {
-      console.error("Error processing message:", err);
-      io.emit("assistant_error", {
-        sessionId,
-        error: "Failed to process message.",
-      });
-    });
+    processMessage(sessionId, req.user._id, content, targetSocket).catch(
+      (err) => {
+        console.error("Error processing message:", err);
+        if (targetSocket) {
+          targetSocket.emit("assistant_error", {
+            sessionId,
+            error: "Failed to process message.",
+          });
+        }
+      },
+    );
 
     res.status(202).json({ status: "Processing" });
   } catch (error) {

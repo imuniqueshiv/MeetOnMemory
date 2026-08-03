@@ -23,10 +23,8 @@ class ExportService {
 
     const mom = meetingData.structuredMoM || {};
     const title = mom.title || meetingData.title || "Meeting Minutes";
-    const date =
-      mom.date || meetingData.date
-        ? new Date(meetingData.date).toLocaleDateString()
-        : "N/A";
+    const rawDate = mom.date || meetingData.date;
+    const date = rawDate ? new Date(rawDate).toLocaleDateString() : "N/A";
 
     const doc = new PDFDocument({ margin: 50 });
 

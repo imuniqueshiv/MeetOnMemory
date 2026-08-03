@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Navbar from "../components/Navbar.jsx";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "react-toastify";
+import { meetingApi } from "../services";
 import MeetingTabs from "./CreateMeeting/components/MeetingTabs";
 import ScheduleMeeting from "./CreateMeeting/components/ScheduleMeeting/ScheduleMeeting";
 import LiveMeeting from "./CreateMeeting/components/LiveMeeting/LiveMeeting";
@@ -10,14 +13,49 @@ import { useLiveMeeting } from "./CreateMeeting/hooks/useLiveMeeting";
 import { useSessionCards } from "./CreateMeeting/hooks/useSessionCards";
 
 const CreateMeeting = () => {
-  const [activeSection, setActiveSection] = useState(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get("templateId") ? "schedule" : "live";
-  });
+  const [activeSection, setActiveSection] = useState("live");
+  const [searchParams] = useSearchParams();
+  const duplicateFrom = searchParams.get("duplicateFrom");
+  const [loadingDuplicate, setLoadingDuplicate] = useState(false);
 
   const scheduleMeetingHooks = useScheduleMeeting();
+  const { hydrateDuplicateMeeting } = scheduleMeetingHooks;
   const liveMeetingHooks = useLiveMeeting();
   const sessionCardsHooks = useSessionCards();
+
+  useEffect(() => {
+    if (!duplicateFrom) return;
+
+    let cancelled = false;
+    setActiveSection("schedule");
+    setLoadingDuplicate(true);
+
+    meetingApi
+      .getDuplicateMeetingData(duplicateFrom)
+      .then(({ data }) => {
+        if (cancelled) return;
+        if (!data?.success || !data?.duplicateData) {
+          throw new Error(data?.message || "Unable to load meeting details");
+        }
+        hydrateDuplicateMeeting(data.duplicateData);
+        toast.success("Meeting details copied. Choose a new date and time.");
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        toast.error(
+          error.response?.data?.message ||
+            error.message ||
+            "Unable to duplicate this meeting",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDuplicate(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [duplicateFrom, hydrateDuplicateMeeting]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-slate-800 dark:text-slate-200">
@@ -43,7 +81,10 @@ const CreateMeeting = () => {
 
         {/* ========== SECTION 1: SCHEDULE MEETINGS ========== */}
         {activeSection === "schedule" && (
-          <ScheduleMeeting hookProps={scheduleMeetingHooks} />
+          <ScheduleMeeting
+            hookProps={scheduleMeetingHooks}
+            loadingDuplicate={loadingDuplicate}
+          />
         )}
 
         {/* ========== SECTION 2: LIVE MEETING ========== */}

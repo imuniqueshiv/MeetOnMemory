@@ -12,12 +12,23 @@ const router = express.Router();
 
 // Apply auth and organization middlewares
 router.use(userAuth);
-router.use(requireOrgMembership);
-router.use(requirePermission("meetings", "create"));
 
-router.post("/", createSeries);
-router.get("/:id", getSeriesById);
-router.get("/:id/meetings", getSeriesMeetings);
-router.patch("/:id/cancel", cancelSeries);
+router.use(requireOrgMembership);
+
+router.post("/", requirePermission("meetings", "create"), createSeries);
+
+router.get("/:id", requirePermission("meetings", "view"), getSeriesById);
+
+router.get(
+  "/:id/meetings",
+  requirePermission("meetings", "view"),
+  getSeriesMeetings,
+);
+
+router.patch(
+  "/:id/cancel",
+  requirePermission("meetings", "edit"),
+  cancelSeries,
+);
 
 export default router;

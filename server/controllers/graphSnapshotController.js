@@ -19,12 +19,28 @@ const getOrgId = (req) =>
 export const getSnapshots = async (req, res) => {
   try {
     const organization = getOrgId(req);
-    const { limit, before } = req.query;
+    const { limit, before, page } = req.query;
 
-    const snapshots = await listSnapshots(organization, { limit, before });
+    const parsedLimit = Math.min(Math.max(Number(limit) || 20, 1), 200);
+    const snapshots = await listSnapshots(organization, {
+      limit: parsedLimit,
+      before,
+      page,
+    });
+
+    const totalCount = await mongoose.model("GraphSnapshot").countDocuments({
+      organization: organization || null,
+    });
+
+    const hasMore = snapshots.length === parsedLimit;
+    const nextCursor =
+      snapshots.length > 0 ? snapshots[snapshots.length - 1].createdAt : null;
 
     sendSuccess(res, {
       count: snapshots.length,
+      totalCount,
+      hasMore,
+      nextCursor,
       snapshots,
     });
   } catch (error) {

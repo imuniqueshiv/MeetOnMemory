@@ -10,6 +10,7 @@ import React, {
 import { io } from "socket.io-client";
 import AppContent from "./AppContent.js";
 import { getBackendUrl } from "../config/backendConfig.js";
+import apiClient, { createClerkSocketOptions } from "../services/apiClient.js";
 
 const API_URL = getBackendUrl();
 const UI_STORAGE_KEY = "meetonmemory-assistant-ui";
@@ -60,7 +61,6 @@ export const AssistantProvider = ({ children }) => {
   const [ui, setUi] = useState(readStoredUi);
 
   const socketRef = useRef(null);
-  const tokenRef = useRef(localStorage.getItem("token"));
   const currentSessionIdRef = useRef(currentSessionId);
   const sessionsBootstrapped = useRef(false);
 
@@ -78,13 +78,7 @@ export const AssistantProvider = ({ children }) => {
 
   const fetchSessions = useCallback(async () => {
     try {
-      tokenRef.current = localStorage.getItem("token");
-      const res = await fetch(`${API_URL}/api/assistant/sessions`, {
-        headers: { Authorization: `Bearer ${tokenRef.current}` },
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to fetch sessions");
-      const data = await res.json();
+      const { data } = await apiClient.get("/api/assistant/sessions");
       setSessions(Array.isArray(data) ? data : data.sessions || []);
     } catch (err) {
       console.error(err);
@@ -102,70 +96,76 @@ export const AssistantProvider = ({ children }) => {
       return;
     }
 
-    tokenRef.current = localStorage.getItem("token");
     if (!sessionsBootstrapped.current) {
       sessionsBootstrapped.current = true;
       fetchSessions();
     }
 
     const backendUrl = API_URL.replace(/\/api$/, "");
-    const socket = io(backendUrl, {
-      transports: ["websocket", "polling"],
-      reconnectionDelayMax: 10000,
-    });
-    socketRef.current = socket;
+    let socket;
+    let cancelled = false;
 
-    socket.on("connect", () => setIsSocketConnected(true));
-    socket.on("disconnect", () => setIsSocketConnected(false));
-
-    socket.on("assistant_message_chunk", (data) => {
-      if (data.sessionId !== currentSessionIdRef.current) return;
-      setMessages((prev) => {
-        const next = [...prev];
-        const lastIndex = next.length - 1;
-        if (
-          lastIndex >= 0 &&
-          next[lastIndex].role === "assistant" &&
-          next[lastIndex].isStreaming
-        ) {
-          next[lastIndex] = {
-            ...next[lastIndex],
-            content: next[lastIndex].content + data.chunk,
-          };
-        } else {
-          next.push({
-            role: "assistant",
-            content: data.chunk,
-            isStreaming: true,
-            sources: [],
-          });
-        }
-        return next;
+    (async () => {
+      const opts = await createClerkSocketOptions({
+        reconnectionDelayMax: 10000,
       });
-    });
+      if (cancelled) return;
+      socket = io(backendUrl, opts);
+      socketRef.current = socket;
 
-    socket.on("assistant_message_done", (data) => {
-      if (data.sessionId !== currentSessionIdRef.current) return;
-      setMessages((prev) => {
-        const next = [...prev];
-        const lastIndex = next.length - 1;
-        if (lastIndex >= 0 && next[lastIndex].role === "assistant") {
-          next[lastIndex] = { ...data.message, isStreaming: false };
-        }
-        return next;
+      socket.on("connect", () => setIsSocketConnected(true));
+      socket.on("disconnect", () => setIsSocketConnected(false));
+
+      socket.on("assistant_message_chunk", (data) => {
+        if (data.sessionId !== currentSessionIdRef.current) return;
+        setMessages((prev) => {
+          const next = [...prev];
+          const lastIndex = next.length - 1;
+          if (
+            lastIndex >= 0 &&
+            next[lastIndex].role === "assistant" &&
+            next[lastIndex].isStreaming
+          ) {
+            next[lastIndex] = {
+              ...next[lastIndex],
+              content: next[lastIndex].content + data.chunk,
+            };
+          } else {
+            next.push({
+              role: "assistant",
+              content: data.chunk,
+              isStreaming: true,
+              sources: [],
+            });
+          }
+          return next;
+        });
       });
-      setIsStreaming(false);
-      if (data.title) fetchSessions();
-    });
 
-    socket.on("assistant_error", (data) => {
-      if (data.sessionId !== currentSessionIdRef.current) return;
-      setError(data.error);
-      setIsStreaming(false);
-    });
+      socket.on("assistant_message_done", (data) => {
+        if (data.sessionId !== currentSessionIdRef.current) return;
+        setMessages((prev) => {
+          const next = [...prev];
+          const lastIndex = next.length - 1;
+          if (lastIndex >= 0 && next[lastIndex].role === "assistant") {
+            next[lastIndex] = { ...data.message, isStreaming: false };
+          }
+          return next;
+        });
+        setIsStreaming(false);
+        if (data.title) fetchSessions();
+      });
+
+      socket.on("assistant_error", (data) => {
+        if (data.sessionId !== currentSessionIdRef.current) return;
+        setError(data.error);
+        setIsStreaming(false);
+      });
+    })();
 
     return () => {
-      socket.disconnect();
+      cancelled = true;
+      socket?.disconnect();
       if (socketRef.current === socket) socketRef.current = null;
     };
   }, [isLoggedin, fetchSessions]);
@@ -227,13 +227,7 @@ export const AssistantProvider = ({ children }) => {
     setError("");
     setIsRateLimited(false);
     try {
-      tokenRef.current = localStorage.getItem("token");
-      const res = await fetch(`${API_URL}/api/assistant/sessions/${id}`, {
-        headers: { Authorization: `Bearer ${tokenRef.current}` },
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to load session");
-      const data = await res.json();
+      const { data } = await apiClient.get(`/api/assistant/sessions/${id}`);
       setMessages(data.messages || []);
       setPinnedContext(data.pinnedContext || null);
     } catch (err) {
@@ -244,14 +238,7 @@ export const AssistantProvider = ({ children }) => {
 
   const handleNewSession = useCallback(async () => {
     try {
-      tokenRef.current = localStorage.getItem("token");
-      const res = await fetch(`${API_URL}/api/assistant/sessions`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${tokenRef.current}` },
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to create session");
-      const data = await res.json();
+      const { data } = await apiClient.post("/api/assistant/sessions");
       setSessions((prev) => [data, ...prev]);
       setCurrentSessionId(data._id);
       setMessages([]);
@@ -266,12 +253,7 @@ export const AssistantProvider = ({ children }) => {
 
   const handleDeleteSession = useCallback(async (id) => {
     try {
-      tokenRef.current = localStorage.getItem("token");
-      await fetch(`${API_URL}/api/assistant/sessions/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${tokenRef.current}` },
-        credentials: "include",
-      });
+      await apiClient.delete(`/api/assistant/sessions/${id}`);
       setSessions((prev) => prev.filter((s) => s._id !== id));
       if (currentSessionIdRef.current === id) {
         setCurrentSessionId(null);
@@ -285,27 +267,14 @@ export const AssistantProvider = ({ children }) => {
 
   const pinContextToSession = useCallback(async (sessionId, pin) => {
     if (!sessionId || !pin?.type || !pin?.refId) return null;
-    tokenRef.current = localStorage.getItem("token");
-    const res = await fetch(
-      `${API_URL}/api/assistant/sessions/${sessionId}/pinned-context`,
+    const { data } = await apiClient.put(
+      `/api/assistant/sessions/${sessionId}/pinned-context`,
       {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${tokenRef.current}`,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          type: pin.type,
-          refId: pin.refId,
-          title: pin.title,
-        }),
+        type: pin.type,
+        refId: pin.refId,
+        title: pin.title,
       },
     );
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data.error || "Failed to pin context");
-    }
     setPinnedContext(data.pinnedContext || null);
     return data.pinnedContext;
   }, []);
@@ -314,14 +283,7 @@ export const AssistantProvider = ({ children }) => {
     async (pin) => {
       let sessionId = currentSessionIdRef.current;
       if (!sessionId) {
-        tokenRef.current = localStorage.getItem("token");
-        const res = await fetch(`${API_URL}/api/assistant/sessions`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${tokenRef.current}` },
-          credentials: "include",
-        });
-        if (!res.ok) throw new Error("Failed to create session");
-        const data = await res.json();
+        const { data } = await apiClient.post("/api/assistant/sessions");
         setSessions((prev) => [data, ...prev]);
         sessionId = data._id;
         setCurrentSessionId(sessionId);
@@ -341,16 +303,9 @@ export const AssistantProvider = ({ children }) => {
       return;
     }
     try {
-      tokenRef.current = localStorage.getItem("token");
-      const res = await fetch(
-        `${API_URL}/api/assistant/sessions/${currentSessionIdRef.current}/pinned-context`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${tokenRef.current}` },
-          credentials: "include",
-        },
+      await apiClient.delete(
+        `/api/assistant/sessions/${currentSessionIdRef.current}/pinned-context`,
       );
-      if (!res.ok) throw new Error("Failed to remove pinned context");
       setPinnedContext(null);
     } catch (err) {
       console.error(err);
@@ -366,13 +321,7 @@ export const AssistantProvider = ({ children }) => {
       let activeSessionId = currentSessionId;
       if (!activeSessionId) {
         try {
-          tokenRef.current = localStorage.getItem("token");
-          const res = await fetch(`${API_URL}/api/assistant/sessions`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${tokenRef.current}` },
-            credentials: "include",
-          });
-          const data = await res.json();
+          const { data } = await apiClient.post("/api/assistant/sessions");
           setSessions((prev) => [data, ...prev]);
           activeSessionId = data._id;
           setCurrentSessionId(data._id);
@@ -391,29 +340,17 @@ export const AssistantProvider = ({ children }) => {
       setIsRateLimited(false);
 
       try {
-        tokenRef.current = localStorage.getItem("token");
-        const res = await fetch(
-          `${API_URL}/api/assistant/sessions/${activeSessionId}/message`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${tokenRef.current}`,
-            },
-            credentials: "include",
-            body: JSON.stringify({ content: messageText }),
-          },
+        await apiClient.post(
+          `/api/assistant/sessions/${activeSessionId}/message`,
+          { content: messageText },
         );
-
-        if (res.status === 429) {
+      } catch (err) {
+        if (err.response?.status === 429) {
           setIsRateLimited(true);
           setIsStreaming(false);
           setMessages((prev) => prev.slice(0, -1));
           return;
         }
-
-        if (!res.ok) throw new Error("Message failed to send");
-      } catch (err) {
         console.error(err);
         setError("Failed to send message. Please try again.");
         setIsStreaming(false);

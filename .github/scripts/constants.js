@@ -2,6 +2,7 @@ export const AUTOMATION = Object.freeze({
   id: "meetonmemory",
   metadataStart: "<!-- mom:metadata:start -->",
   metadataEnd: "<!-- mom:metadata:end -->",
+  prOpenedMarker: "<!-- automation:pr-opened -->",
   markerPrefix: "mom",
   expiredMarker: "mom:claim-expired",
   claimWelcomeMarker: "mom:claim-welcome",
@@ -67,6 +68,14 @@ export const PR_EVENTS = Object.freeze({
 
 export const EXPECTED_REPOSITORY =
   process.env.AUTOMATION_REPOSITORY || process.env.GITHUB_REPOSITORY || "";
+
+export const ALLOWED_BRANCH_PREFIXES = Object.freeze([
+  "feature",
+  "fix",
+  "docs",
+  "chore",
+  "refactor",
+]);
 
 export const REQUIRED_CHECK_NAMES = Object.freeze([
   "Code Quality",
