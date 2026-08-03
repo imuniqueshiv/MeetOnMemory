@@ -33,9 +33,25 @@ function applyFriendlyMessage(error, friendlyMessage) {
 }
 
 let clerkTokenGetter = null;
+let unauthorizedHandler = null;
 
 export const setClerkTokenGetter = (getterFn) => {
   clerkTokenGetter = getterFn;
+};
+
+export const setUnauthorizedHandler = (handlerFn) => {
+  unauthorizedHandler = handlerFn;
+};
+
+// Helper to determine if endpoint is an auth endpoint where 401 is an expected credential error
+const isAuthEndpoint = (url = "") => {
+  const normalizedUrl = String(url).toLowerCase();
+  return (
+    normalizedUrl.includes("/api/auth/login") ||
+    normalizedUrl.includes("/api/auth/register") ||
+    normalizedUrl.includes("/api/auth/send-verify-otp") ||
+    normalizedUrl.includes("/api/auth/verify-account")
+  );
 };
 
 // Attach credentials + latest CSRF token + Clerk token on every request
@@ -118,6 +134,23 @@ apiClient.interceptors.response.use(
           friendlyMessage =
             error.response.data?.message ||
             "Session expired. Please log in again.";
+
+          // Graceful handling of token expiration on protected requests
+          if (!isAuthEndpoint(originalRequest?.url)) {
+            if (typeof window !== "undefined") {
+              try {
+                localStorage.removeItem("token");
+                localStorage.removeItem("userData");
+                window.dispatchEvent(new CustomEvent("auth:expired"));
+              } catch {
+                // Ignore storage errors
+              }
+
+              if (typeof unauthorizedHandler === "function") {
+                unauthorizedHandler(error);
+              }
+            }
+          }
           break;
         case 403:
           if (error.response.data?.message !== CSRF_FAILED_MESSAGE) {
