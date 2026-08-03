@@ -9,7 +9,6 @@ import {
 } from "vitest";
 import {
   captureAdapter,
-  mockCustomError,
   mockErrorResponse,
   mockNetworkFailure,
   mockSuccessfulResponse,
