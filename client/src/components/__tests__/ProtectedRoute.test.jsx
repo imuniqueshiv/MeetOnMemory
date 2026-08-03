@@ -33,7 +33,7 @@ const renderWithProviders = (ui, contextValue, initialRoute = "/") => {
 };
 
 describe("ProtectedRoute", () => {
-  it("shows loading state when isLoading is true", () => {
+  it("shows loading state when loading is true", () => {
     vi.spyOn(useRBACHook, "useRBAC").mockReturnValue({
       hasPermission: vi.fn(),
     });
@@ -42,7 +42,7 @@ describe("ProtectedRoute", () => {
       <ProtectedRoute>
         <div>Protected Content</div>
       </ProtectedRoute>,
-      { isLoading: true, isLoggedin: false, userData: null },
+      { loading: true, isLoggedin: false, userData: null },
     );
 
     expect(screen.getByText("Loading...")).toBeInTheDocument();
@@ -57,7 +57,7 @@ describe("ProtectedRoute", () => {
       <ProtectedRoute>
         <div>Protected Content</div>
       </ProtectedRoute>,
-      { isLoading: false, isLoggedin: false, userData: null },
+      { loading: false, isLoggedin: false, userData: null },
     );
 
     expect(screen.getByTestId("location-display")).toHaveTextContent("/login");
@@ -88,7 +88,7 @@ describe("ProtectedRoute", () => {
         <div>Protected Content</div>
       </ProtectedRoute>,
       {
-        isLoading: false,
+        loading: false,
         isLoggedin: true,
         userData: { hasCompletedOnboarding: false },
       },
@@ -109,7 +109,7 @@ describe("ProtectedRoute", () => {
       <MemoryRouter initialEntries={["/organizations"]}>
         <AppContent.Provider
           value={{
-            isLoading: false,
+            loading: false,
             isLoggedin: true,
             userData: { hasCompletedOnboarding: true },
           }}
@@ -145,7 +145,7 @@ describe("ProtectedRoute", () => {
         <div>Protected Content</div>
       </ProtectedRoute>,
       {
-        isLoading: false,
+        loading: false,
         isLoggedin: true,
         userData: { hasCompletedOnboarding: true },
       },
@@ -168,7 +168,7 @@ describe("ProtectedRoute", () => {
         <div>Protected Content</div>
       </ProtectedRoute>,
       {
-        isLoading: false,
+        loading: false,
         isLoggedin: true,
         userData: { hasCompletedOnboarding: true },
       },
@@ -192,7 +192,7 @@ describe("ProtectedRoute", () => {
         <div>Admin Content</div>
       </ProtectedRoute>,
       {
-        isLoading: false,
+        loading: false,
         isLoggedin: true,
         userData: { hasCompletedOnboarding: true },
       },

@@ -2,66 +2,51 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { corsOptions } from "./corsOptions.js";
-import {
-  csrfProtectionMiddleware,
-  csrfTokenProvider, // eslint-disable-line no-unused-vars
-  csrfErrorHandler,
-} from "../middleware/csrfProtection.js";
+import { configureHealthEndpoints } from "./health.js";
+import { configureSecurity } from "./security.js";
+import { csrfErrorHandler } from "../middleware/csrfProtection.js";
 import { globalLimiter } from "../middleware/rateLimiter.js";
 import errorHandler from "../middleware/errorHandler.js";
+import requestContext from "../middleware/requestContext.js";
 
-// Import webhook routes that bypass CSRF
 import webhookRoutes from "../routes/webhookRoutes.js";
 import slackRoutes from "../routes/slackRoutes.js";
 import { slackWebhookParser } from "../middleware/slackWebhookParser.js";
 import publicSharedRoutes from "../routes/publicSharedRoutes.js";
 
 export function configureExpress(app) {
-  // Trust proxy for Render/Vercel
   app.set("trust proxy", 1);
 
-  // MIDDLEWARES
+  // Correlation IDs must be available on every response, including health,
+  // webhook, public, CSRF, and not-found responses.
+  app.use(requestContext);
+  configureSecurity(app);
   app.use(cors(corsOptions));
+  app.use(express.json({ limit: "2mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+  app.use(cookieParser());
 
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+  // Dependency-aware health probes must not be blocked by the global limiter
+  // or CSRF middleware.
+  configureHealthEndpoints(app);
 
-  // ==========================================
-  // 1. BYPASSED ROUTES (No CSRF Protection)
-  //    External services authenticate via their own mechanisms.
-  // ==========================================
+  // External/public routes use their own authentication mechanisms.
   app.use("/api/slack", slackWebhookParser, slackRoutes);
   app.use("/api/webhooks", webhookRoutes);
   app.use("/api/public/shared", publicSharedRoutes);
 
-  // ==========================================
-  // 2. COOKIES & CSRF (Global for all remaining routes)
-  // ==========================================
-  app.use(cookieParser());
-  app.use(csrfProtectionMiddleware);
-
-  // CSRF token provider
-  app.get("/api/csrf-token", (req, res) => {
-    res.json({ csrfToken: req.csrfToken() });
-  });
-
-  // Health check endpoint — registered BEFORE the global rate limiter so
-  // keep-alive pings (e.g. from GitHub Actions cron job) are never blocked.
-  app.get(["/health", "/api/health"], (req, res) => {
-    res.status(200).json({
-      status: "UP",
-      timestamp: new Date().toISOString(),
-      env: process.env.NODE_ENV,
-    });
-  });
-
-  // GLOBAL RATE LIMITER
   app.use(globalLimiter);
 }
 
 export function configureErrorHandling(app) {
-  // CSRF ERROR HANDLER
+  app.use((req, res) => {
+    res.status(404).json({
+      success: false,
+      message: "The requested resource was not found.",
+      requestId: req.requestId,
+    });
+  });
+
   app.use(csrfErrorHandler);
-  // ERROR HANDLER
   app.use(errorHandler);
 }

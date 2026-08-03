@@ -2,12 +2,18 @@ import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import CalendarSyncBadge from "../CalendarSyncBadge.jsx";
-import { Share2, Presentation, Bookmark, MessageSquare } from "lucide-react";
+import {
+  Share2,
+  Presentation,
+  Bookmark,
+  MessageSquare,
+  Link2,
+} from "lucide-react";
 import { toast } from "react-toastify";
 import { toggleBookmarkAPI, getBookmarkStatusAPI } from "../../api/bookmarkApi";
 import { askAssistantAbout } from "../../utils/askAssistant.js";
 
-const MeetingHeader = ({ meeting, onShare, onPresent }) => {
+const MeetingHeader = ({ meeting, onShare, onShareInvite, onPresent }) => {
   const navigate = useNavigate();
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isLoadingBookmark, setIsLoadingBookmark] = useState(false);
@@ -171,6 +177,12 @@ const MeetingHeader = ({ meeting, onShare, onPresent }) => {
             className="flex items-center gap-2 px-3 py-1.5 bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-300 dark:hover:bg-violet-900/50 rounded-lg text-sm font-medium transition-colors"
           >
             <MessageSquare className="w-4 h-4" /> Ask Assistant
+          </button>
+          <button
+            onClick={onShareInvite}
+            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 rounded-lg text-sm font-medium transition-colors"
+          >
+            <Link2 className="w-4 h-4" /> Share Invite
           </button>
           <button
             onClick={onShare}

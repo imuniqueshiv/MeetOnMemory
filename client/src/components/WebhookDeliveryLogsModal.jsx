@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   X,
   RefreshCw,
@@ -23,6 +23,7 @@ const WebhookDeliveryLogsModal = ({ isOpen, onClose, webhook }) => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const modalRef = useRef(null);
 
   const fetchDeliveries = useCallback(async () => {
     if (!webhook?._id) return;
@@ -50,6 +51,28 @@ const WebhookDeliveryLogsModal = ({ isOpen, onClose, webhook }) => {
     }
   }, [isOpen, webhook, fetchDeliveries]);
 
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  // Handle backdrop click to close modal
+  useEffect(() => {
+    const handleBackdropClick = (e) => {
+      if (modalRef.current && !modalRef.current.contains(e.target)) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handleBackdropClick);
+    return () => document.removeEventListener("mousedown", handleBackdropClick);
+  }, [onClose]);
+
   const handleRedeliver = async (deliveryId, e) => {
     e.stopPropagation();
     setRedeliveringId(deliveryId);
@@ -69,17 +92,33 @@ const WebhookDeliveryLogsModal = ({ isOpen, onClose, webhook }) => {
     setExpandedRow((prev) => (prev === id ? null : id));
   };
 
+  const handleKeyDown = (e, id) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggleExpand(id);
+    }
+  };
+
   if (!isOpen || !webhook) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div
+        ref={modalRef}
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
           <div>
             <div className="flex items-center gap-2">
               <Zap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <h3 className="font-semibold text-slate-900 dark:text-white text-lg">
+              <h3
+                id="modal-title"
+                className="font-semibold text-slate-900 dark:text-white text-lg"
+              >
                 Delivery Audit Logs
               </h3>
             </div>
@@ -92,8 +131,9 @@ const WebhookDeliveryLogsModal = ({ isOpen, onClose, webhook }) => {
             <button
               onClick={fetchDeliveries}
               disabled={loading}
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
               title="Refresh Logs"
+              aria-label="Refresh logs"
             >
               <RefreshCw
                 className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
@@ -101,7 +141,8 @@ const WebhookDeliveryLogsModal = ({ isOpen, onClose, webhook }) => {
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Close modal"
             >
               <X className="w-5 h-5" />
             </button>
@@ -121,11 +162,13 @@ const WebhookDeliveryLogsModal = ({ isOpen, onClose, webhook }) => {
                   setStatusFilter(st);
                   setPage(1);
                 }}
-                className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   statusFilter === st
                     ? "bg-blue-600 text-white shadow-xs"
                     : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
                 }`}
+                aria-pressed={statusFilter === st}
+                aria-label={`Filter by ${st}`}
               >
                 {st}
               </button>
@@ -166,7 +209,12 @@ const WebhookDeliveryLogsModal = ({ isOpen, onClose, webhook }) => {
                     {/* Log Header Row */}
                     <div
                       onClick={() => toggleExpand(item._id)}
+                      onKeyDown={(e) => handleKeyDown(e, item._id)}
                       className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
+                      aria-controls={`log-details-${item._id}`}
                     >
                       <div className="flex items-center gap-3">
                         {/* Status Icon */}
@@ -225,7 +273,8 @@ const WebhookDeliveryLogsModal = ({ isOpen, onClose, webhook }) => {
                         <button
                           onClick={(e) => handleRedeliver(item._id, e)}
                           disabled={redeliveringId === item._id}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          aria-label={`Redeliver payload for ${item.event}`}
                         >
                           {redeliveringId === item._id ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -244,7 +293,10 @@ const WebhookDeliveryLogsModal = ({ isOpen, onClose, webhook }) => {
 
                     {/* Expanded Details */}
                     {isExpanded && (
-                      <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-3">
+                      <div
+                        id={`log-details-${item._id}`}
+                        className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-3"
+                      >
                         {item.errorReason && (
                           <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800/40 text-xs text-rose-700 dark:text-rose-300">
                             <strong>Error Details:</strong> {item.errorReason}
@@ -289,14 +341,16 @@ const WebhookDeliveryLogsModal = ({ isOpen, onClose, webhook }) => {
               <button
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-50"
+                className="px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Previous page"
               >
                 Previous
               </button>
               <button
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => p + 1)}
-                className="px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-50"
+                className="px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Next page"
               >
                 Next
               </button>

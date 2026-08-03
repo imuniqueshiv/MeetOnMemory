@@ -14,6 +14,7 @@ import {
   FileText,
   Brain,
   Building2,
+  ListChecks,
   Shield,
   BarChart3,
   AlertCircle,
@@ -23,8 +24,13 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+// Issue #977: `tasks` is a new category. Action-item reminders were previously
+// filed under `meetings`, which meant the "Task assignments" preference toggle
+// governed nothing while the "Meeting reminders" toggle silently killed task
+// reminders.
 const CATEGORY_ICONS = {
   meetings: Calendar,
+  tasks: ListChecks,
   ai_processing: Brain,
   organizations: Building2,
   policies: Shield,
@@ -34,6 +40,7 @@ const CATEGORY_ICONS = {
 
 const CATEGORY_COLORS = {
   meetings: "bg-blue-50 text-blue-600 border-blue-200",
+  tasks: "bg-teal-50 text-teal-600 border-teal-200",
   ai_processing: "bg-violet-50 text-violet-600 border-violet-200",
   organizations: "bg-emerald-50 text-emerald-600 border-emerald-200",
   policies: "bg-amber-50 text-amber-600 border-amber-200",
@@ -43,6 +50,7 @@ const CATEGORY_COLORS = {
 
 const CATEGORY_LABELS = {
   meetings: "Meetings",
+  tasks: "Tasks",
   ai_processing: "AI Processing",
   organizations: "Organizations",
   policies: "Policies",

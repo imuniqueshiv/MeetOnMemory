@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Mic, Square, Loader2, AlertCircle, Play } from "lucide-react";
-import axios from "axios";
+import apiClient from "../../services/apiClient";
 import { toast } from "react-toastify";
 import { meetingApi } from "../../services";
 
@@ -64,7 +64,7 @@ const MeetingRecorder = ({
           const formData = new FormData();
           formData.append("audio", e.data, "chunk.webm");
           try {
-            const res = await axios.post(
+            const res = await apiClient.post(
               `/api/meetings/${activeMeetingId}/transcript/chunk`,
               formData,
               {

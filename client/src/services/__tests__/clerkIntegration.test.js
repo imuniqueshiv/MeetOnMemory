@@ -1,14 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import apiClient, { setClerkTokenGetter } from "../apiClient.js";
+import apiClient, {
+  setClerkTokenGetter,
+  getClerkBearerToken,
+} from "../apiClient.js";
 
-vi.mock("../csrfService.js", () => ({
-  getCsrfToken: vi.fn().mockReturnValue("mock_csrf_token"),
-  refreshCsrfToken: vi.fn(),
-}));
-
-describe("Clerk Integration - Dual Auth Interceptor", () => {
+describe("Clerk Integration - Bearer Auth Interceptor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setClerkTokenGetter(null);
   });
 
   it("should allow setting a Clerk token getter and attach Authorization header", async () => {
@@ -17,7 +16,6 @@ describe("Clerk Integration - Dual Auth Interceptor", () => {
 
     setClerkTokenGetter(tokenGetter);
 
-    // Simulate an interceptor request
     const dummyConfig = { headers: {} };
     const requestInterceptor =
       apiClient.interceptors.request.handlers[0].fulfilled;
@@ -25,10 +23,10 @@ describe("Clerk Integration - Dual Auth Interceptor", () => {
     const updatedConfig = await requestInterceptor(dummyConfig);
 
     expect(tokenGetter).toHaveBeenCalled();
-    expect(updatedConfig.headers["Authorization"]).toBe(
+    expect(updatedConfig.headers.Authorization).toBe(
       `Bearer ${mockClerkToken}`,
     );
-    expect(updatedConfig.headers["X-CSRF-Token"]).toBe("mock_csrf_token");
+    expect(updatedConfig.headers["X-CSRF-Token"]).toBeUndefined();
   });
 
   it("should handle error gracefully if token getter fails", async () => {
@@ -44,7 +42,10 @@ describe("Clerk Integration - Dual Auth Interceptor", () => {
     const updatedConfig = await requestInterceptor(dummyConfig);
 
     expect(tokenGetter).toHaveBeenCalled();
-    expect(updatedConfig.headers["Authorization"]).toBeUndefined();
-    expect(updatedConfig.headers["X-CSRF-Token"]).toBe("mock_csrf_token");
+    expect(updatedConfig.headers.Authorization).toBeUndefined();
+  });
+
+  it("getClerkBearerToken returns null when unset", async () => {
+    await expect(getClerkBearerToken()).resolves.toBeNull();
   });
 });

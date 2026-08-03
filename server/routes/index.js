@@ -31,6 +31,23 @@ import agendaTimerRoutes from "./agendaTimerRoutes.js";
 import digestRoutes from "./digestRoutes.js";
 import decisionGraphRoutes from "./decisionGraphRoutes.js";
 import attendanceAnalyticsRoutes from "./attendanceAnalyticsRoutes.js";
+import meetingFeedbackRoutes from "./meetingFeedbackRoutes.js";
+import meetingCostRoutes from "./meetingCostRoutes.js";
+import followUpThreadRoutes from "./followUpThreadRoutes.js";
+import recapScheduleRoutes from "./recapScheduleRoutes.js";
+import meetingClipRoutes from "./meetingClipRoutes.js";
+import speakerMappingRoutes from "./speakerMappingRoutes.js";
+import noteVersionRoutes from "./noteVersionRoutes.js";
+import reportRoutes from "./reportRoutes.js";
+import agendaSuggestionRoutes from "./agendaSuggestionRoutes.js";
+import translationRoutes from "./translationRoutes.js";
+import personalNoteRoutes from "./personalNoteRoutes.js";
+import templateLibraryRoutes from "./templateLibraryRoutes.js";
+import transcriptAnnotationRoutes from "./transcriptAnnotationRoutes.js";
+import glossaryRoutes from "./glossaryRoutes.js";
+import aiSummaryTemplateRoutes from "./aiSummaryTemplateRoutes.js";
+import topicRoutes from "./topicRoutes.js";
+
 const router = express.Router();
 
 // ==========================================
@@ -68,5 +85,21 @@ router.use("/api/dashboard", dashboardRoutes);
 router.use("/api/digest-preferences", digestRoutes);
 router.use("/api/decision-graph", decisionGraphRoutes);
 router.use("/api/attendance-analytics", attendanceAnalyticsRoutes);
+router.use("/api/feedback", meetingFeedbackRoutes);
+router.use("/api/meeting-cost", meetingCostRoutes);
+router.use("/api/follow-up-threads", followUpThreadRoutes);
+router.use("/api/recap-schedule", recapScheduleRoutes);
+router.use("/api/clips", meetingClipRoutes);
+router.use("/api/speaker-mappings", speakerMappingRoutes);
+router.use("/api/note-versions", noteVersionRoutes);
+router.use("/api/reports", reportRoutes);
+router.use("/api/agenda-suggestions", agendaSuggestionRoutes);
+router.use("/api/translations", translationRoutes);
+router.use("/api/personal-notes", personalNoteRoutes);
+router.use("/api/template-library", templateLibraryRoutes);
+router.use("/api/transcript-annotations", transcriptAnnotationRoutes);
+router.use("/api/glossary", glossaryRoutes);
+router.use("/api/ai-summary-templates", aiSummaryTemplateRoutes);
+router.use("/api/topics", topicRoutes);
 
 export default router;

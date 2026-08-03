@@ -7,20 +7,13 @@ import MeetingSummary from "../components/meeting-details/MeetingSummary";
 import MeetingCollaborativeNotes from "../components/meeting-details/MeetingCollaborativeNotes";
 import MeetingTranscript from "../components/meeting-details/MeetingTranscript";
 import MeetingParticipants from "../components/meeting-details/MeetingParticipants";
+import MeetingAgenda from "../components/meeting-details/MeetingAgenda";
 import MeetingMetadata from "../components/meeting-details/MeetingMetadata";
 import MeetingActions from "../components/meeting-details/MeetingActions";
+import TranscriptAnnotations from "../components/meeting-details/TranscriptAnnotations";
 import ShareModal from "../components/shared-links/ShareModal";
 import MeetingFollowUpBanner from "../components/meeting-details/MeetingFollowUpBanner";
 import PresentMode from "../components/meeting-details/PresentMode";
-import CommentSection from "../components/meeting-details/CommentSection";
-import PollSection from "../components/meeting-details/PollSection";
-import DigestActions from "../components/meeting-details/DigestActions";
-import AttachmentPanel from "../components/meeting-details/AttachmentPanel";
-import ReactionSummaryCard from "../components/meeting-details/ReactionSummaryCard";
-import SeriesNavigation from "../components/meeting-details/SeriesNavigation";
-import CompareButton from "../components/meeting-details/CompareButton";
-import AgendaTimer from "../components/meeting-details/AgendaTimer";
-import AgendaPacingReport from "../components/meeting-details/AgendaPacingReport";
 
 const MeetingDetails = () => {
   const { id } = useParams();
@@ -167,39 +160,23 @@ const MeetingDetails = () => {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
         <MeetingFollowUpBanner meeting={meeting} />
-        <SeriesNavigation meeting={meeting} />
         <MeetingHeader
           meeting={meeting}
           onShare={() => setShareModalOpen(true)}
           onPresent={() => setIsPresentModeOpen(true)}
         />
-
-        {/* Conditional rendering for Agenda Timer vs Pacing Report */}
-        {meeting.status !== "completed" &&
-        meeting.agendaProgress !== "completed" ? (
-          <AgendaTimer meeting={meeting} />
-        ) : (
-          <AgendaPacingReport meetingId={meeting._id} />
-        )}
-
         <MeetingSummary meeting={meeting} />
-        <ReactionSummaryCard meetingId={meeting._id} />
         <MeetingCollaborativeNotes meeting={meeting} />
         <MeetingTranscript meeting={meeting} />
+        <TranscriptAnnotations meeting={meeting} />
         <MeetingParticipants meeting={meeting} />
+        <MeetingAgenda meeting={meeting} />
         <MeetingMetadata meeting={meeting} />
-        <div className="mb-6 flex justify-end gap-2 items-center">
-          <CompareButton meetingId={meeting._id} />
-          <DigestActions meetingId={meeting._id} />
-        </div>
         <MeetingActions
           meeting={meeting}
           onDelete={handleDelete}
           onRename={handleRename}
         />
-        <AttachmentPanel meetingId={meeting._id} />
-        <PollSection meetingId={meeting._id} />
-        <CommentSection meetingId={meeting._id} />
       </div>
 
       <ShareModal

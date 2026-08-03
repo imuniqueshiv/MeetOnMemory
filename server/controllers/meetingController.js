@@ -17,11 +17,10 @@ import path from "path";
 import { z } from "zod";
 import Meeting from "../models/meetingModel.js"; // eslint-disable-line no-unused-vars
 import * as MeetingService from "../services/MeetingService.js";
+import * as MeetingInviteService from "../services/MeetingInviteService.js";
 import { ValidationError, UnauthorizedError } from "../utils/errors.js";
 import AuditService from "../services/AuditService.js";
 import { sendSuccess } from "../utils/responseHandler.js";
-import * as activityService from "../services/activityService.js";
-import MeetingDigestService from "../services/MeetingDigestService.js";
 
 const pushMeetingToIntegrations = (...args) =>
   import("../services/calendarSyncService.js").then((mod) =>
@@ -55,14 +54,6 @@ const uploadMeetingSchema = z.object({
   meetingType: z
     .enum(["conference", "policy", "event", "internal", "external", "board"])
     .optional(),
-  tags: z
-    .union([z.string(), z.array(z.string())])
-    .optional()
-    .transform((val) => {
-      if (!val) return [];
-      if (Array.isArray(val)) return val;
-      return [val];
-    }),
 });
 
 const summarizeMeetingSchema = z.object({
@@ -84,6 +75,7 @@ const updateMeetingSchema = z.object({
   location: z.string().optional(),
   venue: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  agendaItems: z.array(z.record(z.unknown())).optional(),
 });
 
 const searchMeetingSchema = z.object({
@@ -96,6 +88,30 @@ const notifyLiveMeetingSchema = z.object({
   participants: z
     .array(z.object({ name: z.string(), email: z.string().optional() }))
     .min(1, "At least one participant is required"),
+});
+
+const deleteMeetingSchema = z.object({
+  reason: z.string().trim().max(500).optional(),
+});
+
+const trashQuerySchema = z.object({
+  page: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (!val) return 1;
+      const parsed = parseInt(val, 10);
+      return isNaN(parsed) || parsed < 1 ? 1 : parsed;
+    }),
+  limit: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (!val) return 20;
+      const parsed = parseInt(val, 10);
+      return isNaN(parsed) || parsed < 1 ? 20 : Math.min(parsed, 100);
+    }),
+  search: z.string().trim().max(200).optional().default(""),
 });
 
 const getAllMeetingsQuerySchema = z.object({
@@ -171,19 +187,6 @@ export const createMeeting = async (req, res, next) => {
       pushMeetingToIntegrations(uploaderId, meeting).catch(console.error);
     }
 
-    if (req.user?.organization) {
-      const io = req.app.get("io");
-      activityService.logActivity(
-        io,
-        req.user.organization,
-        uploaderId,
-        "meeting.created",
-        "Meeting",
-        meeting._id,
-        meeting.title,
-      );
-    }
-
     return sendSuccess(
       res,
       {
@@ -192,6 +195,7 @@ export const createMeeting = async (req, res, next) => {
           title: meeting.title,
           meetingType: meeting.meetingType,
           date: meeting.date,
+          agendaItems: meeting.agendaItems,
         },
       },
       "Meeting scheduled successfully",
@@ -239,19 +243,6 @@ export const uploadMeeting = async (req, res, next) => {
         req.file,
         validated,
       );
-
-    if (req.user?.organization) {
-      const io = req.app.get("io");
-      activityService.logActivity(
-        io,
-        req.user.organization,
-        uploaderId,
-        "meeting.uploaded",
-        "Meeting",
-        meeting._id,
-        meeting.title,
-      );
-    }
 
     return sendSuccess(
       res,
@@ -334,13 +325,6 @@ export const summarizeMeeting = async (req, res, next) => {
       );
     }
 
-    // Fire and forget email digest
-    if (result.meetingId) {
-      MeetingDigestService.sendMeetingDigest(result.meetingId).catch((err) => {
-        console.error("Failed to send meeting digest automatically:", err);
-      });
-    }
-
     return sendSuccess(
       res,
       {
@@ -387,34 +371,84 @@ export const getAllMeetings = async (req, res, next) => {
    ───────────────────────────────────────────────────────────── */
 export const deleteMeeting = async (req, res, next) => {
   try {
-    await MeetingService.deleteMeeting(
-      req.doc || null, // from requireOwnerOrAdmin middleware (may be undefined)
+    const validated = deleteMeetingSchema.parse(req.body || {});
+    const actorId = getUserId(req);
+    const meeting = await MeetingService.deleteMeeting(
+      req.doc || null,
       req.params.id,
+      actorId,
+      validated.reason,
     );
 
-    if (req.doc && req.doc.organization) {
-      AuditService.logAction({
-        actorId: getUserId(req),
-        action: "MEETING_DELETED",
-        entity: "Meeting",
-        entityId: req.doc._id,
-        organizationId: req.doc.organization,
-        details: { title: req.doc.title },
-      });
+    await AuditService.logAction({
+      actorId,
+      action: "MEETING_SOFT_DELETED",
+      entity: "Meeting",
+      entityId: meeting._id,
+      organizationId: meeting.organization,
+      details: {
+        title: meeting.title,
+        deletedAt: meeting.deletedAt,
+        reason: meeting.deletionReason,
+      },
+    });
 
-      const io = req.app.get("io");
-      activityService.logActivity(
-        io,
-        req.doc.organization,
-        getUserId(req),
-        "meeting.deleted",
-        "Meeting",
-        req.doc._id,
-        req.doc.title,
-      );
-    }
+    return sendSuccess(res, null, "Meeting moved to recycle bin");
+  } catch (err) {
+    next(err);
+  }
+};
 
-    return sendSuccess(res, null, "Meeting deleted successfully");
+export const getDeletedMeetings = async (req, res, next) => {
+  try {
+    const query = trashQuerySchema.parse(req.query);
+    const result = await MeetingService.getDeletedMeetings(
+      req.user.organization,
+      query,
+    );
+    return sendSuccess(res, { ...result, retentionDays: 30 });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const restoreDeletedMeeting = async (req, res, next) => {
+  try {
+    const actorId = getUserId(req);
+    const meeting = await MeetingService.restoreDeletedMeeting(
+      req.params.id,
+      req.user.organization,
+    );
+    await AuditService.logAction({
+      actorId,
+      action: "MEETING_RESTORED",
+      entity: "Meeting",
+      entityId: meeting._id,
+      organizationId: meeting.organization,
+      details: { title: meeting.title },
+    });
+    return sendSuccess(res, { meeting }, "Meeting restored successfully");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const permanentlyDeleteMeeting = async (req, res, next) => {
+  try {
+    const actorId = getUserId(req);
+    const meeting = await MeetingService.permanentlyDeleteMeeting(
+      req.params.id,
+      req.user.organization,
+    );
+    await AuditService.logAction({
+      actorId,
+      action: "MEETING_PERMANENTLY_DELETED",
+      entity: "Meeting",
+      entityId: meeting._id,
+      organizationId: meeting.organization,
+      details: { title: meeting.title, deletedAt: meeting.deletedAt },
+    });
+    return sendSuccess(res, null, "Meeting permanently deleted");
   } catch (err) {
     next(err);
   }
@@ -456,19 +490,6 @@ export const updateMeeting = async (req, res, next) => {
       req.doc || null, // from requireOwner middleware
     );
 
-    if (req.user?.organization) {
-      const io = req.app.get("io");
-      activityService.logActivity(
-        io,
-        req.user.organization,
-        userId,
-        "meeting.updated",
-        "Meeting",
-        meeting._id,
-        meeting.title,
-      );
-    }
-
     return sendSuccess(
       res,
       {
@@ -478,6 +499,7 @@ export const updateMeeting = async (req, res, next) => {
           description: meeting.description,
           meetingType: meeting.meetingType,
           date: meeting.date,
+          agendaItems: meeting.agendaItems,
         },
       },
       "Meeting updated successfully",
@@ -571,6 +593,58 @@ export const notifyLiveMeeting = async (req, res, next) => {
     );
 
     return sendSuccess(res, { count }, "Participants notified");
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────
+    MEETING INVITE MANAGEMENT (Issue #920 compatibility)
+    ───────────────────────────────────────────────────────────── */
+export const getMeetingInvite = async (req, res, next) => {
+  try {
+    const invite = await MeetingInviteService.getOrCreateInvite(
+      req.params.id,
+      req.user,
+    );
+    return sendSuccess(res, { invite });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const regenerateMeetingInvite = async (req, res, next) => {
+  try {
+    const invite = await MeetingInviteService.regenerateInvite(
+      req.params.id,
+      req.user,
+    );
+    return sendSuccess(res, { invite }, "Meeting invite regenerated");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateMeetingInvite = async (req, res, next) => {
+  try {
+    const invite = await MeetingInviteService.updateInvite(
+      req.params.id,
+      req.user,
+      req.body,
+    );
+    return sendSuccess(res, { invite }, "Meeting invite updated");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const resolveMeetingInvite = async (req, res, next) => {
+  try {
+    const result = await MeetingInviteService.resolveInvite(
+      req.params.code,
+      req.user,
+    );
+    return sendSuccess(res, result);
   } catch (err) {
     next(err);
   }

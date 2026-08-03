@@ -14,7 +14,7 @@ export const csrfProtectionMiddleware = csrfProtection;
 
 export const csrfErrorHandler = (err, req, res, next) => {
   if (err && err.code === "EBADCSRFTOKEN") {
-    return sendCsrfInvalid(res);
+    return sendCsrfInvalid(res, req?.requestId);
   }
   return next(err);
 };

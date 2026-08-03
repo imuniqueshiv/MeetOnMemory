@@ -1,32 +1,35 @@
 import React from "react";
-import { Route } from "react-router-dom";
+import { Route, Navigate } from "react-router-dom";
 
 // --- Public Pages ---
 import Home from "../pages/Home.jsx";
 import Login from "../pages/Login.jsx";
-import EmailVerify from "../pages/EmailVerify.jsx";
-import ResetPassword from "../pages/ResetPassword.jsx";
+import SignUp from "../pages/SignUp.jsx";
 import PublicOrganizationProfile from "../pages/PublicOrganizationProfile.jsx";
 import Privacy from "../pages/Privacy.jsx";
 import Terms from "../pages/Terms.jsx";
 import Security from "../pages/Security.jsx";
 import Contact from "../pages/Contact.jsx";
 import CookiePolicy from "../pages/CookiePolicy.jsx";
-import MeetingRoom from "../pages/MeetingRoom.jsx";
 import Status from "../pages/Status.jsx";
 import HelpCenter from "../pages/HelpCenter.jsx";
 import Careers from "../pages/Careers.jsx";
 import PublicSharedView from "../pages/PublicSharedView.jsx";
 import DeveloperDocs from "../pages/DeveloperDocs.jsx";
 import AcceptInvite from "../pages/AcceptInvite.jsx";
+import MeetingInviteJoin from "../pages/MeetingInviteJoin.jsx";
 
 const PublicRoutes = (
   <React.Fragment>
     <Route path="/" element={<Home />} />
-    <Route path="/login" element={<Login />} />
-    <Route path="/email-verify" element={<EmailVerify />} />
-    <Route path="/reset-password" element={<ResetPassword />} />
+    {/* Clerk path-based auth (supports /login/factor-password, SSO callbacks, etc.) */}
+    <Route path="/login/*" element={<Login />} />
+    <Route path="/signup/*" element={<SignUp />} />
+    {/* Legacy auth routes → Clerk SignIn */}
+    <Route path="/email-verify" element={<Navigate to="/login" replace />} />
+    <Route path="/reset-password" element={<Navigate to="/login" replace />} />
     <Route path="/invite/:token" element={<AcceptInvite />} />
+    <Route path="/meeting-invite/:code" element={<MeetingInviteJoin />} />
     <Route path="/privacy" element={<Privacy />} />
     <Route path="/terms" element={<Terms />} />
     <Route path="/security" element={<Security />} />

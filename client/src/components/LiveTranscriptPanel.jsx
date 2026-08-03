@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import { toast } from "react-toastify";
 import { Loader2, Mic, AlertCircle } from "lucide-react";
+import { createClerkSocketOptions } from "../services/apiClient.js";
 
 const LiveTranscriptPanel = ({ meetingId }) => {
   const [segments, setSegments] = useState([]);
@@ -13,67 +14,74 @@ const LiveTranscriptPanel = ({ meetingId }) => {
   useEffect(() => {
     if (!meetingId) return;
 
-    // Initialize socket connection
-    socketRef.current = io("/", {
-      withCredentials: true,
-      transports: ["websocket", "polling"],
-    });
+    let cancelled = false;
 
-    socketRef.current.on("connect", () => {
-      console.log("Connected to transcript socket");
-      setStatus("connected");
-      setError(null);
+    (async () => {
+      const opts = await createClerkSocketOptions({
+        transports: ["websocket", "polling"],
+      });
+      if (cancelled) return;
 
-      // Join transcript room
-      socketRef.current.emit("join-transcript-room", { meetingId });
-    });
+      // Initialize socket connection
+      socketRef.current = io("/", opts);
 
-    socketRef.current.on("connect_error", (err) => {
-      console.error("Socket connection error:", err);
-      setStatus("error");
-      setError("Failed to connect to transcript service");
-      toast.error("Failed to connect to transcript service");
-    });
+      socketRef.current.on("connect", () => {
+        console.log("Connected to transcript socket");
+        setStatus("connected");
+        setError(null);
 
-    socketRef.current.on("transcript-status", (data) => {
-      console.log("Transcript status:", data);
-      if (data.status === "recording") {
-        setStatus("recording");
-      } else if (data.status === "processing") {
-        setStatus("processing");
-      } else if (data.status === "completed") {
-        setStatus("completed");
-        setSegments(data.segments || []);
-      } else if (data.status === "failed") {
+        // Join transcript room
+        socketRef.current.emit("join-transcript-room", { meetingId });
+      });
+
+      socketRef.current.on("connect_error", (err) => {
+        console.error("Socket connection error:", err);
         setStatus("error");
-        setError("Transcription failed");
-        toast.error("Transcription failed");
-      }
-    });
+        setError("Failed to connect to transcript service");
+        toast.error("Failed to connect to transcript service");
+      });
 
-    socketRef.current.on("transcript-segment", (segment) => {
-      console.log("New transcript segment:", segment);
-      setSegments((prev) => [...prev, segment]);
-      // Auto-scroll to bottom
-      setTimeout(() => {
-        transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
-    });
+      socketRef.current.on("transcript-status", (data) => {
+        console.log("Transcript status:", data);
+        if (data.status === "recording") {
+          setStatus("recording");
+        } else if (data.status === "processing") {
+          setStatus("processing");
+        } else if (data.status === "completed") {
+          setStatus("completed");
+          setSegments(data.segments || []);
+        } else if (data.status === "failed") {
+          setStatus("error");
+          setError("Transcription failed");
+          toast.error("Transcription failed");
+        }
+      });
 
-    socketRef.current.on("transcript-final", (transcript) => {
-      console.log("Final transcript received:", transcript);
-      setStatus("completed");
-      setSegments(transcript.segments || []);
-      toast.success("Transcription completed!");
-    });
+      socketRef.current.on("transcript-segment", (segment) => {
+        console.log("New transcript segment:", segment);
+        setSegments((prev) => [...prev, segment]);
+        // Auto-scroll to bottom
+        setTimeout(() => {
+          transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }, 100);
+      });
 
-    socketRef.current.on("transcript-error", (data) => {
-      console.error("Transcript error:", data);
-      setError(data.message || "Transcript error occurred");
-      toast.error(data.message || "Transcript error occurred");
-    });
+      socketRef.current.on("transcript-final", (transcript) => {
+        console.log("Final transcript received:", transcript);
+        setStatus("completed");
+        setSegments(transcript.segments || []);
+        toast.success("Transcription completed!");
+      });
+
+      socketRef.current.on("transcript-error", (data) => {
+        console.error("Transcript error:", data);
+        setError(data.message || "Transcript error occurred");
+        toast.error(data.message || "Transcript error occurred");
+      });
+    })();
 
     return () => {
+      cancelled = true;
       if (socketRef.current) {
         socketRef.current.emit("leave-transcript-room", { meetingId });
         socketRef.current.disconnect();

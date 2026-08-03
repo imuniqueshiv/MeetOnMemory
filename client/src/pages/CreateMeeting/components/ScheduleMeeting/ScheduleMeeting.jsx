@@ -4,8 +4,10 @@ import ParticipantsSection from "./ParticipantsSection";
 import AgendaSection from "./AgendaSection";
 import AttachmentSection from "./AttachmentSection";
 import CalendarNotice from "./CalendarNotice";
+import DraftRecoveryBanner from "./DraftRecoveryBanner";
+import SmartAgendaGenerator from "../../../../components/meetings/SmartAgendaGenerator";
 
-const ScheduleMeeting = ({ hookProps }) => {
+const ScheduleMeeting = ({ hookProps, loadingDuplicate = false }) => {
   const {
     scheduleData,
     setScheduleData,
@@ -25,9 +27,18 @@ const ScheduleMeeting = ({ hookProps }) => {
     removeParticipant,
     addAgendaItem,
     removeAgendaItem,
+    reorderAgendaItem,
     handleAttachmentUpload,
     removeAttachment,
     handleScheduleSubmit,
+    recoverableDraft,
+    lastSavedAt,
+    draftStatus,
+    restoreDraft,
+    discardDraft,
+    aiSummaryTemplates,
+    selectedAiSummaryTemplateId,
+    setSelectedAiSummaryTemplateId,
   } = hookProps;
 
   return (
@@ -43,7 +54,23 @@ const ScheduleMeeting = ({ hookProps }) => {
         </div>
       </div>
 
+      {loadingDuplicate && (
+        <div
+          className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800"
+          role="status"
+        >
+          Loading reusable meeting details...
+        </div>
+      )}
+
       <form onSubmit={handleScheduleSubmit}>
+        <DraftRecoveryBanner
+          savedAt={recoverableDraft?.savedAt}
+          lastSavedAt={lastSavedAt}
+          status={draftStatus}
+          onRestore={restoreDraft}
+          onDiscard={discardDraft}
+        />
         <MeetingInformationForm
           scheduleData={scheduleData}
           setScheduleData={setScheduleData}
@@ -80,12 +107,37 @@ const ScheduleMeeting = ({ hookProps }) => {
           </div>
         )}
 
+        {aiSummaryTemplates && aiSummaryTemplates.length > 0 && (
+          <div className="mb-6 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+            <label className="flex items-center gap-2 text-sm font-semibold text-indigo-900 mb-2">
+              <FileText size={16} /> AI Summary Instructions
+            </label>
+            <select
+              value={selectedAiSummaryTemplateId || ""}
+              onChange={(e) => setSelectedAiSummaryTemplateId(e.target.value)}
+              className="w-full px-4 py-2 bg-white border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none text-sm text-gray-700"
+            >
+              <option value="">-- Standard Summary Format --</option>
+              {aiSummaryTemplates.map((t) => (
+                <option key={t._id} value={t._id}>
+                  {t.name} {t.isDefault ? "(Default)" : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-indigo-700 mt-2">
+              Custom instructions allow you to dictate exactly how the AI will
+              write the MoM (e.g. Sales BANT, Sprint Retro).
+            </p>
+          </div>
+        )}
+
         <AgendaSection
           agendaItems={agendaItems}
           newAgenda={newAgenda}
           setNewAgenda={setNewAgenda}
           addAgendaItem={addAgendaItem}
           removeAgendaItem={removeAgendaItem}
+          reorderAgendaItem={reorderAgendaItem}
         />
 
         <AttachmentSection
@@ -99,7 +151,7 @@ const ScheduleMeeting = ({ hookProps }) => {
         {/* Submit */}
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || loadingDuplicate}
           className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
         >
           {loading ? (

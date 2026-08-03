@@ -1,9 +1,11 @@
 import Meeting from "../models/meetingModel.js";
 
 // Utility to check permissions (Organizer or Admin)
-const hasPermission = (meeting, userId) => {
-  return meeting.uploadedBy.toString() === userId;
-  // TODO: Add logic to check for Org Admin if required by the org structure.
+const hasPermission = (meeting, userId, userRole) => {
+  const isUploader = meeting.uploadedBy.toString() === userId;
+  const isOrgAdmin = userRole === "admin" || userRole === "owner";
+
+  return isUploader || isOrgAdmin;
 };
 
 export const startAgendaItem = async (req, res) => {
@@ -18,7 +20,7 @@ export const startAgendaItem = async (req, res) => {
         .json({ success: false, message: "Meeting not found" });
     }
 
-    if (!hasPermission(meeting, userId)) {
+    if (!hasPermission(meeting, userId, req.user.role)) {
       return res
         .status(403)
         .json({ success: false, message: "Not authorized to manage timers" });
@@ -51,7 +53,7 @@ export const startAgendaItem = async (req, res) => {
 
     const io = req.app.get("io");
     if (io) {
-      io.to(`meeting_${meetingId}`).emit("agenda_timer_updated", {
+      io.to(meetingId.toString()).emit("agenda_timer_updated", {
         meetingId,
         item,
         action: "start",
@@ -77,7 +79,7 @@ export const stopAgendaItem = async (req, res) => {
         .json({ success: false, message: "Meeting not found" });
     }
 
-    if (!hasPermission(meeting, userId)) {
+    if (!hasPermission(meeting, userId, req.user.role)) {
       return res
         .status(403)
         .json({ success: false, message: "Not authorized to manage timers" });
@@ -116,7 +118,7 @@ export const stopAgendaItem = async (req, res) => {
 
     const io = req.app.get("io");
     if (io) {
-      io.to(`meeting_${meetingId}`).emit("agenda_timer_updated", {
+      io.to(meetingId.toString()).emit("agenda_timer_updated", {
         meetingId,
         item,
         action: "stop",
@@ -142,7 +144,7 @@ export const skipAgendaItem = async (req, res) => {
         .json({ success: false, message: "Meeting not found" });
     }
 
-    if (!hasPermission(meeting, userId)) {
+    if (!hasPermission(meeting, userId, req.user.role)) {
       return res
         .status(403)
         .json({ success: false, message: "Not authorized to manage timers" });
@@ -176,7 +178,7 @@ export const skipAgendaItem = async (req, res) => {
 
     const io = req.app.get("io");
     if (io) {
-      io.to(`meeting_${meetingId}`).emit("agenda_timer_updated", {
+      io.to(meetingId.toString()).emit("agenda_timer_updated", {
         meetingId,
         item,
         action: "skip",

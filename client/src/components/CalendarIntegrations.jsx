@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback, useContext } from "react";
-import axios from "axios";
+import React, { useState, useEffect, useCallback } from "react";
 import { toast } from "react-toastify";
 import {
   Calendar,
@@ -9,22 +8,16 @@ import {
   AlertCircle,
   XCircle,
 } from "lucide-react";
-import AppContent from "../context/AppContent";
+import apiClient from "../services/apiClient.js";
 
 const CalendarIntegrations = () => {
-  const { backendUrl } = useContext(AppContent);
   const [integrations, setIntegrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [resyncing, setResyncing] = useState({});
 
   const fetchIntegrations = useCallback(async () => {
     try {
-      const res = await axios.get(
-        `${backendUrl || "http://localhost:4000"}/api/calendar/status`,
-        {
-          withCredentials: true,
-        },
-      );
+      const res = await apiClient.get("/api/calendar/status");
       if (res.data.success) {
         setIntegrations(res.data.integrations || []);
       }
@@ -33,7 +26,7 @@ const CalendarIntegrations = () => {
     } finally {
       setLoading(false);
     }
-  }, [backendUrl]);
+  }, []);
 
   useEffect(() => {
     fetchIntegrations();
@@ -52,10 +45,7 @@ const CalendarIntegrations = () => {
 
   const connectProvider = async (provider) => {
     try {
-      const res = await axios.get(
-        `${backendUrl || "http://localhost:4000"}/api/calendar/${provider}/connect`,
-        { withCredentials: true },
-      );
+      const res = await apiClient.get(`/api/calendar/${provider}/connect`);
       const redirectUrl = res.data?.url || res.data?.authUrl;
       if (res.data.success && redirectUrl) {
         window.location.href = redirectUrl;
@@ -70,11 +60,7 @@ const CalendarIntegrations = () => {
 
   const disconnectProvider = async (provider) => {
     try {
-      const res = await axios.post(
-        `${backendUrl || "http://localhost:4000"}/api/calendar/disconnect/${provider}`,
-        {},
-        { withCredentials: true },
-      );
+      const res = await apiClient.post(`/api/calendar/disconnect/${provider}`);
       if (res.data.success) {
         toast.success(`Disconnected ${provider} calendar`);
         fetchIntegrations();
@@ -88,11 +74,7 @@ const CalendarIntegrations = () => {
   const resyncProvider = async (provider) => {
     setResyncing((prev) => ({ ...prev, [provider]: true }));
     try {
-      const res = await axios.post(
-        `${backendUrl || "http://localhost:4000"}/api/calendar/resync/${provider}`,
-        {},
-        { withCredentials: true },
-      );
+      const res = await apiClient.post(`/api/calendar/resync/${provider}`);
       if (res.data.success) {
         toast.success(`Synced ${provider} calendar successfully`);
         fetchIntegrations();

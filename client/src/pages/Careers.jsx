@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import Navbar from "../components/Navbar.jsx";
@@ -276,6 +276,30 @@ const Careers = () => {
     coverLetter: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Accessibility Enhancement: Close modal on Escape key press
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setIsModalOpen(false);
+        setActiveJobForModal(null);
+        setFormData({
+          name: "",
+          email: "",
+          portfolio: "",
+          resume: "",
+          coverLetter: "",
+        });
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isModalOpen]);
 
   // Dynamic filter collections
   const departments = useMemo(() => {
@@ -793,6 +817,7 @@ const Careers = () => {
             <button
               onClick={closeModal}
               className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors cursor-pointer"
+              aria-label="Close modal"
             >
               <X className="w-5 h-5" />
             </button>

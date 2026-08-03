@@ -8,6 +8,7 @@ import {
   closePoll,
   deletePoll,
 } from "../../api/pollApi";
+import { createClerkSocketOptions } from "../../services/apiClient.js";
 
 const PollSection = ({ meetingId }) => {
   const { userData, backendUrl } = useContext(AppContent);
@@ -37,41 +38,48 @@ const PollSection = ({ meetingId }) => {
     };
     fetchPolls();
 
-    // Socket connection for real-time
-    socketRef.current = io(backendUrl, {
-      withCredentials: true,
-      transports: ["websocket"],
-    });
+    let cancelled = false;
 
-    socketRef.current.on("connect", () => {
-      socketRef.current.emit("join-meeting", {
-        roomId: meetingId,
-        userInfo: { name: userData?.name },
+    (async () => {
+      const opts = await createClerkSocketOptions({
+        transports: ["websocket"],
       });
-    });
+      if (cancelled) return;
 
-    socketRef.current.on("poll:created", (newPoll) => {
-      setPolls((prev) => [newPoll, ...prev]);
-    });
+      // Socket connection for real-time
+      socketRef.current = io(backendUrl, opts);
 
-    socketRef.current.on("poll:vote", (updatedPoll) => {
-      setPolls((prev) =>
-        prev.map((p) => (p._id === updatedPoll._id ? updatedPoll : p)),
-      );
-    });
+      socketRef.current.on("connect", () => {
+        socketRef.current.emit("join-meeting", {
+          roomId: meetingId,
+          userInfo: { name: userData?.name },
+        });
+      });
 
-    socketRef.current.on("poll:closed", (updatedPoll) => {
-      setPolls((prev) =>
-        prev.map((p) => (p._id === updatedPoll._id ? updatedPoll : p)),
-      );
-    });
+      socketRef.current.on("poll:created", (newPoll) => {
+        setPolls((prev) => [newPoll, ...prev]);
+      });
 
-    socketRef.current.on("poll:deleted", ({ id }) => {
-      setPolls((prev) => prev.filter((p) => p._id !== id));
-    });
+      socketRef.current.on("poll:vote", (updatedPoll) => {
+        setPolls((prev) =>
+          prev.map((p) => (p._id === updatedPoll._id ? updatedPoll : p)),
+        );
+      });
+
+      socketRef.current.on("poll:closed", (updatedPoll) => {
+        setPolls((prev) =>
+          prev.map((p) => (p._id === updatedPoll._id ? updatedPoll : p)),
+        );
+      });
+
+      socketRef.current.on("poll:deleted", ({ id }) => {
+        setPolls((prev) => prev.filter((p) => p._id !== id));
+      });
+    })();
 
     return () => {
-      socketRef.current.disconnect();
+      cancelled = true;
+      socketRef.current?.disconnect();
     };
   }, [meetingId, backendUrl, userData]);
 
@@ -144,6 +152,35 @@ const PollSection = ({ meetingId }) => {
     } catch (err) {
       console.error(err);
       alert(err.response?.data?.message || "Error casting vote");
+    }
+  };
+
+  const handleClosePoll = async (pollId) => {
+    try {
+      await closePoll(pollId);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "Error closing poll");
+    }
+  };
+
+  // `deletePoll` and `closePoll` were the only two actions in this component
+  // fired without a `.catch()`. While the server was answering 500 for every
+  // delete (#1069) that meant the button did nothing at all: no error, no
+  // removal, no console output — indistinguishable from an unresponsive UI.
+  // These now report failures the same way every other action here does.
+  const handleDeletePoll = async (pollId) => {
+    if (!window.confirm("Delete this poll?")) return;
+
+    try {
+      await deletePoll(pollId);
+      // The `poll:deleted` socket event normally removes it. Drop it locally
+      // too so the poll disappears even if the socket is down or the client
+      // never joined the room.
+      setPolls((prev) => prev.filter((p) => p._id !== pollId));
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "Error deleting poll");
     }
   };
 
@@ -234,7 +271,7 @@ const PollSection = ({ meetingId }) => {
           <div className="flex gap-2">
             {!poll.isClosed && canManage && (
               <button
-                onClick={() => closePoll(poll._id)}
+                onClick={() => handleClosePoll(poll._id)}
                 className="text-xs text-orange-600 dark:text-orange-400 hover:underline"
               >
                 Close Poll
@@ -242,9 +279,7 @@ const PollSection = ({ meetingId }) => {
             )}
             {canManage && (
               <button
-                onClick={() => {
-                  if (window.confirm("Delete this poll?")) deletePoll(poll._id);
-                }}
+                onClick={() => handleDeletePoll(poll._id)}
                 className="text-xs text-red-600 dark:text-red-400 hover:underline"
               >
                 Delete

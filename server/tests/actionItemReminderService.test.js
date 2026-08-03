@@ -1,24 +1,23 @@
-import { describe, it, expect, beforeEach, vi as jest } from "vitest";
+import { jest } from "@jest/globals";
 import mongoose from "mongoose";
 
-jest.mock("../models/actionItemModel.js", () => ({
+jest.unstable_mockModule("../models/actionItemModel.js", () => ({
   default: {
     find: jest.fn(),
   },
 }));
 
-jest.mock("../models/userModel.js", () => ({
+jest.unstable_mockModule("../models/userModel.js", () => ({
   default: {
     findOne: jest.fn(),
   },
 }));
 
-jest.mock("../services/notificationService.js", () => ({
+jest.unstable_mockModule("../services/notificationService.js", () => ({
   createNotification: jest.fn().mockResolvedValue({ id: "notif_1" }),
 }));
 
 const ActionItem = (await import("../models/actionItemModel.js")).default;
-const userModel = (await import("../models/userModel.js")).default;
 const { createNotification } =
   await import("../services/notificationService.js");
 const { processActionItemReminders } =
@@ -32,7 +31,7 @@ describe("actionItemReminderService", () => {
   it("should send upcoming reminders for action items due within 24h", async () => {
     const orgId = new mongoose.Types.ObjectId();
     const userId = new mongoose.Types.ObjectId();
-    const dueDate = new Date(Date.now() + 12 * 60 * 60 * 1000); // 12h in future
+    const dueDate = new Date(Date.now() + 12 * 60 * 60 * 1000);
 
     const mockItem = {
       _id: new mongoose.Types.ObjectId(),
@@ -48,7 +47,7 @@ describe("actionItemReminderService", () => {
     };
 
     const mockPopulate = jest.fn().mockResolvedValue([mockItem]);
-    ActionItem.find.mockReturnValue({ populate: mockPopulate });
+    jest.spyOn(ActionItem, "find").mockReturnValue({ populate: mockPopulate });
 
     const result = await processActionItemReminders({
       organization: orgId.toString(),
@@ -60,7 +59,10 @@ describe("actionItemReminderService", () => {
       userId.toString(),
       expect.stringContaining("Due Soon"),
       expect.stringContaining("Submit financial report"),
-      "meetings",
+      // Issue #977: action-item reminders moved from "meetings" to their own
+      // "tasks" category, so the pushTaskAssignments preference actually
+      // governs them instead of pushMeetingReminders silently killing them.
+      "tasks",
       "/tasks",
       "View Action Items",
       expect.any(Object),
@@ -72,7 +74,7 @@ describe("actionItemReminderService", () => {
   it("should send overdue reminders for past action items", async () => {
     const orgId = new mongoose.Types.ObjectId();
     const userId = new mongoose.Types.ObjectId();
-    const dueDate = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2h in past
+    const dueDate = new Date(Date.now() - 2 * 60 * 60 * 1000);
 
     const mockItem = {
       _id: new mongoose.Types.ObjectId(),
@@ -92,7 +94,7 @@ describe("actionItemReminderService", () => {
     };
 
     const mockPopulate = jest.fn().mockResolvedValue([mockItem]);
-    ActionItem.find.mockReturnValue({ populate: mockPopulate });
+    jest.spyOn(ActionItem, "find").mockReturnValue({ populate: mockPopulate });
 
     const result = await processActionItemReminders({
       organization: orgId.toString(),
@@ -104,7 +106,7 @@ describe("actionItemReminderService", () => {
       userId.toString(),
       expect.stringContaining("Overdue"),
       expect.stringContaining("Fix login bug"),
-      "meetings",
+      "tasks",
       "/tasks",
       "View Action Items",
       expect.any(Object),
@@ -125,14 +127,14 @@ describe("actionItemReminderService", () => {
       status: "open",
       dueDate,
       remindersEnabled: true,
-      reminderSent: { upcoming: true, overdue: true }, // Already sent overdue
+      reminderSent: { upcoming: true, overdue: true },
       organization: orgId,
       sourceMeetingId: { _id: "m3", title: "Docs Review", organizer: userId },
       save: jest.fn().mockResolvedValue(true),
     };
 
     const mockPopulate = jest.fn().mockResolvedValue([mockItem]);
-    ActionItem.find.mockReturnValue({ populate: mockPopulate });
+    jest.spyOn(ActionItem, "find").mockReturnValue({ populate: mockPopulate });
 
     const result = await processActionItemReminders({
       organization: orgId.toString(),

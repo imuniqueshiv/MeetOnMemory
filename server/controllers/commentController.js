@@ -2,6 +2,21 @@ import Comment from "../models/commentModel.js";
 import Meeting from "../models/meetingModel.js";
 import { hasPermission } from "../utils/rbacPermissions.js";
 import mongoose from "mongoose";
+import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
+
+/**
+ * Ceiling on replies loaded alongside one page of top-level comments
+ * (Issue #1071).
+ *
+ * The reply query is a `$in` over every comment id on the page and had no
+ * limit of its own, so an unbounded `?limit=` did not just return N comments —
+ * it also pulled every reply belonging to all N and populated author and
+ * reaction refs across the whole set. Bounding the page bounds the fan-out,
+ * but only if the second query is bounded independently: a page of 50 comments
+ * where one thread has 10,000 replies is still one enormous response
+ * otherwise.
+ */
+const MAX_REPLIES_PER_PAGE = 500;
 
 // @desc    Create a new comment
 // @route   POST /api/comments
@@ -72,9 +87,9 @@ export const getCommentsByMeeting = async (req, res) => {
     if (!mongoose.isValidObjectId(meetingId)) {
       return res.status(400).json({ message: "Invalid meeting ID" });
     }
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(req.query, {
+      defaultLimit: 50,
+    });
 
     const meeting = await Meeting.findById(String(meetingId));
     if (!meeting) {
@@ -100,10 +115,13 @@ export const getCommentsByMeeting = async (req, res) => {
 
     // Fetch replies for these comments
     const commentIds = topLevelComments.map((c) => c._id);
-    const replies = await Comment.find({ parentComment: { $in: commentIds } })
-      .populate("author", "name email profilePicture")
-      .populate("reactions.user", "name")
-      .sort({ createdAt: 1 });
+    const replies = commentIds.length
+      ? await Comment.find({ parentComment: { $in: commentIds } })
+          .populate("author", "name email profilePicture")
+          .populate("reactions.user", "name")
+          .sort({ createdAt: 1 })
+          .limit(MAX_REPLIES_PER_PAGE)
+      : [];
 
     // Group replies
     const repliesMap = {};
@@ -125,11 +143,17 @@ export const getCommentsByMeeting = async (req, res) => {
       parentComment: null,
     });
 
+    const pagination = buildPaginationMeta({ total, page, limit });
+
     res.status(200).json({
       comments: commentsWithReplies,
-      currentPage: page,
-      totalPages: Math.ceil(total / limit),
-      totalComments: total,
+      // `currentPage` / `totalPages` / `totalComments` are kept so existing
+      // clients keep working; `pagination` is the shape new code should read,
+      // and it is the only one carrying `hasMore`.
+      currentPage: pagination.page,
+      totalPages: pagination.totalPages,
+      totalComments: pagination.total,
+      pagination,
     });
   } catch (error) {
     console.error("Error fetching comments:", error);

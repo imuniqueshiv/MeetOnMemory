@@ -3,9 +3,24 @@ import eventBus from "../services/eventBus.js";
 import * as redisService from "../services/redisService.js";
 import { invalidateOrgCache } from "../services/cacheInvalidationService.js";
 import {
+  buildSearchCacheKey,
   cacheSearch,
   getOrganizationIdFromReq,
 } from "../middleware/cacheMiddleware.js";
+
+/**
+ * Every request fixture here carries a `_id` as well as an `organization`.
+ *
+ * Before #1068 the middleware keyed on the organization alone, so a session
+ * without a user id still produced a cache key. It no longer does: the search
+ * controllers filter results per principal, so a request the server cannot
+ * attribute to a user is not cacheable at all. Fixtures have to look like real
+ * authenticated sessions.
+ */
+const sessionFor = (organization, id = "user_fixture") => ({
+  _id: id,
+  organization,
+});
 
 // Helper to construct an in-memory Redis client mock
 function createMockRedisClient() {
@@ -87,7 +102,7 @@ describe("Multi-Tenant Cache Invalidation & SWR System", () => {
   });
 
   describe("1. Organization Extraction & Key Isolation", () => {
-    it("should correctly extract organizationId from user object, headers, body, or fallback", () => {
+    it("should extract organizationId from the authenticated session only", () => {
       expect(
         getOrganizationIdFromReq({ user: { organization: "org_user_123" } }),
       ).toBe("org_user_123");
@@ -99,16 +114,11 @@ describe("Multi-Tenant Cache Invalidation & SWR System", () => {
       ).toBe("org_obj_456");
 
       expect(
-        getOrganizationIdFromReq({
-          headers: { "x-organization-id": "org_hdr_789" },
-        }),
-      ).toBe("org_hdr_789");
+        getOrganizationIdFromReq({ user: { organizationId: "org_alt_789" } }),
+      ).toBe("org_alt_789");
 
-      expect(
-        getOrganizationIdFromReq({ body: { organizationId: "org_body_101" } }),
-      ).toBe("org_body_101");
-
-      expect(getOrganizationIdFromReq({})).toBe("global");
+      // No session → no tenant. `null` means "not cacheable", not "global".
+      expect(getOrganizationIdFromReq({})).toBeNull();
     });
 
     it("should generate organization-scoped cache keys for identical search queries", async () => {
@@ -116,7 +126,7 @@ describe("Multi-Tenant Cache Invalidation & SWR System", () => {
         baseUrl: "/api",
         path: "/search",
         body: { query: "quarterly financial report" },
-        user: { organization: "org_alpha" },
+        user: sessionFor("org_alpha", "user_alpha"),
       };
       const res1 = { status: jest.fn().mockReturnThis(), json: jest.fn() };
       const next1 = jest.fn();
@@ -130,7 +140,7 @@ describe("Multi-Tenant Cache Invalidation & SWR System", () => {
         baseUrl: "/api",
         path: "/search",
         body: { query: "quarterly financial report" },
-        user: { organization: "org_beta" },
+        user: sessionFor("org_beta", "user_beta"),
       };
       const res2 = { status: jest.fn().mockReturnThis(), json: jest.fn() };
       const next2 = jest.fn();
@@ -220,7 +230,7 @@ describe("Multi-Tenant Cache Invalidation & SWR System", () => {
         baseUrl: "/api",
         path: "/search",
         body: { query: "security compliance policy" },
-        user: { organization: orgId },
+        user: sessionFor(orgId, "user_swr"),
       };
       const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
       const next = jest.fn();
@@ -251,20 +261,16 @@ describe("Multi-Tenant Cache Invalidation & SWR System", () => {
         baseUrl: "/api",
         path: "/search",
         body: { query: "engineering guidelines" },
-        user: { organization: orgId },
+        user: sessionFor(orgId, "user_swr_stale"),
       };
 
-      const crypto = await import("crypto");
-      const cachePayload = JSON.stringify({
+      const cacheKey = buildSearchCacheKey({
+        organizationId: orgId,
+        userId: req.user._id,
         route: req.baseUrl + req.path,
         query: req.body.query,
         options: {},
       });
-      const hash = crypto
-        .createHash("sha256")
-        .update(cachePayload)
-        .digest("hex");
-      const cacheKey = `org:${orgId}:search:${hash}`;
 
       const stalePayload = { success: true, results: ["old_guideline"] };
       // Save cache entry with an old timestamp (6 minutes ago, > softTTL of 300s)
@@ -277,13 +283,22 @@ describe("Multi-Tenant Cache Invalidation & SWR System", () => {
       await mockRedis.setEx(cacheKey, 3600, JSON.stringify(staleCacheValue));
       await mockRedis.sAdd(`org:${orgId}:search_keys`, cacheKey);
 
-      const resStale = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      // Record payloads out-of-band: on the SWR path the middleware replaces
+      // `res.json` with a revalidate-only hook once the stale payload has been
+      // written, so the original spy is no longer reachable through `res.json`
+      // by the time the assertions run.
+      const served = [];
+      const resStale = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn((body) => served.push(body)),
+        once: jest.fn(),
+      };
       const nextStale = jest.fn();
 
       await cacheSearch(req, resStale, nextStale);
 
       expect(resStale.status).toHaveBeenCalledWith(200);
-      expect(resStale.json).toHaveBeenCalledWith(stalePayload);
+      expect(served).toEqual([stalePayload]);
 
       // Lock should have been acquired for background revalidation
       const lockVal = await mockRedis.get(`lock:${cacheKey}`);
@@ -299,21 +314,17 @@ describe("Multi-Tenant Cache Invalidation & SWR System", () => {
         baseUrl: "/api",
         path: "/search",
         body: { query: "heavy concurrency search" },
-        user: { organization: orgId },
+        user: sessionFor(orgId, "user_stampede"),
       };
 
-      // Populate a stale cache payload
-      const cachePayload = JSON.stringify({
+      // Populate a stale cache payload under the key the middleware will build.
+      const cacheKey = buildSearchCacheKey({
+        organizationId: orgId,
+        userId: reqTemplate.user._id,
         route: reqTemplate.baseUrl + reqTemplate.path,
         query: reqTemplate.body.query,
         options: {},
       });
-      const crypto = await import("crypto");
-      const hash = crypto
-        .createHash("sha256")
-        .update(cachePayload)
-        .digest("hex");
-      const cacheKey = `org:${orgId}:search:${hash}`;
 
       const staleData = { success: true, results: ["heavy_result"] };
       await mockRedis.setEx(

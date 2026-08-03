@@ -517,10 +517,11 @@ export const voiceSearch = async (req, res) => {
       });
     }
 
-    // Filter results to include only those from user's organization
+    // Filter results to include only those belonging to user's organization (fail closed)
+    const userOrg = req.user?.organization?.toString();
     const filteredResults = results.filter((r) => {
-      if (!r.organization) return true; // Allow results without org
-      return r.organization === req.user.organization?.toString();
+      if (!r.organization || !userOrg) return false;
+      return r.organization.toString() === userOrg;
     });
 
     res.status(200).json({
@@ -840,7 +841,7 @@ export const updateSpeakers = async (req, res) => {
     }
 
     const meeting = transcript.meeting;
-    const userId = req.user._id.toString();
+    const userId = (req.user._id || req.user.id)?.toString();
 
     const isOwner = meeting.uploadedBy?.toString() === userId;
     const isAdminInSameOrg =

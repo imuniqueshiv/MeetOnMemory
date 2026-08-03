@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Mic, MicOff, Search, Loader2, X } from "lucide-react";
 import { toast } from "react-toastify";
-import axios from "axios";
+import apiClient from "../services/apiClient";
 
 const VoiceSearchBar = ({ onResults }) => {
   const [isListening, setIsListening] = useState(false);
@@ -27,7 +27,7 @@ const VoiceSearchBar = ({ onResults }) => {
 
       try {
         setIsSearching(true);
-        const { data } = await axios.get("/api/search/voice", {
+        const { data } = await apiClient.get("/api/search/voice", {
           params: { query: query.trim() },
           withCredentials: true,
         });

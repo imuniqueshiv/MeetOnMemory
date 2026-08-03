@@ -4,6 +4,7 @@ import { z } from "zod";
 import Attachment from "../models/attachmentModel.js";
 import Meeting from "../models/meetingModel.js";
 import { fileURLToPath } from "url";
+import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -113,10 +114,9 @@ export const uploadAttachment = async (req, res) => {
 export const listAttachments = async (req, res) => {
   try {
     const { meetingId } = req.params;
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(req.query, {
+      defaultLimit: 20,
+    });
 
     const attachments = await Attachment.find({ meeting: meetingId })
       .populate("uploadedBy", "name email")
@@ -129,12 +129,7 @@ export const listAttachments = async (req, res) => {
     res.status(200).json({
       success: true,
       attachments,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: buildPaginationMeta({ total, page, limit }),
     });
   } catch (error) {
     console.error("Error listing attachments:", error);

@@ -1,8 +1,7 @@
-import request from "supertest"; // eslint-disable-line no-unused-vars
-import jwt from "jsonwebtoken";
+import request from "supertest";
 import mongoose from "mongoose";
-import { app } from "../server.js"; // eslint-disable-line no-unused-vars
-import { createCsrfAgent } from "./helpers/csrfHelper.js";
+import { app } from "../server.js";
+import { createClerkTestToken, authHeader } from "./helpers/clerkTestAuth.js";
 import User from "../models/userModel.js";
 import Organization from "../models/organizationModel.js";
 import Membership from "../models/membershipModel.js";
@@ -29,10 +28,12 @@ describe("MembershipController - removeMembership", () => {
       role: "admin",
       isAccountVerified: true,
     });
-    adminToken = jwt.sign(
-      { id: adminUser._id },
-      process.env.JWT_SECRET || "fallback_secret",
-    );
+    adminUser.clerkUserId = `user_test_${adminUser._id}`;
+    await adminUser.save();
+    adminToken = createClerkTestToken({
+      clerkUserId: adminUser.clerkUserId,
+      email: adminUser.email,
+    });
 
     organization.owner = adminUser._id;
     await organization.save();
@@ -52,6 +53,8 @@ describe("MembershipController - removeMembership", () => {
       role: "member",
       isAccountVerified: true,
     });
+    memberUser.clerkUserId = `user_test_${memberUser._id}`;
+    await memberUser.save();
 
     memberMembership = await Membership.create({
       user: memberUser._id,
@@ -69,11 +72,9 @@ describe("MembershipController - removeMembership", () => {
   });
 
   it("should clear organization and role on the removed user when admin removes a member", async () => {
-    const { agent, csrfToken } = await createCsrfAgent();
-    const res = await agent
+    const res = await request(app)
       .delete(`/api/membership/${memberMembership._id}`)
-      .set("Authorization", `Bearer ${adminToken}`)
-      .set("X-CSRF-Token", csrfToken);
+      .set(authHeader(adminToken));
 
     expect(res.statusCode).toEqual(200);
     expect(res.body.success).toBe(true);
@@ -84,11 +85,9 @@ describe("MembershipController - removeMembership", () => {
   });
 
   it("should not alter admin user's own organization/role when admin removes a member", async () => {
-    const { agent, csrfToken } = await createCsrfAgent();
-    await agent
+    await request(app)
       .delete(`/api/membership/${memberMembership._id}`)
-      .set("Authorization", `Bearer ${adminToken}`)
-      .set("X-CSRF-Token", csrfToken);
+      .set(authHeader(adminToken));
 
     const updatedAdmin = await User.findById(adminUser._id);
     expect(updatedAdmin.organization.toString()).toBe(
@@ -108,11 +107,9 @@ describe("MembershipController - removeMembership", () => {
     memberUser.role = "member";
     await memberUser.save();
 
-    const { agent, csrfToken } = await createCsrfAgent();
-    const res = await agent
+    const res = await request(app)
       .delete(`/api/membership/${memberMembership._id}`)
-      .set("Authorization", `Bearer ${adminToken}`)
-      .set("X-CSRF-Token", csrfToken);
+      .set(authHeader(adminToken));
 
     expect(res.statusCode).toEqual(200);
 
@@ -130,10 +127,12 @@ describe("MembershipController - removeMembership", () => {
       role: "member",
       isAccountVerified: true,
     });
-    const otherToken = jwt.sign(
-      { id: otherMember._id },
-      process.env.JWT_SECRET || "fallback_secret",
-    );
+    otherMember.clerkUserId = `user_test_${otherMember._id}`;
+    await otherMember.save();
+    const otherToken = createClerkTestToken({
+      clerkUserId: otherMember.clerkUserId,
+      email: otherMember.email,
+    });
 
     await Membership.create({
       user: otherMember._id,
@@ -142,11 +141,9 @@ describe("MembershipController - removeMembership", () => {
       status: "active",
     });
 
-    const { agent, csrfToken } = await createCsrfAgent();
-    const res = await agent
+    const res = await request(app)
       .delete(`/api/membership/${memberMembership._id}`)
-      .set("Authorization", `Bearer ${otherToken}`)
-      .set("X-CSRF-Token", csrfToken);
+      .set(authHeader(otherToken));
 
     expect(res.statusCode).toEqual(403);
   });

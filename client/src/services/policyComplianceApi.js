@@ -1,7 +1,7 @@
 import apiClient from "./apiClient";
 
 export const policyComplianceApi = {
-  getFlags: (status = "unresolved", classification = "potential_conflict") =>
+  getFlags: (status = "unresolved", classification = "all") =>
     apiClient.get(
       `/api/policy-compliance/flags?status=${status}&classification=${classification}`,
     ),

@@ -3,11 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Clock, Bell, CalendarDays, AlertCircle } from "lucide-react";
 import AppContent from "../../context/AppContent";
-import axios from "axios";
+import apiClient from "../../services/apiClient";
 
 const DashboardMetricsWidget = () => {
   const { t } = useTranslation();
-  const { backendUrl, isLoggedin, userData } = useContext(AppContent);
+  const { isLoggedin, userData } = useContext(AppContent);
   const [metrics, setMetrics] = useState({
     overdueTasks: 0,
     unreadNotifications: 0,
@@ -22,8 +22,7 @@ const DashboardMetricsWidget = () => {
 
       try {
         setLoading(true);
-        axios.defaults.withCredentials = true;
-        const response = await axios.get(`${backendUrl}/api/dashboard/metrics`);
+        const response = await apiClient.get("/api/dashboard/metrics");
         if (response.data.success && isMounted) {
           setMetrics(response.data.metrics);
         }
@@ -40,7 +39,7 @@ const DashboardMetricsWidget = () => {
     return () => {
       isMounted = false;
     };
-  }, [backendUrl, isLoggedin, userData]);
+  }, [isLoggedin, userData]);
 
   if (loading) {
     return (

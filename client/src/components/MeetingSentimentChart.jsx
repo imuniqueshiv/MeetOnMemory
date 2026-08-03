@@ -49,7 +49,7 @@ const CustomTooltip = ({ active, payload }) => {
   return null;
 };
 
-const MeetingSentimentChart = ({ transcript }) => {
+const MeetingSentimentChart = ({ transcript, onPointClick }) => {
   const chartData = useMemo(() => {
     if (!transcript || !transcript.segments) return [];
 
@@ -105,6 +105,17 @@ const MeetingSentimentChart = ({ transcript }) => {
           <AreaChart
             data={chartData}
             margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+            onClick={(e) => {
+              if (
+                onPointClick &&
+                e &&
+                e.activePayload &&
+                e.activePayload.length > 0
+              ) {
+                onPointClick(e.activePayload[0].payload);
+              }
+            }}
+            style={{ cursor: onPointClick ? "pointer" : "default" }}
           >
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -139,7 +150,12 @@ const MeetingSentimentChart = ({ transcript }) => {
               strokeWidth={3}
               fillOpacity={1}
               fill={`url(#${gradientId})`}
-              activeDot={{ r: 6, strokeWidth: 0, fill: "#8b5cf6" }}
+              activeDot={{
+                r: 6,
+                strokeWidth: 0,
+                fill: "#8b5cf6",
+                style: { cursor: onPointClick ? "pointer" : "default" },
+              }}
             />
           </AreaChart>
         </ResponsiveContainer>

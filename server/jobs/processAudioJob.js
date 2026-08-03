@@ -7,10 +7,11 @@ import {
   detectResolutions,
 } from "../services/knowledgeGraphService.js";
 import User from "../models/userModel.js";
+import AiSummaryTemplate from "../models/aiSummaryTemplateModel.js";
 
 import { indexMeeting } from "../utils/embeddingUtils.js";
 import {
-  generateMoMWithAI,
+  generateMoMDetailed,
   normalizeMoM,
   buildHumanReadableMoM,
 } from "../services/GenerativeAIService.js";
@@ -43,10 +44,68 @@ export default async function processAudioJob(job, _app) {
   let structured = null;
   let humanReadable = "";
 
-  structured = await generateMoMWithAI(textToSummarize, date, title);
+  let customInstructions = null;
+
+  try {
+    // If meeting is not already fetched, try fetching it
+    let currentMeeting = meeting;
+    if (!currentMeeting && meetingId) {
+      currentMeeting = await Meeting.findById(meetingId);
+    }
+
+    if (currentMeeting) {
+      if (currentMeeting.aiSummaryTemplate) {
+        const template = await AiSummaryTemplate.findById(
+          currentMeeting.aiSummaryTemplate,
+        );
+        if (template) customInstructions = template.customInstructions;
+      } else if (currentMeeting.organization) {
+        const defaultTemplate = await AiSummaryTemplate.findOne({
+          organization: currentMeeting.organization,
+          isDefault: true,
+        });
+        if (defaultTemplate)
+          customInstructions = defaultTemplate.customInstructions;
+      }
+    } else {
+      // Fallback for transcript-only jobs, try using the user's organization default
+      const user = await User.findById(userId);
+      if (user && user.organization) {
+        const defaultTemplate = await AiSummaryTemplate.findOne({
+          organization: user.organization,
+          isDefault: true,
+        });
+        if (defaultTemplate)
+          customInstructions = defaultTemplate.customInstructions;
+      }
+    }
+  } catch (err) {
+    console.error(
+      "⚠️ Failed to fetch AI summary template instructions:",
+      err.message,
+    );
+  }
+
+  // Issue #976: the detailed entry point also returns provenance, so a MoM
+  // produced by the reduced-capability fallback is flagged rather than being
+  // persisted as if it were a complete result.
+  const { mom: generated, generation } = await generateMoMDetailed(
+    textToSummarize,
+    date,
+    title,
+    customInstructions,
+  );
+  structured = generated;
+
+  if (generation?.degraded) {
+    console.warn(
+      `⚠️ MoM for ${meetingId || "transcript-only"} was generated in degraded mode ` +
+        `(${generation.provider}, reason: ${generation.reason}). Consider reprocessing.`,
+    );
+  }
 
   if (structured) {
-    const mom = normalizeMoM(structured, title, date);
+    const mom = normalizeMoM(structured, title, date, generation);
     humanReadable = buildHumanReadableMoM(mom);
 
     let meetingToUpdate = meeting;

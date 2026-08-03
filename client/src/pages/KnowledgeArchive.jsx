@@ -32,6 +32,12 @@ const KnowledgeArchive = () => {
   const [restoringId, setRestoringId] = useState(null);
   const [archivedMemories, setArchivedMemories] = useState([]);
 
+  // Server-side Pagination State (#835)
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
   // Restore Modal State
   const [restoreModal, setRestoreModal] = useState({
     isOpen: false,
@@ -50,10 +56,16 @@ const KnowledgeArchive = () => {
     try {
       let decisionList = [];
       let actionList = [];
+      let totalDecisions = 0;
+      let totalActions = 0;
+      let dPages = 1;
+      let aPages = 1;
 
       const queryOpts = {
         includeArchived: true,
         lifecycleState: "archived",
+        page,
+        limit,
         ...(searchQuery ? { search: searchQuery } : {}),
       };
 
@@ -68,6 +80,8 @@ const KnowledgeArchive = () => {
             ...d,
             type: "decision",
           }));
+          totalDecisions = dRes.data.pagination?.total || decisionList.length;
+          dPages = dRes.data.pagination?.totalPages || 1;
         }
       }
 
@@ -82,6 +96,8 @@ const KnowledgeArchive = () => {
             ...a,
             type: "action-item",
           }));
+          totalActions = aRes.data.pagination?.total || actionList.length;
+          aPages = aRes.data.pagination?.totalPages || 1;
         }
       }
 
@@ -92,13 +108,24 @@ const KnowledgeArchive = () => {
       );
 
       setArchivedMemories(combined);
+
+      const computedTotal =
+        selectedType === "decision"
+          ? totalDecisions
+          : selectedType === "action-item"
+            ? totalActions
+            : totalDecisions + totalActions;
+      setTotalCount(computedTotal);
+
+      const maxPages = Math.max(dPages, aPages);
+      setTotalPages(maxPages > 0 ? maxPages : 1);
     } catch (err) {
       console.error("Failed to load archived memories:", err);
       toast.error("Failed to fetch archived knowledge items.");
     } finally {
       setLoading(false);
     }
-  }, [selectedType, searchQuery]);
+  }, [selectedType, searchQuery, page, limit]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -107,6 +134,16 @@ const KnowledgeArchive = () => {
     return () => clearTimeout(timer);
   }, [loadArchivedMemories]);
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setRestoreModal((prev) => ({ ...prev, isOpen: false }));
+        setHistoryModal((prev) => ({ ...prev, isOpen: false }));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
   const openRestoreModal = (memory) => {
     setRestoreModal({
       isOpen: true,
@@ -349,6 +386,60 @@ const KnowledgeArchive = () => {
                   </div>
                 </div>
               ))}
+
+              {/* Pagination Controls (#835) */}
+              <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200 dark:border-slate-800 text-xs">
+                <div className="text-slate-500 dark:text-slate-400 font-medium">
+                  Showing page{" "}
+                  <strong className="text-slate-800 dark:text-slate-200">
+                    {page}
+                  </strong>{" "}
+                  of{" "}
+                  <strong className="text-slate-800 dark:text-slate-200">
+                    {totalPages}
+                  </strong>{" "}
+                  ({totalCount} total archived items)
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      Per page:
+                    </span>
+                    <select
+                      value={limit}
+                      onChange={(e) => {
+                        setLimit(Number(e.target.value));
+                        setPage(1);
+                      }}
+                      className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 font-medium cursor-pointer"
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                      disabled={page <= 1 || loading}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 cursor-pointer"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() =>
+                        setPage((prev) => Math.min(prev + 1, totalPages))
+                      }
+                      disabled={page >= totalPages || loading}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 cursor-pointer"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

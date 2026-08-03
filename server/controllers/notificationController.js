@@ -2,6 +2,14 @@
 import notificationModel from "../models/notificationModel.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
 import NotificationPreference from "../models/notificationPreferenceModel.js";
+import { CATEGORY_TO_PREFERENCE } from "../services/notificationService.js";
+
+/**
+ * Valid filter values, derived from the single source of truth in
+ * notificationService rather than being hand-maintained here. The previous
+ * inline array had already drifted — it did not include the `tasks` category.
+ */
+const NOTIFICATION_CATEGORIES = Object.keys(CATEGORY_TO_PREFERENCE);
 
 // Helper to format notification response
 const formatNotificationResponse = (notification) => {
@@ -39,16 +47,7 @@ export const getNotifications = async (req, res) => {
     const userId = String(req.user.id);
     const filter = { user: userId };
 
-    if (
-      [
-        "meetings",
-        "ai_processing",
-        "organizations",
-        "policies",
-        "reports",
-        "system",
-      ].includes(category)
-    ) {
+    if (NOTIFICATION_CATEGORIES.includes(category)) {
       filter.category = String(category);
     }
 
@@ -223,6 +222,8 @@ export const updatePreferences = async (req, res) => {
       return sendError(res, 401, "Authentication error, user ID not found.");
     }
 
+    // Issue #977: the push toggles are now all genuinely enforced by
+    // notificationService (previously only two of six were read by anything).
     const allowedFields = [
       "emailMeetingReminders",
       "emailTaskAssignments",
@@ -230,6 +231,9 @@ export const updatePreferences = async (req, res) => {
       "pushMeetingReminders",
       "pushTaskAssignments",
       "pushAiProcessingComplete",
+      "pushOrganizationUpdates",
+      "pushPolicyUpdates",
+      "pushReportUpdates",
     ];
 
     const updates = {};

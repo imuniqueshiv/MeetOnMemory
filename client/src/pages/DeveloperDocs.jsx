@@ -22,20 +22,54 @@ import {
 // API Endpoints Catalog
 const API_ENDPOINTS = [
   {
-    id: "auth-login",
+    id: "auth-is-auth",
     category: "Authentication",
-    method: "POST",
-    path: "/api/auth/login",
-    title: "User Login",
-    description: "Authenticate user credentials and receive JWT access token.",
-    authRequired: false,
-    requestBody: {
-      email: "developer@example.com",
-      password: "securepassword123",
-    },
+    method: "GET",
+    path: "/api/auth/is-auth",
+    title: "Check Session",
+    description:
+      "Verify the current Clerk Bearer session and confirm the linked MongoDB user.",
+    authRequired: true,
+    requestBody: null,
     response200: {
       success: true,
-      token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    },
+    snippets: {
+      curl: `curl -X GET http://localhost:4000/api/auth/is-auth \\
+  -H "Authorization: Bearer YOUR_CLERK_SESSION_JWT"`,
+      javascript: `fetch('http://localhost:4000/api/auth/is-auth', {
+  headers: { Authorization: 'Bearer YOUR_CLERK_SESSION_JWT' }
+})
+.then(res => res.json())
+.then(data => console.log(data));`,
+      nodejs: `const axios = require('axios');
+
+const res = await axios.get('http://localhost:4000/api/auth/is-auth', {
+  headers: { Authorization: 'Bearer YOUR_CLERK_SESSION_JWT' }
+});
+console.log(res.data);`,
+      python: `import requests
+
+url = "http://localhost:4000/api/auth/is-auth"
+headers = {"Authorization": "Bearer YOUR_CLERK_SESSION_JWT"}
+
+response = requests.get(url, headers=headers)
+print(response.json())`,
+    },
+  },
+  {
+    id: "auth-sync-clerk",
+    category: "Authentication",
+    method: "POST",
+    path: "/api/auth/sync-clerk-user",
+    title: "Sync Clerk User",
+    description:
+      "Provision or link the Clerk identity to a MongoDB user (idempotent).",
+    authRequired: true,
+    requestBody: {},
+    response200: {
+      success: true,
+      message: "User synchronized successfully",
       user: {
         id: "65f2a1b3c8e90d1234567890",
         name: "Dev User",
@@ -44,30 +78,37 @@ const API_ENDPOINTS = [
       },
     },
     snippets: {
-      curl: `curl -X POST http://localhost:4000/api/auth/login \\
+      curl: `curl -X POST http://localhost:4000/api/auth/sync-clerk-user \\
+  -H "Authorization: Bearer YOUR_CLERK_SESSION_JWT" \\
   -H "Content-Type: application/json" \\
-  -d '{"email": "developer@example.com", "password": "securepassword123"}'`,
-      javascript: `fetch('http://localhost:4000/api/auth/login', {
+  -d '{}'`,
+      javascript: `fetch('http://localhost:4000/api/auth/sync-clerk-user', {
   method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ email: 'developer@example.com', password: 'securepassword123' })
+  headers: {
+    Authorization: 'Bearer YOUR_CLERK_SESSION_JWT',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({})
 })
 .then(res => res.json())
 .then(data => console.log(data));`,
       nodejs: `const axios = require('axios');
 
-const res = await axios.post('http://localhost:4000/api/auth/login', {
-  email: 'developer@example.com',
-  password: 'securepassword123'
-});
+const res = await axios.post(
+  'http://localhost:4000/api/auth/sync-clerk-user',
+  {},
+  { headers: { Authorization: 'Bearer YOUR_CLERK_SESSION_JWT' } }
+);
 console.log(res.data);`,
       python: `import requests
 
-url = "http://localhost:4000/api/auth/login"
-payload = {"email": "developer@example.com", "password": "securepassword123"}
-headers = {"Content-Type": "application/json"}
+url = "http://localhost:4000/api/auth/sync-clerk-user"
+headers = {
+  "Authorization": "Bearer YOUR_CLERK_SESSION_JWT",
+  "Content-Type": "application/json",
+}
 
-response = requests.post(url, json=payload, headers=headers)
+response = requests.post(url, json={}, headers=headers)
 print(response.json())`,
     },
   },
@@ -718,14 +759,18 @@ const DeveloperDocs = () => {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                        Authenticate & Obtain JWT Token
+                        Authenticate with Clerk
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        Send a POST request to{" "}
+                        Sign in via the MeetOnMemory Clerk UI (
                         <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-400">
-                          /api/auth/login
+                          /login
+                        </code>
+                        ). Use the Clerk session JWT as{" "}
+                        <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-400">
+                          Authorization: Bearer …
                         </code>{" "}
-                        with your credentials to get an access token.
+                        on API requests.
                       </p>
                     </div>
                   </div>

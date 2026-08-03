@@ -10,12 +10,14 @@ const ProtectedRoute = ({
   action,
   forbiddenFallback,
 }) => {
-  const { isLoggedin, userData, loading, isLoading } = useContext(AppContent);
+  const { isLoggedin, userData, loading } = useContext(AppContent);
   const { hasPermission } = useRBAC();
   const location = useLocation();
 
-  // Show loading while fetching user data
-  if (loading || isLoading) {
+  // Hold the route until ClerkSessionSync finishes Mongo bootstrap.
+  // Redirecting while loading=false && !isLoggedin during a transient failure
+  // races Clerk's signed-in redirect back to /dashboard.
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         Loading...

@@ -27,6 +27,7 @@ import useMeetingUpload from "../hooks/useMeetingUpload";
 import Dropzone from "../components/meetings/Dropzone.jsx";
 import MeetingRecorder from "../components/meetings/MeetingRecorder.jsx";
 import TagAutocomplete from "../components/meetings/TagAutocomplete.jsx";
+import { createClerkSocketOptions } from "../services/apiClient.js";
 
 const UploadMeeting = () => {
   const { userData } = useContext(AppContent);
@@ -69,8 +70,15 @@ const UploadMeeting = () => {
   // Real-time listener for MoM completion
   const { backendUrl } = useContext(AppContent);
   useEffect(() => {
-    if (userData && backendUrl) {
-      const socket = io(backendUrl, { withCredentials: true });
+    if (!userData || !backendUrl) return;
+
+    let socket;
+    let cancelled = false;
+
+    (async () => {
+      const opts = await createClerkSocketOptions();
+      if (cancelled) return;
+      socket = io(backendUrl, opts);
       socket.on("mom-generation-complete", (data) => {
         if (data && data.meetingId) {
           // If the completed meeting matches our current meeting, update UI
@@ -81,10 +89,12 @@ const UploadMeeting = () => {
           setIsSummarizing(false);
         }
       });
-      return () => {
-        socket.disconnect();
-      };
-    }
+    })();
+
+    return () => {
+      cancelled = true;
+      socket?.disconnect();
+    };
   }, [userData, backendUrl]);
 
   // New fields for required date + optional title

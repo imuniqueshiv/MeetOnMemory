@@ -70,6 +70,16 @@ const MembersManagement = () => {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setInviteModalOpen(false);
+        setRemoveModalUser(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
   const handleInvite = async (e) => {
     e.preventDefault();
     if (!inviteForm.email.trim()) return;
@@ -343,6 +353,7 @@ const MembersManagement = () => {
               <button
                 onClick={() => setInviteModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600"
+                aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>

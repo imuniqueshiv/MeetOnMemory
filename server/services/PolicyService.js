@@ -23,8 +23,27 @@ import {
   removePolicyFromIndex,
   reevaluatePolicyDecisions,
 } from "./policyComplianceService.js";
-import { NotFoundError, ValidationError } from "../utils/errors.js";
+import {
+  NotFoundError,
+  ValidationError,
+  ForbiddenError,
+} from "../utils/errors.js";
 import { computeLineDiff } from "../utils/lineDiff.js";
+
+const _assertPolicyAccess = (policy, userId, orgId) => {
+  const isUploader =
+    policy.uploadedBy &&
+    userId &&
+    policy.uploadedBy.toString() === userId.toString();
+  const isInOrg =
+    policy.organization &&
+    orgId &&
+    policy.organization.toString() === orgId.toString();
+
+  if (!isUploader && !isInOrg) {
+    throw new ForbiddenError("Not authorized to access this policy.");
+  }
+};
 
 // ── pdf-parse (CJS module — requires dynamic require) ──────────
 const require = createRequire(import.meta.url);
@@ -300,9 +319,17 @@ export const uploadAndProcessPolicy = async (
  * @param {string} policyId - ObjectId of the policy to re-analyze
  * @returns {Promise<Policy>}
  */
-export const reanalyzePolicy = async (policyId) => {
+export const reanalyzePolicy = async (
+  policyId,
+  userId = null,
+  orgId = null,
+) => {
   const policy = await Policy.findById(policyId);
   if (!policy) throw new NotFoundError("Policy not found.");
+
+  if (userId || orgId) {
+    _assertPolicyAccess(policy, userId, orgId);
+  }
 
   const safeFileUrl = _validateUploadPath(policy.fileUrl);
 
@@ -375,9 +402,17 @@ export const getAllPolicies = async (userId, orgId) => {
  * @param {string} policyId
  * @returns {Promise<{safeFilePath: string, fileName: string}>}
  */
-export const getPolicyDownloadPath = async (policyId) => {
+export const getPolicyDownloadPath = async (
+  policyId,
+  userId = null,
+  orgId = null,
+) => {
   const policy = await Policy.findById(policyId);
   if (!policy) throw new NotFoundError("Policy not found.");
+
+  if (userId || orgId) {
+    _assertPolicyAccess(policy, userId, orgId);
+  }
 
   const safeFilePath = _validateUploadPath(policy.fileUrl);
 

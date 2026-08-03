@@ -1,6 +1,6 @@
 import api from "./apiClient";
 
-const COMPARISON_URL = "/comparison";
+const COMPARISON_URL = "/api/comparison";
 
 // Compare two meetings
 export const compareMeetings = async (meetingIdA, meetingIdB) => {

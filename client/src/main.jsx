@@ -8,6 +8,7 @@ import { BrowserRouter } from "react-router-dom";
 import { AppContextProvider } from "./context/AppContext.jsx";
 import { ThemeProvider } from "./context/ThemeContext.jsx";
 import { ClerkAuthProvider } from "./context/ClerkAuthProvider.jsx";
+import { ClerkSessionSync } from "./components/ClerkSessionSync.jsx";
 import { AssistantProvider } from "./context/AssistantContext.jsx";
 import { registerSW } from "virtual:pwa-register";
 
@@ -28,6 +29,7 @@ createRoot(document.getElementById("root")).render(
     <ClerkAuthProvider>
       <ThemeProvider>
         <AppContextProvider>
+          <ClerkSessionSync />
           <AssistantProvider>
             <App />
           </AssistantProvider>

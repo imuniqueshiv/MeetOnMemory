@@ -3,6 +3,7 @@ import Tag from "../models/tagModel.js";
 import Meeting from "../models/meetingModel.js";
 import { sendSuccess } from "../utils/responseHandler.js";
 import { ValidationError, NotFoundError } from "../utils/errors.js";
+import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
 
 // Validation schemas
 const createTagSchema = z.object({
@@ -153,9 +154,9 @@ export const getMeetingsByTag = async (req, res, next) => {
   try {
     const { name } = req.params;
     const orgId = req.user.organization;
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(req.query, {
+      defaultLimit: 10,
+    });
 
     const query = { organization: orgId, tags: name };
 
@@ -166,12 +167,14 @@ export const getMeetingsByTag = async (req, res, next) => {
       .populate("uploadedBy", "name email");
 
     const total = await Meeting.countDocuments(query);
+    const pagination = buildPaginationMeta({ total, page, limit });
 
     return sendSuccess(res, {
       meetings,
-      currentPage: page,
-      totalPages: Math.ceil(total / limit),
-      totalCount: total,
+      currentPage: pagination.page,
+      totalPages: pagination.totalPages,
+      totalCount: pagination.total,
+      pagination,
     });
   } catch (err) {
     next(err);
