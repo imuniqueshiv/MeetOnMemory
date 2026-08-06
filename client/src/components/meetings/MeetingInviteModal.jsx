@@ -7,6 +7,9 @@ import {
   ToggleLeft,
   ToggleRight,
   X,
+  Mail,
+  Plus,
+  Send,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { meetingApi } from "../../services";
@@ -14,11 +17,20 @@ import { meetingApi } from "../../services";
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const MeetingInviteModal = ({ isOpen, onClose, meetingId, title }) => {
   const [invite, setInvite] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [expiresAt, setExpiresAt] = useState("");
+
+  // Participant Email Invitation State (#1231)
+  const [participantEmail, setParticipantEmail] = useState("");
+  const [invitedEmails, setInvitedEmails] = useState([]);
+  const [emailError, setEmailError] = useState("");
+  const [sendingInvites, setSendingInvites] = useState(false);
+
   const titleId = useId();
   const dialogRef = useRef(null);
   const closeButtonRef = useRef(null);
@@ -52,7 +64,12 @@ const MeetingInviteModal = ({ isOpen, onClose, meetingId, title }) => {
   }, [meetingId]);
 
   useEffect(() => {
-    if (isOpen) loadInvite();
+    if (isOpen) {
+      loadInvite();
+      setParticipantEmail("");
+      setEmailError("");
+      setInvitedEmails([]);
+    }
   }, [isOpen, loadInvite]);
 
   useEffect(() => {
@@ -157,6 +174,63 @@ const MeetingInviteModal = ({ isOpen, onClose, meetingId, title }) => {
     }
   };
 
+  // Participant Email Validation & Actions (#1231)
+  const handleAddParticipantEmail = (e) => {
+    e?.preventDefault();
+    const trimmed = participantEmail.trim();
+
+    if (!trimmed) {
+      setEmailError("Email address cannot be empty.");
+      return;
+    }
+
+    if (!EMAIL_REGEX.test(trimmed)) {
+      setEmailError("Please enter a valid email address.");
+      return;
+    }
+
+    if (invitedEmails.some((e) => e.toLowerCase() === trimmed.toLowerCase())) {
+      setEmailError("This email has already been added.");
+      return;
+    }
+
+    setEmailError("");
+    setInvitedEmails((prev) => [...prev, trimmed]);
+    setParticipantEmail("");
+  };
+
+  const handleRemoveEmail = (emailToRemove) => {
+    setInvitedEmails((prev) => prev.filter((e) => e !== emailToRemove));
+  };
+
+  const handleSendInvitations = async () => {
+    if (invitedEmails.length === 0) {
+      setEmailError(
+        "Add at least one participant email before sending invites.",
+      );
+      return;
+    }
+
+    setSendingInvites(true);
+    setEmailError("");
+
+    try {
+      if (meetingApi.sendEmailInvites) {
+        await meetingApi.sendEmailInvites(meetingId, { emails: invitedEmails });
+      }
+      toast.success(
+        `Invitations sent to ${invitedEmails.length} participant(s).`,
+      );
+      setInvitedEmails([]);
+    } catch (err) {
+      toast.error(
+        err.response?.data?.message || "Failed to send email invitations.",
+      );
+    } finally {
+      setSendingInvites(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -190,7 +264,7 @@ const MeetingInviteModal = ({ isOpen, onClose, meetingId, title }) => {
             ref={closeButtonRef}
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
             aria-label="Close invite dialog"
           >
             <X className="h-4 w-4" />
@@ -205,6 +279,7 @@ const MeetingInviteModal = ({ isOpen, onClose, meetingId, title }) => {
             </div>
           ) : (
             <>
+              {/* Link Invite Section */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/50">
                 <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <Link2 className="h-3.5 w-3.5" />
@@ -228,7 +303,7 @@ const MeetingInviteModal = ({ isOpen, onClose, meetingId, title }) => {
                   type="button"
                   onClick={copyLink}
                   disabled={!inviteUrl || busy}
-                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 cursor-pointer"
                 >
                   <Copy className="h-4 w-4" />
                   Copy link
@@ -237,7 +312,7 @@ const MeetingInviteModal = ({ isOpen, onClose, meetingId, title }) => {
                   type="button"
                   onClick={regenerate}
                   disabled={busy}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
                 >
                   <RefreshCw className="h-4 w-4" />
                   Regenerate
@@ -246,7 +321,7 @@ const MeetingInviteModal = ({ isOpen, onClose, meetingId, title }) => {
                   type="button"
                   onClick={toggleEnabled}
                   disabled={busy || !invite}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
                 >
                   {invite?.enabled ? (
                     <ToggleRight className="h-4 w-4 text-emerald-600" />
@@ -257,7 +332,94 @@ const MeetingInviteModal = ({ isOpen, onClose, meetingId, title }) => {
                 </button>
               </div>
 
-              <div className="space-y-2">
+              {/* Direct Participant Email Invitation Section (#1231) */}
+              <div className="border-t border-slate-200 pt-4 dark:border-slate-800 space-y-2">
+                <label
+                  htmlFor="participant-email-input"
+                  className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  Invite Participants by Email
+                </label>
+                <form
+                  noValidate
+                  onSubmit={handleAddParticipantEmail}
+                  className="flex flex-col gap-2 sm:flex-row"
+                >
+                  <input
+                    id="participant-email-input"
+                    type="email"
+                    value={participantEmail}
+                    onChange={(e) => {
+                      setParticipantEmail(e.target.value);
+                      if (emailError) setEmailError("");
+                    }}
+                    placeholder="Enter participant email..."
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 text-slate-900 dark:text-white placeholder:text-slate-400"
+                  />
+                  <button
+                    type="submit"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 cursor-pointer shrink-0"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add
+                  </button>
+                </form>
+
+                {emailError && (
+                  <p
+                    role="alert"
+                    className="text-xs font-medium text-red-500 dark:text-red-400"
+                  >
+                    {emailError}
+                  </p>
+                )}
+
+                {/* Email List */}
+                {invitedEmails.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      {invitedEmails.map((email) => (
+                        <span
+                          key={email}
+                          className="inline-flex items-center gap-1.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900"
+                        >
+                          {email}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEmail(email)}
+                            className="rounded p-0.5 hover:bg-indigo-100 dark:hover:bg-indigo-900 cursor-pointer"
+                            aria-label={`Remove ${email}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSendInvitations}
+                      disabled={sendingInvites}
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer transition-colors"
+                    >
+                      {sendingInvites ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                      <span>
+                        {sendingInvites
+                          ? "Sending Invitations..."
+                          : `Send ${invitedEmails.length} Invitation(s)`}
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Expiration Section */}
+              <div className="border-t border-slate-200 pt-4 dark:border-slate-800 space-y-2">
                 <label
                   htmlFor="meeting-invite-expires"
                   className="block text-xs font-semibold uppercase tracking-wide text-slate-500"
@@ -276,7 +438,7 @@ const MeetingInviteModal = ({ isOpen, onClose, meetingId, title }) => {
                     type="button"
                     onClick={saveExpiration}
                     disabled={busy}
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 disabled:opacity-50"
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
                   >
                     Save
                   </button>
