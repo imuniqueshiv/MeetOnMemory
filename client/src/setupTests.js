@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom";
+import { vi } from "vitest";
 
 // jsdom does not implement IntersectionObserver. Provide a minimal browser-like
 // constructor so components that call `new IntersectionObserver(...)` work in tests.
@@ -42,3 +43,5 @@ if (typeof globalThis.IntersectionObserver === "undefined") {
     }
   };
 }
+
+vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "pk_test_bW9jay1jbGVyay1rZXk");

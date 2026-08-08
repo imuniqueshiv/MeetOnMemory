@@ -23,13 +23,13 @@ If a file also contains calendar logic, **relocate calendar handlers first** (Ph
 
 ## Frontend
 
-| File                                 | Why obsolete after cutover        |
-| ------------------------------------ | --------------------------------- |
-| `client/src/services/csrfService.js` | No app CSRF                       |
-| `client/src/services/authApi.js`     | Legacy `/api/auth/*` identity API |
-| `client/src/pages/Login.jsx`         | Replaced by Clerk UI              |
-| `client/src/pages/EmailVerify.jsx`   | Clerk email verification          |
-| `client/src/pages/ResetPassword.jsx` | Clerk password reset              |
+| File                                     | Why obsolete after cutover                               |
+| ---------------------------------------- | -------------------------------------------------------- |
+| ~~`client/src/services/csrfService.js`~~ | **Removed** (Issue #1139) — unused after Clerk migration |
+| `client/src/services/authApi.js`         | Legacy `/api/auth/*` identity API                        |
+| `client/src/pages/Login.jsx`             | Replaced by Clerk UI                                     |
+| `client/src/pages/EmailVerify.jsx`       | Clerk email verification                                 |
+| `client/src/pages/ResetPassword.jsx`     | Clerk password reset                                     |
 
 ---
 
@@ -43,7 +43,7 @@ If a file also contains calendar logic, **relocate calendar handlers first** (Ph
 | `server/tests/authVerifyEmailRegression.test.js`    | OTP verify                                               |
 | `server/tests/csrfErrors.test.js`                   | CSRF errors                                              |
 | `server/tests/helpers/csrfHelper.js`                | CSRF test helper (replace with Clerk test helpers first) |
-| `client/src/services/__tests__/csrfService.test.js` | CSRF client                                              |
+| `client/src/services/__tests__/csrfService.test.js` | **Removed with** `csrfService.js` (Issue #1139)          |
 | `client/src/services/__tests__/authApi.test.js`     | Legacy auth API                                          |
 
 Rewrite (do not silently delete without replacements): integration tests that only exist to exercise cookie+CSRF login (`integration.test.js` patterns).

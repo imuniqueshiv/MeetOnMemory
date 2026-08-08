@@ -13,8 +13,12 @@ class TranscriptAnnotationService {
       throw new Error("Transcript not found");
     }
 
-    // Validate meeting access logic should ideally be handled by controller,
-    // but here we just ensure the transcript belongs to the meeting
+    // Consistency, not authorization. This asserts the two ids the caller
+    // supplied refer to the same meeting — it says nothing about whether the
+    // *user* may reach that meeting, and two ids belonging to the same foreign
+    // meeting satisfy it perfectly. The access check now lives in
+    // `createAnnotation` in the controller, which is the layer that has the
+    // request's user (Issue #1274).
     if (transcript.meeting.toString() !== data.meeting.toString()) {
       throw new Error("Transcript does not belong to this meeting");
     }

@@ -1,5 +1,7 @@
 import Bookmark from "../models/bookmarkModel.js";
+import Meeting from "../models/meetingModel.js";
 import mongoose from "mongoose";
+import { isSameOrganization } from "../utils/authUtils.js";
 
 // @desc    Toggle bookmark (add if missing, remove if exists)
 // @route   POST /api/bookmarks/toggle
@@ -13,9 +15,26 @@ export const toggleBookmark = async (req, res) => {
       return res.status(400).json({ message: "meetingId is required" });
     }
 
+    if (!mongoose.Types.ObjectId.isValid(meetingId)) {
+      return res.status(400).json({ message: "Invalid meetingId" });
+    }
+
+    // Validate meeting existence and organization ownership
+    const meeting =
+      await Meeting.findById(meetingId).select("organization _id");
+    if (!meeting) {
+      return res.status(404).json({ message: "Meeting not found" });
+    }
+
+    if (!isSameOrganization(req.user, meeting)) {
+      return res.status(403).json({
+        message: "Meeting does not belong to your organization",
+      });
+    }
+
     const existingBookmark = await Bookmark.findOne({
       user: userId,
-      meeting: String(meetingId),
+      meeting: meetingId,
     });
 
     if (existingBookmark) {

@@ -112,6 +112,21 @@ describe("RBAC Permissions Utils", () => {
       );
       expect(hasPermission("admin", "audit_logs", "view")).toBe(true);
       expect(hasPermission("member", "audit_logs", "view")).toBe(false);
+      expect(hasPermission("admin", "automation_rules", "view")).toBe(true);
+      expect(hasPermission("owner", "automation_rules", "create")).toBe(true);
+      expect(hasPermission("member", "automation_rules", "view")).toBe(false);
+      expect(hasPermission("moderator", "automation_rules", "edit")).toBe(
+        false,
+      );
+    });
+
+    it("rejects the previous invalid Automation Rules mapping (#1126)", () => {
+      // resource was singular "organization" and action "manage" — neither exists
+      expect(hasPermission("admin", "organization", "manage")).toBe(false);
+      expect(hasPermission("owner", "organization", "manage")).toBe(false);
+      expect(PERMISSIONS.organization).toBeUndefined();
+      expect(PERMISSIONS.organizations.manage).toBeUndefined();
+      expect(PERMISSIONS.automation_rules).toBeDefined();
     });
 
     it("allows viewer search/view but blocks meeting mutation", () => {

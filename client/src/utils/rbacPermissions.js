@@ -77,6 +77,12 @@ export const PERMISSIONS = {
     view: ["owner", "admin", "moderator", "member"],
     export: ["owner", "admin", "moderator"],
   },
+  // Analytics permissions (including attendance analytics)
+  analytics: {
+    view: ["owner", "admin", "moderator"],
+    export: ["owner", "admin"],
+    manage: ["owner", "admin"],
+  },
   // Admin Panel permissions
   admin_panel: {
     view: ["owner", "admin"],
@@ -101,6 +107,13 @@ export const PERMISSIONS = {
   // Audit Logs permissions
   audit_logs: {
     view: ["owner", "admin"],
+  },
+  // Automation Rules permissions (org admins / owners only)
+  automation_rules: {
+    view: ["owner", "admin"],
+    create: ["owner", "admin"],
+    edit: ["owner", "admin"],
+    delete: ["owner", "admin"],
   },
 };
 

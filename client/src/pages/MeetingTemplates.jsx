@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar.jsx";
+import RoleGate from "../components/RoleGate.jsx";
 import { meetingTemplateApi } from "../services";
 import { toast } from "react-toastify";
 import {
@@ -423,12 +424,14 @@ const MeetingTemplates = () => {
                       </button>
                     </div>
 
-                    <button
-                      onClick={() => handleUseTemplate(tpl)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 cursor-pointer shadow-xs"
-                    >
-                      Use Template <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    <RoleGate resource="meetings" action="create">
+                      <button
+                        onClick={() => handleUseTemplate(tpl)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 cursor-pointer shadow-xs"
+                      >
+                        Use Template <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </RoleGate>
                   </div>
                 </div>
               ))}
@@ -734,16 +737,18 @@ const MeetingTemplates = () => {
               >
                 Close
               </button>
-              <button
-                onClick={() => {
-                  closeModal();
-                  handleUseTemplate(selectedTemplate);
-                }}
-                className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 cursor-pointer shadow-xs flex items-center gap-1"
-              >
-                Create Meeting with Template{" "}
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              <RoleGate resource="meetings" action="create">
+                <button
+                  onClick={() => {
+                    closeModal();
+                    handleUseTemplate(selectedTemplate);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 cursor-pointer shadow-xs flex items-center gap-1"
+                >
+                  Create Meeting with Template{" "}
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </RoleGate>
             </div>
           </div>
         </div>

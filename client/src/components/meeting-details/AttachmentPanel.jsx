@@ -123,14 +123,16 @@ const AttachmentPanel = ({ meetingId }) => {
 
   const getFileIcon = (mimeType) => {
     if (mimeType.includes("pdf"))
-      return <FileText className="w-6 h-6 text-red-500" />;
+      return <FileText className="w-6 h-6 text-red-500 dark:text-red-400" />;
     if (mimeType.includes("image"))
-      return <ImageIcon className="w-6 h-6 text-blue-500" />;
+      return <ImageIcon className="w-6 h-6 text-blue-500 dark:text-blue-400" />;
     if (mimeType.includes("word"))
-      return <FileText className="w-6 h-6 text-blue-700" />;
+      return <FileText className="w-6 h-6 text-blue-700 dark:text-blue-300" />;
     if (mimeType.includes("presentation"))
-      return <FileText className="w-6 h-6 text-orange-500" />;
-    return <File className="w-6 h-6 text-gray-500" />;
+      return (
+        <FileText className="w-6 h-6 text-orange-500 dark:text-orange-400" />
+      );
+    return <File className="w-6 h-6 text-gray-500 dark:text-slate-400" />;
   };
 
   const formatFileSize = (bytes) => {
@@ -142,10 +144,10 @@ const AttachmentPanel = ({ meetingId }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+    <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-gray-200 dark:border-slate-800 p-6 mb-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Paperclip className="w-5 h-5 text-gray-500" />
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <Paperclip className="w-5 h-5 text-gray-500 dark:text-slate-400" />
           Attachments
         </h2>
         <div>
@@ -158,9 +160,10 @@ const AttachmentPanel = ({ meetingId }) => {
             accept=".pdf,.docx,.pptx,.jpg,.jpeg,.png,.gif"
           />
           <button
+            type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-md transition-colors text-sm font-medium"
+            className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-md transition-colors text-sm font-medium cursor-pointer disabled:opacity-50"
           >
             <Upload className="w-4 h-4" />
             Upload File
@@ -170,13 +173,13 @@ const AttachmentPanel = ({ meetingId }) => {
 
       {uploading && (
         <div className="mb-4">
-          <div className="flex justify-between text-xs text-gray-500 mb-1">
+          <div className="flex justify-between text-xs text-gray-500 dark:text-slate-400 mb-1">
             <span>Uploading...</span>
             <span>{progress}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-gray-200 dark:bg-slate-800 rounded-full h-2">
             <div
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             ></div>
           </div>
@@ -184,34 +187,36 @@ const AttachmentPanel = ({ meetingId }) => {
       )}
 
       {loading ? (
-        <div className="text-center py-6 text-gray-500 text-sm animate-pulse">
+        <div className="text-center py-6 text-gray-500 dark:text-slate-400 text-sm animate-pulse">
           Loading attachments...
         </div>
       ) : attachments.length === 0 ? (
-        <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-          <Paperclip className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-          <p className="text-gray-500 text-sm">No attachments yet</p>
-          <p className="text-gray-400 text-xs mt-1">
+        <div className="text-center py-8 bg-gray-50 dark:bg-slate-950/50 rounded-lg border border-dashed border-gray-300 dark:border-slate-800">
+          <Paperclip className="w-8 h-8 text-gray-400 dark:text-slate-500 mx-auto mb-2" />
+          <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">
+            No attachments yet
+          </p>
+          <p className="text-gray-400 dark:text-slate-500 text-xs mt-1">
             Upload PDF, DOCX, PPTX, or Images (Max 10MB)
           </p>
         </div>
       ) : (
-        <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
+        <ul className="divide-y divide-gray-100 dark:divide-slate-800 border border-gray-100 dark:border-slate-800 rounded-lg overflow-hidden">
           {attachments.map((file) => (
             <li
               key={file._id}
-              className="flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors"
             >
               <div className="flex items-center gap-3 overflow-hidden">
                 {getFileIcon(file.mimeType)}
                 <div className="min-w-0">
                   <p
-                    className="text-sm font-medium text-gray-900 truncate"
+                    className="text-sm font-medium text-gray-900 dark:text-slate-100 truncate"
                     title={file.fileName}
                   >
                     {file.fileName}
                   </p>
-                  <p className="text-xs text-gray-500 flex items-center gap-2">
+                  <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-2">
                     <span>{formatFileSize(file.fileSize)}</span>
                     <span>•</span>
                     <span>{file.uploadedBy?.name || "Unknown"}</span>
@@ -222,16 +227,18 @@ const AttachmentPanel = ({ meetingId }) => {
               </div>
               <div className="flex items-center gap-2 flex-shrink-0 ml-4">
                 <button
+                  type="button"
                   onClick={() => handleDownload(file)}
-                  className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                  className="p-1.5 text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-md transition-colors cursor-pointer"
                   title="Download"
                   aria-label="Download attachment"
                 >
                   <Download className="w-4 h-4" />
                 </button>
                 <button
+                  type="button"
                   onClick={() => handleDelete(file._id)}
-                  className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                  className="p-1.5 text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-md transition-colors cursor-pointer"
                   title="Delete"
                   aria-label="Delete attachment"
                 >

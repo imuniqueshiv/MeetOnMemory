@@ -10,6 +10,7 @@ import HybridSearchToggle from "../components/ai-search/HybridSearchToggle.jsx";
 import SearchSkeleton from "../components/ai-search/SearchSkeleton.jsx";
 import SearchEmptyState from "../components/ai-search/SearchEmptyState.jsx";
 import { apiClient } from "../services";
+import { sanitizeHtml } from "../utils/sanitizeHtml";
 
 // Modal Component for showing full details
 const ResultModal = ({ result, onClose }) => {
@@ -236,7 +237,9 @@ const AiSearch = () => {
         </h1>
         <p
           className="text-gray-600 dark:text-gray-400 mb-8 text-sm md:text-base max-w-2xl"
-          dangerouslySetInnerHTML={{ __html: t("aiSearch.subtitle") }}
+          dangerouslySetInnerHTML={{
+            __html: sanitizeHtml(t("aiSearch.subtitle")),
+          }}
         />
 
         {/* Search Input */}

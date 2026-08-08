@@ -1,17 +1,129 @@
 import Meeting from "../models/meetingModel.js";
 import { hasPermission } from "../utils/rbacPermissions.js";
 import streamingTranscriptionService from "../services/StreamingTranscriptionService.js";
-import authenticateSocket from "../middleware/socketAuth.js";
+import { getRedisClient } from "../services/redisService.js";
+
+/**
+ * Meeting Socket Handler with Multi-Instance Presence Support
+ *
+ * This module handles real-time meeting presence and synchronization across
+ * multiple server instances using Redis for distributed state management.
+ *
+ * Key Features:
+ * - Distributed presence tracking via Redis
+ * - Room-based user management
+ * - WebRTC signaling relay
+ * - Timer synchronization
+ * - Transcription session management
+ */
+
+// Redis key prefixes for presence tracking
+const PRESENCE_KEY_PREFIX = "meeting:presence:";
+const PRESENCE_TTL_SECONDS = 300; // 5 minutes
+
+/**
+ * Get presence data from Redis or fallback to local state
+ * @param {string} roomId - Meeting room ID
+ * @param {Map} localCache - Local fallback cache
+ * @returns {Promise<Array>} Array of users in room
+ */
+const getRoomPresence = async (roomId, localCache) => {
+  try {
+    const redis = getRedisClient();
+    if (redis && redis.isOpen) {
+      const key = `${PRESENCE_KEY_PREFIX}${roomId}`;
+      const data = await redis.get(key);
+      if (data) {
+        return JSON.parse(data);
+      }
+    }
+  } catch (error) {
+    console.warn(
+      "Redis presence lookup failed, using local cache:",
+      error.message,
+    );
+  }
+
+  // Fallback to local cache
+  return localCache.get(roomId) || [];
+};
+
+/**
+ * Update presence data in Redis and local cache
+ * @param {string} roomId - Meeting room ID
+ * @param {Array} users - Array of users
+ * @param {Map} localCache - Local fallback cache
+ */
+const updateRoomPresence = async (roomId, users, localCache) => {
+  // Update local cache
+  if (users.length > 0) {
+    localCache.set(roomId, users);
+  } else {
+    localCache.delete(roomId);
+  }
+
+  // Update Redis
+  try {
+    const redis = getRedisClient();
+    if (redis && redis.isOpen) {
+      const key = `${PRESENCE_KEY_PREFIX}${roomId}`;
+      if (users.length > 0) {
+        await redis.setEx(key, PRESENCE_TTL_SECONDS, JSON.stringify(users));
+      } else {
+        await redis.del(key);
+      }
+    }
+  } catch (error) {
+    console.warn("Redis presence update failed:", error.message);
+  }
+};
+
+/**
+ * Remove user from room presence
+ * @param {string} roomId - Meeting room ID
+ * @param {string} socketId - Socket ID to remove
+ * @param {Map} localCache - Local fallback cache
+ * @returns {Promise<Array>} Updated users array
+ */
+const removeUserFromRoom = async (roomId, socketId, localCache) => {
+  const users = await getRoomPresence(roomId, localCache);
+  const filtered = users.filter((u) => u.socketId !== socketId);
+  await updateRoomPresence(roomId, filtered, localCache);
+  return filtered;
+};
+
+/**
+ * Add user to room presence
+ * @param {string} roomId - Meeting room ID
+ * @param {Object} user - User object to add
+ * @param {Map} localCache - Local fallback cache
+ * @returns {Promise<Array>} Updated users array
+ */
+const addUserToRoom = async (roomId, user, localCache) => {
+  const users = await getRoomPresence(roomId, localCache);
+
+  // Prevent duplicate entries
+  const existing = users.find((u) => u.socketId === user.socketId);
+  if (!existing) {
+    users.push(user);
+  }
+
+  await updateRoomPresence(roomId, users, localCache);
+  return users;
+};
 
 export default (io) => {
-  const usersInRoom = {}; // roomId -> Array of { socketId, ...userInfo }
-  const socketToRoom = {}; // socketId -> roomId
-  const roomTimers = {}; // roomId -> { isRunning: boolean, elapsed: number, remaining: number, currentAgendaItem: null | string, lastUpdate: number }
-
-  // Authentication Middleware with Clerk & Dual Auth support
-  io.use(authenticateSocket);
+  // Local fallback caches for when Redis is unavailable
+  const localUsersInRoom = new Map(); // roomId -> Array of users
+  const localSocketToRoom = new Map(); // socketId -> roomId
+  const roomTimers = {}; // roomId -> timer state (still local as timers are instance-specific)
 
   io.on("connection", (socket) => {
+    /**
+     * Check if user has access to a specific meeting
+     * @param {string} meetingId - Meeting ID to check
+     * @returns {Promise<boolean>} True if user has access
+     */
     const canAccessMeeting = async (meetingId) => {
       if (
         !socket.userRole ||
@@ -36,6 +148,7 @@ export default (io) => {
 
       return isOwner || isInSameOrg;
     };
+
     console.log("🟢 User connected:", socket.id, "User ID:", socket.userId);
 
     // Join a personal room for notifications
@@ -43,7 +156,10 @@ export default (io) => {
       socket.join(socket.userId.toString());
     }
 
-    // Join room
+    /**
+     * Join a meeting room
+     * Handles distributed presence tracking across multiple server instances
+     */
     socket.on("join-meeting", async ({ roomId, userInfo }) => {
       try {
         // RBAC: Check if user has permission to view meetings
@@ -79,24 +195,36 @@ export default (io) => {
           return;
         }
 
-        // Initialize room array if not exists
-        if (!usersInRoom[roomId]) {
-          usersInRoom[roomId] = [];
-        }
+        // Create user object with socket ID using server-side
+        // authenticated data to prevent spoofing
+        const user = {
+          socketId: socket.id,
+          id: socket.userId,
+          userId: socket.userId,
+          name: socket.user?.name || "Anonymous",
+          email: socket.user?.email || "",
+          profilePic: socket.user?.profilePic || "",
+          role: socket.userRole || "member",
+        };
 
-        const user = { socketId: socket.id, ...userInfo };
-        usersInRoom[roomId].push(user);
-        socketToRoom[socket.id] = roomId;
+        // Add user to room presence (distributed via Redis)
+        const allUsersInRoom = await addUserToRoom(
+          roomId,
+          user,
+          localUsersInRoom,
+        );
+        localSocketToRoom.set(socket.id, roomId);
 
+        // Join the Socket.IO room (adapter handles cross-instance broadcasting)
         socket.join(roomId);
 
         // Tell the newly joined user about other users in the room
-        const usersInThisRoom = usersInRoom[roomId].filter(
-          (id) => id.socketId !== socket.id,
+        const usersInThisRoom = allUsersInRoom.filter(
+          (u) => u.socketId !== socket.id,
         );
         socket.emit("all-users", usersInThisRoom);
 
-        // Initialize timer state if it doesn't exist
+        // Initialize timer state if it doesn't exist (local state is fine for timers)
         if (!roomTimers[roomId]) {
           roomTimers[roomId] = {
             isRunning: false,
@@ -111,7 +239,6 @@ export default (io) => {
         if (roomTimers[roomId].isRunning) {
           const now = Date.now();
           const diff = Math.floor((now - roomTimers[roomId].lastUpdate) / 1000);
-          // We don't mutate elapsed here, just send the calculated value
           const syncState = {
             ...roomTimers[roomId],
             elapsed: roomTimers[roomId].elapsed + diff,
@@ -123,6 +250,7 @@ export default (io) => {
         }
 
         // Tell everyone else that a new user joined
+        // Socket.IO adapter ensures this reaches all instances
         socket.to(roomId).emit("user-joined", user);
         console.log(`User ${socket.id} joined room: ${roomId}`);
       } catch (error) {
@@ -131,13 +259,24 @@ export default (io) => {
       }
     });
 
-    // WebRTC Signaling: relaying signals
+    /**
+     * WebRTC Signaling: relaying signals between peers
+     * Socket.IO adapter ensures signals reach users on any instance
+     */
     socket.on("sending-signal", (payload) => {
       // payload: { userToSignal, callerID, signal }
       io.to(payload.userToSignal).emit("user-joined-signal", {
         signal: payload.signal,
         callerID: payload.callerID,
-        userInfo: payload.userInfo,
+        userInfo: {
+          socketId: socket.id,
+          id: socket.userId,
+          userId: socket.userId,
+          name: socket.user?.name || "Anonymous",
+          email: socket.user?.email || "",
+          profilePic: socket.user?.profilePic || "",
+          role: socket.userRole || "member",
+        },
       });
     });
 
@@ -149,7 +288,10 @@ export default (io) => {
       });
     });
 
-    // Toggle media state tracking (optional)
+    /**
+     * Toggle media state tracking (audio/video/screen)
+     * Broadcasts to all users in room across all instances
+     */
     socket.on("media-state-changed", ({ roomId, type, enabled }) => {
       socket.to(roomId).emit("user-media-changed", {
         socketId: socket.id,
@@ -158,28 +300,39 @@ export default (io) => {
       });
     });
 
-    // Disconnect handling
-    socket.on("disconnect", () => {
+    /**
+     * Handle user disconnection
+     * Removes user from distributed presence and notifies all instances
+     */
+    socket.on("disconnect", async () => {
       console.log("🔴 User disconnected:", socket.id);
-      const roomId = socketToRoom[socket.id];
-      let room = usersInRoom[roomId];
+      const roomId = localSocketToRoom.get(socket.id);
 
-      if (room) {
-        room = room.filter((u) => u.socketId !== socket.id);
-        usersInRoom[roomId] = room;
-        if (room.length === 0) {
-          delete usersInRoom[roomId];
+      if (roomId) {
+        // Remove user from distributed presence
+        const remainingUsers = await removeUserFromRoom(
+          roomId,
+          socket.id,
+          localUsersInRoom,
+        );
+
+        // Clean up timer if room is empty
+        if (remainingUsers.length === 0) {
           delete roomTimers[roomId];
           // End transcription session when last user leaves
           streamingTranscriptionService.endSession(roomId);
         }
-      }
 
-      socket.to(roomId).emit("user-left", socket.id);
-      delete socketToRoom[socket.id];
+        // Notify all instances about user leaving
+        // Socket.IO adapter ensures this reaches all connected clients
+        socket.to(roomId).emit("user-left", socket.id);
+        localSocketToRoom.delete(socket.id);
+      }
     });
 
-    // Start transcription session
+    /**
+     * Start transcription session for a meeting
+     */
     socket.on("start-transcription", async ({ roomId }) => {
       try {
         if (!(await canAccessMeeting(roomId))) {
@@ -199,7 +352,9 @@ export default (io) => {
       }
     });
 
-    // Stop transcription session
+    /**
+     * Stop transcription session for a meeting
+     */
     socket.on("stop-transcription", async ({ roomId }) => {
       try {
         if (!(await canAccessMeeting(roomId))) {
@@ -217,7 +372,9 @@ export default (io) => {
       }
     });
 
-    // Process audio data for transcription
+    /**
+     * Process audio data for transcription
+     */
     socket.on("audio-data", async ({ roomId, audioData }) => {
       try {
         if (!(await canAccessMeeting(roomId))) {
@@ -233,7 +390,10 @@ export default (io) => {
       }
     });
 
-    // Timer synchronization
+    /**
+     * Timer synchronization across all users in a meeting
+     * Timer state remains local as it's instance-specific
+     */
     socket.on("timer-control", ({ roomId, action, payload }) => {
       if (!roomTimers[roomId]) {
         roomTimers[roomId] = {
@@ -283,7 +443,28 @@ export default (io) => {
           break;
       }
 
+      // Broadcast timer state to all users in room (across all instances)
       io.to(roomId).emit("timer-sync", timer);
+    });
+
+    /**
+     * Request current room presence (for debugging/sync)
+     */
+    socket.on("get-room-presence", async ({ roomId }) => {
+      try {
+        if (!(await canAccessMeeting(roomId))) {
+          socket.emit("error", {
+            message: "Forbidden: You don't have access to this meeting",
+          });
+          return;
+        }
+
+        const users = await getRoomPresence(roomId, localUsersInRoom);
+        socket.emit("room-presence", { roomId, users });
+      } catch (error) {
+        console.error("Error getting room presence:", error);
+        socket.emit("error", { message: "Failed to get room presence" });
+      }
     });
   });
 };

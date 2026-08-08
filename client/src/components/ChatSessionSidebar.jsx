@@ -15,6 +15,7 @@ import {
  * - Search functionality for quick session navigation
  * - Collapsible sections for better space utilization
  * - Improved visual hierarchy and spacing
+ * - Clean non-nested interactive HTML structure for accessibility (#1229)
  */
 const ChatSessionSidebar = ({
   sessions,
@@ -74,13 +75,20 @@ const ChatSessionSidebar = ({
   const groupedSessions = groupSessionsByDate(filteredSessions);
 
   /**
-   * Render session item with improved styling and interactions
+   * Render session item with clean non-nested interactive elements (#1229)
    */
   const SessionItem = ({ session }) => (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelectSession(session.id)}
-      className={`group relative flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-all duration-150 ${
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelectSession(session.id);
+        }
+      }}
+      className={`group relative flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-all duration-150 cursor-pointer ${
         currentSessionId === session.id
           ? "bg-indigo-50 text-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-100"
           : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800/70"
@@ -100,13 +108,18 @@ const ChatSessionSidebar = ({
             onDeleteSession(session.id);
           }
         }}
-        className="shrink-0 rounded p-1 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 dark:hover:bg-red-950/40"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.stopPropagation();
+          }
+        }}
+        className="shrink-0 rounded p-1 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 dark:hover:bg-red-950/40 cursor-pointer"
         aria-label="Delete conversation"
         title="Delete conversation"
       >
         <Trash2 className="h-3 w-3" />
       </button>
-    </button>
+    </div>
   );
 
   /**
@@ -122,7 +135,7 @@ const ChatSessionSidebar = ({
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex w-full items-center justify-between px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+          className="flex w-full items-center justify-between px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 cursor-pointer"
         >
           <span>{title}</span>
           <ChevronDown
@@ -150,7 +163,7 @@ const ChatSessionSidebar = ({
           <button
             type="button"
             onClick={onNewSession}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 cursor-pointer"
             aria-label="Start new chat"
           >
             <Plus className="h-3.5 w-3.5" />
@@ -159,7 +172,7 @@ const ChatSessionSidebar = ({
           <button
             type="button"
             onClick={() => setShowSearch(!showSearch)}
-            className={`rounded-lg p-1.5 transition ${
+            className={`rounded-lg p-1.5 transition cursor-pointer ${
               showSearch
                 ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300"
                 : "text-gray-500 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700"
@@ -186,7 +199,7 @@ const ChatSessionSidebar = ({
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 cursor-pointer"
                 aria-label="Clear search"
               >
                 <X className="h-3 w-3" />

@@ -38,6 +38,7 @@ const AuditLogViewer = () => {
 
   const [logs, setLogs] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 1 });
+  const [pageSize, setPageSize] = useState(15);
   const [loading, setLoading] = useState(true);
 
   const [filters, setFilters] = useState({
@@ -47,13 +48,13 @@ const AuditLogViewer = () => {
   });
 
   const loadLogs = useCallback(
-    async (page = 1) => {
+    async (page = 1, limit = pageSize) => {
       if (!orgId) return;
       setLoading(true);
       try {
         const res = await organizationApi.getAuditLogs(orgId, {
           page,
-          limit: 15,
+          limit,
           action: filters.action || undefined,
           startDate: filters.startDate || undefined,
           endDate: filters.endDate || undefined,
@@ -63,9 +64,9 @@ const AuditLogViewer = () => {
           setLogs(res.data.logs || []);
           setPagination(
             res.data.pagination || {
-              page: 1,
+              page,
               total: res.data.logs?.length || 0,
-              pages: 1,
+              pages: Math.ceil((res.data.logs?.length || 0) / limit) || 1,
             },
           );
         }
@@ -76,12 +77,12 @@ const AuditLogViewer = () => {
         setLoading(false);
       }
     },
-    [orgId, filters],
+    [orgId, filters, pageSize],
   );
 
   useEffect(() => {
-    loadLogs(1);
-  }, [loadLogs]);
+    loadLogs(1, pageSize);
+  }, [loadLogs, pageSize]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
@@ -106,8 +107,9 @@ const AuditLogViewer = () => {
           </div>
 
           <button
-            onClick={() => loadLogs(pagination.page)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
+            type="button"
+            onClick={() => loadLogs(pagination.page, pageSize)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -219,26 +221,46 @@ const AuditLogViewer = () => {
             </div>
           )}
 
-          {/* Pagination Footer */}
-          {pagination.pages > 1 && (
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
-              <span className="text-slate-500">
-                Page {pagination.page} of {pagination.pages} ({pagination.total}{" "}
-                total logs)
-              </span>
+          {/* Pagination & Page Size Footer (#1306) */}
+          {logs.length > 0 && (
+            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-4 text-xs">
+              <div className="flex items-center gap-3">
+                <span className="text-slate-500 dark:text-slate-400">
+                  Page {pagination.page} of {pagination.pages || 1} (
+                  {pagination.total || logs.length} total logs)
+                </span>
+                <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                  <span>Per page:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    aria-label="Select logs per page"
+                    className="px-2 py-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={15}>15</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
 
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <button
+                  type="button"
+                  aria-label="Previous page"
                   disabled={pagination.page <= 1}
-                  onClick={() => loadLogs(pagination.page - 1)}
-                  className="p-1.5 rounded border border-slate-200 dark:border-slate-800 disabled:opacity-40"
+                  onClick={() => loadLogs(pagination.page - 1, pageSize)}
+                  className="p-1.5 rounded border border-slate-200 dark:border-slate-800 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer disabled:cursor-not-allowed"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
-                  disabled={pagination.page >= pagination.pages}
-                  onClick={() => loadLogs(pagination.page + 1)}
-                  className="p-1.5 rounded border border-slate-200 dark:border-slate-800 disabled:opacity-40"
+                  type="button"
+                  aria-label="Next page"
+                  disabled={pagination.page >= (pagination.pages || 1)}
+                  onClick={() => loadLogs(pagination.page + 1, pageSize)}
+                  className="p-1.5 rounded border border-slate-200 dark:border-slate-800 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer disabled:cursor-not-allowed"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>

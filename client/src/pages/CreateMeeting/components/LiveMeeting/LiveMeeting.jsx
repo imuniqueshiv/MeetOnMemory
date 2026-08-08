@@ -1,4 +1,4 @@
-import { Video, ExternalLink } from "lucide-react";
+import { Video } from "lucide-react";
 import LiveParticipants from "./LiveParticipants";
 import LiveMeetingInfo from "./LiveMeetingInfo";
 import RecordingDialog from "./RecordingDialog";
@@ -41,21 +41,14 @@ const LiveMeeting = ({ hookProps }) => {
       <LiveMeetingInfo />
 
       {/* Start Meeting Button */}
-      <a
-        href="#"
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => {
-          e.preventDefault();
-          handleStartLiveMeeting();
-        }}
-        className={`w-full px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2 shadow-md hover:shadow-xl ${
-          liveParticipants.length === 0 ? "opacity-50 cursor-not-allowed" : ""
-        }`}
+      <button
+        type="button"
+        onClick={handleStartLiveMeeting}
+        disabled={liveParticipants.length === 0}
+        className={`w-full px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold transition flex items-center justify-center gap-2 shadow-md hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed enabled:hover:bg-indigo-700`}
       >
         <Video size={18} /> 🚀 Start Live Meeting
-        <ExternalLink size={16} />
-      </a>
+      </button>
 
       {showRecordingDialog && (
         <RecordingDialog handleRecordingChoice={handleRecordingChoice} />

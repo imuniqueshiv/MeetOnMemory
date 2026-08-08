@@ -11,6 +11,18 @@ import { verifyClerkSessionToken } from "../utils/authUtils.js";
  */
 export const authenticateSocket = async (socket, next) => {
   try {
+    // Check if this connection (across multiplexed namespaces)
+    // has already been authenticated
+    const sharedUser = socket.request?.user || socket.client?.user;
+    if (sharedUser) {
+      socket.user = sharedUser;
+      socket.userId = socket.request?.userId || socket.client?.userId;
+      socket.userRole = socket.request?.userRole || socket.client?.userRole;
+      socket.userOrganization =
+        socket.request?.userOrganization || socket.client?.userOrganization;
+      return next();
+    }
+
     const authHeader = socket.handshake?.headers?.authorization;
     const authObjectToken = socket.handshake?.auth?.token;
 
@@ -58,6 +70,22 @@ export const authenticateSocket = async (socket, next) => {
     socket.userId = user._id ? user._id.toString() : user.id;
     socket.userRole = user.role;
     socket.userOrganization = user.organization;
+
+    // Cache the authenticated context on the underlying connection
+    // (HTTP request & client) to share it across multiplexed namespaces
+    // (e.g. /sync) on the same connection.
+    if (socket.request) {
+      socket.request.user = user;
+      socket.request.userId = socket.userId;
+      socket.request.userRole = socket.userRole;
+      socket.request.userOrganization = socket.userOrganization;
+    }
+    if (socket.client) {
+      socket.client.user = user;
+      socket.client.userId = socket.userId;
+      socket.client.userRole = socket.userRole;
+      socket.client.userOrganization = socket.userOrganization;
+    }
 
     next();
   } catch (error) {

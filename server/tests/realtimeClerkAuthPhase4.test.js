@@ -123,4 +123,28 @@ describe("Phase 4: Realtime Services & Third-Party Integration Clerk Auth (#890)
       }),
     );
   });
+
+  it("reuses pre-existing authenticated user context", async () => {
+    const mockUser = {
+      _id: dummyUserId,
+      role: "member",
+      organization: dummyOrgId,
+      email: "cacheduser@example.com",
+    };
+
+    mockSocket.request.user = mockUser;
+    mockSocket.request.userId = dummyUserId.toString();
+    mockSocket.request.userRole = "member";
+    mockSocket.request.userOrganization = dummyOrgId;
+
+    await authenticateSocket(mockSocket, nextFn);
+
+    expect(clerkExpress.verifyToken).not.toHaveBeenCalled();
+    expect(authLinkingService.findUserByClerkId).not.toHaveBeenCalled();
+    expect(mockSocket.user).toBe(mockUser);
+    expect(mockSocket.userId).toBe(dummyUserId.toString());
+    expect(mockSocket.userRole).toBe("member");
+    expect(mockSocket.userOrganization).toBe(dummyOrgId);
+    expect(nextFn).toHaveBeenCalledWith();
+  });
 });

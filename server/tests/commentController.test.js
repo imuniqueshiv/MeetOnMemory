@@ -112,4 +112,52 @@ describe("Comment Controller - Length Validation", () => {
       );
     });
   });
+
+  describe("Error Handling", () => {
+    let consoleErrorSpy;
+
+    beforeEach(() => {
+      consoleErrorSpy = jest
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("should return standardized error response on internal failure during createComment", async () => {
+      const meetingId = new mongoose.Types.ObjectId().toString();
+      req.body = {
+        meetingId,
+        body: "Valid body",
+      };
+
+      const internalError = new Error("Database connection failed");
+      jest.spyOn(Meeting, "findById").mockRejectedValue(internalError);
+
+      await createComment(req, res);
+
+      // Verify internal error is logged
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Error creating comment:",
+        internalError,
+      );
+
+      // Verify response is standardized 500 error
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        error: {
+          code: "INTERNAL_SERVER_ERROR",
+          message: "An unexpected error occurred. Please try again later.",
+        },
+      });
+
+      // Verify no stack trace or internal message is exposed
+      const jsonArgs = res.json.mock.calls[0][0];
+      expect(JSON.stringify(jsonArgs)).not.toContain(
+        "Database connection failed",
+      );
+    });
+  });
 });

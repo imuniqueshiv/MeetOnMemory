@@ -8,6 +8,117 @@ import transporter from "../config/nodeMailer.js";
 import MeetingDigestService from "../services/MeetingDigestService.js";
 
 /**
+ * In-memory rate limiting store for digest test emails
+ * Maps userId -> { count, resetTime }
+ *
+ * Issue #1251: Prevents abuse of test email endpoint
+ */
+const testEmailRateLimitStore = new Map();
+
+/**
+ * Rate limit configuration
+ * - Max 3 test emails per user per hour
+ * - Minimum 60 seconds between test emails
+ * - Cooldown period prevents spam
+ */
+const RATE_LIMIT_CONFIG = {
+  maxRequestsPerHour: 3,
+  minIntervalSeconds: 60,
+  windowMs: 60 * 60 * 1000, // 1 hour
+};
+
+/**
+ * Check if user has exceeded rate limit
+ * @param {string} userId - User ID
+ * @returns {Object} { allowed, remaining, resetTime, waitSeconds }
+ */
+const checkRateLimit = (userId) => {
+  const now = Date.now();
+  const userLimit = testEmailRateLimitStore.get(userId);
+
+  // No previous requests
+  if (!userLimit) {
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT_CONFIG.maxRequestsPerHour - 1,
+      resetTime: now + RATE_LIMIT_CONFIG.windowMs,
+      waitSeconds: 0,
+    };
+  }
+
+  // Check if window has expired
+  if (now > userLimit.resetTime) {
+    // Reset the window
+    testEmailRateLimitStore.delete(userId);
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT_CONFIG.maxRequestsPerHour - 1,
+      resetTime: now + RATE_LIMIT_CONFIG.windowMs,
+      waitSeconds: 0,
+    };
+  }
+
+  // Check minimum interval
+  const timeSinceLastRequest = now - userLimit.lastRequestTime;
+  const minIntervalMs = RATE_LIMIT_CONFIG.minIntervalSeconds * 1000;
+
+  if (timeSinceLastRequest < minIntervalMs) {
+    const waitSeconds = Math.ceil(
+      (minIntervalMs - timeSinceLastRequest) / 1000,
+    );
+    return {
+      allowed: false,
+      remaining: userLimit.count,
+      resetTime: userLimit.resetTime,
+      waitSeconds,
+      reason: "interval",
+    };
+  }
+
+  // Check if max requests exceeded
+  if (userLimit.count >= RATE_LIMIT_CONFIG.maxRequestsPerHour) {
+    const waitSeconds = Math.ceil((userLimit.resetTime - now) / 1000);
+    return {
+      allowed: false,
+      remaining: 0,
+      resetTime: userLimit.resetTime,
+      waitSeconds,
+      reason: "limit",
+    };
+  }
+
+  // Allowed
+  return {
+    allowed: true,
+    remaining: RATE_LIMIT_CONFIG.maxRequestsPerHour - userLimit.count - 1,
+    resetTime: userLimit.resetTime,
+    waitSeconds: 0,
+  };
+};
+
+/**
+ * Record a test email request
+ * @param {string} userId - User ID
+ */
+const recordRequest = (userId) => {
+  const now = Date.now();
+  const userLimit = testEmailRateLimitStore.get(userId);
+
+  if (!userLimit || now > userLimit.resetTime) {
+    // Start new window
+    testEmailRateLimitStore.set(userId, {
+      count: 1,
+      resetTime: now + RATE_LIMIT_CONFIG.windowMs,
+      lastRequestTime: now,
+    });
+  } else {
+    // Increment counter
+    userLimit.count += 1;
+    userLimit.lastRequestTime = now;
+  }
+};
+
+/**
  * @desc Get user digest preferences
  * @route GET /api/digest-preferences
  * @access Private
@@ -246,13 +357,55 @@ export const previewDigest = async (req, res) => {
 };
 
 /**
- * @desc Send a real test digest to the user's email
+ * @desc Send a real test digest to the user's email (RATE LIMITED)
  * @route POST /api/digest-preferences/test
  * @access Private
+ *
+ * Issue #1251: Rate limited to prevent abuse
+ * - Max 3 test emails per hour
+ * - Minimum 60 seconds between requests
+ * - Returns 429 Too Many Requests when limit exceeded
  */
 export const sendTestDigest = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user._id.toString();
+
+    // Check rate limit BEFORE doing any work
+    const rateLimitCheck = checkRateLimit(userId);
+
+    if (!rateLimitCheck.allowed) {
+      console.warn(
+        `[Digest Test] Rate limit exceeded for user ${userId}. Reason: ${rateLimitCheck.reason}. Wait: ${rateLimitCheck.waitSeconds}s`,
+      );
+
+      // Set rate limit headers
+      res.set({
+        "Retry-After": rateLimitCheck.waitSeconds,
+        "X-RateLimit-Limit": RATE_LIMIT_CONFIG.maxRequestsPerHour,
+        "X-RateLimit-Remaining": 0,
+        "X-RateLimit-Reset": Math.ceil(rateLimitCheck.resetTime / 1000),
+      });
+
+      const message =
+        rateLimitCheck.reason === "interval"
+          ? `Please wait ${rateLimitCheck.waitSeconds} seconds before sending another test email.`
+          : `Rate limit exceeded. You can send ${RATE_LIMIT_CONFIG.maxRequestsPerHour} test emails per hour. Try again in ${Math.ceil(rateLimitCheck.waitSeconds / 60)} minutes.`;
+
+      return res.status(429).json({
+        success: false,
+        message,
+        retryAfter: rateLimitCheck.waitSeconds,
+        rateLimit: {
+          limit: RATE_LIMIT_CONFIG.maxRequestsPerHour,
+          remaining: 0,
+          resetTime: new Date(rateLimitCheck.resetTime).toISOString(),
+        },
+      });
+    }
+
+    // Rate limit check passed - record this request
+    recordRequest(userId);
+
     const preferences = req.body || {};
 
     // 1. Validate that we have a user to send to
@@ -312,10 +465,27 @@ export const sendTestDigest = async (req, res) => {
 
     console.log(`[Digest Test] Test digest successfully sent to ${user.email}`);
 
-    // 4. Return success ONLY after the email request completes successfully
+    // Log successful rate limit usage
+    const updatedLimit = checkRateLimit(userId);
+    console.log(
+      `[Digest Test] User ${userId} rate limit: ${updatedLimit.remaining}/${RATE_LIMIT_CONFIG.maxRequestsPerHour} remaining`,
+    );
+
+    // 4. Return success with rate limit info
+    res.set({
+      "X-RateLimit-Limit": RATE_LIMIT_CONFIG.maxRequestsPerHour,
+      "X-RateLimit-Remaining": updatedLimit.remaining,
+      "X-RateLimit-Reset": Math.ceil(updatedLimit.resetTime / 1000),
+    });
+
     return res.status(200).json({
       success: true,
       message: `Test digest sent successfully to ${user.email}. Please check your inbox.`,
+      rateLimit: {
+        limit: RATE_LIMIT_CONFIG.maxRequestsPerHour,
+        remaining: updatedLimit.remaining,
+        resetTime: new Date(updatedLimit.resetTime).toISOString(),
+      },
     });
   } catch (error) {
     console.error("[Digest Test] CRITICAL: Error sending test digest:", error);

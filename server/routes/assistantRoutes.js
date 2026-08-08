@@ -9,17 +9,11 @@ import {
   clearPinnedContext,
 } from "../services/ragAssistantService.js";
 import userAuth from "../middleware/userAuth.js";
-import rateLimit from "express-rate-limit";
+import { assistantMessageLimiter } from "../middleware/rateLimiter.js";
 
 const router = express.Router();
 
 router.use(userAuth);
-
-const messageLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 10, // Limit each user to 10 messages per minute
-  message: { error: "Too many messages sent. Please try again later." },
-});
 
 // Create a new session
 router.post("/sessions", async (req, res) => {
@@ -117,39 +111,43 @@ router.delete("/sessions/:id/pinned-context", async (req, res) => {
 });
 
 // Send a message
-router.post("/sessions/:id/message", messageLimiter, async (req, res) => {
-  try {
-    const { content } = req.body;
-    if (!content) {
-      return res.status(400).json({ error: "Message content is required" });
+router.post(
+  "/sessions/:id/message",
+  assistantMessageLimiter,
+  async (req, res) => {
+    try {
+      const { content } = req.body;
+      if (!content) {
+        return res.status(400).json({ error: "Message content is required" });
+      }
+
+      const sessionId = req.params.id;
+      const userId = req.user._id?.toString() || req.user.id?.toString();
+      const io = req.app.get("io");
+      const targetSocket = io
+        ? io.to(
+            [userId, `user:${userId}`, `session:${sessionId}`].filter(Boolean),
+          )
+        : null;
+
+      processMessage(sessionId, req.user._id, content, targetSocket).catch(
+        (err) => {
+          console.error("Error processing message:", err);
+          if (targetSocket) {
+            targetSocket.emit("assistant_error", {
+              sessionId,
+              error: "Failed to process message.",
+            });
+          }
+        },
+      );
+
+      res.status(202).json({ status: "Processing" });
+    } catch (error) {
+      console.error("Error in message route:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
-
-    const sessionId = req.params.id;
-    const userId = req.user._id?.toString() || req.user.id?.toString();
-    const io = req.app.get("io");
-    const targetSocket = io
-      ? io.to(
-          [userId, `user:${userId}`, `session:${sessionId}`].filter(Boolean),
-        )
-      : null;
-
-    processMessage(sessionId, req.user._id, content, targetSocket).catch(
-      (err) => {
-        console.error("Error processing message:", err);
-        if (targetSocket) {
-          targetSocket.emit("assistant_error", {
-            sessionId,
-            error: "Failed to process message.",
-          });
-        }
-      },
-    );
-
-    res.status(202).json({ status: "Processing" });
-  } catch (error) {
-    console.error("Error in message route:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
+  },
+);
 
 export default router;

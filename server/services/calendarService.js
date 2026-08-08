@@ -7,14 +7,22 @@ import CalendarConnection from "../models/calendarConnectionModel.js";
 
 // Encryption key from environment
 const ENCRYPTION_KEY =
-  process.env.CALENDAR_ENCRYPTION_KEY ||
-  process.env.TOKEN_ENCRYPTION_KEY ||
-  "default-key-change-in-production";
+  process.env.CALENDAR_ENCRYPTION_KEY || process.env.TOKEN_ENCRYPTION_KEY;
+
+if (!ENCRYPTION_KEY) {
+  console.warn(
+    "Calendar encryption key is not configured. Set CALENDAR_ENCRYPTION_KEY or TOKEN_ENCRYPTION_KEY to enable calendar token encryption.",
+  );
+}
 
 /**
  * Encrypt a token for storage
  */
 export const encryptToken = (token) => {
+  if (!ENCRYPTION_KEY) {
+    throw new Error("Calendar encryption key is not configured");
+  }
+
   return CryptoJS.AES.encrypt(token, ENCRYPTION_KEY).toString();
 };
 
@@ -23,6 +31,11 @@ export const encryptToken = (token) => {
  */
 export const decryptToken = (encryptedToken) => {
   if (!encryptedToken) return null;
+
+  if (!ENCRYPTION_KEY) {
+    throw new Error("Calendar encryption key is not configured");
+  }
+
   try {
     const bytes = CryptoJS.AES.decrypt(encryptedToken, ENCRYPTION_KEY);
     return bytes.toString(CryptoJS.enc.Utf8);

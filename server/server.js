@@ -17,20 +17,24 @@ import { configureSocket } from "./config/socket.js";
 import { startWorkers } from "./config/workers.js";
 import routes from "./routes/index.js";
 
-// Import slackService, cacheInvalidationService, and conflictScanTrigger to register eventBus listeners.
+// Import side-effect modules that register eventBus listeners
 import "./services/slackService.js";
 import "./services/cacheInvalidationService.js";
-// Import conflictScanTrigger to register its eventBus 'mom.generated'
-// listener, which enqueues a background contradiction scan per
-// organization whenever new decisions/action items are extracted.
 import "./services/conflictScanTrigger.js";
 
+// Import socket handlers (side-effect imports for registration)
 import meetingSocket from "./socket/meetingSocket.js"; // eslint-disable-line no-unused-vars
 import documentSync from "./socket/documentSync.js"; // eslint-disable-line no-unused-vars
 import transcriptSocket from "./socket/transcriptSocket.js"; // eslint-disable-line no-unused-vars
+
+// Import notification event listeners (ACTUALLY USED below)
+import { initListeners } from "./events/listeners.js";
+
+// Redis imports (used in socket configuration)
 import { initRedis, getRedisClient } from "./services/redisService.js"; // eslint-disable-line no-unused-vars
 import { createAdapter } from "@socket.io/redis-adapter"; // eslint-disable-line no-unused-vars
 import { startCalendarSyncJob } from "./jobs/calendarSyncJob.js";
+import startPollExpirationJob from "./jobs/pollExpirationJob.js";
 import { createClient } from "redis"; // eslint-disable-line no-unused-vars
 import {
   initAIWorker, // eslint-disable-line no-unused-vars
@@ -72,6 +76,24 @@ const server = http.createServer(app);
 // SOCKET.IO
 const io = configureSocket(server, app);
 
+
+// Initialize notification event listeners
+// This MUST happen after Socket.IO is configured so listeners can emit real-time notifications
+if (io) {
+  const listenersInitialized = initListeners(io);
+  if (listenersInitialized) {
+    console.log("✅ Notification event listeners initialized successfully");
+  } else {
+    console.warn(
+      "⚠️ Notification event listeners were already initialized or failed to initialize",
+    );
+  }
+} else {
+  console.error(
+    "❌ Failed to initialize notification listeners: Socket.IO instance not available",
+  );
+}
+
 // SERVER START (Skipped during Jest test execution)
 if (process.env.NODE_ENV !== "test") {
   server.listen(PORT, () => {
@@ -87,6 +109,9 @@ if (process.env.NODE_ENV !== "test") {
 
   // Start calendar sync job
   startCalendarSyncJob();
+
+  // Start poll expiration background job
+  startPollExpirationJob(io);
 }
 
 // (AI, Data Export, and Webhook workers are initialized inside server.listen callback)

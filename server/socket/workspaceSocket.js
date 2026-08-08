@@ -129,19 +129,38 @@ export const initWorkspaceSocket = (io) => {
 
     // --- ACTION ITEM DRAG & DROP ---
     socket.on("workspace:action-move", async (data) => {
-      // data: { actionId, fromColumn, toColumn, newIndex }
+      // data: { actionId, fromColumn, toColumn, newIndex, item? }
+      // Relay immediately (include client item when present) so remotes can
+      // hydrate without a "Syncing..." placeholder (Issue #1213).
       socket.to(room).emit("workspace:action-move", {
         userId: socket.userId,
-        ...data,
+        actionId: data.actionId,
+        fromColumn: data.fromColumn,
+        toColumn: data.toColumn,
+        newIndex: data.newIndex,
+        item: data.item || null,
       });
 
       try {
-        const updatedMeeting = await workspaceSyncService.reorderActionItem(
+        const { movedItem } = await workspaceSyncService.reorderActionItem(
           socket.meetingId,
           data.actionId,
           data.toColumn,
           data.newIndex,
         );
+
+        // If the client omitted item (or sent a partial), push the persisted
+        // document so remotes can replace any temporary placeholder.
+        if (movedItem && !data.item) {
+          socket.to(room).emit("workspace:action-move", {
+            userId: socket.userId,
+            actionId: data.actionId,
+            fromColumn: data.fromColumn,
+            toColumn: data.toColumn,
+            newIndex: data.newIndex,
+            item: movedItem,
+          });
+        }
 
         // Trigger AI Bottleneck Analysis asynchronously
         workspaceSyncService
@@ -149,8 +168,6 @@ export const initWorkspaceSocket = (io) => {
           .catch((err) => {
             console.error("❌ AI Bottleneck analysis failed:", err.message);
           });
-
-        return updatedMeeting;
       } catch (error) {
         console.error("❌ Action move sync failed:", error.message);
         socket.emit("workspace:error", {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import AppContent from "../context/AppContent.js";
 import { invitationApi, organizationApi } from "../services";
 import Navbar from "../components/Navbar.jsx";
@@ -11,10 +11,12 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
+import { validateRedirect } from "../utils/validateRedirect.js";
 
 const AcceptInvite = () => {
   const { token } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { isLoggedin, getUserData } = useContext(AppContent);
 
   const [invitation, setInvitation] = useState(null);
@@ -66,7 +68,20 @@ const AcceptInvite = () => {
       if (res.data?.success) {
         toast.success("Successfully joined the organization!");
         await getUserData();
-        navigate("/dashboard");
+
+        // Validate redirect path from location state
+        const redirectPath =
+          location.state?.redirect || location.state?.from?.pathname;
+        const safePath = validateRedirect(redirectPath, "/dashboard");
+
+        if (redirectPath && safePath !== redirectPath) {
+          console.warn(
+            "Invalid redirect path detected, using fallback:",
+            safePath,
+          );
+        }
+
+        navigate(safePath);
       } else {
         toast.error(res.data?.message || "Failed to accept invitation.");
       }

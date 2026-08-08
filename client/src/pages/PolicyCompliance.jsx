@@ -166,7 +166,7 @@ const PolicyCompliance = () => {
     <div className="min-h-screen bg-linear-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex flex-col">
       <Navbar />
 
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
+      <div className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <Shield className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
@@ -345,7 +345,7 @@ const PolicyCompliance = () => {
             );
           })}
         </div>
-      </main>
+      </div>
     </div>
   );
 };

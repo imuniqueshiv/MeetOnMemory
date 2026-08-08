@@ -2,6 +2,7 @@ import { Queue, Worker } from "bullmq";
 import Redis from "ioredis";
 import processAudioJob from "../jobs/processAudioJob.js";
 import exportDataJob from "../jobs/exportDataJob.js";
+import cleanupExpiredExportsJob from "../jobs/cleanupExpiredExportsJob.js";
 import conflictScanJob from "./conflictDetection/conflictScanJob.js";
 import sentimentAnalysisJob from "../jobs/sentimentAnalysisJob.js";
 import recalculateImportanceJob from "../jobs/recalculateImportanceJob.js";
@@ -139,7 +140,11 @@ const createQueueFacade = (name) => ({
 });
 
 export const aiQueue = createQueueFacade("ai-mom-generation");
+
 export const dataExportQueue = createQueueFacade("data-export-queue");
+
+export const exportCleanupQueue = createQueueFacade("export-cleanup-queue");
+
 export const conflictScanQueue = createQueueFacade("conflict-scan-queue");
 export const sentimentAnalysisQueue = createQueueFacade(
   "sentiment-analysis-queue",
@@ -215,25 +220,45 @@ function createWorker({ name, label, processor, workerOptions = {} }) {
   return worker;
 }
 
-export const initAIWorker = (app) =>
-  createWorker({
-    name: "ai-mom-generation",
-    label: "AI Worker",
-    processor: async (job) => await processAudioJob(job, app),
-    workerOptions: {
-      limiter: {
-        max: 5, // Process max 5 jobs
-        duration: 60000, // per 60 seconds to match Gemini free tier limits
-      },
-    },
-  });
-
 export const initDataExportWorker = (app) =>
   createWorker({
     name: "data-export-queue",
     label: "Data Export Worker",
     processor: async (job) => await exportDataJob(job, app),
   });
+
+export const initExportCleanupWorker = async () => {
+  const worker = createWorker({
+    name: "export-cleanup-queue",
+    label: "Export Cleanup Worker",
+    processor: cleanupExpiredExportsJob,
+  });
+
+  if (!worker) return null;
+
+  const intervalMs = readPositiveIntEnv(
+    "EXPORT_CLEANUP_INTERVAL_MS",
+    60 * 60 * 1000,
+  );
+
+  try {
+    await exportCleanupQueue.add(
+      "scheduled-export-cleanup",
+      {},
+      {
+        repeat: { every: intervalMs },
+        jobId: "scheduled-export-cleanup",
+      },
+    );
+  } catch (err) {
+    console.error(
+      "⚠️ Failed to schedule recurring export cleanup:",
+      err.message,
+    );
+  }
+
+  return worker;
+};
 
 export const initConflictScanWorker = (app) =>
   createWorker({

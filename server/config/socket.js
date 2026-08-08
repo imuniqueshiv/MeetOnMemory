@@ -6,6 +6,7 @@ import meetingSocket from "../socket/meetingSocket.js";
 import documentSync from "../socket/documentSync.js";
 import transcriptSocket from "../socket/transcriptSocket.js";
 import reactionSocket from "../socket/reactionSocket.js";
+import authenticateSocket from "../middleware/socketAuth.js";
 
 export function configureSocket(server, app) {
   // SOCKET.IO
@@ -18,6 +19,9 @@ export function configureSocket(server, app) {
   });
 
   app.set("io", io);
+
+  // Authenticate main namespace connections once centrally
+  io.use(authenticateSocket);
 
   // REDIS PUB/SUB ADAPTER (Horizontal Scaling)
   // Enables collaborative editing to work across multiple server instances.

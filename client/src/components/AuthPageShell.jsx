@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { assets } from "../assets/assets";
+import BrandLogo from "./branding/BrandLogo.jsx";
 
 /**
  * Shared branded chrome for Clerk auth pages (logo + dark ambient layout).
@@ -19,7 +19,7 @@ const AuthPageShell = ({ children, title }) => {
         <div className="absolute top-[40%] left-[50%] translate-x-[-50%] w-[400px] h-[400px] bg-blue-500/10 rounded-full blur-[96px]" />
       </div>
 
-      <img
+      <BrandLogo
         onClick={() => navigate("/")}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -27,7 +27,6 @@ const AuthPageShell = ({ children, title }) => {
             navigate("/");
           }
         }}
-        src={assets.logo}
         alt="MeetOnMemory"
         role="link"
         tabIndex={0}

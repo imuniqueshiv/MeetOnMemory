@@ -5,6 +5,7 @@ import {
   caseInsensitiveEquals,
   wordBoundaryRegExp,
 } from "../utils/regexUtils.js";
+import { ForbiddenError, NotFoundError } from "../utils/errors.js";
 
 class GlossaryService {
   /**
@@ -61,10 +62,29 @@ class GlossaryService {
   async aiExtractTerms(meetingId, orgId) {
     // 1. Fetch meeting and transcript
     const meeting = await Meeting.findById(meetingId);
-    if (!meeting) throw new Error("Meeting not found");
+    if (!meeting) throw new NotFoundError("Meeting not found");
+
+    // The meeting must belong to the caller's organization (Issue #1273).
+    //
+    // `orgId` was previously used only to scope the *existing terms* lookup and
+    // to stamp the terms this run creates — it was never compared against the
+    // meeting. So `POST /api/glossary/extract` with any meeting id ran the
+    // extraction prompt over another organization's transcript and persisted
+    // the resulting terms and definitions into the caller's glossary, where
+    // `GET /api/glossary` then served them back.
+    //
+    // `topicExtractionService.extractTopics` already performs exactly this
+    // check on the same model; this path simply omitted it.
+    if (
+      !meeting.organization ||
+      meeting.organization.toString() !== orgId.toString()
+    ) {
+      throw new ForbiddenError("Unauthorized access to meeting");
+    }
 
     const transcriptText = meeting.transcript || "";
-    if (!transcriptText) throw new Error("No transcript found for meeting");
+    if (!transcriptText)
+      throw new NotFoundError("No transcript found for meeting");
 
     // 2. Fetch existing terms to avoid duplicates
     const existingTerms = await GlossaryTerm.find({ organization: orgId });

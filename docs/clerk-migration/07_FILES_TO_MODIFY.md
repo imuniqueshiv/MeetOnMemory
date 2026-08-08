@@ -67,7 +67,7 @@ All of these use `userAuth` today. Change = import bridge / ensure dual works. *
 | `client/src/main.jsx`                                     | App bootstrap        | ClerkProvider                            | 3     | High     | keys       | S      |
 | `client/src/context/AppContext.jsx`                       | Auth state           | Dual bootstrap                           | 3     | Critical | `/api/me`  | L      |
 | `client/src/services/apiClient.js`                        | HTTP client          | Dual CSRF vs Clerk token                 | 3, 7  | Critical | flag       | L      |
-| `client/src/services/csrfService.js`                      | CSRF                 | Keep until 7; delete 8                   | 3, 8  | Med      | —          | S      |
+| ~~`client/src/services/csrfService.js`~~                  | CSRF                 | **Removed** (Issue #1139)                | 8     | Med      | —          | S      |
 | `client/src/services/authApi.js`                          | Legacy auth API      | Dual then remove                         | 3, 8  | Med      | —          | S      |
 | `client/src/components/ProtectedRoute.jsx`                | Guards               | Clerk session aware                      | 3     | High     | AppContext | M      |
 | `client/src/routes/PublicRoutes.jsx`                      | Public routes        | Clerk sign-in routes                     | 3     | Med      | —          | S      |

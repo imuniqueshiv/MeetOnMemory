@@ -70,6 +70,9 @@ export default function useDevicePermission() {
   const analyserRef = useRef(null);
   const sourceRef = useRef(null);
   const rafRef = useRef(null);
+  // Tracks ownership of the preview MediaStream so Device Setup can hand it
+  // off to Meeting Room without cleanup() stopping live tracks (#1210).
+  const streamRef = useRef(null);
 
   const stopAudioAnalyser = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -168,11 +171,12 @@ export default function useDevicePermission() {
 
         const mediaStream =
           await navigator.mediaDevices.getUserMedia(constraints);
+        streamRef.current = mediaStream;
         setStream(mediaStream);
         setCameraStatus("granted");
         setMicStatus("granted");
 
-        if (video) startAudioAnalyser(mediaStream);
+        if (audio) startAudioAnalyser(mediaStream);
 
         await enumerateDevices();
         setLoading(false);
@@ -221,65 +225,87 @@ export default function useDevicePermission() {
     [selectedCamera, selectedMicrophone, enumerateDevices, startAudioAnalyser],
   );
 
-  const switchCamera = useCallback(
-    async (deviceId) => {
-      setSelectedCamera(deviceId);
-      if (stream) {
-        stream.getVideoTracks().forEach((t) => t.stop());
-        try {
-          const newStream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: deviceId } },
-            audio: false,
-          });
-          const videoTrack = newStream.getVideoTracks()[0];
-          stream.addTrack(videoTrack);
-          setStream(newStream);
-        } catch {
-          // Fallback — will be refreshed on next requestMedia
-        }
+  const switchCamera = useCallback(async (deviceId) => {
+    setSelectedCamera(deviceId);
+    const current = streamRef.current;
+    if (current) {
+      current.getVideoTracks().forEach((t) => t.stop());
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: deviceId } },
+          audio: false,
+        });
+        const videoTrack = newStream.getVideoTracks()[0];
+        current.addTrack(videoTrack);
+        // Keep the same MediaStream instance so callers holding a reference
+        // (preview / pending join) continue to see updated tracks.
+        streamRef.current = current;
+        setStream(current);
+        newStream.getTracks().forEach((t) => {
+          if (t !== videoTrack) t.stop();
+        });
+      } catch {
+        // Fallback — will be refreshed on next requestMedia
       }
-    },
-    [stream],
-  );
+    }
+  }, []);
 
   const switchMicrophone = useCallback(
     async (deviceId) => {
       setSelectedMicrophone(deviceId);
-      if (stream) {
-        stream.getAudioTracks().forEach((t) => t.stop());
+      const current = streamRef.current;
+      if (current) {
+        current.getAudioTracks().forEach((t) => t.stop());
         try {
           const newStream = await navigator.mediaDevices.getUserMedia({
             audio: { deviceId: { exact: deviceId } },
             video: false,
           });
           const audioTrack = newStream.getAudioTracks()[0];
-          stream.addTrack(audioTrack);
-          setStream(newStream);
+          current.addTrack(audioTrack);
+          streamRef.current = current;
+          setStream(current);
+          startAudioAnalyser(current);
+          newStream.getTracks().forEach((t) => {
+            if (t !== audioTrack) t.stop();
+          });
         } catch {
           // Fallback
         }
       }
     },
-    [stream],
+    [startAudioAnalyser],
   );
 
   const retry = useCallback(async () => {
     stopAudioAnalyser();
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
       setStream(null);
     }
     const newStream = await requestMedia();
     return newStream;
-  }, [stream, requestMedia, stopAudioAnalyser]);
+  }, [requestMedia, stopAudioAnalyser]);
+
+  /**
+   * Relinquish ownership of the preview stream without stopping tracks.
+   * Call before unmounting Device Setup when handing the stream to Meeting Room.
+   */
+  const releaseStream = useCallback(() => {
+    stopAudioAnalyser();
+    streamRef.current = null;
+    setStream(null);
+  }, [stopAudioAnalyser]);
 
   const cleanup = useCallback(() => {
     stopAudioAnalyser();
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
       setStream(null);
     }
-  }, [stream, stopAudioAnalyser]);
+  }, [stopAudioAnalyser]);
 
   useEffect(() => {
     return () => cleanup();
@@ -318,6 +344,7 @@ export default function useDevicePermission() {
     switchCamera,
     switchMicrophone,
     retry,
+    releaseStream,
     cleanup,
     enumerateDevices,
     setSelectedCamera,

@@ -38,7 +38,7 @@ describe("webhookUrlSafety", () => {
 
   it("rejects localhost hostnames without DNS", async () => {
     const result = await validateWebhookDestination(
-      "http://localhost:3000/hook",
+      "https://localhost:3000/hook",
     );
 
     expect(result.ok).toBe(false);
@@ -84,15 +84,23 @@ describe("webhookUrlSafety", () => {
     lookupSpy.mockResolvedValue([{ address: "169.254.169.254", family: 4 }]);
 
     const result = await validateWebhookDestination(
-      "http://metadata.example/latest",
+      "https://metadata.example/latest",
     );
 
     expect(result.ok).toBe(false);
   });
 
-  it("rejects non-http protocols", async () => {
-    const result = await validateWebhookDestination("ftp://example.com/hook");
-    expect(result.ok).toBe(false);
-    expect(result.reason).toMatch(/http:\/\/ or https:\/\//i);
+  it("rejects non-https protocols including http", async () => {
+    const httpResult = await validateWebhookDestination(
+      "http://example.com/hook",
+    );
+    expect(httpResult.ok).toBe(false);
+    expect(httpResult.reason).toMatch(/must use https:\/\//i);
+
+    const ftpResult = await validateWebhookDestination(
+      "ftp://example.com/hook",
+    );
+    expect(ftpResult.ok).toBe(false);
+    expect(ftpResult.reason).toMatch(/must use https:\/\//i);
   });
 });

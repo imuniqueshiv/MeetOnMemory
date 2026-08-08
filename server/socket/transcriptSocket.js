@@ -1,12 +1,8 @@
 import Transcript from "../models/transcriptModel.js";
 import Meeting from "../models/meetingModel.js";
 import { hasPermission } from "../utils/rbacPermissions.js";
-import authenticateSocket from "../middleware/socketAuth.js";
 
 export default (io) => {
-  // Authentication Middleware with Clerk & Dual Auth support
-  io.use(authenticateSocket);
-
   io.on("connection", (socket) => {
     console.log("🟢 User connected to transcript socket:", socket.id);
 

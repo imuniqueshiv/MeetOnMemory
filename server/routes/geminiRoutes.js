@@ -3,19 +3,40 @@ import axios from "axios";
 import dotenv from "dotenv";
 import userAuth from "../middleware/userAuth.js";
 import { writeLimiter } from "../middleware/rateLimiter.js";
-import { requirePermission } from "../middleware/rbac.js";
+import { requireOrgMembership, requirePermission } from "../middleware/rbac.js";
+import { validateGeminiInsightsRequest } from "../utils/validateGeminiInsightsRequest.js";
 
 dotenv.config();
 
 const router = express.Router();
 
+/**
+ * Gemini insights (Issue #1243).
+ *
+ * Guard order matches report routes so refusals are clear and consistent:
+ *   userAuth             → 401
+ *   requireOrgMembership → 403 (no org to scope against)
+ *   requirePermission    → 403 (insufficient role)
+ *   writeLimiter         → 429
+ *   body validation      → 400
+ */
 router.post(
   "/insights",
   userAuth,
-  writeLimiter,
+  requireOrgMembership,
   requirePermission("reports", "view"),
+  writeLimiter,
   async (req, res) => {
     try {
+      const validation = validateGeminiInsightsRequest(req.body);
+      if (!validation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          details: validation.errors,
+        });
+      }
+
       const { summary } = req.body;
 
       const prompt = `

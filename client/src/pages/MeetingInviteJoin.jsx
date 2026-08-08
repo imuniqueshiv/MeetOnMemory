@@ -12,6 +12,7 @@ import { toast } from "react-toastify";
 import AppContent from "../context/AppContent.js";
 import { meetingApi } from "../services";
 import Navbar from "../components/Navbar.jsx";
+import { validateRedirect } from "../utils/validateRedirect.js";
 
 const MeetingInviteJoin = () => {
   const { code } = useParams();
@@ -38,15 +39,30 @@ const MeetingInviteJoin = () => {
       const data = res.data || {};
       setResult(data);
 
+      // Validate redirect path before navigation
       if (data.action === "live" && data.path) {
+        const safePath = validateRedirect(data.path, "/meetings");
+        if (safePath !== data.path) {
+          console.warn(
+            "Invalid redirect path detected, using fallback:",
+            safePath,
+          );
+        }
         toast.success("Invite validated. Joining live meeting...");
-        navigate(data.path, { replace: true });
+        navigate(safePath, { replace: true });
         return;
       }
 
       if (data.action === "details" && data.path) {
+        const safePath = validateRedirect(data.path, "/meetings");
+        if (safePath !== data.path) {
+          console.warn(
+            "Invalid redirect path detected, using fallback:",
+            safePath,
+          );
+        }
         toast.success(data.reason || "Opening meeting details...");
-        navigate(data.path, { replace: true });
+        navigate(safePath, { replace: true });
         return;
       }
 

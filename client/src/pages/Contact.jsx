@@ -126,7 +126,7 @@ const Contact = () => {
       </header>
 
       {/* Main Grid Content */}
-      <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 flex-1">
+      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 flex-1">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left Column: Contact Form & Ticket Output */}
           <div className="lg:col-span-7 space-y-8">
@@ -164,7 +164,7 @@ const Contact = () => {
             />
           </div>
         </div>
-      </main>
+      </div>
 
       {/* Back to Home bottom bar */}
       <div className="bg-gray-100 dark:bg-slate-900 border-t border-gray-200/80 dark:border-slate-800/80 py-10 mt-auto">

@@ -151,8 +151,8 @@ describe("Webhook Endpoints & Dispatcher", () => {
       expect(res.body.success).toBe(false);
     });
 
-    it("should validate targetUrl schema", async () => {
-      const res = await request(app)
+    it("should validate targetUrl schema and reject HTTP URLs", async () => {
+      const ftpRes = await request(app)
         .post("/api/webhooks")
         .set("Authorization", `Bearer ${adminToken}`)
         .send({
@@ -160,8 +160,20 @@ describe("Webhook Endpoints & Dispatcher", () => {
           events: ["meeting.created"],
           organizationId: organization._id.toString(),
         });
-      if (res.statusCode !== 400) console.log("VALIDATE URL FAILED:", res.body);
-      expect(res.statusCode).toEqual(400);
+      expect(ftpRes.statusCode).toEqual(400);
+
+      const httpRes = await request(app)
+        .post("/api/webhooks")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          targetUrl: "http://example.com/webhook",
+          events: ["meeting.created"],
+          organizationId: organization._id.toString(),
+        });
+      expect(httpRes.statusCode).toEqual(400);
+      expect(httpRes.body.message || JSON.stringify(httpRes.body)).toMatch(
+        /Target URL must start with https:\/\//i,
+      );
     });
   });
 

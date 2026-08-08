@@ -1,6 +1,8 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar.jsx";
+import RoleGate from "../components/RoleGate.jsx";
+import { useRBAC } from "../hooks/useRBAC.js";
 import {
   CheckCircle2,
   AlertCircle,
@@ -18,12 +20,14 @@ import Pagination from "../components/meetings/Pagination";
 const Tasks = () => {
   const navigate = useNavigate();
   const taskState = useTasks();
+  const { hasPermission } = useRBAC();
+  const canCreateMeeting = hasPermission("meetings", "create");
 
   return (
     <div className="min-h-screen bg-linear-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex flex-col">
       <Navbar />
 
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
+      <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
         {/* Header */}
         <div className="mb-8 fade-in-up flex items-start justify-between gap-4 flex-wrap">
           <div>
@@ -59,12 +63,12 @@ const Tasks = () => {
             </p>
           </div>
         ) : taskState.error ? (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center fade-in-up">
-            <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-red-900 mb-2">
+          <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 rounded-xl p-8 text-center fade-in-up">
+            <AlertCircle className="w-12 h-12 text-red-600 dark:text-red-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-red-900 dark:text-red-200 mb-2">
               Error Loading Tasks
             </h3>
-            <p className="text-red-700">{taskState.error}</p>
+            <p className="text-red-700 dark:text-red-300">{taskState.error}</p>
             <button
               onClick={() => taskState.refetch()}
               className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
@@ -85,16 +89,20 @@ const Tasks = () => {
             <p className="text-slate-600 dark:text-slate-400 mb-6">
               {taskState.hasActiveFilters
                 ? "Try adjusting your filters or search terms"
-                : "Upload and transcribe meetings to generate action items"}
+                : canCreateMeeting
+                  ? "Upload and transcribe meetings to generate action items"
+                  : "Action items from meetings will appear here."}
             </p>
             {!taskState.hasActiveFilters && (
-              <button
-                onClick={() => navigate("/upload-meeting")}
-                className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
-              >
-                <FileText className="w-4 h-4" />
-                Upload Meeting
-              </button>
+              <RoleGate resource="meetings" action="create">
+                <button
+                  onClick={() => navigate("/upload-meeting")}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+                >
+                  <FileText className="w-4 h-4" />
+                  Upload Meeting
+                </button>
+              </RoleGate>
             )}
           </div>
         ) : (
@@ -125,7 +133,7 @@ const Tasks = () => {
           setSelectedTask={taskState.setSelectedTask}
           navigate={navigate}
         />
-      </main>
+      </div>
     </div>
   );
 };

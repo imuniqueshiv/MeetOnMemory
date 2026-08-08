@@ -172,8 +172,14 @@ async function runFederatedSemanticSearch(
 
   if (options.includeTypes.includes("meeting")) {
     try {
+      if (!accessibleOrgIds || accessibleOrgIds.length === 0) {
+        throw new Error(
+          "Organization context is required for federated search",
+        );
+      }
       const meetingHits = await searchVectorStore(query, {
         limit: options.semanticTopK,
+        organization: accessibleOrgIds,
       });
       for (const hit of meetingHits) {
         const hitOrg = hit.organization || null;

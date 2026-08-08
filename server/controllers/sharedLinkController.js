@@ -15,6 +15,12 @@ import {
   isPasscodeLocked,
 } from "../utils/sharedLinkSecurity.js";
 
+const getSharedLinkJwtSecret = () =>
+  process.env.SHARED_LINK_JWT_SECRET ||
+  process.env.SHARED_LINK_SECRET ||
+  process.env.JWT_SECRET ||
+  "default_shared_link_secret";
+
 /**
  * The shareable resource types and the model each one resolves against.
  *
@@ -73,11 +79,7 @@ const analyticsPermissionFor = (resourceModel) =>
   resourceModel === "Policy" ? "policies" : "meetings";
 
 const canViewAnalytics = (user, resourceModel) =>
-  hasPermission(
-    user?.role || "guest",
-    analyticsPermissionFor(resourceModel),
-    "edit",
-  );
+  hasPermission(user?.role, analyticsPermissionFor(resourceModel), "edit");
 
 const toPublicLink = (link, includeAnalytics) => {
   const base = {
@@ -200,6 +202,19 @@ export const createLink = async (req, res) => {
         .json({ success: false, message: "Invalid resource type" });
     }
 
+    const userRole = req.user?.role || "guest";
+    const resourceCategory =
+      resourceType === "Policy" ? "policies" : "meetings";
+    if (
+      !hasPermission(userRole, resourceCategory, "edit") &&
+      !hasPermission(userRole, resourceCategory, "create")
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: `Forbidden: Insufficient permissions to create shared links for ${resourceType.toLowerCase()}`,
+      });
+    }
+
     if (!mongoose.isValidObjectId(resourceId)) {
       // Previously a malformed id reached `findById` and surfaced as a CastError
       // 500 rather than a validation error.
@@ -281,35 +296,17 @@ export const createLink = async (req, res) => {
 export const getActiveLinks = async (req, res) => {
   try {
     const { resourceType, resourceId } = req.params;
+    const userRole = req.user?.role || "guest";
+    const resourceCategory =
+      resourceType === "Policy" ? "policies" : "meetings";
 
-    const links = await SharedLink.find({
-      resourceId,
-      resourceModel: resourceType,
-      organizationId: req.user.organization,
-      active: true,
-    }).select("-passcode");
+    if (!hasPermission(userRole, resourceCategory, "view")) {
+      return res.status(403).json({
+        success: false,
+        message: `Forbidden: Insufficient permissions to view shared links for ${resourceType.toLowerCase()}`,
+      });
+    }
 
-    res.status(200).json({
-      success: true,
-      links: links.map((link) => ({
-        _id: link._id,
-        hash: link.hash,
-        expirationDate: link.expirationDate,
-        hasPasscode: !!link.passcode, // this check doesn't work if passcode is excluded in select, wait.
-      })),
-    });
-  } catch (error) {
-    console.error("Error fetching active links:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Server error fetching links" });
-  }
-};
-
-// Fix the hasPasscode issue for getActiveLinks
-export const getActiveLinksFixed = async (req, res) => {
-  try {
-    const { resourceType, resourceId } = req.params;
     const includeAnalytics = canViewAnalytics(req.user, resourceType);
 
     const links = await SharedLink.find({
@@ -337,12 +334,25 @@ export const revokeLink = async (req, res) => {
 
     const link = await SharedLink.findOne({
       _id: id,
-      organizationId: req.user.organization,
+      organizationId: req.user?.organization,
     });
     if (!link) {
       return res
         .status(404)
         .json({ success: false, message: "Link not found" });
+    }
+
+    const userRole = req.user?.role || "guest";
+    const resourceCategory =
+      link.resourceModel === "Policy" ? "policies" : "meetings";
+    if (
+      !hasPermission(userRole, resourceCategory, "edit") &&
+      !hasPermission(userRole, resourceCategory, "delete")
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: `Forbidden: Insufficient permissions to revoke shared links for ${link.resourceModel.toLowerCase()}`,
+      });
     }
 
     link.active = false;
@@ -417,7 +427,7 @@ export const verifyPasscode = async (req, res) => {
     // Generate a short-lived token to access the resource
     const token = jwt.sign(
       { linkId: link._id, hash: link.hash },
-      process.env.JWT_SECRET,
+      getSharedLinkJwtSecret(),
       { expiresIn: "1h" },
     );
 
@@ -464,19 +474,26 @@ export const getPublicResource = async (req, res) => {
         });
       }
 
+      let decoded = null;
+      const secret = getSharedLinkJwtSecret();
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        if (decoded.hash !== hash) {
-          return res.status(401).json({
-            success: false,
-            message: "Invalid access token",
-            requiresPasscode: true,
-          });
-        }
+        decoded = jwt.verify(token, secret);
       } catch (_err) {
+        if (process.env.JWT_SECRET && process.env.JWT_SECRET !== secret) {
+          try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
+          } catch (_fallbackErr) {
+            // ignore
+          }
+        }
+      }
+
+      if (!decoded || decoded.hash !== hash) {
         return res.status(401).json({
           success: false,
-          message: "Session expired, please re-enter passcode",
+          message: !decoded
+            ? "Session expired, please re-enter passcode"
+            : "Invalid access token",
           requiresPasscode: true,
         });
       }
@@ -487,7 +504,8 @@ export const getPublicResource = async (req, res) => {
     if (link.resourceModel === "Meeting") {
       const meeting = await Meeting.findById(link.resourceId)
         .select(
-          "title description meetingType date time duration location venue participants agendaItems policyDetails transcript summary structuredMoM aiNotes status tags",
+          "title description date time location " +
+            "participants summary structuredMoM",
         )
         .lean();
 
@@ -496,12 +514,22 @@ export const getPublicResource = async (req, res) => {
           .status(404)
           .json({ success: false, message: "Meeting not found" });
       }
-      resourceData = meeting;
+
+      resourceData = {
+        title: meeting.title,
+        description: meeting.description,
+        date: meeting.date,
+        time: meeting.time,
+        location: meeting.location,
+        summary: meeting.summary,
+        structuredMoM: meeting.structuredMoM,
+        participants: meeting.participants
+          ? Array(meeting.participants.length).fill({})
+          : [],
+      };
     } else if (link.resourceModel === "Policy") {
       const policy = await Policy.findById(link.resourceId)
-        .select(
-          "name version fileUrl summary key_changes keywords status isDraft",
-        )
+        .select("name version summary key_changes")
         .lean();
 
       if (!policy) {
@@ -509,7 +537,13 @@ export const getPublicResource = async (req, res) => {
           .status(404)
           .json({ success: false, message: "Policy not found" });
       }
-      resourceData = policy;
+
+      resourceData = {
+        name: policy.name,
+        version: policy.version,
+        summary: policy.summary,
+        key_changes: policy.key_changes,
+      };
     }
 
     // Record view only after successful access; never include analytics in public payload

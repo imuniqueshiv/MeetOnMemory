@@ -71,7 +71,7 @@ const MeetingRecycleBin = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 pt-8">
       <Navbar />
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>
             <button
@@ -176,7 +176,7 @@ const MeetingRecycleBin = () => {
             </button>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 };

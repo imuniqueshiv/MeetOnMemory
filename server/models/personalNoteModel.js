@@ -38,9 +38,16 @@ const personalNoteSchema = new mongoose.Schema(
       ref: "Meeting",
       required: true,
     },
+    title: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: [200, "Title cannot exceed 200 characters"],
+    },
     content: {
       type: String,
       default: "",
+      maxlength: [50000, "Content cannot exceed 50000 characters"],
     },
     annotations: [annotationSchema],
     isPinned: {

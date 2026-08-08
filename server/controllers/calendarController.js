@@ -9,6 +9,7 @@ import {
   fetchExternalEvents,
 } from "../services/calendarService.js";
 import { triggerManualSync } from "../jobs/calendarSyncJob.js";
+import { buildCalendarOAuthClientRedirect } from "../utils/calendarOAuthRedirect.js";
 
 const getUserId = (req) => {
   const id = req.user?._id || req.user?.id;
@@ -72,7 +73,9 @@ export const handleGoogleCallback = async (req, res) => {
     if (!code || !userId) {
       if (isGetRequest) {
         return res.redirect(
-          `${process.env.CLIENT_URL || "http://localhost:5173"}/settings?error=google_sync_failed`,
+          buildCalendarOAuthClientRedirect(
+            "/settings?error=google_sync_failed",
+          ),
         );
       }
       return res.status(400).json({
@@ -118,7 +121,7 @@ export const handleGoogleCallback = async (req, res) => {
 
     if (isGetRequest) {
       return res.redirect(
-        `${process.env.CLIENT_URL || "http://localhost:5173"}/settings?sync=success`,
+        buildCalendarOAuthClientRedirect("/settings?sync=success"),
       );
     }
 
@@ -135,7 +138,7 @@ export const handleGoogleCallback = async (req, res) => {
     console.error("Error handling Google callback:", error.message);
     if (isGetRequest) {
       return res.redirect(
-        `${process.env.CLIENT_URL || "http://localhost:5173"}/settings?error=google_sync_failed`,
+        buildCalendarOAuthClientRedirect("/settings?error=google_sync_failed"),
       );
     }
     res.status(500).json({ success: false, message: error.message });
@@ -167,7 +170,9 @@ export const handleMicrosoftCallback = async (req, res) => {
     if (!code || !userId) {
       if (isGetRequest) {
         return res.redirect(
-          `${process.env.CLIENT_URL || "http://localhost:5173"}/settings?error=outlook_sync_failed`,
+          buildCalendarOAuthClientRedirect(
+            "/settings?error=outlook_sync_failed",
+          ),
         );
       }
       return res.status(400).json({
@@ -219,7 +224,7 @@ export const handleMicrosoftCallback = async (req, res) => {
 
     if (isGetRequest) {
       return res.redirect(
-        `${process.env.CLIENT_URL || "http://localhost:5173"}/settings?sync=success`,
+        buildCalendarOAuthClientRedirect("/settings?sync=success"),
       );
     }
 
@@ -236,7 +241,7 @@ export const handleMicrosoftCallback = async (req, res) => {
     console.error("Error handling Microsoft callback:", error.message);
     if (isGetRequest) {
       return res.redirect(
-        `${process.env.CLIENT_URL || "http://localhost:5173"}/settings?error=outlook_sync_failed`,
+        buildCalendarOAuthClientRedirect("/settings?error=outlook_sync_failed"),
       );
     }
     res.status(500).json({ success: false, message: error.message });

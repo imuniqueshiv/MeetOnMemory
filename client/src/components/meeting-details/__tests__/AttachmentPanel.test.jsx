@@ -21,7 +21,7 @@ vi.mock("../../../services", () => ({
 
 import { attachmentApi } from "../../../services";
 
-describe("AttachmentPanel accessibility", () => {
+describe("AttachmentPanel accessibility & Dark Mode (#1227)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -55,5 +55,21 @@ describe("AttachmentPanel accessibility", () => {
     expect(
       screen.getByRole("button", { name: "Delete attachment" }),
     ).toBeInTheDocument();
+  });
+
+  it("applies dark mode CSS classes for complete theme support", async () => {
+    attachmentApi.getAttachments.mockResolvedValue({
+      data: { success: true, attachments: [] },
+    });
+
+    const { container } = render(<AttachmentPanel meetingId="meeting-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("No attachments yet")).toBeInTheDocument();
+    });
+
+    const rootElement = container.firstChild;
+    expect(rootElement).toHaveClass("dark:bg-slate-900");
+    expect(rootElement).toHaveClass("dark:border-slate-800");
   });
 });

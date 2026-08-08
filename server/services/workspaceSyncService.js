@@ -94,7 +94,7 @@ class WorkspaceSyncService {
     meeting.markModified("warRoom.actionColumns");
     await meeting.save();
 
-    return meeting;
+    return { meeting, movedItem };
   }
 
   /**

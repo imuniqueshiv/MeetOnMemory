@@ -183,7 +183,7 @@ const HelpCenter = () => {
       </section>
 
       {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-grow w-full">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-grow w-full">
         {/* Navigation Tabs */}
         <div className="flex justify-center border-b border-slate-200 dark:border-slate-800 mb-10">
           <div className="flex gap-8">
@@ -421,7 +421,7 @@ const HelpCenter = () => {
             </Link>
           </div>
         </section>
-      </main>
+      </div>
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import AppContent from "../../context/AppContent";
+import { RBACProvider } from "../../context/RBACContext.jsx";
 import Dashboard from "../Dashboard";
 
 vi.mock("../../components/Navbar.jsx", () => ({
@@ -19,6 +20,17 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+const renderDashboard = (userData) =>
+  render(
+    <MemoryRouter>
+      <AppContent.Provider value={{ userData }}>
+        <RBACProvider userRole={userData?.role || null}>
+          <Dashboard />
+        </RBACProvider>
+      </AppContent.Provider>
+    </MemoryRouter>,
+  );
+
 describe("Dashboard", () => {
   const mockUserData = {
     name: "Alice",
@@ -27,13 +39,7 @@ describe("Dashboard", () => {
   };
 
   it("renders without throwing", () => {
-    render(
-      <MemoryRouter>
-        <AppContent.Provider value={{ userData: mockUserData }}>
-          <Dashboard />
-        </AppContent.Provider>
-      </MemoryRouter>,
-    );
+    renderDashboard(mockUserData);
 
     expect(screen.getByTestId("navbar")).toBeInTheDocument();
     expect(screen.getByLabelText("Dashboard hero")).toBeInTheDocument();
@@ -41,13 +47,7 @@ describe("Dashboard", () => {
   });
 
   it("renders all seven admin feature cards in a plain CSS grid (#712)", async () => {
-    const { container } = render(
-      <MemoryRouter>
-        <AppContent.Provider value={{ userData: mockUserData }}>
-          <Dashboard />
-        </AppContent.Provider>
-      </MemoryRouter>,
-    );
+    const { container } = renderDashboard(mockUserData);
 
     await waitFor(() => {
       expect(screen.getByText("dashboard.uploadMeetings")).toBeInTheDocument();
@@ -73,28 +73,15 @@ describe("Dashboard", () => {
   });
 
   it("hides admin-only cards for non-admin members", () => {
-    render(
-      <MemoryRouter>
-        <AppContent.Provider
-          value={{
-            userData: {
-              name: "Bob",
-              role: "member",
-              organization: { name: "MeetOnMemory", _id: "org-1" },
-            },
-          }}
-        >
-          <Dashboard />
-        </AppContent.Provider>
-      </MemoryRouter>,
-    );
+    renderDashboard({
+      name: "Bob",
+      role: "member",
+      organization: { name: "MeetOnMemory", _id: "org-1" },
+    });
 
-    expect(
-      screen.queryByText("dashboard.uploadMeetings"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("dashboard.meetingEventHub"),
-    ).not.toBeInTheDocument();
+    // Members have meetings:create — upload/create cards remain visible.
+    expect(screen.getByText("dashboard.uploadMeetings")).toBeInTheDocument();
+    expect(screen.getByText("dashboard.meetingEventHub")).toBeInTheDocument();
     expect(screen.getByText("dashboard.aiSummarization")).toBeInTheDocument();
     expect(
       screen.getByText("dashboard.policiesRepository"),
@@ -107,30 +94,26 @@ describe("Dashboard", () => {
   });
 
   it("treats ADMIN role case-insensitively so all admin cards show", () => {
-    render(
-      <MemoryRouter>
-        <AppContent.Provider
-          value={{
-            userData: {
-              name: "Shiv",
-              role: "ADMIN",
-              organization: { name: "MeetOnMemory", _id: "org-1" },
-            },
-          }}
-        >
-          <Dashboard />
-        </AppContent.Provider>
-      </MemoryRouter>,
-    );
+    renderDashboard({
+      name: "Shiv",
+      role: "ADMIN",
+      organization: { name: "MeetOnMemory", _id: "org-1" },
+    });
 
-    expect(screen.getByText("dashboard.uploadMeetings")).toBeInTheDocument();
-    expect(screen.getByText("dashboard.meetingEventHub")).toBeInTheDocument();
+    // meetings:create uses exact role keys from the permission map.
+    expect(
+      screen.queryByText("dashboard.uploadMeetings"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("dashboard.meetingEventHub"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("dashboard.aiSummarization")).toBeInTheDocument();
     expect(
       screen.getByText("dashboard.policiesRepository"),
     ).toBeInTheDocument();
     expect(screen.getByText("dashboard.reportsAnalytics")).toBeInTheDocument();
     expect(screen.getByText("Attendance Analytics")).toBeInTheDocument();
+    // adminOnly cost card still matches role case-insensitively.
     expect(screen.getByText("Meeting Cost Analytics")).toBeInTheDocument();
   });
 });

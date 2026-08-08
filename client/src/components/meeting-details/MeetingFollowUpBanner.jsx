@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { apiClient, meetingApi } from "../../services";
+import RoleGate from "../RoleGate.jsx";
 
 const MeetingFollowUpBanner = ({ meeting }) => {
   const [intents, setIntents] = useState([]);
@@ -112,13 +113,15 @@ const MeetingFollowUpBanner = ({ meeting }) => {
                         )
                       : intent.timeframe}
                   </span>
-                  <button
-                    onClick={() => handleSchedule(intent)}
-                    disabled={loading}
-                    className="ml-3 font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500 underline disabled:opacity-50"
-                  >
-                    [Click here] to schedule
-                  </button>
+                  <RoleGate resource="meetings" action="create">
+                    <button
+                      onClick={() => handleSchedule(intent)}
+                      disabled={loading}
+                      className="ml-3 font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500 underline disabled:opacity-50"
+                    >
+                      [Click here] to schedule
+                    </button>
+                  </RoleGate>
                 </li>
               ))}
             </ul>

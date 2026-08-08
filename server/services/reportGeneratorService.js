@@ -2,6 +2,25 @@ import Meeting from "../models/meetingModel.js";
 import ActionItem from "../models/actionItemModel.js";
 import Decision from "../models/decisionModel.js";
 import ReportTemplate from "../models/reportTemplateModel.js";
+import { isSameOrganization } from "../utils/organizationScope.js";
+import { ForbiddenError, NotFoundError } from "../utils/errors.js";
+
+/** Fallback window when neither the override nor the template supplies one. */
+const DEFAULT_DATE_RANGE_DAYS = 30;
+
+/**
+ * The single message used for "there is no such template *for you*".
+ *
+ * #1272 moved the organization check ahead of the sharing check so a
+ * cross-tenant caller could not tell "exists elsewhere" from "does not exist" —
+ * but it left the two branches with *different* messages, which gives the
+ * distinction straight back. `Report Template not found in your organization.`
+ * confirms the id names a real template; the generic message does not.
+ *
+ * One constant rather than two literals, so the two paths cannot drift apart
+ * again.
+ */
+const TEMPLATE_NOT_FOUND = "Report Template not found";
 
 export const generateReport = async (
   templateId,
@@ -11,33 +30,61 @@ export const generateReport = async (
 ) => {
   const template = await ReportTemplate.findById(templateId);
   if (!template) {
-    throw new Error("Report Template not found");
+    throw new NotFoundError(TEMPLATE_NOT_FOUND);
   }
 
-  // Check RBAC
+  // Check RBAC.
+  //
+  // The organization check runs before the sharing check (Issue #1272), and
+  // both "no such template" and "not your organization" answer identically.
+  //
+  // The comparison itself was `template.organization.toString() !== orgId`.
+  // `orgId` arrives from the controller as an `ObjectId`, so that compared a
+  // string against an `ObjectId` and was true for *every* template, including
+  // the caller's own. The only reason the existing suite did not catch it is
+  // that it passes `mockOrgId.toString()` by hand.
+  if (!isSameOrganization(template.organization, orgId)) {
+    throw new NotFoundError(TEMPLATE_NOT_FOUND);
+  }
+
+  // Reached only by a caller who is already a member of the owning
+  // organization, so a 403 here reveals nothing they could not already infer.
   if (
     !template.isShared &&
     template.createdBy.toString() !== user._id.toString()
   ) {
-    throw new Error("You do not have permission to view this report template.");
-  }
-  if (template.organization.toString() !== orgId) {
-    throw new Error("Report Template not found in your organization.");
+    throw new ForbiddenError(
+      "You do not have permission to view this report template.",
+    );
   }
 
   // Increment generation count
   template.generationCount += 1;
   await template.save();
 
-  // 1. Resolve Filters
+  // 1. Resolve Filters.
+  //
+  // `defaultFilters` is optional on documents written before it was added to
+  // the schema, so each read is guarded — `template.defaultFilters.tags` on
+  // such a document threw a TypeError that the controller reported as a 500.
+  const defaultFilters = template.defaultFilters || {};
+
   const dateRangeDays =
-    filterOverrides?.dateRangeDays || template.defaultFilters.dateRangeDays;
-  const tags = filterOverrides?.tags?.length
+    filterOverrides?.dateRangeDays ||
+    defaultFilters.dateRangeDays ||
+    DEFAULT_DATE_RANGE_DAYS;
+  // `Array.isArray`, not `?.length`. With the truthiness test an override of
+  // `tags: []` fell through to the template's saved tags, so a caller could add
+  // filters for one run but never *clear* them — "show me everything in the
+  // last 30 days" was unreachable from a template that saves a tag filter.
+  // Supplying an array at all is the override; whether it is empty is the
+  // caller's business.
+  const tags = Array.isArray(filterOverrides?.tags)
     ? filterOverrides.tags
-    : template.defaultFilters.tags;
-  const meetingTypes = filterOverrides?.meetingTypes?.length
+    : defaultFilters.tags;
+  const meetingTypes = Array.isArray(filterOverrides?.meetingTypes)
     ? filterOverrides.meetingTypes
-    : template.defaultFilters.meetingTypes;
+    : defaultFilters.meetingTypes;
 
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - dateRangeDays);

@@ -2,6 +2,7 @@ import React, { useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import AppContent from "../context/AppContent";
+import { useRBAC } from "../hooks/useRBAC.js";
 import {
   FileText,
   Upload,
@@ -42,6 +43,7 @@ const ROUTE_MAP = {
 const Dashboard = () => {
   const { t } = useTranslation();
   const { userData } = useContext(AppContent);
+  const { hasPermission } = useRBAC();
   const navigate = useNavigate();
 
   const organizationName =
@@ -57,6 +59,7 @@ const Dashboard = () => {
 
   const isAdmin =
     rawRole.toLowerCase() === "admin" || rawRole.toLowerCase() === "owner";
+  const canCreateMeeting = hasPermission("meetings", "create");
 
   const FEATURE_CARDS = [
     {
@@ -69,7 +72,7 @@ const Dashboard = () => {
       tag: t("dashboard.transcription"),
       tagColor: "bg-blue-50 text-blue-700 border-blue-100",
       accentRing: "group-hover:ring-blue-100",
-      adminOnly: true,
+      requiresCreateMeeting: true,
     },
     {
       id: "create-meeting",
@@ -81,7 +84,7 @@ const Dashboard = () => {
       tag: t("dashboard.scheduling"),
       tagColor: "bg-emerald-50 text-emerald-700 border-emerald-100",
       accentRing: "group-hover:ring-emerald-100",
-      adminOnly: true,
+      requiresCreateMeeting: true,
     },
     {
       id: "summaries",
@@ -143,9 +146,11 @@ const Dashboard = () => {
     },
   ];
 
-  const visibleCards = FEATURE_CARDS.filter(
-    (card) => !card.adminOnly || isAdmin,
-  );
+  const visibleCards = FEATURE_CARDS.filter((card) => {
+    if (card.adminOnly && !isAdmin) return false;
+    if (card.requiresCreateMeeting && !canCreateMeeting) return false;
+    return true;
+  });
 
   const handleAISearch = () => navigate("/ai-search");
   const handleCardClick = (id) => navigate(ROUTE_MAP[id]);
@@ -154,7 +159,7 @@ const Dashboard = () => {
     <div className="min-h-screen flex flex-col bg-linear-to-b from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
       <Navbar />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-12 sm:pb-16">
+      <div className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-12 sm:pb-16">
         {/* ── Hero + AI Search — unified panel ── */}
         <section
           aria-label="Dashboard hero"
@@ -359,7 +364,7 @@ const Dashboard = () => {
           />
           <PersonalNotesSidebar />
         </section>
-      </main>
+      </div>
     </div>
   );
 };

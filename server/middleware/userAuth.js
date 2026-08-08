@@ -2,7 +2,11 @@ import {
   findUserByClerkId,
   provisionOrLinkClerkUser,
 } from "../services/authLinkingService.js";
-import { verifyClerkSessionToken } from "../utils/authUtils.js";
+import { AccountMergeError } from "../services/userAccountMergeService.js";
+import {
+  extractClerkIdentityFromClaims,
+  verifyClerkSessionToken,
+} from "../utils/authUtils.js";
 import logger from "../utils/logger.js";
 
 const DIAG = "[SYNC-CLERK-DIAG]";
@@ -42,6 +46,7 @@ const extractBearerToken = (req) => {
 /**
  * Clerk-only HTTP authentication.
  * Resolves MongoDB `req.user` via authLinkingService (RBAC source of truth).
+ * Attaches verified JWT identity on `req.auth` for downstream sync handlers.
  */
 const userAuth = async (req, res, next) => {
   const safeRequest = sanitizeAuthRequestForLog(req);
@@ -95,7 +100,8 @@ const userAuth = async (req, res, next) => {
       });
     }
 
-    if (!decodedClerk?.sub) {
+    const authIdentity = extractClerkIdentityFromClaims(decodedClerk);
+    if (!authIdentity) {
       if (isSyncRoute) {
         console.error(`${DIAG} 2. Clerk token missing sub claim`);
       }
@@ -105,19 +111,20 @@ const userAuth = async (req, res, next) => {
       });
     }
 
+    // Verified JWT identity only — controllers must not trust req.body for linking.
+    req.auth = authIdentity;
+
     if (isSyncRoute) {
       console.error(`${DIAG} 3. Clerk user id (sub)`, {
-        sub: decodedClerk.sub,
+        sub: authIdentity.clerkUserId,
       });
       console.error(`${DIAG} 4. Clerk email from JWT claims`, {
-        email: decodedClerk.email || null,
-        email_address: decodedClerk.email_address || null,
-        primary_email_address: decodedClerk.primary_email_address || null,
+        email: authIdentity.email,
       });
       console.error(`${DIAG} 5. Existing Mongo user lookup by clerkUserId…`);
     }
 
-    let user = await findUserByClerkId(decodedClerk.sub);
+    let user = await findUserByClerkId(authIdentity.clerkUserId);
     if (isSyncRoute) {
       console.error(`${DIAG} 5. Mongo lookup by clerkUserId result`, {
         found: Boolean(user),
@@ -134,17 +141,10 @@ const userAuth = async (req, res, next) => {
       }
       try {
         user = await provisionOrLinkClerkUser({
-          clerkUserId: decodedClerk.sub,
-          email:
-            decodedClerk.email ||
-            decodedClerk.email_address ||
-            decodedClerk.primary_email_address,
-          name:
-            decodedClerk.name ||
-            (decodedClerk.first_name
-              ? `${decodedClerk.first_name} ${decodedClerk.last_name || ""}`.trim()
-              : null),
-          profilePic: decodedClerk.picture || decodedClerk.image_url,
+          clerkUserId: authIdentity.clerkUserId,
+          email: authIdentity.email,
+          name: authIdentity.name,
+          profilePic: authIdentity.profilePic,
         });
       } catch (provisionErr) {
         // Surface the real exception — previously this became a generic 401
@@ -184,6 +184,15 @@ const userAuth = async (req, res, next) => {
 
     next();
   } catch (error) {
+    if (error instanceof AccountMergeError) {
+      console.error(`${DIAG} userAuth ACCOUNT MERGE CONFLICT`);
+      console.error(error?.message);
+      return res.status(409).json({
+        success: false,
+        message: error.message || "Account synchronization conflict.",
+      });
+    }
+
     console.error("Auth middleware error:", error.message);
 
     console.error(`${DIAG} userAuth OUTER catch`);

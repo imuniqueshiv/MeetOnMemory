@@ -1,5 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+vi.mock("mongoose", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    default: {
+      ...actual.default,
+      startSession: vi.fn().mockResolvedValue({
+        startTransaction: vi.fn(),
+        commitTransaction: vi.fn(),
+        abortTransaction: vi.fn(),
+        endSession: vi.fn(),
+      }),
+    },
+  };
+});
+
 // Mock all external dependencies before importing the service
 vi.mock("../models/invitationModel.js", () => ({
   default: {
@@ -241,7 +257,8 @@ describe("InvitationService", () => {
   describe("acceptInvitation", () => {
     it("should throw NotFoundError if token is invalid", async () => {
       Invitation.findOne.mockReturnValue({
-        populate: vi.fn().mockResolvedValue(null),
+        populate: vi.fn().mockReturnThis(),
+        session: vi.fn().mockResolvedValue(null),
       });
 
       await expect(
@@ -251,7 +268,8 @@ describe("InvitationService", () => {
 
     it("should throw ValidationError if invitation is not pending", async () => {
       Invitation.findOne.mockReturnValue({
-        populate: vi.fn().mockResolvedValue({
+        populate: vi.fn().mockReturnThis(),
+        session: vi.fn().mockResolvedValue({
           status: "accepted",
           token: "tok1",
         }),
@@ -269,7 +287,8 @@ describe("InvitationService", () => {
         save: vi.fn(),
       };
       Invitation.findOne.mockReturnValue({
-        populate: vi.fn().mockResolvedValue(mockInvitation),
+        populate: vi.fn().mockReturnThis(),
+        session: vi.fn().mockResolvedValue(mockInvitation),
       });
 
       await expect(
@@ -282,7 +301,8 @@ describe("InvitationService", () => {
 
     it("should throw ForbiddenError if email doesn't match", async () => {
       Invitation.findOne.mockReturnValue({
-        populate: vi.fn().mockResolvedValue({
+        populate: vi.fn().mockReturnThis(),
+        session: vi.fn().mockResolvedValue({
           status: "pending",
           expiresAt: new Date(Date.now() + 86400000),
           email: "someone@example.com",
@@ -290,8 +310,10 @@ describe("InvitationService", () => {
         }),
       });
 
-      userModel.findById.mockResolvedValue({
-        email: "other@example.com",
+      userModel.findById.mockReturnValue({
+        session: vi.fn().mockResolvedValue({
+          email: "other@example.com",
+        }),
       });
 
       await expect(
@@ -309,19 +331,29 @@ describe("InvitationService", () => {
         save: vi.fn(),
       };
       Invitation.findOne.mockReturnValue({
-        populate: vi.fn().mockResolvedValue(mockInvitation),
+        populate: vi.fn().mockReturnThis(),
+        session: vi.fn().mockResolvedValue(mockInvitation),
       });
 
-      userModel.findById.mockResolvedValue({
-        email: "invitee@example.com",
+      userModel.findById.mockReturnValue({
+        session: vi.fn().mockResolvedValue({
+          email: "invitee@example.com",
+        }),
       });
 
-      Membership.findOne.mockResolvedValue(null);
-      Membership.create.mockResolvedValue({
-        user: "user1",
-        organization: "org1",
-        role: "member",
+      Membership.findOne.mockReturnValue({
+        session: vi.fn().mockResolvedValue(null),
       });
+
+      // Note: Model.create([...]) returns an array of documents
+      Membership.create.mockResolvedValue([
+        {
+          user: "user1",
+          organization: "org1",
+          role: "member",
+        },
+      ]);
+
       userModel.findByIdAndUpdate.mockResolvedValue(true);
 
       const result = await InvitationService.acceptInvitation(

@@ -10,7 +10,11 @@
 import request from "supertest";
 import crypto from "crypto";
 import express from "express";
-import { slackWebhookParser } from "../middleware/slackWebhookParser.js";
+import {
+  slackWebhookParser,
+  SLACK_PAYLOAD_LIMIT,
+} from "../middleware/slackWebhookParser.js";
+import errorHandler from "../middleware/errorHandler.js";
 
 const SIGNING_SECRET = "test_signing_secret_parser";
 
@@ -120,5 +124,55 @@ describe("slackWebhookParser raw body capture (Issue #614)", () => {
     expect(res.status).toBe(200);
     expect(res.body.parsedType).toBe("url_verification");
     expect(res.body.hasRawBody).toBe(false);
+  });
+});
+
+describe("slackWebhookParser payload limit (Issue #1118)", () => {
+  const buildLimitedApp = () => {
+    const limitedApp = express();
+    // Match the production mount order (config/express.js): Slack parser first,
+    // then the global error handler to serialize body-parser errors.
+    limitedApp.use("/api/slack", slackWebhookParser, (req, res) => {
+      res.status(200).json({ ok: true });
+    });
+    limitedApp.use(errorHandler);
+    return limitedApp;
+  };
+
+  it("defines a strict Slack payload limit (not the legacy 50mb)", () => {
+    expect(SLACK_PAYLOAD_LIMIT).toBe("1mb");
+  });
+
+  it("rejects an oversized JSON event payload with 413", async () => {
+    const bigString = "x".repeat(1024 * 1024 + 1024); // ~1MB+ — over the limit
+    const res = await request(buildLimitedApp())
+      .post("/api/slack/events")
+      .set("Content-Type", "application/json")
+      .send({ type: "event_callback", blob: bigString });
+
+    expect(res.status).toBe(413);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("rejects an oversized urlencoded slash-command payload with 413", async () => {
+    const bigText = "y".repeat(1024 * 1024 + 1024); // ~1MB+ — over the limit
+    const res = await request(buildLimitedApp())
+      .post("/api/slack/events")
+      .set("Content-Type", "application/x-www-form-urlencoded")
+      .send(`command=/mom-create&text=${encodeURIComponent(bigText)}`);
+
+    expect(res.status).toBe(413);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("still accepts a legitimate Slack payload under the limit", async () => {
+    const payload = { type: "url_verification", challenge: "challenge-token" };
+    const res = await request(buildLimitedApp())
+      .post("/api/slack/events")
+      .set("Content-Type", "application/json")
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
   });
 });

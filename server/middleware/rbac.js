@@ -43,7 +43,14 @@ export const requireRole = (roles) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const userRole = req.user.role || "guest";
+    if (!req.user.role) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: No role assigned",
+      });
+    }
+
+    const userRole = req.user.role;
     const allowedRoles = Array.isArray(roles) ? roles : [roles];
 
     if (!allowedRoles.includes(userRole)) {
@@ -92,7 +99,14 @@ export const requirePermission = (resource, action) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const userRole = req.user.role || "guest";
+    if (!req.user.role) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: No role assigned",
+      });
+    }
+
+    const userRole = req.user.role;
 
     if (!hasPermission(userRole, resource, action)) {
       return res.status(403).json({
@@ -111,7 +125,14 @@ export const requireAnyPermission = (resource, actions) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const userRole = req.user.role || "guest";
+    if (!req.user.role) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: No role assigned",
+      });
+    }
+
+    const userRole = req.user.role;
 
     const hasAny = actions.some((action) =>
       hasPermission(userRole, resource, action),

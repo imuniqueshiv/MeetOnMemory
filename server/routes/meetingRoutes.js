@@ -31,6 +31,8 @@ import {
   archiveMeeting,
   restoreMeeting,
   notifyLiveMeeting, // NEW: Notify participants of a live meeting
+  handleMeetingClipOperation,
+  getMeetingClip,
   getMeetingInvite,
   regenerateMeetingInvite,
   updateMeetingInvite,
@@ -54,11 +56,74 @@ import {
   uploadTranscriptChunk,
 } from "../controllers/transcriptController.js";
 
+import path from "path";
+import { ValidationError } from "../utils/errors.js";
+
+const ALLOWED_RECORDING_MIME_TYPES = [
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/m4a",
+  "audio/x-m4a",
+  "audio/ogg",
+  "audio/webm",
+  "audio/flac",
+  "audio/aac",
+  "audio/mp4",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-msvideo",
+  "video/x-matroska",
+  "application/octet-stream",
+];
+
+const ALLOWED_RECORDING_EXTENSIONS = [
+  ".mp3",
+  ".wav",
+  ".m4a",
+  ".ogg",
+  ".webm",
+  ".flac",
+  ".aac",
+  ".mp4",
+  ".mov",
+  ".avi",
+  ".mkv",
+];
+
+const meetingRecordingFilter = (req, file, cb) => {
+  if (!file) {
+    return cb(null, true);
+  }
+  const ext = path.extname(file.originalname || "").toLowerCase();
+  const mimeType = file.mimetype;
+
+  const isExtAllowed = ALLOWED_RECORDING_EXTENSIONS.includes(ext);
+  const isMimeAllowed =
+    !mimeType || ALLOWED_RECORDING_MIME_TYPES.includes(mimeType);
+
+  if (!isExtAllowed || !isMimeAllowed) {
+    return cb(
+      new ValidationError(
+        `Invalid meeting recording file type: ${file.originalname || ext}. Allowed recording formats: MP3, WAV, M4A, OGG, WEBM, FLAC, AAC, MP4, MOV, AVI, MKV`,
+      ),
+      false,
+    );
+  }
+  cb(null, true);
+};
+
 const router = express.Router();
-const upload = multer({ dest: "uploads/" }); // temporary upload directory
+const upload = multer({
+  dest: "uploads/",
+  fileFilter: meetingRecordingFilter,
+}); // temporary upload directory
 const transcriptUpload = multer({
   dest: "uploads/transcripts/",
   limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+  fileFilter: meetingRecordingFilter,
 });
 const transcriptChunkUpload = multer({
   storage: multer.memoryStorage(),
@@ -325,6 +390,26 @@ router.post(
   writeLimiter,
   requirePermission("meetings", "create"),
   notifyLiveMeeting,
+);
+
+// ✅ Create/Modify Meeting Clip
+router.post(
+  "/:id/clip",
+  userAuth,
+  requireOrgMembership,
+  requireOrgAccess(Meeting),
+  requirePermission("meetings", "edit"),
+  handleMeetingClipOperation,
+);
+
+// ✅ View Meeting Clip
+router.get(
+  "/:id/clip/:clipId",
+  userAuth,
+  requireOrgMembership,
+  requireOrgAccess(Meeting),
+  requirePermission("meetings", "view"),
+  getMeetingClip,
 );
 
 // ✅ Resend Meeting Digest

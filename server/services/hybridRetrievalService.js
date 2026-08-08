@@ -134,13 +134,12 @@ async function runSemanticSearch(query, organization, graph, options) {
 
   if (options.includeTypes.includes("meeting")) {
     try {
-      // Note: Pinecone metadata does not currently store an organization
-      // field (see embeddingUtils.indexMeeting), so an organization filter
-      // here would silently zero out every result. Matching the existing
-      // `/api/search` behavior, meeting hits are not org-filtered at the
-      // vector-store layer.
+      if (!organization) {
+        throw new Error("Organization context is required for hybrid search");
+      }
       const meetingHits = await searchVectorStore(query, {
         limit: options.semanticTopK,
+        organization: organization.toString(),
       });
       for (const hit of meetingHits) {
         results.push({

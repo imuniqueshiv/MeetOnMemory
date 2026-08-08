@@ -37,21 +37,31 @@ export const semanticSearch = async (req, res) => {
       );
     }
 
-    console.log(`🔍 AI Semantic Search for query: "${query}"`);
-
-    // ✅ Step 3 — Perform vector search
-    const results = await searchVectorStore(query);
-
-    if (!results || results.length === 0) {
-      return sendSuccess(res, { results: [] }, "No relevant meetings found.");
-    }
-
-    // ✅ Step 4 — Get user's active organizations for access control
+    // ✅ Step 3 — Get user's active organizations for filtering
     const memberships = await Membership.find(
       { user: req.user._id, status: "active" },
       "organization",
     ).lean();
     const userOrgIds = memberships.map((m) => m.organization.toString());
+
+    if (userOrgIds.length === 0) {
+      return sendError(
+        res,
+        400,
+        "Organization context is required for search.",
+      );
+    }
+
+    console.log(`🔍 AI Semantic Search for query: "${query}"`);
+
+    // ✅ Step 4 — Perform vector search scoped to user's orgs
+    const results = await searchVectorStore(query, {
+      organization: userOrgIds,
+    });
+
+    if (!results || results.length === 0) {
+      return sendSuccess(res, { results: [] }, "No relevant meetings found.");
+    }
 
     // ✅ Step 5 — Fetch full meeting data for context, scoped to user's orgs
     const meetingIds = results.map((r) => r.meetingId);

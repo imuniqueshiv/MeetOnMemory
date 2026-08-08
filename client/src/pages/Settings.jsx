@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from "react";
+import React, { useState, useContext, useEffect, useRef } from "react";
 import Navbar from "../components/Navbar.jsx";
 import AppContent from "../context/AppContent";
 import { useNavigate } from "react-router-dom";
@@ -29,11 +29,48 @@ import DigestPreferences from "../components/DigestPreferences.jsx";
 import RecapPreferences from "../components/RecapPreferences.jsx";
 import { ClerkManageAccountButton } from "../components/ClerkUserControls.jsx";
 import apiClient from "../services/apiClient.js";
+import { notificationApi } from "../services/notificationApi.js";
+import { userApi } from "../services/userApi.js";
+import {
+  validateCalendarOAuthAuthUrl,
+  CALENDAR_OAUTH_FALLBACK_PATH,
+} from "../utils/validateCalendarOAuthRedirect.js";
+import { validateRedirect } from "../utils/validateRedirect.js";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
+/** Map NotificationPreference document fields → Settings toggle keys. */
+const prefsFromApi = (preferences, emailDigestEnabled) => ({
+  meetingNotifications: preferences?.pushMeetingReminders !== false,
+  organizationUpdates: preferences?.pushOrganizationUpdates !== false,
+  aiProcessingUpdates: preferences?.pushAiProcessingComplete !== false,
+  emailNotifications:
+    preferences?.emailMeetingReminders !== false &&
+    preferences?.emailTaskAssignments !== false,
+  emailDigestEnabled: emailDigestEnabled !== false,
+});
+
+/** Map a Settings toggle change → NotificationPreference allowlisted fields. */
+const apiPayloadForToggle = (key, value) => {
+  switch (key) {
+    case "meetingNotifications":
+      return { pushMeetingReminders: value };
+    case "organizationUpdates":
+      return { pushOrganizationUpdates: value };
+    case "aiProcessingUpdates":
+      return { pushAiProcessingComplete: value };
+    case "emailNotifications":
+      return {
+        emailMeetingReminders: value,
+        emailTaskAssignments: value,
+      };
+    default:
+      return null;
+  }
+};
+
 const Settings = () => {
-  const { userData, logoutUser } = useContext(AppContent);
+  const { userData, setUserData, logoutUser } = useContext(AppContent);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
@@ -44,14 +81,17 @@ const Settings = () => {
   });
   const [calendarLoading, setCalendarLoading] = useState(false);
 
-  // Notification preferences state (UI only - no backend support except emailDigestEnabled)
   const [notificationPrefs, setNotificationPrefs] = useState({
     meetingNotifications: true,
     organizationUpdates: true,
     aiProcessingUpdates: true,
     emailNotifications: true,
-    emailDigestEnabled: userData?.emailDigestEnabled !== false,
+    emailDigestEnabled: true,
   });
+  const [prefsLoading, setPrefsLoading] = useState(true);
+  // Serialize preference writes so rapid toggles cannot race on the server.
+  const prefsSaveChainRef = useRef(Promise.resolve());
+  const latestIntentRef = useRef({});
 
   const { theme, toggleTheme } = useTheme();
 
@@ -72,6 +112,37 @@ const Settings = () => {
       fetchCalendarStatus();
     }
   }, [userData]);
+
+  // Load persisted notification preferences (Issue #1137)
+  useEffect(() => {
+    if (!userData?.id) return;
+
+    let cancelled = false;
+
+    const loadPreferences = async () => {
+      setPrefsLoading(true);
+      try {
+        const response = await notificationApi.getPreferences();
+        if (cancelled) return;
+        setNotificationPrefs(
+          prefsFromApi(response.data.preferences, userData.emailDigestEnabled),
+        );
+      } catch (error) {
+        console.error("Error loading notification preferences:", error);
+        if (!cancelled) {
+          setNotificationPrefs(prefsFromApi(null, userData.emailDigestEnabled));
+          toast.error("Failed to load notification preferences");
+        }
+      } finally {
+        if (!cancelled) setPrefsLoading(false);
+      }
+    };
+
+    loadPreferences();
+    return () => {
+      cancelled = true;
+    };
+  }, [userData?.id]);
 
   // Appearance preferences state (UI only - no backend support)
   const [appearancePrefs, setAppearancePrefs] = useState({
@@ -120,29 +191,54 @@ const Settings = () => {
     }
   };
 
-  const handleNotificationChange = async (key) => {
-    const newValue = !notificationPrefs[key];
+  const handleNotificationChange = (key) => {
+    const previousValue = notificationPrefs[key];
+    const newValue = !previousValue;
+
+    latestIntentRef.current[key] = newValue;
     setNotificationPrefs((prev) => ({
       ...prev,
       [key]: newValue,
     }));
 
-    if (key === "emailDigestEnabled") {
-      try {
-        await apiClient.put("/api/user/update", {
-          emailDigestEnabled: newValue,
-        });
-        toast.success("Email digest preference updated");
-      } catch (error) {
-        console.error("Error updating preference:", error);
-        toast.error("Failed to update preference");
-        // Revert on error
-        setNotificationPrefs((prev) => ({
-          ...prev,
-          [key]: !newValue,
-        }));
-      }
-    }
+    prefsSaveChainRef.current = prefsSaveChainRef.current
+      .catch(() => {})
+      .then(async () => {
+        try {
+          if (key === "emailDigestEnabled") {
+            const response = await userApi.updateProfile({
+              name: userData.name,
+              profilePic: userData.profilePic || "",
+              bio: userData.bio || "",
+              emailDigestEnabled: newValue,
+            });
+            if (latestIntentRef.current[key] !== newValue) return;
+            if (response.data?.user && setUserData) {
+              setUserData(response.data.user);
+            }
+            toast.success("Email digest preference updated");
+            return;
+          }
+
+          const payload = apiPayloadForToggle(key, newValue);
+          if (!payload) return;
+
+          await notificationApi.updatePreferences(payload);
+          if (latestIntentRef.current[key] !== newValue) return;
+          toast.success("Notification preference updated");
+        } catch (error) {
+          console.error("Error updating preference:", error);
+          if (latestIntentRef.current[key] !== newValue) return;
+          toast.error(
+            error.response?.data?.message || "Failed to update preference",
+          );
+          setNotificationPrefs((prev) => ({
+            ...prev,
+            [key]: previousValue,
+          }));
+          latestIntentRef.current[key] = previousValue;
+        }
+      });
   };
 
   const handleThemeChange = (newTheme) => {
@@ -156,10 +252,20 @@ const Settings = () => {
     try {
       setCalendarLoading(true);
       const response = await apiClient.get("/api/calendar/google/auth-url");
+      const safeAuthUrl = validateCalendarOAuthAuthUrl(response.data.authUrl);
+
+      if (!safeAuthUrl) {
+        toast.error("Invalid Google Calendar authorization URL");
+        setCalendarLoading(false);
+        window.location.assign(
+          validateRedirect(CALENDAR_OAUTH_FALLBACK_PATH, "/settings"),
+        );
+        return;
+      }
 
       // Open OAuth popup
       const authWindow = window.open(
-        response.data.authUrl,
+        safeAuthUrl,
         "_blank",
         "width=500,height=600",
       );
@@ -184,10 +290,20 @@ const Settings = () => {
     try {
       setCalendarLoading(true);
       const response = await apiClient.get("/api/calendar/microsoft/auth-url");
+      const safeAuthUrl = validateCalendarOAuthAuthUrl(response.data.authUrl);
+
+      if (!safeAuthUrl) {
+        toast.error("Invalid Microsoft Calendar authorization URL");
+        setCalendarLoading(false);
+        window.location.assign(
+          validateRedirect(CALENDAR_OAUTH_FALLBACK_PATH, "/settings"),
+        );
+        return;
+      }
 
       // Open OAuth popup
       const authWindow = window.open(
-        response.data.authUrl,
+        safeAuthUrl,
         "_blank",
         "width=500,height=600",
       );
@@ -279,7 +395,7 @@ const Settings = () => {
     <div className="min-h-screen bg-linear-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-200 flex flex-col font-sans select-none">
       <Navbar />
 
-      <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
+      <div className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
         {/* Page title header */}
         <div className="text-center mb-8 fade-in-up stagger-1">
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
@@ -452,151 +568,169 @@ const Settings = () => {
             </div>
 
             <div className="space-y-4">
-              <div className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
-                    Meeting Notifications
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Get notified about meeting updates
-                  </p>
+              {prefsLoading ? (
+                <div className="flex items-center justify-center py-8 text-slate-500 dark:text-slate-400">
+                  <Loader2 className="animate-spin w-5 h-5 mr-2" />
+                  <span className="text-sm">Loading preferences...</span>
                 </div>
-                <button
-                  onClick={() =>
-                    handleNotificationChange("meetingNotifications")
-                  }
-                  className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
-                    notificationPrefs.meetingNotifications
-                      ? "bg-blue-600"
-                      : "bg-slate-200 dark:bg-slate-700"
-                  }`}
-                  aria-pressed={notificationPrefs.meetingNotifications}
-                >
-                  <span
-                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
-                      notificationPrefs.meetingNotifications
-                        ? "translate-x-5"
-                        : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                        Meeting Notifications
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Get notified about meeting updates
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleNotificationChange("meetingNotifications")
+                      }
+                      className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                        notificationPrefs.meetingNotifications
+                          ? "bg-blue-600"
+                          : "bg-slate-200 dark:bg-slate-700"
+                      }`}
+                      aria-pressed={notificationPrefs.meetingNotifications}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
+                          notificationPrefs.meetingNotifications
+                            ? "translate-x-5"
+                            : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
 
-              <div className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
-                    Organization Updates
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Updates about your organization
-                  </p>
-                </div>
-                <button
-                  onClick={() =>
-                    handleNotificationChange("organizationUpdates")
-                  }
-                  className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
-                    notificationPrefs.organizationUpdates
-                      ? "bg-blue-600"
-                      : "bg-slate-200 dark:bg-slate-700"
-                  }`}
-                  aria-pressed={notificationPrefs.organizationUpdates}
-                >
-                  <span
-                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
-                      notificationPrefs.organizationUpdates
-                        ? "translate-x-5"
-                        : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
+                  <div className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                        Organization Updates
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Updates about your organization
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleNotificationChange("organizationUpdates")
+                      }
+                      className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                        notificationPrefs.organizationUpdates
+                          ? "bg-blue-600"
+                          : "bg-slate-200 dark:bg-slate-700"
+                      }`}
+                      aria-pressed={notificationPrefs.organizationUpdates}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
+                          notificationPrefs.organizationUpdates
+                            ? "translate-x-5"
+                            : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
 
-              <div className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
-                    AI Processing Updates
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Notifications when AI processing completes
-                  </p>
-                </div>
-                <button
-                  onClick={() =>
-                    handleNotificationChange("aiProcessingUpdates")
-                  }
-                  className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
-                    notificationPrefs.aiProcessingUpdates
-                      ? "bg-blue-600"
-                      : "bg-slate-200 dark:bg-slate-700"
-                  }`}
-                  aria-pressed={notificationPrefs.aiProcessingUpdates}
-                >
-                  <span
-                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
-                      notificationPrefs.aiProcessingUpdates
-                        ? "translate-x-5"
-                        : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
+                  <div className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                        AI Processing Updates
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Notifications when AI processing completes
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleNotificationChange("aiProcessingUpdates")
+                      }
+                      className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                        notificationPrefs.aiProcessingUpdates
+                          ? "bg-blue-600"
+                          : "bg-slate-200 dark:bg-slate-700"
+                      }`}
+                      aria-pressed={notificationPrefs.aiProcessingUpdates}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
+                          notificationPrefs.aiProcessingUpdates
+                            ? "translate-x-5"
+                            : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
 
-              <div className="flex items-center justify-between py-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
-                    Email Notifications
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Receive notifications via email
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleNotificationChange("emailNotifications")}
-                  className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
-                    notificationPrefs.emailNotifications
-                      ? "bg-blue-600"
-                      : "bg-slate-200 dark:bg-slate-700"
-                  }`}
-                  aria-pressed={notificationPrefs.emailNotifications}
-                >
-                  <span
-                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
-                      notificationPrefs.emailNotifications
-                        ? "translate-x-5"
-                        : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
+                  <div className="flex items-center justify-between py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                        Email Notifications
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Receive notifications via email
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleNotificationChange("emailNotifications")
+                      }
+                      className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                        notificationPrefs.emailNotifications
+                          ? "bg-blue-600"
+                          : "bg-slate-200 dark:bg-slate-700"
+                      }`}
+                      aria-pressed={notificationPrefs.emailNotifications}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
+                          notificationPrefs.emailNotifications
+                            ? "translate-x-5"
+                            : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
 
-              <div className="flex items-center justify-between py-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
-                    Receive email digest after meetings
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Get an automated summary of completed meetings
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleNotificationChange("emailDigestEnabled")}
-                  className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
-                    notificationPrefs.emailDigestEnabled
-                      ? "bg-blue-600"
-                      : "bg-slate-200 dark:bg-slate-700"
-                  }`}
-                  aria-pressed={notificationPrefs.emailDigestEnabled}
-                >
-                  <span
-                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
-                      notificationPrefs.emailDigestEnabled
-                        ? "translate-x-5"
-                        : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
+                  <div className="flex items-center justify-between py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                        Receive email digest after meetings
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Get an automated summary of completed meetings
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleNotificationChange("emailDigestEnabled")
+                      }
+                      className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                        notificationPrefs.emailDigestEnabled
+                          ? "bg-blue-600"
+                          : "bg-slate-200 dark:bg-slate-700"
+                      }`}
+                      aria-pressed={notificationPrefs.emailDigestEnabled}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
+                          notificationPrefs.emailDigestEnabled
+                            ? "translate-x-5"
+                            : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -958,7 +1092,7 @@ const Settings = () => {
             </div>
           )}
         </div>
-      </main>
+      </div>
     </div>
   );
 };

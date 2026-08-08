@@ -88,10 +88,10 @@ export const validateWebhookDestination = async (urlStr) => {
     return { ok: false, reason: "Destination URL is not a valid URL." };
   }
 
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+  if (parsed.protocol !== "https:") {
     return {
       ok: false,
-      reason: "Destination URL must use http:// or https://.",
+      reason: "Destination URL must use https://.",
     };
   }
 

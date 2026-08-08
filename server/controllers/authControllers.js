@@ -1,6 +1,7 @@
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
 import AuthService from "../services/AuthService.js";
 import { provisionOrLinkClerkUser } from "../services/authLinkingService.js";
+import { AccountMergeError } from "../services/userAccountMergeService.js";
 
 // --------------------------- HELPERS ---------------------------
 const validateFields = (fields, res) => {
@@ -186,33 +187,47 @@ export const syncClerkUser = async (req, res) => {
     reqUserId: req.user?._id?.toString?.() || req.user?.id || null,
     reqUserClerkId: req.user?.clerkUserId || null,
     reqUserEmail: req.user?.email || null,
+    reqAuthClerkId: req.auth?.clerkUserId || null,
   });
 
   try {
-    const { clerkUserId, email, name, profilePic } = req.body || {};
-    const targetClerkId = clerkUserId || req.user?.clerkUserId;
-    const targetEmail = email || req.user?.email;
+    // Issue #1104: identity comes only from the verified Clerk JWT (req.auth),
+    // populated by userAuth. Request-body clerkUserId / email / etc. are ignored
+    // so clients cannot force unauthorized account linking.
+    const authIdentity = req.auth;
+    const clerkUserId = authIdentity?.clerkUserId;
 
-    console.error(`${DIAG} 3/4. Resolved sync inputs`, {
-      targetClerkId: targetClerkId || null,
-      targetEmail: targetEmail || null,
-      name: name || null,
-      hasProfilePic: Boolean(profilePic),
-      bodyClerkUserId: clerkUserId || null,
-      bodyEmail: email || null,
+    console.error(`${DIAG} 3/4. Resolved sync inputs (JWT only)`, {
+      clerkUserId: clerkUserId || null,
+      email: authIdentity?.email || null,
+      name: authIdentity?.name || null,
+      hasProfilePic: Boolean(authIdentity?.profilePic),
+      ignoredBodyIdentityKeys: [
+        "clerkUserId",
+        "email",
+        "name",
+        "profilePic",
+      ].filter(
+        (key) =>
+          req.body && Object.prototype.hasOwnProperty.call(req.body, key),
+      ),
     });
 
-    if (!targetClerkId) {
-      console.error(`${DIAG} FAIL early: clerkUserId missing`);
-      return sendError(res, 400, "clerkUserId is required for sync");
+    if (!clerkUserId) {
+      console.error(`${DIAG} FAIL early: verified JWT identity missing`);
+      return sendError(
+        res,
+        401,
+        "Authenticated Clerk identity is required for sync",
+      );
     }
 
     console.error(`${DIAG} Calling provisionOrLinkClerkUser…`);
     const user = await provisionOrLinkClerkUser({
-      clerkUserId: targetClerkId,
-      email: targetEmail,
-      name,
-      profilePic,
+      clerkUserId,
+      email: authIdentity.email,
+      name: authIdentity.name,
+      profilePic: authIdentity.profilePic,
     });
 
     console.error(`${DIAG} provisionOrLinkClerkUser returned`, {
@@ -231,6 +246,13 @@ export const syncClerkUser = async (req, res) => {
 
     return sendSuccess(res, { user }, "User synchronized successfully");
   } catch (error) {
+    if (error instanceof AccountMergeError) {
+      return sendError(
+        res,
+        409,
+        error.message || "Failed to sync user due to account conflict",
+      );
+    }
     // Do not swallow — dump full exception for Render logs
     console.error(`${DIAG} EXCEPTION in syncClerkUser`);
     console.error(error);

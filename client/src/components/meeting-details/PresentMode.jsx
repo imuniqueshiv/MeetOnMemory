@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import { X, ChevronLeft, ChevronRight, Clock, ListOrdered } from "lucide-react";
 import { format } from "date-fns";
 import useTheme from "../../context/useTheme.jsx";
@@ -13,6 +19,96 @@ const formatCountdown = (totalSeconds) => {
 const PresentMode = ({ meeting, onClose }) => {
   const { theme } = useTheme();
   const isDark = theme !== "light";
+
+  // ── Dialog accessibility (WAI-ARIA dialog pattern) ─────────────────────────
+  const dialogRef = useRef(null);
+  const closeButtonRef = useRef(null);
+  const previousFocusRef = useRef(null);
+
+  const getFocusableElements = useCallback(() => {
+    if (!dialogRef.current) return [];
+    const focusableSelectors = [
+      "button:not([disabled])",
+      "a[href]",
+      "input:not([disabled])",
+      "textarea:not([disabled])",
+      "select:not([disabled])",
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(", ");
+    return Array.from(dialogRef.current.querySelectorAll(focusableSelectors));
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+
+      // Trap focus inside the dialog with Tab / Shift+Tab cycling
+      if (e.key === "Tab") {
+        const focusableElements = getFocusableElements();
+        if (focusableElements.length === 0) {
+          e.preventDefault();
+          return;
+        }
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+          return;
+        }
+        if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+
+      if (hasAgenda) {
+        if (e.key === "ArrowRight") nextSection();
+        if (e.key === "ArrowLeft") prevSection();
+      } else {
+        if (e.key === "ArrowRight") nextSlide();
+        if (e.key === "ArrowLeft") prevSlide();
+      }
+    },
+    [
+      hasAgenda,
+      nextSection,
+      prevSection,
+      nextSlide,
+      prevSlide,
+      onClose,
+      getFocusableElements,
+    ],
+  );
+
+  useEffect(() => {
+    // Save the triggering element so focus can be restored on close
+    previousFocusRef.current = document.activeElement;
+
+    // Move focus into the dialog
+    const frame = requestAnimationFrame(() => {
+      closeButtonRef.current?.focus();
+    });
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", handleKeyDown);
+      // Restore focus to the triggering element
+      if (
+        previousFocusRef.current &&
+        typeof previousFocusRef.current.focus === "function"
+      ) {
+        previousFocusRef.current.focus();
+      }
+    };
+  }, [handleKeyDown]);
 
   const agendaItems = useMemo(
     () =>
@@ -127,21 +223,6 @@ const PresentMode = ({ meeting, onClose }) => {
   }, [hasAgenda, secondsLeft, sectionEnded]);
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape") onClose();
-      if (hasAgenda) {
-        if (e.key === "ArrowRight") nextSection();
-        if (e.key === "ArrowLeft") prevSection();
-      } else {
-        if (e.key === "ArrowRight") nextSlide();
-        if (e.key === "ArrowLeft") prevSlide();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [hasAgenda, nextSection, prevSection, nextSlide, prevSlide, onClose]);
-
-  useEffect(() => {
     const elem = document.documentElement;
     if (elem.requestFullscreen) {
       elem.requestFullscreen().catch((err) => {
@@ -176,6 +257,7 @@ const PresentMode = ({ meeting, onClose }) => {
         return (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
             <h1
+              id="present-mode-title"
               className={`text-5xl md:text-7xl font-bold leading-tight pb-2 bg-clip-text text-transparent bg-gradient-to-r ${
                 isDark
                   ? "from-blue-400 to-indigo-500"
@@ -359,6 +441,11 @@ const PresentMode = ({ meeting, onClose }) => {
 
     return (
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="present-mode-title"
+        aria-describedby="present-mode-description"
         className={`fixed inset-0 z-50 overflow-hidden font-sans ${shellClass}`}
       >
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
@@ -375,6 +462,7 @@ const PresentMode = ({ meeting, onClose }) => {
         </div>
 
         <button
+          ref={closeButtonRef}
           type="button"
           onClick={onClose}
           className={`absolute top-6 right-6 z-20 p-3 rounded-full backdrop-blur-md transition-all ${panelClass}`}
@@ -393,6 +481,7 @@ const PresentMode = ({ meeting, onClose }) => {
                 Agenda · Section {currentSection + 1} of {agendaItems.length}
               </p>
               <h1
+                id="present-mode-title"
                 className={`text-3xl md:text-5xl font-bold truncate ${
                   isDark ? "text-white" : "text-slate-900"
                 }`}
@@ -452,6 +541,7 @@ const PresentMode = ({ meeting, onClose }) => {
                 Current section
               </div>
               <h2
+                id="present-mode-description"
                 className={`text-4xl md:text-5xl font-bold leading-tight ${
                   isDark ? "text-white" : "text-slate-900"
                 }`}
@@ -549,6 +639,10 @@ const PresentMode = ({ meeting, onClose }) => {
 
   return (
     <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="present-mode-title"
       className={`fixed inset-0 z-50 overflow-hidden font-sans ${shellClass}`}
     >
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
@@ -565,6 +659,7 @@ const PresentMode = ({ meeting, onClose }) => {
       </div>
 
       <button
+        ref={closeButtonRef}
         type="button"
         onClick={onClose}
         className={`absolute top-6 right-6 z-20 p-3 rounded-full backdrop-blur-md transition-all ${panelClass}`}
@@ -600,6 +695,7 @@ const PresentMode = ({ meeting, onClose }) => {
               type="button"
               onClick={prevSlide}
               disabled={currentSlide === 0}
+              aria-label="Previous slide"
               className={`p-3 rounded-full transition-all ${
                 currentSlide === 0
                   ? isDark
@@ -616,6 +712,7 @@ const PresentMode = ({ meeting, onClose }) => {
               type="button"
               onClick={nextSlide}
               disabled={currentSlide === slides.length - 1}
+              aria-label="Next slide"
               className={`p-3 rounded-full transition-all ${
                 currentSlide === slides.length - 1
                   ? isDark

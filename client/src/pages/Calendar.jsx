@@ -1,6 +1,8 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar.jsx";
+import RoleGate from "../components/RoleGate.jsx";
+import { useRBAC } from "../hooks/useRBAC.js";
 import { useCalendarEvents } from "../hooks/useCalendarEvents";
 import CalendarGrid from "../components/calendar/CalendarGrid";
 import MeetingDetailsModal from "../components/calendar/MeetingDetailsModal";
@@ -18,6 +20,8 @@ import {
 
 const Calendar = () => {
   const navigate = useNavigate();
+  const { hasPermission } = useRBAC();
+  const canCreateMeeting = hasPermission("meetings", "create");
 
   const {
     loading,
@@ -37,6 +41,8 @@ const Calendar = () => {
     setShowExternalEvents,
     filteredMeetings,
     uniqueOrgs,
+    hasMore,
+    loadMoreMeetings,
   } = useCalendarEvents();
 
   // Handle outside click to close modal
@@ -106,10 +112,10 @@ const Calendar = () => {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-200 flex flex-col font-sans select-none">
+    <div className="min-h-screen bg-linear-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-200 flex flex-col font-sans">
       <Navbar />
 
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16 flex flex-col">
+      <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16 flex flex-col">
         {/* Navigation & Toolbar Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pb-5 border-b border-slate-200">
           <div>
@@ -131,13 +137,15 @@ const Calendar = () => {
               <CalendarIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               Calendar Integrations
             </button>
-            <button
-              onClick={() => navigate("/create-meeting")}
-              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-xl transition-all shadow-md shadow-blue-600/10 cursor-pointer w-full md:w-auto justify-center"
-            >
-              <Plus className="w-4 h-4" />
-              Schedule Meeting
-            </button>
+            <RoleGate resource="meetings" action="create">
+              <button
+                onClick={() => navigate("/create-meeting")}
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-xl transition-all shadow-md shadow-blue-600/10 cursor-pointer w-full md:w-auto justify-center"
+              >
+                <Plus className="w-4 h-4" />
+                Schedule Meeting
+              </button>
+            </RoleGate>
           </div>
         </div>
 
@@ -212,7 +220,7 @@ const Calendar = () => {
             </button>
 
             {/* Date filter (Jump to Date) */}
-            <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-lg px-2.5 py-1 text-slate-700 dark:text-slate-300 select-none">
+            <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-lg px-2.5 py-1 text-slate-700 dark:text-slate-300">
               <span className="text-[10px] text-slate-400 uppercase font-bold mr-1">
                 Date:
               </span>
@@ -289,26 +297,51 @@ const Calendar = () => {
               No Scheduled Meetings
             </h3>
             <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-1 max-w-sm">
-              There are no meetings scheduled matching the selected filters.
-              Change filters or create a new meeting.
+              {canCreateMeeting
+                ? "There are no meetings scheduled matching the selected filters. Change filters or create a new meeting."
+                : "There are no meetings scheduled matching the selected filters. Try adjusting your filters."}
             </p>
-            <button
-              onClick={() => navigate("/create-meeting")}
-              className="mt-5 inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-xl transition-all shadow-xs cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              Schedule New Meeting
-            </button>
+            <RoleGate resource="meetings" action="create">
+              <button
+                onClick={() => navigate("/create-meeting")}
+                className="mt-5 inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-xl transition-all shadow-xs cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                Schedule New Meeting
+              </button>
+            </RoleGate>
           </div>
         ) : (
-          <CalendarGrid
-            view={view}
-            currentDate={currentDate}
-            filteredMeetings={filteredMeetings}
-            setSelectedMeeting={setSelectedMeeting}
-          />
+          <>
+            <CalendarGrid
+              view={view}
+              currentDate={currentDate}
+              filteredMeetings={filteredMeetings}
+              setSelectedMeeting={setSelectedMeeting}
+            />
+
+            {/* Load More Button - Issue #1234 */}
+            {hasMore && (
+              <div className="flex justify-center mt-6">
+                <button
+                  onClick={loadMoreMeetings}
+                  disabled={loading}
+                  className="px-6 py-3 text-sm font-semibold text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-700 rounded-xl hover:bg-blue-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+                >
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading...
+                    </span>
+                  ) : (
+                    "Load More Meetings"
+                  )}
+                </button>
+              </div>
+            )}
+          </>
         )}
-      </main>
+      </div>
 
       <MeetingDetailsModal
         selectedMeeting={selectedMeeting}

@@ -9,6 +9,7 @@ import {
   exportTranscriptAsText,
   exportTranscriptAsPDF,
   finalizeTranscript,
+  translateTranscript,
   updateSpeakers,
 } from "../controllers/transcriptController.js";
 
@@ -66,6 +67,14 @@ router.post(
   finalizeTranscript,
 );
 
+// Translate transcript
+router.post(
+  "/meeting/:meetingId/translate",
+  userAuth,
+  requireOrgAccess(Meeting),
+  requirePermission("meetings", "view"),
+  translateTranscript,
+);
 // Update speaker names in transcript
 router.put("/:id/speakers", userAuth, updateSpeakers);
 

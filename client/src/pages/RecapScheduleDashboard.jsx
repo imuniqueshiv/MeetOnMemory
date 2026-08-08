@@ -7,10 +7,10 @@ import {
   Clock,
   Mail,
   CheckCircle2,
-  XCircle,
   RefreshCw,
   Save,
   AlertCircle,
+  Calendar,
 } from "lucide-react";
 
 const RecapScheduleDashboard = () => {
@@ -22,6 +22,8 @@ const RecapScheduleDashboard = () => {
     deliveryChannel: "email",
     preferredTime: "09:00",
     timezone: "UTC",
+    startDate: "",
+    endDate: "",
   });
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,18 +34,24 @@ const RecapScheduleDashboard = () => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        // Use Promise.allSettled to handle cases where one endpoint might fail
         const [scheduleRes, historyRes] = await Promise.allSettled([
           recapScheduleApi.getSchedule(organizationId),
           recapScheduleApi.getDeliveryHistory(),
         ]);
 
         if (scheduleRes.status === "fulfilled" && scheduleRes.value.data) {
+          const data = scheduleRes.value.data;
           setSchedule({
-            scheduleType: scheduleRes.value.data.scheduleType || "immediate",
-            deliveryChannel: scheduleRes.value.data.deliveryChannel || "email",
-            preferredTime: scheduleRes.value.data.preferredTime || "09:00",
-            timezone: scheduleRes.value.data.timezone || "UTC",
+            scheduleType: data.scheduleType || "immediate",
+            deliveryChannel: data.deliveryChannel || "email",
+            preferredTime: data.preferredTime || "09:00",
+            timezone: data.timezone || "UTC",
+            startDate: data.startDate
+              ? new Date(data.startDate).toISOString().slice(0, 10)
+              : "",
+            endDate: data.endDate
+              ? new Date(data.endDate).toISOString().slice(0, 10)
+              : "",
           });
         }
 
@@ -65,10 +73,42 @@ const RecapScheduleDashboard = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setSchedule((prev) => ({ ...prev, [name]: value }));
+    if (saveMessage.type === "error") {
+      setSaveMessage({ type: "", text: "" });
+    }
+  };
+
+  const validateSchedule = () => {
+    if (!schedule.timezone || !schedule.timezone.trim()) {
+      return "Timezone cannot be empty.";
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    if (schedule.startDate && schedule.startDate < todayStr) {
+      return "Start date cannot be in the past.";
+    }
+
+    if (
+      schedule.startDate &&
+      schedule.endDate &&
+      schedule.endDate < schedule.startDate
+    ) {
+      return "End date must be on or after start date.";
+    }
+
+    return null;
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
+
+    const validationError = validateSchedule();
+    if (validationError) {
+      setSaveMessage({ type: "error", text: validationError });
+      return;
+    }
+
     setIsSaving(true);
     setSaveMessage({ type: "", text: "" });
 
@@ -90,9 +130,7 @@ const RecapScheduleDashboard = () => {
   const handleRetry = async (deliveryId) => {
     try {
       await recapScheduleApi.retryDelivery(deliveryId);
-      // Optimistically update the UI or show a toast
       alert("Retry enqueued successfully!");
-      // Optionally re-fetch history
     } catch (error) {
       console.error("Retry failed:", error);
       alert("Failed to enqueue retry.");
@@ -102,7 +140,7 @@ const RecapScheduleDashboard = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-900">
       <Navbar />
-      <main className="max-w-5xl mx-auto px-4 py-28 sm:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto px-4 py-28 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
             Recap Scheduling & Delivery
@@ -127,7 +165,7 @@ const RecapScheduleDashboard = () => {
                   Schedule Settings
                 </h2>
 
-                <form onSubmit={handleSave} className="space-y-4">
+                <form noValidate onSubmit={handleSave} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">
                       Delivery Frequency
@@ -189,10 +227,46 @@ const RecapScheduleDashboard = () => {
                     />
                   </div>
 
+                  {/* Date Range Validation Fields (#1308) */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label
+                        htmlFor="schedule-start-date"
+                        className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1 flex items-center gap-1"
+                      >
+                        <Calendar className="w-3.5 h-3.5" /> Start Date
+                      </label>
+                      <input
+                        id="schedule-start-date"
+                        type="date"
+                        name="startDate"
+                        value={schedule.startDate}
+                        onChange={handleChange}
+                        className="w-full rounded-lg border-slate-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="schedule-end-date"
+                        className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1 flex items-center gap-1"
+                      >
+                        <Calendar className="w-3.5 h-3.5" /> End Date
+                      </label>
+                      <input
+                        id="schedule-end-date"
+                        type="date"
+                        name="endDate"
+                        value={schedule.endDate}
+                        onChange={handleChange}
+                        className="w-full rounded-lg border-slate-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
                   <button
                     type="submit"
                     disabled={isSaving}
-                    className="w-full flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70"
+                    className="w-full flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70 cursor-pointer"
                   >
                     {isSaving ? (
                       <RefreshCw className="w-4 h-4 animate-spin" />
@@ -204,6 +278,7 @@ const RecapScheduleDashboard = () => {
 
                   {saveMessage.text && (
                     <div
+                      role="alert"
                       className={`p-3 rounded-md flex items-center gap-2 text-sm ${
                         saveMessage.type === "success"
                           ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
@@ -267,8 +342,9 @@ const RecapScheduleDashboard = () => {
                             </td>
                             <td className="px-6 py-4 text-right">
                               <button
+                                type="button"
                                 onClick={() => handleRetry(delivery._id)}
-                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium cursor-pointer"
                               >
                                 Retry
                               </button>
@@ -292,7 +368,7 @@ const RecapScheduleDashboard = () => {
             </div>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 };

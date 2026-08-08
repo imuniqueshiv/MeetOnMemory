@@ -1,5 +1,7 @@
 # Architecture Verification Report
 
+> **Historical snapshot** (pre–Clerk cutover inventory). Last reconciled for Issue #1139 on **2026-08-06**. Several rows below describe the former JWT + CSRF stack; where status has changed since planning time, that is noted in the Status / Evidence columns.
+
 Evidence-based checklist for the current auth system.
 
 | Claim                                         | Status         | Evidence                                                                                                    |
@@ -18,8 +20,8 @@ Evidence-based checklist for the current auth system.
 | Membership roles narrower                     | ✅ Verified    | `membershipModel.js` enum `admin\|member`                                                                   |
 | Socket cookie JWT auth                        | ✅ Verified    | `meetingSocket.js`, `transcriptSocket.js`, `documentSync.js`                                                |
 | AppContext CSRF + is-auth bootstrap           | ✅ Verified    | `AppContext.jsx`                                                                                            |
-| apiClient CSRF header                         | ✅ Verified    | `apiClient.js`, `csrfService.js`                                                                            |
-| No Clerk today                                | ✅ Verified    | No Clerk deps/usage in app source (planning time)                                                           |
+| apiClient CSRF header                         | ❌ Retired     | Client CSRF helper removed (`csrfService.js`, Issue #1139); requests use Clerk Bearer                       |
+| Clerk identity                                | ✅ Current     | Clerk session + Bearer via `apiClient.js` (replaces the former “No Clerk today” planning-time claim)        |
 | `password` required on User                   | ✅ Verified    | `userModel.js`                                                                                              |
 | ChatSession is not login session              | ✅ Verified    | `ChatSession.js` AI history                                                                                 |
 | Secondary JWTs exist                          | ✅ Verified    | shared links, export, Slack state                                                                           |

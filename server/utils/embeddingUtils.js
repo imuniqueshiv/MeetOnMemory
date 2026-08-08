@@ -168,10 +168,7 @@ export const indexMeeting = async (meeting) => {
         metadata: {
           meetingId: meeting._id.toString(),
           chunkIndex: i,
-          title,
-          summary,
-          transcript: meeting.transcript,
-          createdAt: meeting.createdAt || new Date(),
+          text: transcriptChunks[i],
           organization: meeting.organization?.toString() || null,
         },
       });
@@ -200,6 +197,20 @@ export const searchVectorStore = async (query, filters = {}) => {
       throw new Error("Empty query received for vector search");
     }
 
+    if (!filters || !filters.organization) {
+      throw new Error("Organization context is required for vector search");
+    }
+
+    const orgFilter = filters.organization;
+    const hasOrgArray = Array.isArray(orgFilter);
+    const orgs = hasOrgArray
+      ? orgFilter.map((id) => id.toString())
+      : [orgFilter.toString()];
+
+    if (orgs.length === 0 || orgs.some((id) => !id)) {
+      throw new Error("Invalid organization context provided");
+    }
+
     const indexInstance = await initVectorStore();
 
     console.log(
@@ -213,11 +224,23 @@ export const searchVectorStore = async (query, filters = {}) => {
 
     const topK = filters.limit || 10;
 
-    const results = await indexInstance.query({
+    const queryOptions = {
       vector: queryEmbedding,
       topK: topK,
       includeMetadata: true,
-    });
+    };
+
+    if (hasOrgArray) {
+      queryOptions.filter = {
+        organization: { $in: orgs },
+      };
+    } else {
+      queryOptions.filter = {
+        organization: { $eq: orgs[0] },
+      };
+    }
+
+    const results = await indexInstance.query(queryOptions);
 
     if (!results.matches?.length) {
       console.warn("⚠️ No results returned from Pinecone");
@@ -263,11 +286,11 @@ export const searchVectorStore = async (query, filters = {}) => {
       );
     }
 
-    if (filters.organization) {
-      filteredResults = filteredResults.filter(
-        (r) => r.organization === filters.organization,
-      );
-    }
+    // Force organization-level isolation post-query
+    filteredResults = filteredResults.filter((r) => {
+      if (!r.organization) return false;
+      return orgs.includes(r.organization.toString());
+    });
 
     if (filters.dateFrom) {
       filteredResults = filteredResults.filter((r) => {

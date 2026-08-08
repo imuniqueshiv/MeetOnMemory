@@ -18,9 +18,11 @@ jest.mock("../config/nodeMailer.js", () => ({
 describe("Gemini AI Endpoint Authentication and Authorization", () => {
   let user;
   let guestUser;
+  let noOrgUser;
   let organization;
   let userToken;
   let guestToken;
+  let noOrgToken;
   let axiosSpy;
 
   beforeAll(() => {
@@ -48,6 +50,8 @@ describe("Gemini AI Endpoint Authentication and Authorization", () => {
   });
 
   beforeEach(async () => {
+    axiosSpy.mockClear();
+
     // Set up test organization
     organization = await Organization.create({
       name: "Acme Analytics",
@@ -91,33 +95,94 @@ describe("Gemini AI Endpoint Authentication and Authorization", () => {
       clerkUserId: guestUser.clerkUserId,
       email: guestUser.email,
     });
+
+    // Authenticated user with no organization (org isolation)
+    noOrgUser = await User.create({
+      name: "No Org User",
+      email: `no-org-${Math.random()}@example.com`,
+      password: "password123",
+      role: "admin",
+    });
+    noOrgUser.clerkUserId = `user_test_${noOrgUser._id}`;
+    await noOrgUser.save();
+    noOrgToken = createClerkTestToken({
+      clerkUserId: noOrgUser.clerkUserId,
+      email: noOrgUser.email,
+    });
   });
 
   describe("POST /api/gemini/insights", () => {
+    const validBody = { summary: { totalMeetings: 5, activePolicies: 2 } };
+
     it("should reject unauthenticated requests with 401", async () => {
       const res = await request(app)
         .post("/api/gemini/insights")
-        .send({ summary: { totalMeetings: 5, activePolicies: 2 } });
+        .send(validBody);
 
       expect(res.statusCode).toEqual(401);
       expect(res.body.success).toBe(false);
+    });
+
+    it("should reject users without organization membership with 403", async () => {
+      const res = await request(app)
+        .post("/api/gemini/insights")
+        .set(authHeader(noOrgToken))
+        .send(validBody);
+
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.success).toBe(false);
+      expect(axiosSpy).not.toHaveBeenCalled();
     });
 
     it("should reject unauthorized requests from guest with 403", async () => {
       const res = await request(app)
         .post("/api/gemini/insights")
         .set(authHeader(guestToken))
-        .send({ summary: { totalMeetings: 5, activePolicies: 2 } });
+        .send(validBody);
 
       expect(res.statusCode).toEqual(403);
       expect(res.body.success).toBe(false);
+    });
+
+    it("should reject missing summary with 400", async () => {
+      const res = await request(app)
+        .post("/api/gemini/insights")
+        .set(authHeader(userToken))
+        .send({});
+
+      expect(res.statusCode).toEqual(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe("Validation failed");
+      expect(axiosSpy).not.toHaveBeenCalled();
+    });
+
+    it("should reject non-object summary with 400", async () => {
+      const res = await request(app)
+        .post("/api/gemini/insights")
+        .set(authHeader(userToken))
+        .send({ summary: "not-an-object" });
+
+      expect(res.statusCode).toEqual(400);
+      expect(res.body.success).toBe(false);
+      expect(axiosSpy).not.toHaveBeenCalled();
+    });
+
+    it("should reject oversized summary with 400", async () => {
+      const res = await request(app)
+        .post("/api/gemini/insights")
+        .set(authHeader(userToken))
+        .send({ summary: { blob: "x".repeat(10_001) } });
+
+      expect(res.statusCode).toEqual(400);
+      expect(res.body.success).toBe(false);
+      expect(axiosSpy).not.toHaveBeenCalled();
     });
 
     it("should allow authenticated member with view reports permission to generate insights", async () => {
       const res = await request(app)
         .post("/api/gemini/insights")
         .set(authHeader(userToken))
-        .send({ summary: { totalMeetings: 5, activePolicies: 2 } });
+        .send(validBody);
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.success).toBe(true);

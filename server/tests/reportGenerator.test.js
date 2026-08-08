@@ -10,7 +10,9 @@ import ActionItem from "../models/actionItemModel.js";
 describe("reportGeneratorService", () => {
   const mockUserId = new mongoose.Types.ObjectId();
   const mockOrgId = new mongoose.Types.ObjectId();
-  const mockUser = { _id: mockUserId, currentOrganization: mockOrgId };
+  // `organization`, not `currentOrganization` — nothing ever wrote the latter,
+  // and this fixture was the only place it appeared (Issue #1272).
+  const mockUser = { _id: mockUserId, organization: mockOrgId };
 
   afterEach(() => {
     jest.clearAllMocks();
@@ -40,7 +42,7 @@ describe("reportGeneratorService", () => {
     );
   });
 
-  it("should throw error if organization mismatch", async () => {
+  it("should throw the generic not-found error if organization mismatch", async () => {
     const template = {
       _id: "template-2",
       createdBy: mockUserId,
@@ -49,9 +51,44 @@ describe("reportGeneratorService", () => {
     };
     jest.spyOn(ReportTemplate, "findById").mockResolvedValue(template);
 
+    // Deliberately the *same* message as the missing-template case: a distinct
+    // "not found in your organization" wording confirms the id names a real
+    // template to a caller who should not be able to tell.
     await expect(
       generateReport("template-2", {}, mockUser, mockOrgId),
-    ).rejects.toThrow("Report Template not found in your organization.");
+    ).rejects.toThrow("Report Template not found");
+  });
+
+  it("should treat an empty tags override as a request to clear the filter", async () => {
+    const template = {
+      _id: "template-4",
+      name: "Filtered",
+      createdBy: mockUserId,
+      organization: mockOrgId,
+      isShared: true,
+      defaultFilters: {
+        dateRangeDays: 30,
+        tags: ["finance"],
+        meetingTypes: [],
+      },
+      sections: [],
+      generationCount: 0,
+      save: jest.fn(),
+    };
+    jest.spyOn(ReportTemplate, "findById").mockResolvedValue(template);
+
+    const findSpy = jest.spyOn(Meeting, "find").mockReturnValue({
+      sort: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue([]),
+      }),
+    });
+
+    await generateReport("template-4", { tags: [] }, mockUser, mockOrgId);
+
+    // `filterOverrides.tags?.length` was falsy for `[]`, so the saved
+    // ["finance"] filter was reapplied and the caller could never widen the
+    // report back out.
+    expect(findSpy.mock.calls[0][0].tags).toBeUndefined();
   });
 
   it("should generate report data successfully", async () => {
@@ -117,12 +154,11 @@ describe("reportGeneratorService", () => {
       }),
     });
 
-    const result = await generateReport(
-      "template-3",
-      {},
-      mockUser,
-      mockOrgId.toString(),
-    );
+    // `mockOrgId` is passed as an ObjectId, the shape the controller actually
+    // supplies. This used to be `.toString()`, which was the only reason the
+    // test passed — the service compared a string against an ObjectId and
+    // rejected every template a real caller owned (Issue #1272).
+    const result = await generateReport("template-3", {}, mockUser, mockOrgId);
 
     expect(template.save).toHaveBeenCalled();
     expect(result.templateName).toBe("Test Template");

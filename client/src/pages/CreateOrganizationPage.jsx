@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import AppContent from "../context/AppContent";
 import { toast } from "react-toastify";
 import { organizationApi } from "../services";
-import Navbar from "/src/components/Navbar.jsx";
+import Navbar from "../components/Navbar.jsx";
 
 const CreateOrganizationPage = () => {
   const navigate = useNavigate();

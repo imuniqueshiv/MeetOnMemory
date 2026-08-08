@@ -5,23 +5,29 @@ import TopicCluster from "../models/topicClusterModel.js";
 import { generateText, parseJsonOutput } from "./GenerativeAIService.js";
 import { embedText } from "../utils/embeddingUtils.js";
 import cosineSimilarity from "../utils/similarity.js";
+import { ForbiddenError, NotFoundError } from "../utils/errors.js";
 
 const CLUSTER_SIMILARITY_THRESHOLD = 0.85;
 
 /**
  * Extracts 3-8 topics from a meeting's transcript using Generative AI.
+ *
+ * The checks below were already correct; they now throw the typed errors from
+ * `utils/errors.js` rather than bare `Error`s, so the controller can answer 403
+ * and 404 instead of flattening every failure into a 500 (Issue #1276). The
+ * messages are unchanged, so callers matching on them still behave the same.
  */
 export const extractTopics = async (meetingId, userOrgId) => {
   const meeting = await Meeting.findById(meetingId);
-  if (!meeting) throw new Error("Meeting not found");
+  if (!meeting) throw new NotFoundError("Meeting not found");
 
   if (meeting.organization.toString() !== userOrgId.toString()) {
-    throw new Error("Unauthorized access to meeting");
+    throw new ForbiddenError("Unauthorized access to meeting");
   }
 
   const transcript = await Transcript.findOne({ meeting: meetingId });
   if (!transcript || !transcript.segments || transcript.segments.length === 0) {
-    throw new Error("No transcript found for meeting");
+    throw new NotFoundError("No transcript found for meeting");
   }
 
   // To help the AI map back to timestamps, include them in the prompt context

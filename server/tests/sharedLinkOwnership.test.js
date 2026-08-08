@@ -152,6 +152,27 @@ describe("createLink resource ownership (#1070)", () => {
       expect(res.statusCode).toBe(403);
       expect(await SharedLink.countDocuments({})).toBe(0);
     });
+
+    it("refuses to create a shared link for a user with insufficient role permissions (#1110)", async () => {
+      const meeting = await seedMeeting(ORG_VICTIM);
+      const user = {
+        _id: new mongoose.Types.ObjectId(),
+        organization: ORG_VICTIM,
+        role: "guest",
+      };
+      const res = makeRes();
+
+      await createLink(
+        makeReq(
+          { resourceId: meeting._id.toString(), resourceType: "Meeting" },
+          user,
+        ),
+        res,
+      );
+
+      expect(res.statusCode).toBe(403);
+      expect(res.body.message).toMatch(/Insufficient permissions/i);
+    });
   });
 
   describe("resource existence", () => {

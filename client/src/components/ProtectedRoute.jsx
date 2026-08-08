@@ -2,6 +2,7 @@ import React, { useContext } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import AppContent from "../context/AppContent";
 import { useRBAC } from "../hooks/useRBAC.js";
+import AccessDenied from "../pages/AccessDenied.jsx";
 
 const ProtectedRoute = ({
   children,
@@ -64,8 +65,7 @@ const ProtectedRoute = ({
   // RBAC: Check if user has required permission
   if (resource && action) {
     if (!hasPermission(resource, action)) {
-      if (forbiddenFallback) return forbiddenFallback;
-      return <Navigate to="/dashboard" state={{ from: location }} replace />;
+      return forbiddenFallback || <AccessDenied />;
     }
   } else if (requiredPermission) {
     const permResource =
@@ -77,8 +77,7 @@ const ProtectedRoute = ({
         ? requiredPermission.action
         : "view";
     if (!hasPermission(permResource, permAction)) {
-      if (forbiddenFallback) return forbiddenFallback;
-      return <Navigate to="/dashboard" state={{ from: location }} replace />;
+      return forbiddenFallback || <AccessDenied />;
     }
   }
 

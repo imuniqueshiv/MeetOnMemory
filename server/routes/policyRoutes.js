@@ -2,7 +2,6 @@ import express from "express";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
-import rateLimit from "express-rate-limit";
 import userAuth from "../middleware/userAuth.js";
 import Policy from "../models/policyModel.js";
 import {
@@ -20,69 +19,17 @@ import {
   analyzePolicy,
   comparePolicyVersions,
 } from "../controllers/policyController.js";
+import {
+  policyApiLimiter,
+  policyUploadLimiter,
+  policyAnalyzeLimiter,
+  policyDownloadLimiter,
+  policyDeleteLimiter,
+} from "../middleware/rateLimiter.js";
 
 const router = express.Router();
 // Apply rate limiting to all routes
-router.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100,
-    message: {
-      success: false,
-      message: "Too many requests, please try again after 15 minutes.",
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  }),
-);
-
-// ──────────────────────────────────────────────
-// Rate Limiters
-// ──────────────────────────────────────────────
-const uploadLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
-  message: {
-    success: false,
-    message: "Too many upload requests, please try again after 15 minutes.",
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-const analyzeLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,
-  message: {
-    success: false,
-    message:
-      "Too many re-analysis requests, please try again after 15 minutes.",
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-const downloadLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 60,
-  message: {
-    success: false,
-    message: "Too many download requests, please try again after 15 minutes.",
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-const deleteLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
-  message: {
-    success: false,
-    message: "Too many delete requests, please try again after 15 minutes.",
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+router.use(policyApiLimiter);
 
 // ──────────────────────────────────────────────
 // Multer Config — disk storage with validation
@@ -155,7 +102,7 @@ router.get("/", userAuth, requirePermission("policies", "view"), getPolicies);
 // Protected — require authentication & rate limiting (admin only for upload)
 router.post(
   "/upload",
-  uploadLimiter,
+  policyUploadLimiter,
   userAuth,
   requireAdminOrOwner,
   requireOrgMembership,
@@ -165,7 +112,7 @@ router.post(
 );
 router.post(
   "/:id/analyze",
-  analyzeLimiter,
+  policyAnalyzeLimiter,
   userAuth,
   requireOwnerOrAdmin(Policy),
   requirePermission("policies", "approve"),
@@ -173,7 +120,7 @@ router.post(
 );
 router.get(
   "/download/:id",
-  downloadLimiter,
+  policyDownloadLimiter,
   userAuth,
   requireOrgAccess(Policy),
   requirePermission("policies", "view"),
@@ -188,7 +135,7 @@ router.get(
 );
 router.delete(
   "/:id",
-  deleteLimiter,
+  policyDeleteLimiter,
   userAuth,
   requireOwnerOrAdmin(Policy),
   requirePermission("policies", "delete"),

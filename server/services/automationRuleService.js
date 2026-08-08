@@ -87,7 +87,7 @@ export const evaluateRules = async (eventType, payload) => {
 
 const executeActions = async (rule, payload, meetingData) => {
   const org = await Organization.findById(rule.organization).select(
-    "+slackBotToken",
+    "+slackIntegration.botToken",
   );
 
   for (const action of rule.actions) {

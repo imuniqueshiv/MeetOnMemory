@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useContext, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import Peer from "simple-peer";
@@ -31,10 +31,28 @@ import {
   getMeetingVideoGridClass,
   MEETING_VIDEO_TILE_CLASS,
 } from "../utils/meetingVideoGrid.js";
+import {
+  getTrackEnabledState,
+  resolveMeetingMediaStream,
+} from "../utils/mediaStream.js";
+import AppContent from "../context/AppContent.js";
+import { createClerkSocketOptions } from "../services/apiClient.js";
+
+/** Build join/signaling identity from authenticated AppContext user (Issue #1211). */
+const buildLocalUserInfo = (userData) => ({
+  id: userData?._id || userData?.id || undefined,
+  name: userData?.name || "Participant",
+  email: userData?.email || "",
+  profilePic: userData?.profilePic || "",
+});
 
 const MeetingRoom = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
+  const { userData } = useContext(AppContent);
+  const localUserInfo = useMemo(() => buildLocalUserInfo(userData), [userData]);
+  const localUserInfoRef = useRef(localUserInfo);
+  localUserInfoRef.current = localUserInfo;
 
   const screenTrackRef = useRef();
   const peersRef = useRef([]);
@@ -123,16 +141,22 @@ const MeetingRoom = () => {
     return () => clearInterval(interval);
   }, [timerState.isRunning, meetingEnded]);
 
-  const joinMeeting = async () => {
+  const joinMeeting = async (providedStream = null, joinOptions = {}) => {
     try {
       setLoading(true);
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
+      const { mode = null } = joinOptions;
+      const stream = await resolveMeetingMediaStream({
+        providedStream,
+        mode,
+        videoDeviceId: permission.selectedCamera,
+        audioDeviceId: permission.selectedMicrophone,
       });
 
       streamRef.current = stream;
+      const trackState = getTrackEnabledState(stream);
+      setMicOn(trackState.micOn);
+      setCameraOn(trackState.cameraOn);
       setJoined(true);
 
       setTimeout(() => {
@@ -141,9 +165,13 @@ const MeetingRoom = () => {
         }
       }, 100);
 
-      socketRef.current = io(backendUrl, { transports: ["websocket"] });
+      socketRef.current = io(
+        backendUrl,
+        await createClerkSocketOptions({ transports: ["websocket"] }),
+      );
 
-      const userInfo = { name: "You" }; // In a real app, grab from context
+      // Server presence uses auth context; payload kept aligned with other clients.
+      const userInfo = localUserInfoRef.current;
 
       socketRef.current.emit("join-meeting", { roomId, userInfo });
 
@@ -221,6 +249,32 @@ const MeetingRoom = () => {
 
       socketRef.current.on("transcript-final", (data) => {
         const { segment } = data;
+        setCaptions((prev) => {
+          // Check for exact duplicate in captions
+          const exists = prev.some(
+            (c) => c.text === segment.text && c.timestamp === data.timestamp,
+          );
+          if (exists) return prev;
+          return [
+            ...prev.slice(-4),
+            {
+              text: segment.text,
+              speaker: segment.speaker,
+              isFinal: true,
+              timestamp: data.timestamp,
+            },
+          ];
+        });
+        setTranscriptSegments((prev) => {
+          const exists = prev.some(
+            (s) =>
+              s.startTime === segment.startTime &&
+              s.text === segment.text &&
+              s.speaker === segment.speaker,
+          );
+          if (exists) return prev;
+          return [...prev, segment];
+        });
         setCaptions((prev) => [
           ...prev.slice(-4),
           {
@@ -265,6 +319,7 @@ const MeetingRoom = () => {
       setMediaError(errMsg);
       toast.error(errMsg);
       setLoading(false);
+      setDeviceSetupDone(false);
     }
   };
 
@@ -280,7 +335,8 @@ const MeetingRoom = () => {
         userToSignal,
         callerID,
         signal,
-        userInfo: { name: "You" },
+        // Server ignores this and uses authenticated socket.user (#1211).
+        userInfo: localUserInfoRef.current,
       });
     });
 
@@ -386,13 +442,16 @@ const MeetingRoom = () => {
   };
 
   const handleJoinWithStream = (stream) => {
+    // Hand off ownership so Device Setup unmount cleanup does not stop tracks.
+    permission.releaseStream();
     setDeviceSetupDone(true);
     joinMeeting(stream);
   };
 
-  const handleJoinWithout = () => {
+  const handleJoinWithout = (mode = "observer") => {
+    permission.releaseStream();
     setDeviceSetupDone(true);
-    joinMeeting(null);
+    joinMeeting(null, { mode });
   };
 
   return (
@@ -535,16 +594,24 @@ const MeetingRoom = () => {
                   />
                   {!cameraOn && (
                     <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-indigo-600 rounded-full flex items-center justify-center text-2xl sm:text-3xl font-bold text-white shadow-xl">
-                        You
-                      </div>
+                      {localUserInfo.profilePic ? (
+                        <img
+                          src={localUserInfo.profilePic}
+                          alt=""
+                          className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shadow-xl"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-indigo-600 rounded-full flex items-center justify-center text-2xl sm:text-3xl font-bold text-white shadow-xl">
+                          {(localUserInfo.name || "P").charAt(0).toUpperCase()}
+                        </div>
+                      )}
                     </div>
                   )}
                   <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 bg-black/60 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg backdrop-blur-sm text-white text-xs sm:text-sm flex items-center gap-2 max-w-[calc(100%-1rem)]">
                     <span
                       className={`w-2 h-2 rounded-full shrink-0 ${micOn ? "bg-green-500" : "bg-red-500"}`}
                     />
-                    <span className="truncate">You</span>
+                    <span className="truncate">{localUserInfo.name}</span>
                     {isScreenSharing && (
                       <span className="text-[10px] sm:text-xs text-indigo-300 shrink-0">
                         Sharing

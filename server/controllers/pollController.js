@@ -1,38 +1,98 @@
+import mongoose from "mongoose";
 import Poll from "../models/pollModel.js";
 import Meeting from "../models/meetingModel.js";
 import { hasPermission } from "../utils/rbacPermissions.js";
-import mongoose from "mongoose";
 
 /**
- * Loads a poll for a mutating request and runs the shared guards in the one
- * order that works (Issue #1069).
- *
- * `deletePoll` dereferenced `poll` one statement above `const poll = await
- * Poll.findById(...)`. Reading a `const` inside its temporal dead zone throws
- * `ReferenceError: Cannot access 'poll' before initialization`, the catch block
- * turned that into a generic 500, and so *every* `DELETE /api/polls/:id` failed
- * — for the creator, for admins, for polls that did not exist. `closePoll`
- * received the same organization guard in the same commit and got the ordering
- * right, which is exactly why this is worth centralising rather than fixing in
- * place: the guards can no longer be reordered independently per handler.
- *
- * @returns {{ok: true, poll: object} | {ok: false, status: number, message: string}}
+ * Strip voter identities from anonymous polls while preserving hasVoted flag
+ * @param {Object} poll - Poll document
+ * @param {string} currentUserId - Current user's ID
+ * @returns {Object} Poll with voter info stripped if anonymous
  */
-const loadPollForMutation = async (pollId, user) => {
-  if (!mongoose.isValidObjectId(pollId)) {
+const stripVotersIfAnonymous = (poll, currentUserId = null) => {
+  const pollObj = poll.toObject ? poll.toObject() : { ...poll };
+
+  if (pollObj.isAnonymous) {
+    // For anonymous polls, replace voter arrays with vote counts
+    pollObj.options = pollObj.options.map((opt) => ({
+      _id: opt._id,
+      text: opt.text,
+      voteCount: opt.votes ? opt.votes.length : 0,
+      // Track if current user has voted without revealing identity
+      hasVoted:
+        currentUserId && opt.votes
+          ? opt.votes.some((v) => {
+              const voteId = typeof v === "string" ? v : v._id?.toString();
+              return voteId === currentUserId.toString();
+            })
+          : false,
+    }));
+  }
+
+  return pollObj;
+};
+
+/**
+ * Helper to build the aggregation pipeline for casting votes
+ */
+const buildVotePipeline = (voterId, selectedObjectIds) => {
+  return [
+    {
+      $set: {
+        options: {
+          $map: {
+            input: "$options",
+            as: "opt",
+            in: {
+              $cond: [
+                { $in: ["$$opt._id", selectedObjectIds] },
+                {
+                  $mergeObjects: [
+                    "$$opt",
+                    {
+                      votes: {
+                        $setUnion: [
+                          { $ifNull: ["$$opt.votes", []] },
+                          [voterId],
+                        ],
+                      },
+                    },
+                  ],
+                },
+                "$$opt",
+              ],
+            },
+          },
+        },
+      },
+    },
+  ];
+};
+
+/**
+ * Helper to check if poll is open for voting
+ */
+const openPollFilter = (id, organization) => ({
+  _id: String(id),
+  organization: organization,
+  isClosed: false,
+  $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
+});
+
+/**
+ * Helper to load poll for mutation operations
+ */
+const loadPollForMutation = async (id, user) => {
+  if (!mongoose.isValidObjectId(id)) {
     return { ok: false, status: 400, message: "Invalid poll ID" };
   }
 
-  const poll = await Poll.findById(String(pollId));
+  const poll = await Poll.findById(String(id));
   if (!poll) {
     return { ok: false, status: 404, message: "Poll not found" };
   }
 
-  // A session with no organization used to blow up on `.toString()` of
-  // undefined and surface as a 500. It is a 403: the caller is not in the
-  // poll's organization, because they are not in one at all.
-  const callerOrg = user?.organization;
-  if (!callerOrg || poll.organization.toString() !== callerOrg.toString()) {
+  if (poll.organization.toString() !== user.organization.toString()) {
     return {
       ok: false,
       status: 403,
@@ -43,27 +103,13 @@ const loadPollForMutation = async (pollId, user) => {
   return { ok: true, poll };
 };
 
-/** Creator-or-admin check shared by close and delete. */
+/**
+ * Check if user can manage a poll (creator or admin/owner)
+ */
 const canManagePoll = (poll, user) => {
-  const callerId = user?.id ?? user?._id;
-  const isCreator =
-    Boolean(callerId) && poll.createdBy.toString() === callerId.toString();
-  const isAdmin = user?.role === "admin" || user?.role === "owner";
-  return isCreator || isAdmin;
-};
-
-// Helper function to strip voter IDs if poll is anonymous
-const stripVotersIfAnonymous = (poll) => {
-  if (poll.isAnonymous) {
-    const pollObj = poll.toObject ? poll.toObject() : poll;
-    pollObj.options = pollObj.options.map((option) => ({
-      ...option,
-      voteCount: option.votes.length,
-      votes: [], // Hide who voted
-    }));
-    return pollObj;
-  }
-  return poll;
+  const isCreator = poll.createdBy?.toString() === user.id?.toString();
+  const isAdminOrOwner = user.role === "admin" || user.role === "owner";
+  return isCreator || isAdminOrOwner;
 };
 
 // @desc    Create a new poll
@@ -84,8 +130,6 @@ export const createPoll = async (req, res) => {
         .json({ message: "A poll must have at least two options." });
     }
 
-    // RBAC Check (assume organizer/admin or owner)
-    // Actually, maybe any member with view/edit access can create a poll, let's enforce based on meeting access.
     if (!req.user.role || !hasPermission(req.user.role, "meetings", "edit")) {
       return res.status(403).json({
         message: "Forbidden: Insufficient permissions to create poll",
@@ -119,7 +163,7 @@ export const createPoll = async (req, res) => {
     const savedPoll = await poll.save();
     await savedPoll.populate("createdBy", "name email profilePicture");
 
-    const pollResponse = stripVotersIfAnonymous(savedPoll);
+    const pollResponse = stripVotersIfAnonymous(savedPoll, req.user.id);
 
     const io = req.app.get("io");
     if (io) {
@@ -166,7 +210,10 @@ export const getPollsByMeeting = async (req, res) => {
       .populate("options.votes", "name email profilePicture")
       .sort({ createdAt: -1 });
 
-    const formattedPolls = polls.map(stripVotersIfAnonymous);
+    const currentUserId = req.user.id;
+    const formattedPolls = polls.map((poll) =>
+      stripVotersIfAnonymous(poll, currentUserId),
+    );
 
     res.status(200).json(formattedPolls);
   } catch (error) {
@@ -175,98 +222,13 @@ export const getPollsByMeeting = async (req, res) => {
   }
 };
 
-/**
- * Matches a poll that is currently open — closed flag down, expiry in the
- * future or absent (Issue #1072).
- *
- * Used as the *filter* of the vote update rather than as a preceding `if`, so
- * a poll that closes between the read and the write rejects the vote instead
- * of silently accepting it.
- */
-const openPollFilter = (pollId, organizationId, now = new Date()) => ({
-  _id: String(pollId),
-  organization: organizationId,
-  isClosed: false,
-  $or: [
-    { expiresAt: null },
-    { expiresAt: { $exists: false } },
-    { expiresAt: { $gt: now } },
-  ],
-});
-
-/**
- * The vote itself, expressed as an aggregation-pipeline update so MongoDB
- * applies "clear my previous votes, then record my new ones" server-side
- * against current state (Issue #1072).
- *
- * The handler used to load the poll, rebuild `options[].votes` in memory and
- * `save()` the whole array back. Because the filter step reassigns the array,
- * Mongoose emits a `$set` of the entire array as it looked at *read* time —
- * no `$push`, no version guard, no unique index — so two people voting in the
- * same event-loop window overwrote each other:
- *
- *     t0  Alice reads  votes: []
- *     t1  Bob   reads  votes: []
- *     t2  Alice writes votes: [alice]
- *     t3  Bob   writes votes: [bob]        <- Alice's vote is gone
- *
- * Both callers got a 200 and both clients rendered their own vote as
- * recorded, so the loss was invisible until someone read the tally. In a live
- * meeting where a room votes on a countdown, that is most of the votes.
- *
- * A pipeline update runs under the document lock, so concurrent votes
- * serialize and each one sees its predecessor's result. The `$filter` before
- * the append is what makes it idempotent: a retry can never leave the same
- * voter in an option twice.
- */
-const buildVotePipeline = (voterId, selectedOptionIds) => [
-  {
-    $set: {
-      options: {
-        $map: {
-          input: "$options",
-          as: "opt",
-          in: {
-            $mergeObjects: [
-              "$$opt",
-              {
-                votes: {
-                  $let: {
-                    vars: {
-                      // Everyone except this voter, in their original order.
-                      others: {
-                        $filter: {
-                          input: "$$opt.votes",
-                          as: "v",
-                          cond: { $ne: ["$$v", voterId] },
-                        },
-                      },
-                    },
-                    in: {
-                      $cond: [
-                        { $in: ["$$opt._id", selectedOptionIds] },
-                        { $concatArrays: ["$$others", [voterId]] },
-                        "$$others",
-                      ],
-                    },
-                  },
-                },
-              },
-            ],
-          },
-        },
-      },
-    },
-  },
-];
-
 // @desc    Cast a vote
 // @route   POST /api/polls/:id/vote
 // @access  Private
 export const castVote = async (req, res) => {
   try {
     const { id } = req.params;
-    const { optionIds } = req.body; // Array of option IDs
+    const { optionIds } = req.body;
 
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: "Invalid poll ID" });
@@ -302,8 +264,6 @@ export const castVote = async (req, res) => {
     }
 
     if (poll.expiresAt && new Date(poll.expiresAt) <= new Date()) {
-      // Guarded so a vote landing in the same instant cannot be clobbered by
-      // this bookkeeping write.
       await Poll.updateOne(
         { _id: String(id), isClosed: false },
         { $set: { isClosed: true } },
@@ -311,9 +271,6 @@ export const castVote = async (req, res) => {
       return res.status(400).json({ message: "Poll has expired" });
     }
 
-    // Deduplicate before the arity check: `{ optionIds: [x, x, x] }` used to
-    // push the same voter into one option three times, so `voteCount` counted
-    // one person as three.
     const requestedIds = [...new Set(optionIds.map((o) => String(o)))];
 
     if (poll.pollType === "single" && requestedIds.length > 1) {
@@ -327,8 +284,6 @@ export const castVote = async (req, res) => {
       pollOptionIds.has(optionId),
     );
 
-    // Every id must belong to this poll. Previously unknown ids were silently
-    // dropped and the vote still counted as long as one id happened to match.
     if (
       selectedIds.length !== requestedIds.length ||
       selectedIds.length === 0
@@ -348,8 +303,6 @@ export const castVote = async (req, res) => {
     );
 
     if (!updatedPoll) {
-      // The filter no longer matches — the poll closed or expired between the
-      // validation read and the write. Reject rather than resurrect it.
       return res.status(400).json({ message: "Poll is closed" });
     }
 
@@ -358,13 +311,10 @@ export const castVote = async (req, res) => {
       await updatedPoll.populate("options.votes", "name email profilePicture");
     }
 
-    const pollResponse = stripVotersIfAnonymous(updatedPoll);
+    const pollResponse = stripVotersIfAnonymous(updatedPoll, callerId);
 
     const io = req.app.get("io");
     if (io) {
-      // Broadcast the committed document, so every client converges on the
-      // same tally instead of on whichever snapshot its own request happened
-      // to build.
       io.to(updatedPoll.meeting.toString()).emit("poll:vote", pollResponse);
     }
 
@@ -401,7 +351,7 @@ export const closePoll = async (req, res) => {
       await closedPoll.populate("options.votes", "name email profilePicture");
     }
 
-    const pollResponse = stripVotersIfAnonymous(closedPoll);
+    const pollResponse = stripVotersIfAnonymous(closedPoll, req.user.id);
 
     const io = req.app.get("io");
     if (io) {
@@ -434,8 +384,6 @@ export const deletePoll = async (req, res) => {
         .json({ message: "Forbidden: Only creator or admin can delete poll" });
     }
 
-    // Read the room off the document before it goes away — after `deleteOne`
-    // there is nothing left to read `meeting` from.
     const meetingRoom = poll.meeting.toString();
 
     await Poll.deleteOne({ _id: String(id) });

@@ -59,15 +59,41 @@ export const processExpiredPollsBatch = async (io, batchSize = 100) => {
   return totalProcessed;
 };
 
+let isJobScheduled = false;
+
 const startPollExpirationJob = (io, batchSize = 100) => {
-  // Run every 5 minutes
-  cron.schedule("*/5 * * * *", async () => {
-    try {
-      await processExpiredPollsBatch(io, batchSize);
-    } catch (error) {
-      console.error("Error in poll expiration cron job:", error);
-    }
-  });
+  if (isJobScheduled) {
+    console.log(
+      "Poll expiration job already scheduled, skipping duplicate registration.",
+    );
+    return;
+  }
+
+  try {
+    cron.schedule("*/5 * * * *", async () => {
+      try {
+        const processed = await processExpiredPollsBatch(io, batchSize);
+        if (processed > 0) {
+          console.log(
+            `[Poll Expiration Job] Closed ${processed} expired poll(s).`,
+          );
+        }
+      } catch (error) {
+        console.error("Error in poll expiration cron job execution:", error);
+      }
+    });
+
+    isJobScheduled = true;
+    console.log(
+      "Successfully initialized poll expiration background job " +
+        "(schedule: */5 * * * *)",
+    );
+  } catch (error) {
+    console.error(
+      "Failed to initialize poll expiration background job:",
+      error,
+    );
+  }
 };
 
 export default startPollExpirationJob;

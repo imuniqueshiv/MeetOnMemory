@@ -97,7 +97,7 @@ cd server
 npm install
 ```
 
-Configure `.env` (MongoDB URI, Clerk secret key, JWT secret for shared-link/integration tokens).
+Configure `.env` (MongoDB URI, Clerk secret key, JWT secret, SHARED_LINK_JWT_SECRET for shared-link tokens).
 
 ```bash
 npm run server

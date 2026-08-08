@@ -1,6 +1,6 @@
 import express from "express";
 import userAuth from "../middleware/userAuth.js";
-import { requireAdminOrOwner } from "../middleware/rbac.js";
+import { requireOrgMembership, requirePermission } from "../middleware/rbac.js";
 import {
   createRule,
   getRules,
@@ -12,15 +12,23 @@ import {
 
 const router = express.Router();
 
-// All routes require authentication and admin/owner role
+// Authenticated org members only; action checks use the shared RBAC map.
 router.use(userAuth);
-router.use(requireAdminOrOwner);
+router.use(requireOrgMembership);
 
-router.post("/", createRule);
-router.get("/", getRules);
-router.get("/:id", getRuleById);
-router.put("/:id", updateRule);
-router.patch("/:id/toggle", toggleRuleStatus);
-router.delete("/:id", deleteRule);
+router.post("/", requirePermission("automation_rules", "create"), createRule);
+router.get("/", requirePermission("automation_rules", "view"), getRules);
+router.get("/:id", requirePermission("automation_rules", "view"), getRuleById);
+router.put("/:id", requirePermission("automation_rules", "edit"), updateRule);
+router.patch(
+  "/:id/toggle",
+  requirePermission("automation_rules", "edit"),
+  toggleRuleStatus,
+);
+router.delete(
+  "/:id",
+  requirePermission("automation_rules", "delete"),
+  deleteRule,
+);
 
 export default router;

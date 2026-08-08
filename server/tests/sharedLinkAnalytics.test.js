@@ -27,7 +27,17 @@ vi.mock("../models/meetingModel.js", () => ({
 
 vi.mock("../models/policyModel.js", () => ({
   default: {
-    findById: vi.fn(),
+    findById: vi.fn(() => ({
+      select: vi.fn(() => ({
+        lean: vi.fn().mockResolvedValue({
+          _id: "policy-1",
+          name: "Security Policy",
+          version: "1.0",
+          fileUrl: "http://example.com/secret.pdf",
+          summary: "This is secure",
+        }),
+      })),
+    })),
   },
 }));
 
@@ -50,7 +60,7 @@ import bcrypt from "bcryptjs";
 import {
   getPublicResource,
   verifyPasscode,
-  getActiveLinksFixed,
+  getActiveLinks,
 } from "../controllers/sharedLinkController.js";
 
 const mockRes = () => {
@@ -241,7 +251,7 @@ describe("Shared link analytics (#723)", () => {
       user: { organization: "org-1", role: "member" },
     };
     const memberRes = mockRes();
-    await getActiveLinksFixed(memberReq, memberRes);
+    await getActiveLinks(memberReq, memberRes);
     expect(memberRes.body.links[0]).toMatchObject({
       totalViews: 5,
       failedPasscodeAttempts: 2,
@@ -253,9 +263,55 @@ describe("Shared link analytics (#723)", () => {
       user: { organization: "org-1", role: "viewer" },
     };
     const viewerRes = mockRes();
-    await getActiveLinksFixed(viewerReq, viewerRes);
+    await getActiveLinks(viewerReq, viewerRes);
     expect(viewerRes.body.links[0].totalViews).toBeUndefined();
     expect(viewerRes.body.links[0].failedPasscodeAttempts).toBeUndefined();
     expect(viewerRes.body.links[0].hash).toBe("h1");
+  });
+
+  it("restricts public meeting resource response", async () => {
+    mockFindOne.mockResolvedValue({
+      _id: "link-meeting",
+      hash: "m123",
+      active: true,
+      passcode: null,
+      resourceModel: "Meeting",
+      resourceId: "meeting-1",
+    });
+
+    const req = { params: { hash: "m123" }, cookies: {} };
+    const res = mockRes();
+
+    await getPublicResource(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.title).toBe("Standup");
+    expect(res.body.data.transcript).toBeUndefined();
+    expect(res.body.data.aiNotes).toBeUndefined();
+    expect(res.body.data.meetingType).toBeUndefined();
+  });
+
+  it("restricts public policy resource response", async () => {
+    mockFindOne.mockResolvedValue({
+      _id: "link-policy",
+      hash: "p123",
+      active: true,
+      passcode: null,
+      resourceModel: "Policy",
+      resourceId: "policy-1",
+    });
+
+    const req = { params: { hash: "p123" }, cookies: {} };
+    const res = mockRes();
+
+    await getPublicResource(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.name).toBe("Security Policy");
+    expect(res.body.data.summary).toBe("This is secure");
+    expect(res.body.data.fileUrl).toBeUndefined();
+    expect(res.body.data.isDraft).toBeUndefined();
   });
 });

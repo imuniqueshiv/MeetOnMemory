@@ -56,6 +56,7 @@ import RecapScheduleDashboard from "../pages/RecapScheduleDashboard.jsx";
 import MeetingHealthDashboard from "../pages/MeetingHealthDashboard.jsx";
 import AutomationRules from "../pages/AutomationRules.jsx";
 import TopicExplorer from "../pages/TopicExplorer.jsx";
+import ConflictResolution from "../pages/ConflictResolution.jsx";
 
 const ProtectedRoutes = (
   <React.Fragment>
@@ -84,10 +85,10 @@ const ProtectedRoutes = (
       }
     />
     <Route
-      path="/knowledge/:decisionId"
+      path="/knowledge/conflicts"
       element={
-        <ProtectedRoute>
-          <KnowledgeTimeline />
+        <ProtectedRoute resource="knowledge" action="view">
+          <ConflictResolution />
         </ProtectedRoute>
       }
     />
@@ -120,6 +121,14 @@ const ProtectedRoutes = (
       element={
         <ProtectedRoute resource="knowledge" action="view">
           <GraphSnapshots />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/knowledge/:decisionId"
+      element={
+        <ProtectedRoute>
+          <KnowledgeTimeline />
         </ProtectedRoute>
       }
     />
@@ -158,7 +167,7 @@ const ProtectedRoutes = (
     <Route
       path="/automation-rules"
       element={
-        <ProtectedRoute resource="organization" action="manage">
+        <ProtectedRoute resource="automation_rules" action="view">
           <AutomationRules />
         </ProtectedRoute>
       }
@@ -384,7 +393,7 @@ const ProtectedRoutes = (
     <Route
       path="/settings"
       element={
-        <ProtectedRoute resource="settings" action="view">
+        <ProtectedRoute>
           <Settings />
         </ProtectedRoute>
       }

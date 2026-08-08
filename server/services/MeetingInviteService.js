@@ -1,17 +1,26 @@
 import crypto from "crypto";
-import mongoose from "mongoose";
 import Meeting from "../models/meetingModel.js";
 import Membership from "../models/membershipModel.js";
 import {
+  ValidationError,
   NotFoundError,
   ForbiddenError,
-  ValidationError,
 } from "../utils/errors.js";
-
-const INVITE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const INVITE_CODE_LENGTH = 10;
+import mongoose from "mongoose";
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+
+/**
+ * Generate cryptographically secure random invite code
+ * Uses only unambiguous characters to avoid confusion (no 0/O, 1/I/l, etc.)
+ *
+ * Security: Code contains NO PII or predictable patterns
+ * - Purely random alphanumeric string
+ * - No user IDs, emails, or organization names embedded
+ * - Cryptographically secure random generation
+ */
+const INVITE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const INVITE_CODE_LENGTH = 10;
 
 export const generateInviteCode = () => {
   const bytes = crypto.randomBytes(INVITE_CODE_LENGTH);
@@ -22,6 +31,10 @@ export const generateInviteCode = () => {
   return code;
 };
 
+/**
+ * Allocate a unique invite code with collision detection
+ * Retries up to 8 times before failing
+ */
 const allocateUniqueInviteCode = async () => {
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const code = generateInviteCode();
@@ -33,13 +46,9 @@ const allocateUniqueInviteCode = async () => {
   throw new ValidationError("Could not allocate a unique invite code.");
 };
 
-const invitePayload = (meeting) => ({
-  code: meeting.inviteCode || null,
-  enabled: meeting.inviteEnabled !== false,
-  expiresAt: meeting.inviteExpiresAt || null,
-  path: meeting.inviteCode ? `/meeting-invite/${meeting.inviteCode}` : null,
-});
-
+/**
+ * Assert user has permission to manage meeting invites
+ */
 const assertMeetingManageAccess = async (meeting, user) => {
   const isOwner =
     meeting.uploadedBy?.toString() === user._id?.toString() ||
@@ -66,6 +75,9 @@ const assertMeetingManageAccess = async (meeting, user) => {
   }
 };
 
+/**
+ * Assert user can join the meeting
+ */
 const assertCanJoinMeeting = async (meeting, user) => {
   const userId = user._id?.toString() || user.id?.toString();
   if (meeting.uploadedBy?.toString() === userId) return;
@@ -86,10 +98,11 @@ const assertCanJoinMeeting = async (meeting, user) => {
     }
     return;
   }
-
-  // Personal meetings: invite code is the access secret for authenticated users.
 };
 
+/**
+ * Determine where to redirect user after joining
+ */
 const resolveJoinTarget = (meeting) => {
   if (meeting.archived) {
     return {
@@ -148,6 +161,21 @@ const resolveJoinTarget = (meeting) => {
   };
 };
 
+/**
+ * Build invite payload with NO PII
+ * Only includes the opaque invite code and necessary metadata
+ */
+const invitePayload = (meeting) => ({
+  inviteCode: meeting.inviteCode,
+  inviteEnabled: meeting.inviteEnabled,
+  inviteExpiresAt: meeting.inviteExpiresAt,
+  meetingId: meeting._id.toString(),
+  // Note: NO user emails, names, or other PII included
+});
+
+/**
+ * Get or create an invite code for a meeting
+ */
 export const getOrCreateInvite = async (meetingId, user) => {
   if (!isValidObjectId(meetingId)) {
     throw new ValidationError("Invalid meeting id.");
@@ -167,6 +195,9 @@ export const getOrCreateInvite = async (meetingId, user) => {
   return invitePayload(meeting);
 };
 
+/**
+ * Regenerate invite code (invalidates old codes)
+ */
 export const regenerateInvite = async (meetingId, user) => {
   if (!isValidObjectId(meetingId)) {
     throw new ValidationError("Invalid meeting id.");
@@ -184,6 +215,9 @@ export const regenerateInvite = async (meetingId, user) => {
   return invitePayload(meeting);
 };
 
+/**
+ * Update invite settings (enable/disable, expiration)
+ */
 export const updateInvite = async (meetingId, user, updates = {}) => {
   if (!isValidObjectId(meetingId)) {
     throw new ValidationError("Invalid meeting id.");
@@ -218,6 +252,9 @@ export const updateInvite = async (meetingId, user, updates = {}) => {
   return invitePayload(meeting);
 };
 
+/**
+ * Resolve invite code and determine join target
+ */
 export const resolveInvite = async (code, user) => {
   const inviteCode = typeof code === "string" ? code.trim().toUpperCase() : "";
   if (!inviteCode || inviteCode.length < 6) {

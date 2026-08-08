@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { encryptToken, decryptToken } from "../utils/crypto.js";
 
 const organizationSchema = new mongoose.Schema(
   {
@@ -137,8 +138,24 @@ const organizationSchema = new mongoose.Schema(
       },
     },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  },
 );
+
+organizationSchema
+  .virtual("slackBotToken")
+  .get(function () {
+    return decryptToken(this.slackIntegration?.botToken);
+  })
+  .set(function (value) {
+    if (!this.slackIntegration) {
+      this.slackIntegration = {};
+    }
+    this.slackIntegration.botToken = encryptToken(value);
+  });
 
 // Indexes for performance
 

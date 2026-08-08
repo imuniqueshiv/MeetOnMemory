@@ -71,7 +71,7 @@ const CalendarGrid = ({
                         <button
                           key={event._id}
                           onClick={() => setSelectedMeeting(event)}
-                          className={`w-full text-left p-1.5 rounded-lg border text-[10px] font-semibold truncate flex items-center gap-1.5 transition-all cursor-pointer select-none ${style.bg}`}
+                          className={`w-full text-left p-1.5 rounded-lg border text-[10px] font-semibold truncate flex items-center gap-1.5 transition-all cursor-pointer ${style.bg}`}
                         >
                           <span
                             className={`w-1.5 h-1.5 rounded-full shrink-0 ${style.dot}`}
@@ -186,7 +186,7 @@ const CalendarGrid = ({
                         <button
                           key={event._id}
                           onClick={() => setSelectedMeeting(event)}
-                          className={`absolute left-1 right-1 p-2 rounded-xl border text-[10px] font-bold text-left overflow-hidden flex flex-col justify-between transition-all shadow-xs hover:z-10 cursor-pointer select-none ${style.bg}`}
+                          className={`absolute left-1 right-1 p-2 rounded-xl border text-[10px] font-bold text-left overflow-hidden flex flex-col justify-between transition-all shadow-xs hover:z-10 cursor-pointer ${style.bg}`}
                           style={{
                             top: `${top}px`,
                             height: `${height}px`,
@@ -269,7 +269,7 @@ const CalendarGrid = ({
                       <button
                         key={event._id}
                         onClick={() => setSelectedMeeting(event)}
-                        className={`absolute left-2 right-4 p-3 rounded-xl border text-left flex flex-col justify-between transition-all shadow-xs hover:z-10 cursor-pointer select-none ${style.bg}`}
+                        className={`absolute left-2 right-4 p-3 rounded-xl border text-left flex flex-col justify-between transition-all shadow-xs hover:z-10 cursor-pointer ${style.bg}`}
                         style={{
                           top: `${top}px`,
                           height: `${height}px`,

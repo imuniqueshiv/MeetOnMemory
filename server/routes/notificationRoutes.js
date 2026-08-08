@@ -47,7 +47,7 @@ notificationRouter.get(
 notificationRouter.put(
   "/preferences",
   writeLimiter,
-  requirePermission("notifications", "manage"),
+  requirePermission("notifications", "self_manage"),
   updatePreferences,
 );
 

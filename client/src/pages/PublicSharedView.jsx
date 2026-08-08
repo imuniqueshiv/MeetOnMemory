@@ -100,32 +100,69 @@ const PublicSharedView = () => {
   }
 
   if (requiresPasscode) {
+    const passcodeHelpId = "shared-link-passcode-help";
+    const passcodeErrorId = "shared-link-passcode-error";
+    const describedBy = passcodeError
+      ? `${passcodeHelpId} ${passcodeErrorId}`
+      : passcodeHelpId;
+
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
         <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 max-w-md w-full">
           <div className="text-center mb-6">
             <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/40 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Lock className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
+              <Lock
+                className="w-8 h-8 text-indigo-600 dark:text-indigo-400"
+                aria-hidden="true"
+              />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <h1
+              id="shared-link-passcode-heading"
+              className="text-xl font-semibold text-gray-900 dark:text-white mb-2"
+            >
               Protected Resource
-            </h2>
-            <p className="text-gray-600 dark:text-gray-300 text-sm">
+            </h1>
+            <p
+              id={passcodeHelpId}
+              className="text-gray-600 dark:text-gray-300 text-sm"
+            >
               Please enter the passcode to view this shared resource.
             </p>
           </div>
 
-          <form onSubmit={handleVerify} className="space-y-4">
+          <form
+            onSubmit={handleVerify}
+            className="space-y-4"
+            aria-labelledby="shared-link-passcode-heading"
+            noValidate
+          >
             <div>
+              <label
+                htmlFor="shared-link-passcode"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2"
+              >
+                Passcode
+              </label>
               <input
+                id="shared-link-passcode"
+                name="passcode"
                 type="password"
+                autoComplete="current-password"
+                inputMode="text"
                 placeholder="Enter passcode"
                 value={passcode}
                 onChange={(e) => setPasscode(e.target.value)}
+                aria-required="true"
+                aria-invalid={passcodeError ? "true" : "false"}
+                aria-describedby={describedBy}
                 className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400"
               />
               {passcodeError && (
-                <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                <p
+                  id={passcodeErrorId}
+                  role="alert"
+                  className="mt-2 text-sm text-red-600 dark:text-red-400"
+                >
                   {passcodeError}
                 </p>
               )}
@@ -133,6 +170,7 @@ const PublicSharedView = () => {
             <button
               type="submit"
               disabled={verifying}
+              aria-busy={verifying ? "true" : "false"}
               className="w-full bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white font-medium py-3 rounded-lg transition disabled:opacity-70"
             >
               {verifying ? "Verifying..." : "Access Resource"}

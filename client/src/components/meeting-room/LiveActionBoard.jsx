@@ -1,14 +1,13 @@
 // client/src/components/meeting-room/LiveActionBoard.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus,
   GripVertical,
   AlertTriangle,
   Sparkles,
   User,
-  Clock,
 } from "lucide-react";
-import axios from "axios";
+import apiClient from "../../services/apiClient.js";
 
 const COLUMNS = [
   {
@@ -53,6 +52,79 @@ const PRIORITIES = {
   },
 };
 
+const itemMatchesId = (item, actionId) => {
+  if (!item || actionId == null) return false;
+  const target = String(actionId);
+  return String(item._id ?? "") === target || String(item.id ?? "") === target;
+};
+
+const isSyncPlaceholder = (item) =>
+  Boolean(item?.__pendingSync) || item?.title === "Syncing...";
+
+const findItemInColumns = (columns, actionId) => {
+  for (const col of Object.keys(columns)) {
+    const found = (columns[col] || []).find((item) =>
+      itemMatchesId(item, actionId),
+    );
+    if (found) return found;
+  }
+  return null;
+};
+
+/**
+ * Apply a remote column move. Prefers the broadcast item, then the local copy,
+ * and only falls back to a temporary Syncing placeholder when neither exists.
+ */
+const applyRemoteMove = (prevColumns, data) => {
+  const newCols = JSON.parse(JSON.stringify(prevColumns));
+  const existingItem = findItemInColumns(newCols, data.actionId);
+  const usableLocalItem =
+    existingItem && !isSyncPlaceholder(existingItem) ? existingItem : null;
+
+  for (const col of Object.keys(newCols)) {
+    newCols[col] = (newCols[col] || []).filter(
+      (item) => !itemMatchesId(item, data.actionId),
+    );
+  }
+
+  if (!newCols[data.toColumn]) newCols[data.toColumn] = [];
+
+  let movedItem = null;
+  if (
+    data.item &&
+    !isSyncPlaceholder(data.item) &&
+    (data.item.title || data.item._id || data.item.id)
+  ) {
+    movedItem = {
+      ...data.item,
+      _id: data.item._id || data.item.id || data.actionId,
+    };
+  } else if (usableLocalItem) {
+    movedItem = usableLocalItem;
+  }
+
+  const needsHydration = !movedItem;
+  if (!movedItem) {
+    movedItem = {
+      _id: data.actionId,
+      title: "Syncing...",
+      priority: "medium",
+      __pendingSync: true,
+    };
+  }
+
+  const insertAt = Math.max(
+    0,
+    Math.min(
+      data.newIndex ?? newCols[data.toColumn].length,
+      newCols[data.toColumn].length,
+    ),
+  );
+  newCols[data.toColumn].splice(insertAt, 0, movedItem);
+
+  return { columns: newCols, needsHydration };
+};
+
 const LiveActionBoard = ({ socket, meetingId, userId, participants }) => {
   const [columns, setColumns] = useState({
     backlog: [],
@@ -65,21 +137,40 @@ const LiveActionBoard = ({ socket, meetingId, userId, participants }) => {
   const [newItemTitle, setNewItemTitle] = useState("");
   const dragItem = useRef(null);
   const dragOverItem = useRef(null);
+  const hydrateTimerRef = useRef(null);
+  const columnsRef = useRef(columns);
+  columnsRef.current = columns;
+
+  const fetchBoardState = useCallback(async () => {
+    if (!meetingId) return;
+    try {
+      const res = await apiClient.get(`/api/workspace/${meetingId}/state`);
+      if (res.data.success && res.data.warRoom?.actionColumns) {
+        setColumns(res.data.warRoom.actionColumns);
+      }
+    } catch (err) {
+      console.error("Failed to load action board:", err);
+    }
+  }, [meetingId]);
+
+  const scheduleHydration = useCallback(() => {
+    if (hydrateTimerRef.current) clearTimeout(hydrateTimerRef.current);
+    // Debounce rapid consecutive incomplete moves into a single refetch.
+    hydrateTimerRef.current = setTimeout(() => {
+      fetchBoardState();
+    }, 250);
+  }, [fetchBoardState]);
 
   // --- INITIAL LOAD ---
   useEffect(() => {
-    const fetchState = async () => {
-      try {
-        const res = await axios.get(`/api/workspace/${meetingId}/state`);
-        if (res.data.success && res.data.warRoom?.actionColumns) {
-          setColumns(res.data.warRoom.actionColumns);
-        }
-      } catch (err) {
-        console.error("Failed to load action board:", err);
-      }
+    fetchBoardState();
+  }, [fetchBoardState]);
+
+  useEffect(() => {
+    return () => {
+      if (hydrateTimerRef.current) clearTimeout(hydrateTimerRef.current);
     };
-    fetchState();
-  }, [meetingId]);
+  }, []);
 
   // --- SOCKET LISTENERS ---
   useEffect(() => {
@@ -87,27 +178,22 @@ const LiveActionBoard = ({ socket, meetingId, userId, participants }) => {
 
     const handleRemoteMove = (data) => {
       if (data.userId === userId) return; // Ignore own moves
-      setColumns((prev) => {
-        const newCols = JSON.parse(JSON.stringify(prev)); // Deep clone
 
-        // Remove from old column
-        for (const col in newCols) {
-          newCols[col] = newCols[col].filter(
-            (item) => item._id !== data.actionId && item.id !== data.actionId,
-          );
-        }
+      const hasRemoteItem = Boolean(
+        data.item &&
+        (data.item.title || data.item._id || data.item.id) &&
+        !isSyncPlaceholder(data.item),
+      );
+      const localItem = findItemInColumns(columnsRef.current, data.actionId);
+      const hasLocalItem = Boolean(localItem && !isSyncPlaceholder(localItem));
+      // Only refetch when we would otherwise be stuck on a Syncing placeholder.
+      const needsHydration = !hasRemoteItem && !hasLocalItem;
 
-        // Insert into new column (optimistic placement)
-        if (!newCols[data.toColumn]) newCols[data.toColumn] = [];
-        const movedItem = {
-          _id: data.actionId,
-          title: "Syncing...",
-          priority: "medium",
-        }; // Placeholder
-        newCols[data.toColumn].splice(data.newIndex, 0, movedItem);
+      setColumns((prev) => applyRemoteMove(prev, data).columns);
 
-        return newCols;
-      });
+      if (needsHydration) {
+        scheduleHydration();
+      }
     };
 
     const handleAiBottleneck = (data) => {
@@ -122,7 +208,7 @@ const LiveActionBoard = ({ socket, meetingId, userId, participants }) => {
       socket.off("workspace:action-move", handleRemoteMove);
       socket.off("workspace:ai-bottleneck", handleAiBottleneck);
     };
-  }, [socket, userId]);
+  }, [socket, userId, scheduleHydration]);
 
   // --- DRAG & DROP HANDLERS ---
   const handleDragStart = (e, item, colId) => {
@@ -155,14 +241,14 @@ const LiveActionBoard = ({ socket, meetingId, userId, participants }) => {
 
       // Remove from source
       newCols[fromCol] = newCols[fromCol].filter(
-        (i) => i._id !== draggedItem._id,
+        (i) => !itemMatchesId(i, draggedItem._id ?? draggedItem.id),
       );
 
       // Calculate new index
       let newIndex = newCols[targetColId].length;
       if (targetItem) {
-        newIndex = newCols[targetColId].findIndex(
-          (i) => i._id === targetItem._id,
+        newIndex = newCols[targetColId].findIndex((i) =>
+          itemMatchesId(i, targetItem._id ?? targetItem.id),
         );
         if (newIndex === -1) newIndex = newCols[targetColId].length;
       }
@@ -170,13 +256,14 @@ const LiveActionBoard = ({ socket, meetingId, userId, participants }) => {
       // Insert at target
       newCols[targetColId].splice(newIndex, 0, draggedItem);
 
-      // Emit to Socket
+      // Emit full item so remotes can hydrate immediately (Issue #1213).
       if (socket) {
         socket.emit("workspace:action-move", {
-          actionId: draggedItem._id,
+          actionId: draggedItem._id || draggedItem.id,
           fromColumn: fromCol,
           toColumn: targetColId,
           newIndex,
+          item: draggedItem,
         });
       }
 
@@ -190,7 +277,7 @@ const LiveActionBoard = ({ socket, meetingId, userId, participants }) => {
     if (!newItemTitle.trim()) return;
 
     try {
-      const res = await axios.post(`/api/workspace/${meetingId}/action`, {
+      const res = await apiClient.post(`/api/workspace/${meetingId}/action`, {
         title: newItemTitle.trim(),
         priority: "medium",
       });

@@ -214,7 +214,7 @@ const AdminPanel = () => {
         )}
 
         {/* Main content */}
-        <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-start gap-3 mb-6">
             <button
               type="button"
@@ -297,7 +297,7 @@ const AdminPanel = () => {
               </span>
             </div>
           )}
-        </main>
+        </div>
       </div>
     </div>
   );

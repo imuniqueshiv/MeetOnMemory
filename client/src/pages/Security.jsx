@@ -367,7 +367,7 @@ const Security = () => {
       </header>
 
       {/* Main Grid Content */}
-      <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 flex-1">
+      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 flex-1">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Left Column: Navigation Sidebar */}
           <aside className="lg:col-span-4 hidden lg:block">
@@ -820,7 +820,7 @@ const Security = () => {
             </section>
           </div>
         </div>
-      </main>
+      </div>
 
       {/* Quick Footer banner redirection */}
       <div className="bg-gray-100 dark:bg-slate-900 border-t border-gray-200/80 dark:border-slate-800/80 py-10 mt-auto">

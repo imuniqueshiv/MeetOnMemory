@@ -283,72 +283,119 @@ export const getUserInvitations = async (userId) => {
 };
 
 /**
- * ✅ Accept Invitation
+ * ✅ Accept Invitation (ATOMIC TRANSACTION)
+ *
+ * Issue #1240: Wrapped in database transaction to prevent inconsistent state.
+ *
+ * Operations performed atomically:
+ * 1. Validate invitation exists and is pending
+ * 2. Check invitation hasn't expired
+ * 3. Verify email matches authenticated user
+ * 4. Check for existing active membership
+ * 5. Update invitation status to "accepted"
+ * 6. Create new membership record
+ * 7. Update user model for backward compatibility
+ *
+ * If any step fails, all changes are rolled back.
  */
 export const acceptInvitation = async (userId, token) => {
-  const invitation = await Invitation.findOne({ token }).populate(
-    "organization",
-  );
+  // Start a MongoDB session for transactions
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  if (!invitation) {
-    throw new NotFoundError("Invitation not found.");
+  try {
+    // Step 1: Find invitation and populate organization
+    const invitation = await Invitation.findOne({ token })
+      .populate("organization")
+      .session(session);
+
+    if (!invitation) {
+      throw new NotFoundError("Invitation not found.");
+    }
+
+    // Step 2: Validate invitation status
+    if (invitation.status !== "pending") {
+      throw new ValidationError(
+        `Invitation is not in pending status. Current status: ${invitation.status}`,
+      );
+    }
+
+    // Step 3: Check expiration
+    if (invitation.expiresAt < new Date()) {
+      invitation.status = "expired";
+      await invitation.save({ session });
+      throw new ValidationError("Invitation has expired.");
+    }
+
+    // Step 4: Verify email matches authenticated user
+    const user = await userModel.findById(userId).session(session);
+
+    if (!user || user.email.toLowerCase() !== invitation.email.toLowerCase()) {
+      throw new ForbiddenError("Invitation is not for this user.");
+    }
+
+    // Step 5: Check for existing active membership (prevent duplicates)
+    const existingMembership = await Membership.findOne({
+      user: userId,
+      organization: invitation.organization._id,
+      status: "active",
+    }).session(session);
+
+    if (existingMembership) {
+      throw new ValidationError("Already a member of this organization.");
+    }
+
+    // Step 6: Update invitation status (within transaction)
+    invitation.status = "accepted";
+    invitation.acceptedBy = userId;
+    invitation.acceptedAt = new Date();
+    await invitation.save({ session });
+
+    // Step 7: Create membership (within transaction)
+    const newMembership = await Membership.create(
+      [
+        {
+          user: userId,
+          organization: invitation.organization._id,
+          role: invitation.role,
+          status: "active",
+        },
+      ],
+      { session },
+    );
+
+    // Step 8: Update user model for backward compatibility (within transaction)
+    await userModel.findByIdAndUpdate(
+      userId,
+      {
+        role: invitation.role,
+        organization: invitation.organization._id,
+        hasCompletedOnboarding: true,
+      },
+      { session },
+    );
+
+    // Commit transaction - all changes are saved atomically
+    await session.commitTransaction();
+    session.endSession();
+
+    return {
+      success: true,
+      message: "Invitation accepted successfully.",
+      invitation,
+      membership: newMembership[0],
+    };
+  } catch (error) {
+    // Rollback transaction on any error - no partial writes
+    await session.abortTransaction();
+    session.endSession();
+
+    console.error(
+      "❌ Invitation acceptance failed, transaction rolled back:",
+      error.message,
+    );
+    throw error;
   }
-
-  if (invitation.status !== "pending") {
-    throw new ValidationError("Invitation is not in pending status.");
-  }
-
-  if (invitation.expiresAt < new Date()) {
-    invitation.status = "expired";
-    await invitation.save();
-    throw new ValidationError("Invitation has expired.");
-  }
-
-  // Verify email matches
-  const user = await userModel.findById(userId);
-
-  if (!user || user.email.toLowerCase() !== invitation.email.toLowerCase()) {
-    throw new ForbiddenError("Invitation is not for this user.");
-  }
-
-  // Check if user already has an active membership
-  const existingMembership = await Membership.findOne({
-    user: userId,
-    organization: invitation.organization._id,
-    status: "active",
-  });
-
-  if (existingMembership) {
-    throw new ValidationError("Already a member of this organization.");
-  }
-
-  // Update invitation status
-  invitation.status = "accepted";
-  invitation.acceptedBy = userId;
-  invitation.acceptedAt = new Date();
-  await invitation.save();
-
-  // Create membership
-  const newMembership = await Membership.create({
-    user: userId,
-    organization: invitation.organization._id,
-    role: invitation.role,
-    status: "active",
-  });
-
-  // Update user model for backward compatibility
-  await userModel.findByIdAndUpdate(userId, {
-    role: invitation.role,
-    organization: invitation.organization._id,
-    hasCompletedOnboarding: true,
-  });
-
-  return {
-    success: true,
-    message: "Invitation accepted successfully.",
-    invitation,
-    membership: newMembership,
-  };
 };
 
 /**

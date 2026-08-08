@@ -390,7 +390,7 @@ const OrganizationSettings = () => {
     <div className="min-h-screen bg-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-200 flex flex-col font-sans">
       <Navbar />
 
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-20">
+      <div className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-20">
         {/* Breadcrumbs Navigation */}
         <nav className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-6">
           <button
@@ -1018,7 +1018,7 @@ const OrganizationSettings = () => {
             </div>
           )}
         </form>
-      </main>
+      </div>
     </div>
   );
 };

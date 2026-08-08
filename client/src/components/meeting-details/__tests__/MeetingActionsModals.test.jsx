@@ -40,7 +40,7 @@ describe("Meeting Delete & Rename Modals - Accessibility & Dark Mode (#838)", ()
     const dialog = screen.getByRole("dialog");
     expect(dialog).toBeInTheDocument();
     expect(dialog).toHaveAttribute("aria-modal", "true");
-    expect(dialog).toHaveAttribute("aria-labelledby", "delete-modal-title");
+    expect(dialog).toHaveAttribute("aria-labelledby", "confirm-modal-title");
   });
 
   it("closes Delete Modal on Escape key press and backdrop click", () => {
@@ -58,14 +58,14 @@ describe("Meeting Delete & Rename Modals - Accessibility & Dark Mode (#838)", ()
     fireEvent.click(screen.getByText("Delete Meeting"));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
-    // Escape Key press
-    fireEvent.keyDown(window, { key: "Escape" });
+    // Escape Key press (ConfirmModal uses document listener)
+    fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     // Re-open and click backdrop
     fireEvent.click(screen.getByText("Delete Meeting"));
-    const backdrop = screen.getByRole("dialog").parentElement;
-    fireEvent.click(backdrop);
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(dialog);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 

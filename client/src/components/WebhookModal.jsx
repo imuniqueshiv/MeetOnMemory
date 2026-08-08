@@ -194,8 +194,8 @@ const WebhookModal = ({
       return;
     }
 
-    if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-      toast.error("Target URL must start with http:// or https://");
+    if (!targetUrl.startsWith("https://")) {
+      toast.error("Target URL must start with https://");
       return;
     }
 

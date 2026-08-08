@@ -57,6 +57,7 @@ const slackRoutes = (await import("../routes/slackRoutes.js")).default;
 const User = (await import("../models/userModel.js")).default;
 const Organization = (await import("../models/organizationModel.js")).default;
 const Membership = (await import("../models/membershipModel.js")).default;
+const { decryptToken } = await import("../utils/crypto.js");
 
 // Mirror production Slack mount order (see config/express.js) without booting
 // the full application graph from server.js.
@@ -419,14 +420,20 @@ describe("GET /api/slack/oauth_redirect", () => {
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain("slackInstall=success");
 
-    // Verify the org was updated in the database
+    // Verify the org was updated in the database and the token is encrypted
     const updatedOrg = await Organization.findById(org._id)
       .select("+slackIntegration.botToken")
       .lean();
     expect(updatedOrg.slackIntegration.teamId).toBe("T12345TEST");
     expect(updatedOrg.slackIntegration.teamName).toBe("Test Workspace");
     expect(updatedOrg.slackIntegration.channelId).toBe("C12345TEST");
-    expect(updatedOrg.slackIntegration.botToken).toBe("xoxb-test-token");
+    // Verify it is not stored as plain text
+    expect(updatedOrg.slackIntegration.botToken).not.toBe("xoxb-test-token");
+    expect(updatedOrg.slackIntegration.botToken).toContain(":");
+    // Verify it decrypts back correctly
+    expect(decryptToken(updatedOrg.slackIntegration.botToken)).toBe(
+      "xoxb-test-token",
+    );
     expect(updatedOrg.slackIntegration.installedAt).toBeTruthy();
   });
 });

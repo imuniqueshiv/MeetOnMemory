@@ -1,7 +1,13 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useContext,
+} from "react";
 import { io } from "socket.io-client";
 import { getActivities } from "../api/activityApi";
-import { useSelector } from "react-redux";
+import AppContent from "../context/AppContent.js";
 import {
   Calendar,
   FileText,
@@ -15,16 +21,19 @@ import { createClerkSocketOptions } from "../services/apiClient.js";
 const backendUrl = getBackendUrl();
 
 export default function ActivityFeed() {
+  const { userData } = useContext(AppContent);
+  const organization = userData?.organization;
+  const organizationId = organization?._id || organization || null;
+
   const [activities, setActivities] = useState([]);
   const [, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
-  const { currentOrganization } = useSelector((state) => state.auth);
   const observer = useRef();
 
   const loadActivities = useCallback(
     async (pageNum, append = false) => {
-      if (!currentOrganization) return;
+      if (!organizationId) return;
       try {
         setLoading(true);
         const data = await getActivities({ page: pageNum, limit: 20 });
@@ -40,19 +49,19 @@ export default function ActivityFeed() {
         setLoading(false);
       }
     },
-    [currentOrganization],
+    [organizationId],
   );
 
   useEffect(() => {
-    if (currentOrganization) {
+    if (organizationId) {
       setPage(1);
       loadActivities(1, false);
     }
-  }, [currentOrganization, loadActivities]);
+  }, [organizationId, loadActivities]);
 
   // Real-time updates via Socket.IO
   useEffect(() => {
-    if (!currentOrganization) return;
+    if (!organizationId) return;
 
     let socket;
     let cancelled = false;
@@ -84,7 +93,7 @@ export default function ActivityFeed() {
       cancelled = true;
       socket?.disconnect();
     };
-  }, [currentOrganization]);
+  }, [organizationId]);
 
   const lastActivityElementRef = useCallback(
     (node) => {
@@ -149,7 +158,11 @@ export default function ActivityFeed() {
       </h1>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        {activities.length === 0 && !loading ? (
+        {!organizationId && !loading ? (
+          <p className="text-gray-500 text-center py-8">
+            Join or select an organization to view activity.
+          </p>
+        ) : activities.length === 0 && !loading ? (
           <p className="text-gray-500 text-center py-8">
             No recent activity found.
           </p>

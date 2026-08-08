@@ -657,7 +657,7 @@ const DeveloperDocs = () => {
         </aside>
 
         {/* Documentation Content Column */}
-        <main className="flex-1 space-y-8 min-w-0">
+        <div className="flex-1 space-y-8 min-w-0">
           {/* SECTION: OVERVIEW */}
           {activeSection === "overview" && (
             <div className="space-y-6 animate-fade-in">
@@ -1251,7 +1251,7 @@ const DeveloperDocs = () => {
               </div>
             </div>
           )}
-        </main>
+        </div>
       </div>
     </div>
   );

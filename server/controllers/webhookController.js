@@ -51,8 +51,8 @@ const createWebhookSchema = z.object({
     .string({ required_error: "Target URL is required." })
     .trim()
     .min(1, "Target URL cannot be empty.")
-    .refine((url) => url.startsWith("http://") || url.startsWith("https://"), {
-      message: "Target URL must start with http:// or https://.",
+    .refine((url) => url.startsWith("https://"), {
+      message: "Target URL must start with https://.",
     })
     .refine((url) => isSafeWebhookUrl(url), {
       message:
@@ -76,8 +76,8 @@ const updateWebhookSchema = z.object({
     .string()
     .trim()
     .min(1, "Target URL cannot be empty.")
-    .refine((url) => url.startsWith("http://") || url.startsWith("https://"), {
-      message: "Target URL must start with http:// or https://.",
+    .refine((url) => url.startsWith("https://"), {
+      message: "Target URL must start with https://.",
     })
     .refine(async (url) => await isSafeWebhookUrl(url), {
       message:

@@ -9,6 +9,7 @@ import {
   downloadAttachment,
   deleteAttachment,
 } from "../controllers/attachmentController.js";
+import userAuth from "../middleware/userAuth.js";
 import { requireOrgAccess } from "../middleware/rbac.js";
 import Meeting from "../models/meetingModel.js";
 
@@ -94,7 +95,8 @@ const upload = multer({
   },
 });
 
-// All routes require org access to the meeting
+// All routes require authentication and org access to the meeting
+router.use(userAuth);
 router.use(requireOrgAccess(Meeting));
 
 // Route: /api/meetings/:meetingId/attachments
