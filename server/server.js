@@ -4,6 +4,11 @@ import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 
+import mongoose from "mongoose";
+import { createGracefulShutdown } from "./utils/gracefulShutdown.js";
+import { shutdownQueues } from "./services/queueService.js";
+import { closeRedis } from "./services/redisService.js";
+
 import connectDB from "./config/mongodb.js";
 
 import { initCalendarSyncCron } from "./services/calendarSyncService.js";
@@ -65,7 +70,7 @@ configureErrorHandling(app);
 const server = http.createServer(app);
 
 // SOCKET.IO
-configureSocket(server, app);
+const io = configureSocket(server, app);
 
 // SERVER START (Skipped during Jest test execution)
 if (process.env.NODE_ENV !== "test") {
@@ -87,18 +92,14 @@ if (process.env.NODE_ENV !== "test") {
 // (AI, Data Export, and Webhook workers are initialized inside server.listen callback)
 
 // GRACEFUL SHUTDOWN
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received. Shutting down gracefully...");
-  server.close(() => {
-    process.exit(0);
-  });
+const gracefulShutdown = createGracefulShutdown({
+  server,
+  io,
+  closeQueues: shutdownQueues,
+  closeDatabase: () => mongoose.connection.close(),
+  closeRedis,
 });
 
-process.on("SIGINT", () => {
-  console.log("SIGINT received. Shutting down gracefully...");
-  server.close(() => {
-    process.exit(0);
-  });
-});
+gracefulShutdown.registerSignalHandlers();
 
 export { app, server };
