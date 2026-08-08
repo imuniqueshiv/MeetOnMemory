@@ -7,6 +7,7 @@ import {
   initSentimentWorker,
   initRecalculateImportanceWorker,
   initMemoryLifecycleWorker,
+  initRecapDeliveryWorker,
 } from "../services/queueService.js";
 import { initWebhookWorker } from "../services/webhookDispatcherService.js";
 
@@ -62,6 +63,9 @@ export async function startWorkers(app) {
   await safeInit("Memory Lifecycle Worker", () =>
     initMemoryLifecycleWorker(app),
   );
+  await safeInit("Recap Delivery Worker", () =>
+    initRecapDeliveryWorker(),
+  );
 
   // Pinecone pre-warm is best-effort and independent of the queue layer.
   try {
@@ -76,7 +80,7 @@ export async function startWorkers(app) {
   } else {
     console.warn(
       `⚠️ Background services started with ${failed.length} failure(s): ` +
-        failed.map((f) => f.name).join(", "),
+      failed.map((f) => f.name).join(", "),
     );
   }
 
