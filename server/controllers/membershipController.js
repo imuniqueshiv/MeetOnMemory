@@ -123,8 +123,21 @@ export const updateMembershipRole = async (req, res) => {
       }
     }
 
+    // Update membership role
     membership.role = role;
     await membership.save();
+
+    // Update user role if this is their primary organization
+    const targetUser = await userModel.findById(membership.user);
+    if (
+      targetUser &&
+      targetUser.organization &&
+      targetUser.organization.toString() ===
+        membership.organization._id.toString()
+    ) {
+      targetUser.role = role;
+      await targetUser.save();
+    }
 
     const io = req.app.get("io");
     activityService.logActivity(
