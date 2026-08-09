@@ -6,6 +6,7 @@ import userModel from "../models/userModel.js";
 import crypto from "crypto";
 import mongoose from "mongoose";
 import EmailService from "../services/EmailService.js";
+import csv from "csvtojson";
 
 /**
  * Validate MongoDB ObjectId
@@ -742,6 +743,239 @@ export const expireInvitation = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error expiring invitation:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+/**
+ * ✅ Bulk Import Invitations
+ * POST /api/invitations/bulk
+ */
+export const bulkImportInvitations = async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Authentication failed." });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "CSV file is required.",
+      });
+    }
+
+    const { organizationId, expiresIn } = req.query;
+
+    if (!organizationId) {
+      return res.status(400).json({
+        success: false,
+        message: "Organization ID is required.",
+      });
+    }
+
+    // Validate organizationId
+    if (!isValidObjectId(organizationId)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid organization ID." });
+    }
+
+    const cleanOrganizationId = new mongoose.Types.ObjectId(
+      String(organizationId),
+    );
+
+    const userId = req.user.id;
+
+    // Check if organization exists
+    const organization = await Organization.findById(cleanOrganizationId);
+
+    if (!organization) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Organization not found." });
+    }
+
+    // Check if user is admin or owner
+    const membership = await Membership.findOne({
+      user: userId,
+      organization: cleanOrganizationId,
+      role: "admin",
+      status: "active",
+    }).lean();
+
+    const isOwner = organization.owner.toString() === userId.toString();
+
+    if (!membership && !isOwner) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to create invitations.",
+      });
+    }
+
+    // Parse CSV file
+    const csvData = await csv().fromString(req.file.buffer.toString("utf-8"));
+
+    // Validate maximum 100 invitations per batch
+    if (csvData.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Maximum 100 invitations per batch allowed.",
+      });
+    }
+
+    if (csvData.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "CSV file is empty.",
+      });
+    }
+
+    // Calculate expiration time (default 7 days)
+    const expiresAt = new Date();
+    const expiresInDays =
+      typeof expiresIn === "number" && expiresIn > 0 ? expiresIn : 7;
+    expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+
+    const results = {
+      total: csvData.length,
+      successful: 0,
+      failed: 0,
+      errors: [],
+      invitations: [],
+    };
+
+    // Process each row
+    for (let i = 0; i < csvData.length; i++) {
+      const row = csvData[i];
+      const rowNumber = i + 1;
+
+      try {
+        // Validate required fields
+        if (!row.email) {
+          results.failed++;
+          results.errors.push({
+            row: rowNumber,
+            email: row.email || "missing",
+            error: "Email is required",
+          });
+          continue;
+        }
+
+        // Validate and sanitize email
+        const sanitizedEmail = sanitizeEmail(row.email);
+        if (!sanitizedEmail) {
+          results.failed++;
+          results.errors.push({
+            row: rowNumber,
+            email: row.email,
+            error: "Invalid email address",
+          });
+          continue;
+        }
+
+        // Validate role if provided
+        const rowRole = row.role ? row.role.trim().toLowerCase() : "member";
+        if (!isValidRole(rowRole)) {
+          results.failed++;
+          results.errors.push({
+            row: rowNumber,
+            email: row.email,
+            error: "Invalid role. Must be 'admin' or 'member'",
+          });
+          continue;
+        }
+
+        const cleanRole = allowedRoles.find((r) => r === rowRole) || "member";
+
+        // Check if email already has an active membership
+        const existingUser = await userModel
+          .findOne({ email: sanitizedEmail })
+          .lean();
+        if (existingUser) {
+          const existingMembership = await Membership.findOne({
+            user: existingUser._id,
+            organization: cleanOrganizationId,
+            status: "active",
+          }).lean();
+
+          if (existingMembership) {
+            results.failed++;
+            results.errors.push({
+              row: rowNumber,
+              email: sanitizedEmail,
+              error: "User is already a member of this organization",
+            });
+            continue;
+          }
+        }
+
+        // Check if there's a pending invitation for this email
+        const existingInvitation = await Invitation.findOne({
+          email: sanitizedEmail,
+          organization: cleanOrganizationId,
+          status: "pending",
+        }).lean();
+
+        if (existingInvitation) {
+          results.failed++;
+          results.errors.push({
+            row: rowNumber,
+            email: sanitizedEmail,
+            error: "Pending invitation already exists for this email",
+          });
+          continue;
+        }
+
+        // Create invitation with validated fields
+        const invitationData = {
+          organization: cleanOrganizationId,
+          email: sanitizedEmail,
+          invitedBy: userId,
+          token: generateInvitationToken(),
+          role: cleanRole,
+          status: "pending",
+          expiresAt,
+          message: row.message
+            ? String(row.message).trim().substring(0, 500)
+            : "",
+        };
+
+        const invitation = await Invitation.create(invitationData);
+
+        // Send invitation email
+        const inviteLink = `${req.headers.origin || "http://localhost:5173"}/join-organization?token=${invitation.token}`;
+        await EmailService.sendInvitation({
+          to: sanitizedEmail,
+          organizationName: organization.name,
+          invitedBy: req.user.name || "Admin",
+          inviteLink,
+        });
+
+        results.successful++;
+        results.invitations.push({
+          email: sanitizedEmail,
+          role: cleanRole,
+          token: invitation.token,
+        });
+      } catch (error) {
+        results.failed++;
+        results.errors.push({
+          row: rowNumber,
+          email: row.email || "unknown",
+          error: error.message || "Unknown error",
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Bulk import completed. ${results.successful} successful, ${results.failed} failed.`,
+      results,
+    });
+  } catch (error) {
+    console.error("❌ Error in bulk import:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
