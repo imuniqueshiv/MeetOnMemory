@@ -6,6 +6,7 @@ import userModel from "../models/userModel.js";
 import crypto from "crypto";
 import mongoose from "mongoose";
 import EmailService from "../services/EmailService.js";
+import AuditService from "../services/AuditService.js";
 
 /**
  * Validate MongoDB ObjectId
@@ -239,6 +240,15 @@ export const getOrganizationInvitations = async (req, res) => {
         .json({ success: false, message: "Invalid organization ID." });
     }
 
+    }
+
+    // Validate organizationId
+    if (!isValidObjectId(organizationId)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid organization ID." });
+    }
+
     const cleanOrganizationId = new mongoose.Types.ObjectId(
       String(organizationId),
     );
@@ -358,6 +368,17 @@ export const acceptInvitation = async (req, res) => {
     }
 
     if (invitation.status !== "pending") {
+      await AuditService.logAction({
+        actorId: req.user.id,
+        action: "INVITATION_REJECTED",
+        entity: "Invitation",
+        entityId: invitation._id,
+        organizationId: invitation.organization._id || invitation.organization,
+        details: {
+          reason: "Invitation is not in pending status.",
+          status: invitation.status,
+        },
+      });
       return res.status(400).json({
         success: false,
         message: "Invitation is not in pending status.",
@@ -367,6 +388,14 @@ export const acceptInvitation = async (req, res) => {
     if (invitation.expiresAt < new Date()) {
       invitation.status = "expired";
       await invitation.save();
+      await AuditService.logAction({
+        actorId: req.user.id,
+        action: "INVITATION_REJECTED",
+        entity: "Invitation",
+        entityId: invitation._id,
+        organizationId: invitation.organization._id || invitation.organization,
+        details: { reason: "Invitation has expired." },
+      });
       return res
         .status(400)
         .json({ success: false, message: "Invitation has expired." });
@@ -376,6 +405,14 @@ export const acceptInvitation = async (req, res) => {
     const user = await userModel.findById(req.user.id);
 
     if (!user || user.email.toLowerCase() !== invitation.email.toLowerCase()) {
+      await AuditService.logAction({
+        actorId: req.user.id,
+        action: "INVITATION_REJECTED",
+        entity: "Invitation",
+        entityId: invitation._id,
+        organizationId: invitation.organization._id || invitation.organization,
+        details: { reason: "Invitation is not for this user." },
+      });
       return res
         .status(403)
         .json({ success: false, message: "Invitation is not for this user." });
@@ -451,6 +488,17 @@ export const rejectInvitation = async (req, res) => {
     }
 
     if (invitation.status !== "pending") {
+      await AuditService.logAction({
+        actorId: req.user.id,
+        action: "INVITATION_REJECTED",
+        entity: "Invitation",
+        entityId: invitation._id,
+        organizationId: invitation.organization._id || invitation.organization,
+        details: {
+          reason: "Invitation is not in pending status.",
+          status: invitation.status,
+        },
+      });
       return res.status(400).json({
         success: false,
         message: "Invitation is not in pending status.",
@@ -469,6 +517,14 @@ export const rejectInvitation = async (req, res) => {
     const user = await userModel.findById(req.user.id);
 
     if (!user || user.email.toLowerCase() !== invitation.email.toLowerCase()) {
+      await AuditService.logAction({
+        actorId: req.user.id,
+        action: "INVITATION_REJECTED",
+        entity: "Invitation",
+        entityId: invitation._id,
+        organizationId: invitation.organization._id || invitation.organization,
+        details: { reason: "Invitation is not for this user." },
+      });
       return res
         .status(403)
         .json({ success: false, message: "Invitation is not for this user." });
