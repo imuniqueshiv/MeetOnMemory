@@ -1,10 +1,62 @@
 // server/controllers/invitationController.js
-//
-// HTTP layer only — parse request, call service, send response.
-// All business logic lives in server/services/InvitationService.js.
+import Invitation from "../models/invitationModel.js";
+import Membership from "../models/membershipModel.js";
+import Organization from "../models/organizationModel.js";
+import userModel from "../models/userModel.js";
+import crypto from "crypto";
+import mongoose from "mongoose";
+import EmailService from "../services/EmailService.js";
 
-import * as InvitationService from "../services/InvitationService.js";
-import { sendSuccess, sendError } from "../utils/responseHandler.js";
+/**
+ * Validate MongoDB ObjectId
+ */
+const isValidObjectId = (id) => {
+  return mongoose.Types.ObjectId.isValid(id);
+};
+
+/**
+ * Sanitize and validate email (ReDoS-safe)
+ */
+const sanitizeEmail = (email) => {
+  if (!email || typeof email !== "string") return null;
+  const sanitized = email.trim().toLowerCase();
+  // Simple, ReDoS-safe email validation
+  if (sanitized.length > 254) return null; // Max email length
+  if (!sanitized.includes("@") || !sanitized.includes(".")) return null;
+  const parts = sanitized.split("@");
+  if (parts.length !== 2) return null;
+  const [local, domain] = parts;
+  if (!local || !domain) return null;
+  if (local.length > 64) return null; // Max local part length
+  if (domain.length > 255) return null; // Max domain length
+  if (domain.split(".").length < 2) return null; // At least one dot in domain
+  return sanitized;
+};
+
+/**
+ * Whitelist allowed status values
+ */
+const allowedStatuses = [
+  "pending",
+  "accepted",
+  "declined",
+  "cancelled",
+  "expired",
+];
+const isValidStatus = (status) => allowedStatuses.includes(status);
+
+/**
+ * Whitelist allowed role values
+ */
+const allowedRoles = ["admin", "member"];
+const isValidRole = (role) => allowedRoles.includes(role);
+
+/**
+ * Generate unique invitation token
+ */
+const generateInvitationToken = () => {
+  return crypto.randomBytes(32).toString("hex");
+};
 
 /**
  * ✅ Create Invitation
@@ -12,8 +64,12 @@ import { sendSuccess, sendError } from "../utils/responseHandler.js";
  */
 export const createInvitation = async (req, res) => {
   try {
+    const { organizationId, email, role, message, expiresIn } = req.body;
+
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return res
+        .status(401)
+        .json({ success: false, message: "Authentication failed." });
     }
 
     if (!organizationId || !email) {
@@ -150,22 +206,14 @@ export const createInvitation = async (req, res) => {
       message: "Invitation created successfully.",
       invitation,
     });
-    const result = await InvitationService.createInvitation(
-      req.user.id,
-      req.body,
-      {
-        origin: req.headers.origin,
-        inviterName: req.user.name,
-      },
-    );
-
-    sendSuccess(res, result, null, 201);
   } catch (error) {
     console.error("❌ Error creating invitation:", error);
     if (error.code === 11000) {
-      return sendError(res, 409, "Duplicate invitation not allowed.");
+      return res
+        .status(409)
+        .json({ success: false, message: "Duplicate invitation not allowed." });
     }
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -175,14 +223,24 @@ export const createInvitation = async (req, res) => {
  */
 export const getOrganizationInvitations = async (req, res) => {
   try {
+    const { organizationId } = req.params;
+    const { status } = req.query;
+
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return res
+        .status(401)
+        .json({ success: false, message: "Authentication failed." });
     }
 
-    const result = await InvitationService.getOrganizationInvitations(
-      req.user.id,
-      req.params.organizationId,
-      req.query.status,
+    // Validate organizationId
+    if (!isValidObjectId(organizationId)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid organization ID." });
+    }
+
+    const cleanOrganizationId = new mongoose.Types.ObjectId(
+      String(organizationId),
     );
 
     // Validate status if provided
@@ -233,10 +291,9 @@ export const getOrganizationInvitations = async (req, res) => {
       .lean();
 
     res.status(200).json({ success: true, invitations });
-    sendSuccess(res, result);
   } catch (error) {
     console.error("❌ Error fetching invitations:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -247,15 +304,32 @@ export const getOrganizationInvitations = async (req, res) => {
 export const getUserInvitations = async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return res
+        .status(401)
+        .json({ success: false, message: "Authentication failed." });
     }
 
-    const result = await InvitationService.getUserInvitations(req.user.id);
+    const user = await userModel.findById(req.user.id);
 
-    sendSuccess(res, result);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found." });
+    }
+
+    const invitations = await Invitation.find({
+      email: user.email,
+      status: "pending",
+      expiresAt: { $gt: new Date() },
+    })
+      .populate("organization", "name slug description logo")
+      .populate("invitedBy", "name email")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, invitations });
   } catch (error) {
     console.error("❌ Error fetching user invitations:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -265,13 +339,16 @@ export const getUserInvitations = async (req, res) => {
  */
 export const acceptInvitation = async (req, res) => {
   try {
+    const { token } = req.params;
+
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return res
+        .status(401)
+        .json({ success: false, message: "Authentication failed." });
     }
 
-    const result = await InvitationService.acceptInvitation(
-      req.user.id,
-      req.params.token,
+    const invitation = await Invitation.findOne({ token }).populate(
+      "organization",
     );
 
     if (!invitation) {
@@ -345,10 +422,9 @@ export const acceptInvitation = async (req, res) => {
       invitation,
       membership: newMembership,
     });
-    sendSuccess(res, result);
   } catch (error) {
     console.error("❌ Error accepting invitation:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -358,6 +434,8 @@ export const acceptInvitation = async (req, res) => {
  */
 export const rejectInvitation = async (req, res) => {
   try {
+    const { token } = req.params;
+
     if (!req.user || !req.user.id) {
       return res
         .status(401)
@@ -385,18 +463,29 @@ export const rejectInvitation = async (req, res) => {
       return res
         .status(400)
         .json({ success: false, message: "Invitation has expired." });
-      return sendError(res, 401, "Authentication failed.");
     }
 
-    const result = await InvitationService.rejectInvitation(
-      req.user.id,
-      req.params.token,
-    );
+    // Verify email matches
+    const user = await userModel.findById(req.user.id);
 
-    sendSuccess(res, result);
+    if (!user || user.email.toLowerCase() !== invitation.email.toLowerCase()) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Invitation is not for this user." });
+    }
+
+    // Update invitation status
+    invitation.status = "declined";
+    await invitation.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Invitation declined successfully.",
+      invitation,
+    });
   } catch (error) {
     console.error("❌ Error rejecting invitation:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -406,8 +495,12 @@ export const rejectInvitation = async (req, res) => {
  */
 export const revokeInvitation = async (req, res) => {
   try {
+    const { id } = req.params;
+
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return res
+        .status(401)
+        .json({ success: false, message: "Authentication failed." });
     }
 
     if (!isValidObjectId(id)) {
@@ -453,15 +546,15 @@ export const revokeInvitation = async (req, res) => {
 
     invitation.status = "cancelled";
     await invitation.save();
-    const result = await InvitationService.revokeInvitation(
-      req.user.id,
-      req.params.id,
-    );
 
-    sendSuccess(res, result);
+    res.status(200).json({
+      success: true,
+      message: "Invitation cancelled successfully.",
+      invitation,
+    });
   } catch (error) {
     console.error("❌ Error revoking invitation:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -497,14 +590,11 @@ export const getInvitationByToken = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Invitation has expired." });
     }
-    const result = await InvitationService.getInvitationByToken(
-      req.params.token,
-    );
 
-    sendSuccess(res, result);
+    res.status(200).json({ success: true, invitation });
   } catch (error) {
     console.error("❌ Error fetching invitation:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -514,6 +604,8 @@ export const getInvitationByToken = async (req, res) => {
  */
 export const resendInvitation = async (req, res) => {
   try {
+    const { id } = req.params;
+
     if (!req.user || !req.user.id) {
       return res
         .status(401)
@@ -548,26 +640,41 @@ export const resendInvitation = async (req, res) => {
       invitation.organization.owner.toString() === req.user.id.toString();
 
     if (!membership && !isOwner) {
-      return res.status(403).json({
-        success: false,
-        message: "Not authorized to resend invitations.",
-      });
-      return sendError(res, 401, "Authentication failed.");
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Not authorized to resend invitations.",
+        });
     }
 
-    const result = await InvitationService.resendInvitation(
-      req.user.id,
-      req.params.id,
-      {
-        origin: req.headers.origin,
-        inviterName: req.user.name,
-      },
-    );
+    // Generate new token and set expiration to +7 days from now
+    const newToken = generateInvitationToken();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
-    sendSuccess(res, result);
+    invitation.token = newToken;
+    invitation.expiresAt = expiresAt;
+    invitation.status = "pending";
+    await invitation.save();
+
+    // Send the email
+    const inviteLink = `${req.headers.origin || "http://localhost:5173"}/join-organization?token=${newToken}`;
+    await EmailService.sendInvitation({
+      to: invitation.email,
+      organizationName: invitation.organization.name,
+      invitedBy: req.user.name || "Admin",
+      inviteLink,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Invitation resent successfully.",
+      invitation,
+    });
   } catch (error) {
     console.error("❌ Error resending invitation:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -577,8 +684,12 @@ export const resendInvitation = async (req, res) => {
  */
 export const expireInvitation = async (req, res) => {
   try {
+    const { id } = req.params;
+
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return res
+        .status(401)
+        .json({ success: false, message: "Authentication failed." });
     }
 
     if (!isValidObjectId(id)) {
@@ -609,30 +720,34 @@ export const expireInvitation = async (req, res) => {
       invitation.organization.owner.toString() === req.user.id.toString();
 
     if (!membership && !isOwner) {
-      return res.status(403).json({
-        success: false,
-        message: "Not authorized to expire invitations.",
-      });
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Not authorized to expire invitations.",
+        });
     }
 
     if (invitation.status !== "pending") {
-      return res.status(400).json({
-        success: false,
-        message: "Can only expire pending invitations.",
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Can only expire pending invitations.",
+        });
     }
 
     invitation.status = "expired";
     invitation.expiresAt = new Date();
     await invitation.save();
-    const result = await InvitationService.expireInvitation(
-      req.user.id,
-      req.params.id,
-    );
 
-    sendSuccess(res, result);
+    res.status(200).json({
+      success: true,
+      message: "Invitation expired successfully.",
+      invitation,
+    });
   } catch (error) {
     console.error("❌ Error expiring invitation:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };

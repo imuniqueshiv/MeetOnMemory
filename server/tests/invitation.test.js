@@ -7,6 +7,7 @@ import User from "../models/userModel.js";
 import Organization from "../models/organizationModel.js";
 import Membership from "../models/membershipModel.js";
 import Invitation from "../models/invitationModel.js";
+import jwt from "jsonwebtoken";
 
 // Mock nodemailer to prevent SMTP verification during tests
 jest.mock("../config/nodeMailer.js", () => ({
