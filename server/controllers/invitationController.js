@@ -640,12 +640,10 @@ export const resendInvitation = async (req, res) => {
       invitation.organization.owner.toString() === req.user.id.toString();
 
     if (!membership && !isOwner) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Not authorized to resend invitations.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to resend invitations.",
+      });
     }
 
     // Generate new token and set expiration to +7 days from now
@@ -720,21 +718,17 @@ export const expireInvitation = async (req, res) => {
       invitation.organization.owner.toString() === req.user.id.toString();
 
     if (!membership && !isOwner) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Not authorized to expire invitations.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to expire invitations.",
+      });
     }
 
     if (invitation.status !== "pending") {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Can only expire pending invitations.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Can only expire pending invitations.",
+      });
     }
 
     invitation.status = "expired";

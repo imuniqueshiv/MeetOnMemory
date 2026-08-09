@@ -105,10 +105,12 @@ describe("Organization Invitations & Member Onboarding", () => {
       password: "password123",
       isAccountVerified: true,
     });
-    expiredInviteeToken = jwt.sign(
-      { id: expiredInviteeUser._id },
-      process.env.JWT_SECRET || "fallback_secret",
-    );
+    expiredInviteeUser.clerkUserId = `user_test_${expiredInviteeUser._id}`;
+    await expiredInviteeUser.save();
+    expiredInviteeToken = createClerkTestToken({
+      clerkUserId: expiredInviteeUser.clerkUserId,
+      email: expiredInviteeUser.email,
+    });
     inviteUser.clerkUserId = `user_test_${inviteUser._id}`;
     await inviteUser.save();
     inviteToken = createClerkTestToken({
@@ -262,7 +264,7 @@ describe("Organization Invitations & Member Onboarding", () => {
     it("should reject accepting an expired invitation", async () => {
       const res = await request(app)
         .post(`/api/invitation/${expiredInvitation.token}/accept`)
-        .set("Authorization", `Bearer ${expiredInviteeToken}`);
+        .set(authHeader(expiredInviteeToken));
 
       expect(res.statusCode).toEqual(400);
       expect(res.body.success).toBe(false);
@@ -323,7 +325,7 @@ describe("Organization Invitations & Member Onboarding", () => {
     it("should reject declining an expired invitation", async () => {
       const res = await request(app)
         .post(`/api/invitation/${expiredInvitation.token}/reject`)
-        .set("Authorization", `Bearer ${expiredInviteeToken}`);
+        .set(authHeader(expiredInviteeToken));
 
       expect(res.statusCode).toEqual(400);
       expect(res.body.success).toBe(false);
@@ -437,7 +439,7 @@ describe("Organization Invitations & Member Onboarding", () => {
       // Create an expired invitation
       expiredInvitation = await Invitation.create({
         organization: organization._id,
-        email: `expired-${Math.random()}@example.com`,
+        email: expiredInviteeUser.email,
         invitedBy: adminUser._id,
         token: "expired_token_def",
         role: "member",

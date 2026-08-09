@@ -1,6 +1,6 @@
 import { Queue, Worker } from "bullmq";
 import Redis from "ioredis";
-import processAudioJob from "../jobs/processAudioJob.js";
+import generativeAiJob from "../jobs/generativeAiJob.js";
 import exportDataJob from "../jobs/exportDataJob.js";
 import cleanupExpiredExportsJob from "../jobs/cleanupExpiredExportsJob.js";
 import conflictScanJob from "./conflictDetection/conflictScanJob.js";
@@ -140,6 +140,13 @@ const createQueueFacade = (name) => ({
 });
 
 export const aiQueue = createQueueFacade("ai-mom-generation");
+
+export const initAIWorker = (app) =>
+  createWorker({
+    name: "ai-mom-generation",
+    label: "AI Worker",
+    processor: async (job) => await generativeAiJob(job, app),
+  });
 
 export const dataExportQueue = createQueueFacade("data-export-queue");
 
