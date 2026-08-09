@@ -96,7 +96,7 @@ const MembershipRequests = () => {
   };
 
   const handleViewOrganization = (organizationSlug) => {
-    navigate(`/organization/${organizationSlug}`);
+    navigate(`/organizations/${organizationSlug}`);
   };
 
   const formatDate = (dateString) => {
@@ -115,7 +115,7 @@ const MembershipRequests = () => {
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <Navbar />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
+      <div className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
@@ -285,7 +285,7 @@ const MembershipRequests = () => {
             ))}
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 };

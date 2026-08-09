@@ -15,6 +15,7 @@ import {
   readMetadata,
   setAssignmentMetadata,
   updateIssueMetadata,
+  isManualAssignment,
 } from "./metadata.js";
 import {
   canAutoClaimIssue,
@@ -75,7 +76,7 @@ export async function processClaim({ github, context, core }) {
     return;
   }
 
-  if (!canAutoClaimIssue(issue, actor)) {
+  if (!canAutoClaimIssue(issue, actor, metadata || {})) {
     await createComment(
       github,
       context,
@@ -192,13 +193,21 @@ export async function processUnclaim({ github, context, core }) {
 
   const currentAssignee = assignees[0].login;
   const role = await resolveActorRole(github, context, core, actor);
-  if (!canUnclaim(actor, role, currentAssignee)) {
+  if (!canUnclaim(actor, role, currentAssignee, metadata)) {
     await createComment(
       github,
       context,
       core,
       issueNumber,
-      comments.unauthorizedUnclaim({ actor, assignee: currentAssignee }),
+      isManualAssignment(metadata)
+        ? comments.manualAssignmentProtected({
+            actor,
+            assignee: currentAssignee,
+          })
+        : comments.unauthorizedUnclaim({
+            actor,
+            assignee: currentAssignee,
+          }),
     );
     return;
   }

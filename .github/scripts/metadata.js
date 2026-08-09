@@ -5,6 +5,8 @@ function defaultMetadata() {
   return {
     assignedAt: null,
     lastActivityAt: null,
+    remindersSentAt: {},
+    // Legacy fields retained for metadata compatibility with older issue bodies.
     reminder12SentAt: null,
     reminder18SentAt: null,
     expiredAt: null,
@@ -13,6 +15,9 @@ function defaultMetadata() {
     guidance: {},
     processedClaimCommentIds: [],
     processedUnclaimCommentIds: [],
+    // Additive flags — absent/false on legacy bodies is backward compatible.
+    manualAssignment: false,
+    authorPriorityExpiresAt: null,
   };
 }
 
@@ -78,23 +83,57 @@ export async function updateIssueMetadata(
   }
 }
 
+function resetReminderTracking(metadata) {
+  metadata.remindersSentAt = {};
+  metadata.reminder12SentAt = null;
+  metadata.reminder18SentAt = null;
+  return metadata;
+}
+
 export function setAssignmentMetadata(metadata, source = "claim") {
   const timestamp = nowIso();
   metadata.assignedAt = timestamp;
   metadata.lastActivityAt = timestamp;
-  metadata.reminder12SentAt = null;
-  metadata.reminder18SentAt = null;
+  resetReminderTracking(metadata);
   metadata.expiredAt = null;
   metadata.welcomeSentAt = timestamp;
   metadata.welcomeSource = source;
+  metadata.manualAssignment = source === "manual";
   return metadata;
 }
 
 export function clearAssignmentMetadata(metadata) {
   metadata.assignedAt = null;
   metadata.lastActivityAt = null;
-  metadata.reminder12SentAt = null;
-  metadata.reminder18SentAt = null;
+  resetReminderTracking(metadata);
   metadata.expiredAt = null;
+  metadata.manualAssignment = false;
+  metadata.welcomeSource = null;
+  metadata.welcomeSentAt = null;
   return metadata;
 }
+
+/**
+ * Refresh inactivity baseline and clear reminder tracking.
+ * Idempotent when `at` is not newer than the current lastActivityAt.
+ */
+export function touchAssigneeActivity(metadata, at = nowIso()) {
+  const nextAt = at || nowIso();
+  if (
+    metadata.lastActivityAt &&
+    new Date(nextAt) <= new Date(metadata.lastActivityAt)
+  ) {
+    return { metadata, changed: false };
+  }
+  metadata.lastActivityAt = nextAt;
+  resetReminderTracking(metadata);
+  return { metadata, changed: true };
+}
+
+export function isManualAssignment(metadata) {
+  return (
+    Boolean(metadata?.manualAssignment) || metadata?.welcomeSource === "manual"
+  );
+}
+
+export { resetReminderTracking };

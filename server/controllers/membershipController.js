@@ -2,6 +2,8 @@
 import Membership from "../models/membershipModel.js";
 import Organization from "../models/organizationModel.js";
 import userModel from "../models/userModel.js";
+import { sendSuccess, sendError } from "../utils/responseHandler.js";
+import * as activityService from "../services/activityService.js";
 
 /**
  * ✅ Get User Memberships
@@ -10,9 +12,7 @@ import userModel from "../models/userModel.js";
 export const getUserMemberships = async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Authentication failed." });
+      return sendError(res, 401, "Authentication failed.");
     }
 
     const memberships = await Membership.find({
@@ -22,10 +22,10 @@ export const getUserMemberships = async (req, res) => {
       .populate("organization", "name slug description logo visibility")
       .sort({ joinedAt: -1 });
 
-    res.status(200).json({ success: true, memberships });
+    sendSuccess(res, { memberships });
   } catch (error) {
     console.error("❌ Error fetching user memberships:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    sendError(res, 500, "Server error");
   }
 };
 
@@ -38,17 +38,13 @@ export const getOrganizationMemberships = async (req, res) => {
     const { organizationId } = req.params;
 
     if (!req.user || !req.user.id) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Authentication failed." });
+      return sendError(res, 401, "Authentication failed.");
     }
 
     const organization = await Organization.findById(organizationId);
 
     if (!organization) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Organization not found." });
+      return sendError(res, 404, "Organization not found.");
     }
 
     // Check if user is a member
@@ -59,12 +55,7 @@ export const getOrganizationMemberships = async (req, res) => {
     });
 
     if (!membership) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Not a member of this organization.",
-        });
+      return sendError(res, 403, "Not a member of this organization.");
     }
 
     const memberships = await Membership.find({
@@ -74,10 +65,10 @@ export const getOrganizationMemberships = async (req, res) => {
       .populate("user", "name email profilePic isAccountVerified")
       .sort({ joinedAt: -1 });
 
-    res.status(200).json({ success: true, memberships });
+    sendSuccess(res, { memberships });
   } catch (error) {
     console.error("❌ Error fetching organization memberships:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    sendError(res, 500, "Server error");
   }
 };
 
@@ -91,26 +82,17 @@ export const updateMembershipRole = async (req, res) => {
     const { role } = req.body;
 
     if (!req.user || !req.user.id) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Authentication failed." });
+      return sendError(res, 401, "Authentication failed.");
     }
 
     if (!role || !["admin", "member"].includes(role)) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Invalid role. Must be 'admin' or 'member'.",
-        });
+      return sendError(res, 400, "Invalid role. Must be 'admin' or 'member'.");
     }
 
     const membership = await Membership.findById(id).populate("organization");
 
     if (!membership) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Membership not found." });
+      return sendError(res, 404, "Membership not found.");
     }
 
     // Check if requester is admin or owner of the organization
@@ -125,12 +107,7 @@ export const updateMembershipRole = async (req, res) => {
       membership.organization.owner.toString() === req.user.id.toString();
 
     if (!requesterMembership && !isOwner) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Not authorized to update membership role.",
-        });
+      return sendError(res, 403, "Not authorized to update membership role.");
     }
 
     // Prevent removing the last admin
@@ -142,23 +119,28 @@ export const updateMembershipRole = async (req, res) => {
       });
 
       if (adminCount <= 1) {
-        return res
-          .status(400)
-          .json({ success: false, message: "Cannot remove the last admin." });
+        return sendError(res, 400, "Cannot remove the last admin.");
       }
     }
 
     membership.role = role;
     await membership.save();
 
-    res.status(200).json({
-      success: true,
-      message: "Membership role updated successfully.",
-      membership,
-    });
+    const io = req.app.get("io");
+    activityService.logActivity(
+      io,
+      membership.organization._id || membership.organization,
+      req.user.id,
+      "membership.role_updated",
+      "User",
+      membership.user,
+      "Role updated to " + role,
+    );
+
+    sendSuccess(res, { membership }, "Membership role updated successfully.");
   } catch (error) {
     console.error("❌ Error updating membership role:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    sendError(res, 500, "Server error");
   }
 };
 
@@ -171,17 +153,13 @@ export const removeMembership = async (req, res) => {
     const { id } = req.params;
 
     if (!req.user || !req.user.id) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Authentication failed." });
+      return sendError(res, 401, "Authentication failed.");
     }
 
     const membership = await Membership.findById(id).populate("organization");
 
     if (!membership) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Membership not found." });
+      return sendError(res, 404, "Membership not found.");
     }
 
     // User can remove themselves
@@ -197,12 +175,7 @@ export const removeMembership = async (req, res) => {
       membership.organization.owner.toString() === req.user.id.toString();
 
     if (!isSelf && !requesterMembership && !isOwner) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Not authorized to remove this membership.",
-        });
+      return sendError(res, 403, "Not authorized to remove this membership.");
     }
 
     // Prevent removing the last admin
@@ -214,9 +187,7 @@ export const removeMembership = async (req, res) => {
       });
 
       if (adminCount <= 1) {
-        return res
-          .status(400)
-          .json({ success: false, message: "Cannot remove the last admin." });
+        return sendError(res, 400, "Cannot remove the last admin.");
       }
     }
 
@@ -225,20 +196,36 @@ export const removeMembership = async (req, res) => {
     await membership.save();
 
     // Update user model for backward compatibility if it was their primary org
-    if (isSelf) {
-      await userModel.findByIdAndUpdate(req.user.id, {
+    const targetUserId = isSelf ? req.user.id : membership.user;
+    const removedOrgId = membership.organization._id || membership.organization;
+
+    const targetUser = await userModel.findById(targetUserId);
+    if (
+      targetUser &&
+      targetUser.organization &&
+      targetUser.organization.toString() === removedOrgId.toString()
+    ) {
+      await userModel.findByIdAndUpdate(targetUserId, {
         organization: null,
         role: null,
       });
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Membership removed successfully.",
-    });
+    const io = req.app.get("io");
+    activityService.logActivity(
+      io,
+      removedOrgId,
+      req.user.id,
+      "membership.removed",
+      "User",
+      targetUserId,
+      isSelf ? "Left organization" : "Removed from organization",
+    );
+
+    sendSuccess(res, null, "Membership removed successfully.");
   } catch (error) {
     console.error("❌ Error removing membership:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    sendError(res, 500, "Server error");
   }
 };
 
@@ -251,9 +238,7 @@ export const leaveOrganization = async (req, res) => {
     const { organizationId } = req.params;
 
     if (!req.user || !req.user.id) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Authentication failed." });
+      return sendError(res, 401, "Authentication failed.");
     }
 
     const membership = await Membership.findOne({
@@ -263,17 +248,16 @@ export const leaveOrganization = async (req, res) => {
     }).populate("organization");
 
     if (!membership) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Membership not found." });
+      return sendError(res, 404, "Membership not found.");
     }
 
     // Prevent owner from leaving (they should transfer ownership first)
     if (membership.organization.owner.toString() === req.user.id.toString()) {
-      return res.status(400).json({
-        success: false,
-        message: "Owner cannot leave organization. Transfer ownership first.",
-      });
+      return sendError(
+        res,
+        400,
+        "Owner cannot leave organization. Transfer ownership first.",
+      );
     }
 
     // Update status to removed
@@ -286,12 +270,20 @@ export const leaveOrganization = async (req, res) => {
       role: null,
     });
 
-    res.status(200).json({
-      success: true,
-      message: "Left organization successfully.",
-    });
+    const io = req.app.get("io");
+    activityService.logActivity(
+      io,
+      organizationId,
+      req.user.id,
+      "membership.left",
+      "User",
+      req.user.id,
+      "Left organization",
+    );
+
+    sendSuccess(res, null, "Left organization successfully.");
   } catch (error) {
     console.error("❌ Error leaving organization:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    sendError(res, 500, "Server error");
   }
 };

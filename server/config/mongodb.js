@@ -1,15 +1,22 @@
 import mongoose from "mongoose";
 
+let mongoServer;
+
 const connectDB = async () => {
   try {
-    mongoose.connection.on("connected", () =>
-      console.log("Database connected"),
-    );
+    mongoose.connection.on("connected", () => {
+      console.log("Database connected");
+    });
 
     const rawUri =
       process.env.NODE_ENV === "test" && process.env.TEST_MONGODB_URI
         ? process.env.TEST_MONGODB_URI
         : process.env.MONGODB_URI;
+
+    if (!rawUri) {
+      console.error("MongoDB URI is not set in environment variables.");
+      process.exit(1);
+    }
 
     // Strip trailing slash to avoid double-slash database name
     const dbUri = rawUri.endsWith("/") ? rawUri.slice(0, -1) : rawUri;
@@ -22,21 +29,41 @@ const connectDB = async () => {
     const uriPathSegments = dbUri.split("/").length;
     const connectionUri = uriPathSegments > 3 ? dbUri : `${dbUri}/${dbName}`;
 
-    await mongoose.connect(connectionUri);
-    const sanitizedUri = dbUri.replace(
-      /(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@)/,
-      "$1****$3",
-    );
+    try {
+      await mongoose.connect(connectionUri);
 
-    // Extract and log the resolved database name
-    const resolvedDbName = connectionUri.split("/").pop();
-    console.log("Mongo URI:", sanitizedUri);
-    console.log("Database:", resolvedDbName);
+      const sanitizedUri = dbUri.replace(
+        /(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@)/,
+        "$1****$3",
+      );
+
+      // Extract and log the resolved database name
+      const resolvedDbName = connectionUri.split("/").pop();
+      console.log("Mongo URI:", sanitizedUri);
+      console.log("Database:", resolvedDbName);
+    } catch (err) {
+      if (
+        err.message.includes("ECONNREFUSED") &&
+        process.env.NODE_ENV !== "production"
+      ) {
+        console.warn(
+          "⚠️ Local MongoDB connection refused. Falling back to in-memory MongoDB server...",
+        );
+        const { MongoMemoryServer } = await import("mongodb-memory-server");
+        mongoServer = await MongoMemoryServer.create();
+        const memoryUri = mongoServer.getUri();
+        await mongoose.connect(memoryUri, { dbName });
+        console.log("✅ Successfully connected to in-memory MongoDB.");
+      } else {
+        throw err;
+      }
+    }
   } catch (error) {
     console.error("MongoDB connection failed:", error.message);
-    console.warn(
-      "Server running without database connection. Some features may not work.",
+    console.error(
+      "Exiting process because the server cannot run without a database connection.",
     );
+    process.exit(1);
   }
 };
 

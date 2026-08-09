@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import PolicyCompliance from "../models/policyComplianceModel.js";
 import Decision from "../models/decisionModel.js";
 import Policy from "../models/policyModel.js";
+import { sendSuccess, sendError } from "../utils/responseHandler.js";
 
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 
@@ -15,44 +16,43 @@ export const getDecisionCompliance = async (req, res) => {
     const organization = req.user.organization;
 
     if (!isValidId(decisionId)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid decision id" });
+      return sendError(res, 400, "Invalid decision id");
     }
 
     // Verify the decision belongs to the caller's organization before
     // returning anything — never leak cross-organization data.
-    const decision =
-      await Decision.findById(decisionId).select("organization text");
+    const decision = await Decision.findById(decisionId).select(
+      "organization text createdAt",
+    );
 
     if (
       !decision ||
       !organization ||
       decision.organization?.toString() !== organization.toString()
     ) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Decision not found" });
+      return sendError(res, 404, "Decision not found");
     }
+
+    const effectivePolicies = await Policy.find({
+      organization,
+      createdAt: { $lte: decision.createdAt },
+    }).select("_id");
 
     const records = await PolicyCompliance.find({
       decisionId,
       organization,
+      policyId: { $in: effectivePolicies.map((policy) => policy._id) },
     })
       .populate("policyId", "name version summary")
       .sort({ similarityScore: -1 });
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       decision: { id: decision._id, text: decision.text },
       compliance: records,
     });
   } catch (error) {
     console.error("getDecisionCompliance error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch decision compliance data",
-    });
+    return sendError(res, 500, "Failed to fetch decision compliance data");
   }
 };
 
@@ -66,9 +66,7 @@ export const getPolicyRelatedDecisions = async (req, res) => {
     const organization = req.user.organization;
 
     if (!isValidId(policyId)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid policy id" });
+      return sendError(res, 400, "Invalid policy id");
     }
 
     const policy = await Policy.findById(policyId).select(
@@ -80,9 +78,7 @@ export const getPolicyRelatedDecisions = async (req, res) => {
       !organization ||
       policy.organization?.toString() !== organization.toString()
     ) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Policy not found" });
+      return sendError(res, 404, "Policy not found");
     }
 
     const records = await PolicyCompliance.find({
@@ -93,17 +89,13 @@ export const getPolicyRelatedDecisions = async (req, res) => {
       .populate("sourceMeetingId", "title date")
       .sort({ createdAt: -1 });
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       policy: { id: policy._id, name: policy.name, version: policy.version },
       relatedDecisions: records,
     });
   } catch (error) {
     console.error("getPolicyRelatedDecisions error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch related decisions",
-    });
+    return sendError(res, 500, "Failed to fetch related decisions");
   }
 };
 
@@ -135,27 +127,20 @@ export const getComplianceFlags = async (req, res) => {
   try {
     const organization = req.user.organization;
     if (!organization) {
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden: Organization membership required",
-      });
+      return sendError(res, 403, "Forbidden: Organization membership required");
     }
 
     const { status = "unresolved", classification = "potential_conflict" } =
       req.query;
 
     if (typeof status !== "string" || !ALLOWED_STATUSES.includes(status)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid status" });
+      return sendError(res, 400, "Invalid status");
     }
     if (
       typeof classification !== "string" ||
       !ALLOWED_CLASSIFICATIONS.includes(classification)
     ) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid classification" });
+      return sendError(res, 400, "Invalid classification");
     }
 
     const query = { organization };
@@ -168,13 +153,10 @@ export const getComplianceFlags = async (req, res) => {
       .populate("sourceMeetingId", "title date")
       .sort({ createdAt: -1 });
 
-    return res.status(200).json({ success: true, flags });
+    return sendSuccess(res, { flags });
   } catch (error) {
     console.error("getComplianceFlags error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch compliance flags",
-    });
+    return sendError(res, 500, "Failed to fetch compliance flags");
   }
 };
 
@@ -190,23 +172,17 @@ export const updateFlagStatus = async (req, res) => {
     const organization = req.user.organization;
 
     if (!isValidId(id)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid flag id" });
+      return sendError(res, 400, "Invalid flag id");
     }
 
     const allowedStatuses = ALLOWED_STATUSES.filter((s) => s !== "all");
     if (typeof status !== "string" || !allowedStatuses.includes(status)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid status" });
+      return sendError(res, 400, "Invalid status");
     }
 
     const flag = await PolicyCompliance.findOne({ _id: id, organization });
     if (!flag) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Flag not found" });
+      return sendError(res, 404, "Flag not found");
     }
 
     flag.status = status;
@@ -214,12 +190,9 @@ export const updateFlagStatus = async (req, res) => {
     flag.reviewedAt = status === "unresolved" ? null : new Date();
     await flag.save();
 
-    return res.status(200).json({ success: true, flag });
+    return sendSuccess(res, { flag });
   } catch (error) {
     console.error("updateFlagStatus error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update flag status",
-    });
+    return sendError(res, 500, "Failed to update flag status");
   }
 };

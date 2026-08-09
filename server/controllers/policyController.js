@@ -18,6 +18,9 @@ import { z } from "zod";
 import * as PolicyService from "../services/PolicyService.js";
 import { ValidationError, UnauthorizedError } from "../utils/errors.js";
 import AuditService from "../services/AuditService.js";
+import { sendSuccess } from "../utils/responseHandler.js";
+import * as activityService from "../services/activityService.js";
+import { getContentDispositionHeader } from "../utils/fileUtils.js";
 // ═══════════════════════════════════════════════════════════════
 // Zod validation schemas
 // ═══════════════════════════════════════════════════════════════
@@ -78,16 +81,27 @@ export const uploadPolicy = async (req, res, next) => {
         organizationId: orgId,
         details: { title: policy.title, commitMsg: validated.commitMsg },
       });
+
+      const io = req.app.get("io");
+      activityService.logActivity(
+        io,
+        orgId,
+        uploaderId,
+        isUpdate ? "policy.updated" : "policy.created",
+        "Policy",
+        policy._id,
+        policy.title,
+      );
     }
 
-    return res.status(isUpdate ? 200 : 201).json({
-      success: true,
-      message: isUpdate
+    return sendSuccess(
+      res,
+      { policyId: policy._id, policy },
+      isUpdate
         ? "Policy updated and analyzed by AI."
         : "Policy uploaded and analyzed successfully.",
-      policyId: policy._id,
-      policy,
-    });
+      isUpdate ? 200 : 201,
+    );
   } catch (err) {
     // Only clean up if the file was not successfully saved in DB
     if (uploadedFilePath && !isPersisted) {
@@ -113,14 +127,19 @@ export const uploadPolicy = async (req, res, next) => {
    ───────────────────────────────────────────────────────────── */
 export const analyzePolicy = async (req, res, next) => {
   try {
-    const policy = await PolicyService.reanalyzePolicy(req.params.id);
+    const userId = getUserId(req);
+    const orgId = req.user?.organization || null;
+    const policy = await PolicyService.reanalyzePolicy(
+      req.params.id,
+      userId,
+      orgId,
+    );
 
-    return res.status(200).json({
-      success: true,
-      message: "Policy re-analyzed successfully.",
-      summary: policy.summary,
-      keywords: policy.keywords,
-    });
+    return sendSuccess(
+      res,
+      { summary: policy.summary, keywords: policy.keywords },
+      "Policy re-analyzed successfully.",
+    );
   } catch (err) {
     next(err);
   }
@@ -138,7 +157,12 @@ export const getPolicies = async (req, res, next) => {
       req.user?.organization || null,
     );
 
-    return res.status(200).json({ success: true, policies });
+    res.setHeader(
+      "Cache-Control",
+      "public, max-age=3600, stale-while-revalidate=86400",
+    );
+
+    return sendSuccess(res, { policies });
   } catch (err) {
     next(err);
   }
@@ -149,10 +173,39 @@ export const getPolicies = async (req, res, next) => {
    ───────────────────────────────────────────────────────────── */
 export const downloadPolicy = async (req, res, next) => {
   try {
+    const userId = getUserId(req);
+    const orgId = req.user?.organization || null;
     const { safeFilePath, fileName } =
-      await PolicyService.getPolicyDownloadPath(req.params.id);
+      await PolicyService.getPolicyDownloadPath(req.params.id, userId, orgId);
 
-    return res.download(safeFilePath, fileName);
+    res.setHeader(
+      "Cache-Control",
+      "public, max-age=3600, stale-while-revalidate=86400",
+    );
+
+    res.setHeader("Content-Disposition", getContentDispositionHeader(fileName));
+
+    return res.sendFile(safeFilePath);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────
+   4b. COMPARE TWO VERSIONS OF THE SAME POLICY
+   ───────────────────────────────────────────────────────────── */
+export const comparePolicyVersions = async (req, res, next) => {
+  try {
+    const from = typeof req.query.from === "string" ? req.query.from : "";
+    const to = typeof req.query.to === "string" ? req.query.to : "";
+
+    const comparison = await PolicyService.comparePolicyVersions(
+      req.params.id,
+      from,
+      to,
+    );
+
+    return sendSuccess(res, comparison, "Policy version diff generated.");
   } catch (err) {
     next(err);
   }
@@ -188,12 +241,20 @@ export const deletePolicy = async (req, res, next) => {
         organizationId: policy.organization,
         details: { title: policy.title },
       });
+
+      const io = req.app.get("io");
+      activityService.logActivity(
+        io,
+        policy.organization,
+        getUserId(req),
+        "policy.deleted",
+        "Policy",
+        policy._id,
+        policy.title,
+      );
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "Policy deleted successfully.",
-    });
+    return sendSuccess(res, null, "Policy deleted successfully.");
   } catch (err) {
     next(err);
   }

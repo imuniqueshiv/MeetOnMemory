@@ -2,9 +2,8 @@ export const AUTOMATION = Object.freeze({
   id: "meetonmemory",
   metadataStart: "<!-- mom:metadata:start -->",
   metadataEnd: "<!-- mom:metadata:end -->",
+  prOpenedMarker: "<!-- automation:pr-opened -->",
   markerPrefix: "mom",
-  reminder12Marker: "mom:reminder-12h",
-  reminder18Marker: "mom:reminder-18h",
   expiredMarker: "mom:claim-expired",
   claimWelcomeMarker: "mom:claim-welcome",
   assignmentWelcomeMarker: "mom:manual-assignment-welcome",
@@ -13,6 +12,7 @@ export const AUTOMATION = Object.freeze({
   firstWelcomeMarker: "mom:first-contributor-welcome",
   guidanceMarker: "mom:claim-guidance",
   overrideMarker: "mom:maintainer-override",
+  ciValidationMarker: "mom:ci-validation",
 });
 
 export const COMMANDS = Object.freeze({
@@ -26,10 +26,16 @@ export const LIMITS = Object.freeze({
 });
 
 export const TIMERS = Object.freeze({
-  reminder12Hours: 12,
-  reminder18Hours: 18,
-  expirationHours: 24,
+  // Reminders every 8 hours until the 48-hour claim window expires.
+  reminderHours: Object.freeze([8, 16, 24, 32, 40]),
+  expirationHours: 48,
+  // Contributor-authored issues: exclusive claim window for the author.
+  authorPriorityHours: 48,
 });
+
+export function reminderMarker(hours) {
+  return `mom:reminder-${hours}h`;
+}
 
 export const IGNORE_BOTS = Object.freeze([
   "github-actions[bot]",
@@ -62,3 +68,18 @@ export const PR_EVENTS = Object.freeze({
 
 export const EXPECTED_REPOSITORY =
   process.env.AUTOMATION_REPOSITORY || process.env.GITHUB_REPOSITORY || "";
+
+export const ALLOWED_BRANCH_PREFIXES = Object.freeze([
+  "feature",
+  "fix",
+  "docs",
+  "chore",
+  "refactor",
+]);
+
+export const REQUIRED_CHECK_NAMES = Object.freeze([
+  "Code Quality",
+  "Backend Validation",
+  "Frontend Validation",
+  "Integration Tests",
+]);

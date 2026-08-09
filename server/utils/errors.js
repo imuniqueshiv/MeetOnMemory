@@ -9,6 +9,7 @@
  *   ├── ValidationError  → 400  (bad input / Zod schema failure)
  *   ├── UnauthorizedError → 401 (not authenticated)
  *   ├── ForbiddenError    → 403 (authenticated but not permitted)
+ *   ├── ConflictError     → 409 (resource already exists / state conflict)
  *   └── NotFoundError     → 404 (resource doesn't exist)
  */
 
@@ -64,6 +65,15 @@ export class UnauthorizedError extends AppError {
 export class ForbiddenError extends AppError {
   constructor(message = "You do not have permission to perform this action.") {
     super(message, 403);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// 409 Conflict — resource already exists or state conflict
+// ──────────────────────────────────────────────────────────────
+export class ConflictError extends AppError {
+  constructor(message = "Resource already exists.") {
+    super(message, 409);
   }
 }
 

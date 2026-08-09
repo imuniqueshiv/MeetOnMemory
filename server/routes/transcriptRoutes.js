@@ -1,25 +1,26 @@
-/**
- * transcriptRoutes.js
- * Routes for transcript management and export
- */
-
 import express from "express";
+import Meeting from "../models/meetingModel.js";
+import { requireOrgAccess, requirePermission } from "../middleware/rbac.js";
+import userAuth from "../middleware/userAuth.js";
+import { apiLimiter } from "../middleware/rateLimiter.js";
 import {
   getTranscriptByMeeting,
   searchTranscript,
   exportTranscriptAsText,
   exportTranscriptAsPDF,
   finalizeTranscript,
+  translateTranscript,
+  updateSpeakers,
 } from "../controllers/transcriptController.js";
-import userAuth from "../middleware/userAuth.js";
-import { apiLimiter } from "../middleware/rateLimiter.js";
-import { requireOrgAccess, requirePermission } from "../middleware/rbac.js";
-import Meeting from "../models/meetingModel.js";
 
 const router = express.Router();
 
 // Apply rate limiting to all routes
 router.use(apiLimiter);
+
+// Mounted at /api/transcripts
+// Recording/live endpoints live under /api/meetings (see meetingRoutes.js).
+// Voice search lives under /api/search/voice (see searchRoutes.js).
 
 // Get transcript by meeting ID
 router.get(
@@ -27,7 +28,7 @@ router.get(
   userAuth,
   requireOrgAccess(Meeting),
   requirePermission("meetings", "view"),
-  getTranscriptByMeeting
+  getTranscriptByMeeting,
 );
 
 // Search within transcript
@@ -36,7 +37,7 @@ router.post(
   userAuth,
   requireOrgAccess(Meeting),
   requirePermission("meetings", "view"),
-  searchTranscript
+  searchTranscript,
 );
 
 // Export transcript as text
@@ -45,7 +46,7 @@ router.get(
   userAuth,
   requireOrgAccess(Meeting),
   requirePermission("meetings", "export"),
-  exportTranscriptAsText
+  exportTranscriptAsText,
 );
 
 // Export transcript as PDF
@@ -54,7 +55,7 @@ router.get(
   userAuth,
   requireOrgAccess(Meeting),
   requirePermission("meetings", "export"),
-  exportTranscriptAsPDF
+  exportTranscriptAsPDF,
 );
 
 // Finalize transcript and index in Pinecone
@@ -63,7 +64,18 @@ router.post(
   userAuth,
   requireOrgAccess(Meeting),
   requirePermission("meetings", "edit"),
-  finalizeTranscript
+  finalizeTranscript,
 );
+
+// Translate transcript
+router.post(
+  "/meeting/:meetingId/translate",
+  userAuth,
+  requireOrgAccess(Meeting),
+  requirePermission("meetings", "view"),
+  translateTranscript,
+);
+// Update speaker names in transcript
+router.put("/:id/speakers", userAuth, updateSpeakers);
 
 export default router;

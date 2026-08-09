@@ -183,7 +183,9 @@ const HowItWorks = () => {
             ...prev,
             transcribing: false,
             aiSummary: {
-              title: isHindi ? "उत्पाद रणनीति और रोडमैप सिंक" : "Product Strategy & Roadmap Sync",
+              title: isHindi
+                ? "उत्पाद रणनीति और रोडमैप सिंक"
+                : "Product Strategy & Roadmap Sync",
               summary: isHindi
                 ? "टीम ने अगस्त के अंत में लक्षित रिलीज तिथि के साथ सिमेंटिक खोज कार्यक्षमता को प्राथमिकता देने पर सहमति व्यक्त की।"
                 : "The team aligned on prioritizing semantic search functionality with a target release date in late August.",
@@ -198,7 +200,10 @@ const HowItWorks = () => {
                   ],
               actionItems: isHindi
                 ? [
-                    { task: "सिमेंटिक खोज एपीआई स्कीमा का मसौदा तैयार करें", owner: "जॉन" },
+                    {
+                      task: "सिमेंटिक खोज एपीआई स्कीमा का मसौदा तैयार करें",
+                      owner: "जॉन",
+                    },
                     { task: "घोषणा अभियान तैयार करें", owner: "एलेक्स" },
                   ]
                 : [
@@ -220,7 +225,9 @@ const HowItWorks = () => {
       }));
 
       const isHindi = i18n.language === "hi";
-      const queryStr = isHindi ? "सिमेंटिक खोज कब लॉन्च हो रही है?" : "When is semantic search launching?";
+      const queryStr = isHindi
+        ? "सिमेंटिक खोज कब लॉन्च हो रही है?"
+        : "When is semantic search launching?";
       let charIdx = 0;
       let resultTimeout;
       const typingInterval = setInterval(() => {
@@ -412,7 +419,9 @@ const HowItWorks = () => {
                   title={t("howItWorks.reset")}
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{t("howItWorks.reset")}</span>
+                  <span className="hidden sm:inline">
+                    {t("howItWorks.reset")}
+                  </span>
                 </button>
               </div>
 
@@ -422,7 +431,8 @@ const HowItWorks = () => {
                 {activeStep === 0 && (
                   <div className="max-w-md mx-auto w-full bg-slate-50 dark:bg-slate-950/40 border border-gray-100 dark:border-slate-800/60 rounded-2xl p-5 shadow-inner">
                     <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-blue-600" /> {t("howItWorks.createWorkspace")}
+                      <Users className="w-4 h-4 text-blue-600" />{" "}
+                      {t("howItWorks.createWorkspace")}
                     </h5>
 
                     {!simulationState.orgCreated ? (
@@ -649,7 +659,8 @@ const HowItWorks = () => {
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">
-                          <Sparkles className="w-3 h-3" /> {t("howItWorks.synthesisDone")}
+                          <Sparkles className="w-3 h-3" />{" "}
+                          {t("howItWorks.synthesisDone")}
                         </span>
                       )}
                     </div>
@@ -763,7 +774,8 @@ const HowItWorks = () => {
                       ) : (
                         <div className="space-y-2.5">
                           <p className="text-[11px] font-bold text-gray-500">
-                            {simulationState.searchResults.length} {t("howItWorks.matchingResults")}:
+                            {simulationState.searchResults.length}{" "}
+                            {t("howItWorks.matchingResults")}:
                           </p>
                           {simulationState.searchResults.map((result, idx) => (
                             <div
@@ -784,7 +796,8 @@ const HowItWorks = () => {
                                 </p>
                               </div>
                               <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900 flex-shrink-0">
-                                {result.matchScore}% {t("howItWorks.matchScore")}
+                                {result.matchScore}%{" "}
+                                {t("howItWorks.matchScore")}
                               </span>
                             </div>
                           ))}
@@ -905,7 +918,11 @@ const HowItWorks = () => {
 
               {/* Progress Stepper indicator under showcase */}
               <div className="pt-6 border-t border-gray-100 dark:border-slate-800 flex justify-between items-center text-xs text-gray-500 mt-6 flex-wrap gap-2">
-                <span>{t("howItWorks.stepCount", { step: steps[activeStep].number })}</span>
+                <span>
+                  {t("howItWorks.stepCount", {
+                    step: steps[activeStep].number,
+                  })}
+                </span>
 
                 <div className="flex gap-1">
                   {steps.map((_, i) => (

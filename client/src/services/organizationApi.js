@@ -15,4 +15,30 @@ export const organizationApi = {
     apiClient.get("/api/organizations/browse", { params }),
   searchOrganizations: (params) =>
     apiClient.get("/api/organizations/search", { params }),
+  getOrganizationSettings: (orgId) =>
+    apiClient.get("/api/organizations/current/settings", {
+      params: orgId ? { orgId } : {},
+    }),
+  updateOrganizationSettings: (id, data) =>
+    apiClient.put(`/api/organizations/${id}`, data),
+  getOrganizationById: (idOrSlug) =>
+    apiClient.get(`/api/organizations/${idOrSlug}`),
+  getLeaderboard: (orgId) =>
+    apiClient.get(
+      orgId
+        ? `/api/organizations/${orgId}/leaderboard`
+        : "/api/organizations/current/leaderboard",
+    ),
+  inviteMember: (orgId, data) =>
+    apiClient.post(`/api/organizations/${orgId}/invite`, data),
+  acceptInviteToken: (token) =>
+    apiClient.post(`/api/organizations/invite/${token}/accept`),
+  updateMemberRole: (orgId, userId, role) =>
+    apiClient.patch(`/api/organizations/${orgId}/members/${userId}/role`, {
+      role,
+    }),
+  removeMember: (orgId, userId) =>
+    apiClient.delete(`/api/organizations/${orgId}/members/${userId}`),
+  getAuditLogs: (orgId, params) =>
+    apiClient.get(`/api/organizations/${orgId}/audit-log`, { params }),
 };

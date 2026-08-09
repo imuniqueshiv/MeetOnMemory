@@ -29,24 +29,55 @@ const transcriptSegmentSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  sentimentScore: {
+    type: Number,
+    default: 0,
+  },
+  emotionTags: {
+    type: [String],
+    default: [],
+  },
 });
 
 const transcriptSchema = new mongoose.Schema(
   {
+    // Canonical meeting reference used by all controllers/sockets/exports.
     meeting: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Meeting",
       required: true,
+    },
+    // Optional denormalized org id for indexing/search filters.
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+      default: null,
     },
     segments: [transcriptSegmentSchema],
     fullText: {
       type: String,
       default: "",
     },
+    // "active" retained for backward compatibility with older live-chunk docs.
+    // Recording flow uses "recording" → "processing" → "completed"|"failed".
     status: {
       type: String,
-      enum: ["active", "completed", "failed"],
+      enum: ["active", "recording", "processing", "completed", "failed"],
       default: "active",
+    },
+    audioFilePath: {
+      type: String,
+      default: null,
+    },
+    errorMessage: {
+      type: String,
+      default: null,
+    },
+    recordingTimestamps: {
+      recordingStartedAt: { type: Date },
+      recordingEndedAt: { type: Date },
+      processingStartedAt: { type: Date },
+      completedAt: { type: Date },
     },
     duration: {
       type: Number,
@@ -59,6 +90,14 @@ const transcriptSchema = new mongoose.Schema(
     language: {
       type: String,
       default: "en",
+    },
+    overallSentiment: {
+      type: Number,
+      default: 0,
+    },
+    overallEmotion: {
+      type: String,
+      default: "NEUTRAL",
     },
   },
   { timestamps: true },

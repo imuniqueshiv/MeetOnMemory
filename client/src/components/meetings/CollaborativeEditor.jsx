@@ -21,30 +21,38 @@ const PRESENCE_COLORS = [
 ];
 
 const CollaborativeEditor = ({ meetingId }) => {
-  const { backendUrl, userData } = useContext(AppContent);
+  const { backendUrl } = useContext(AppContent);
   const textareaRef = useRef(null);
 
-  const { content, setContent, connectedUsers, isSynced, isConnected } =
-    useCollaborativeDoc(meetingId, backendUrl);
+  const {
+    content,
+    setContent,
+    collaborators,
+    connectedUsers,
+    isSynced,
+    isConnected,
+  } = useCollaborativeDoc(meetingId, backendUrl);
 
   const handleChange = (e) => {
     setContent(e.target.value);
   };
 
-  // Render N fake presence dots (simplified — no real user map yet)
-  const presenceDots = Array.from({ length: Math.min(connectedUsers, 5) }).map(
-    (_, i) => (
+  // Real-time presence avatars from the collaboration service (Issue #1236)
+  const presenceDots = collaborators.map((collaborator, i) => {
+    const initial = (collaborator.name || collaborator.email || "U")
+      .trim()
+      .charAt(0)
+      .toUpperCase();
+    return (
       <div
-        key={i}
-        title={i === 0 ? userData?.name || "You" : `Collaborator ${i + 1}`}
+        key={collaborator.socketId || collaborator.userId || i}
+        title={collaborator.name || collaborator.email || "Collaborator"}
         className={`w-7 h-7 rounded-full ${PRESENCE_COLORS[i % PRESENCE_COLORS.length]} border-2 border-gray-900 flex items-center justify-center text-white text-xs font-bold -ml-1 first:ml-0 shadow-md`}
       >
-        {i === 0
-          ? (userData?.name?.[0] || "Y").toUpperCase()
-          : String.fromCharCode(65 + i)}
+        {initial}
       </div>
-    ),
-  );
+    );
+  });
 
   return (
     <div className="flex flex-col h-full bg-gray-950 rounded-2xl overflow-hidden border border-gray-800 shadow-2xl">

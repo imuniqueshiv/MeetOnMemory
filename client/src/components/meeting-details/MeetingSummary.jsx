@@ -3,6 +3,7 @@ import SummarySection from "./SummarySection";
 import DecisionCard from "./DecisionCard";
 import ActionItemCard from "./ActionItemCard";
 import MeetingStats from "./MeetingStats";
+import GlossaryHighlighter from "./GlossaryHighlighter";
 
 const MeetingSummary = ({ meeting }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -63,7 +64,9 @@ const MeetingSummary = ({ meeting }) => {
             </svg>
           }
         >
-          <p className="whitespace-pre-wrap">{structured.summary}</p>
+          <div className="whitespace-pre-wrap">
+            <GlossaryHighlighter text={structured.summary} />
+          </div>
         </SummarySection>
 
         {structured.agenda && structured.agenda.length > 0 && (
@@ -287,6 +290,12 @@ const MeetingSummary = ({ meeting }) => {
   const summaryText = typeof summary === "string" ? summary : null;
   const shouldShowExpandButton = summaryText && summaryText.length > 500;
 
+  const truncateAtWord = (text, maxLength) => {
+    if (text.length <= maxLength) return text;
+    const lastSpace = text.lastIndexOf(" ", maxLength);
+    return text.substring(0, lastSpace > 0 ? lastSpace : maxLength) + "...";
+  };
+
   return (
     <>
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -314,7 +323,9 @@ const MeetingSummary = ({ meeting }) => {
             <div className="whitespace-pre-wrap">
               {shouldShowExpandButton && !isExpanded ? (
                 <>
-                  {summaryText.substring(0, 500)}...
+                  <GlossaryHighlighter
+                    text={truncateAtWord(summaryText, 500)}
+                  />
                   <button
                     onClick={() => setIsExpanded(true)}
                     className="ml-2 text-blue-600 hover:text-blue-800 font-medium"
@@ -324,7 +335,7 @@ const MeetingSummary = ({ meeting }) => {
                 </>
               ) : (
                 <>
-                  {summaryText}
+                  <GlossaryHighlighter text={summaryText} />
                   {shouldShowExpandButton && isExpanded && (
                     <button
                       onClick={() => setIsExpanded(false)}

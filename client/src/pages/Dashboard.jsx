@@ -1,9 +1,9 @@
-import React, { useContext, useEffect, useRef } from "react";
+import React, { useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import AppContent from "../context/AppContent";
+import { useRBAC } from "../hooks/useRBAC.js";
 import {
-  Building2,
   FileText,
   Upload,
   BarChart3,
@@ -12,8 +12,14 @@ import {
   ArrowRight,
   Sparkles,
   Shield,
+  Users,
 } from "lucide-react";
 import Navbar from "../components/Navbar.jsx";
+import TopContributorsWidget from "../components/organization/TopContributorsWidget";
+import DashboardMetricsWidget from "../components/dashboard/DashboardMetricsWidget.jsx";
+import OrganizationLogo from "../components/organization/OrganizationLogo.jsx";
+import OrganizationBanner from "../components/organization/OrganizationBanner.jsx";
+import PersonalNotesSidebar from "../components/PersonalNotesSidebar.jsx";
 
 /* ─── Role Badge ──────────────────────────────────────────────────────────── */
 const ROLE_STYLES = {
@@ -23,52 +29,37 @@ const ROLE_STYLES = {
   guest: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
-
 const ROUTE_MAP = {
   "upload-meeting": "/upload-meeting",
   "create-meeting": "/create-meeting",
   summaries: "/summaries",
   policies: "/policies",
   reports: "/reports",
+  "attendance-analytics": "/attendance-analytics",
+  "meeting-cost-analytics": "/meeting-cost-analytics",
 };
 
 /* ─── Dashboard ───────────────────────────────────────────────────────────── */
 const Dashboard = () => {
   const { t } = useTranslation();
   const { userData } = useContext(AppContent);
+  const { hasPermission } = useRBAC();
   const navigate = useNavigate();
-  const gridRef = useRef(null);
 
   const organizationName =
     userData?.organization?.name?.toUpperCase() || "ORGANIZATION";
+  const organizationLogoUrl =
+    userData?.organization?.logoUrl || userData?.organization?.logo || "";
+  const organizationBannerUrl = userData?.organization?.bannerUrl || "";
 
   const rawRole = userData?.role || "member";
   const displayRole =
     rawRole.charAt(0).toUpperCase() + rawRole.slice(1).toLowerCase();
   const roleStyle = ROLE_STYLES[rawRole.toLowerCase()] || ROLE_STYLES.member;
 
-  useEffect(() => {
-    if (!gridRef.current) return;
-    const cards = gridRef.current.querySelectorAll(".dash-card");
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("visible");
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.1 },
-    );
-    cards.forEach((card) => observer.observe(card));
-    return () => observer.disconnect();
-  }, []);
-
-  const handleAISearch = () => navigate("/ai-search");
-  const handleCardClick = (id) => navigate(ROUTE_MAP[id]);
-
-  const isAdmin = userData?.role === "admin" || userData?.role === "owner";
+  const isAdmin =
+    rawRole.toLowerCase() === "admin" || rawRole.toLowerCase() === "owner";
+  const canCreateMeeting = hasPermission("meetings", "create");
 
   const FEATURE_CARDS = [
     {
@@ -81,7 +72,7 @@ const Dashboard = () => {
       tag: t("dashboard.transcription"),
       tagColor: "bg-blue-50 text-blue-700 border-blue-100",
       accentRing: "group-hover:ring-blue-100",
-      adminOnly: true,
+      requiresCreateMeeting: true,
     },
     {
       id: "create-meeting",
@@ -93,7 +84,7 @@ const Dashboard = () => {
       tag: t("dashboard.scheduling"),
       tagColor: "bg-emerald-50 text-emerald-700 border-emerald-100",
       accentRing: "group-hover:ring-emerald-100",
-      adminOnly: true,
+      requiresCreateMeeting: true,
     },
     {
       id: "summaries",
@@ -128,21 +119,51 @@ const Dashboard = () => {
       tagColor: "bg-indigo-50 text-indigo-700 border-indigo-100",
       accentRing: "group-hover:ring-indigo-100",
     },
+    {
+      id: "attendance-analytics",
+      icon: Users,
+      title: "Attendance Analytics",
+      description:
+        "Visualize per-member attendance rates, heatmap activity, and trends.",
+      iconBg: "bg-pink-50",
+      iconColor: "text-pink-600",
+      tag: "Analytics",
+      tagColor: "bg-pink-50 text-pink-700 border-pink-100",
+      accentRing: "group-hover:ring-pink-100",
+    },
+    {
+      id: "meeting-cost-analytics",
+      icon: BarChart3,
+      title: "Meeting Cost Analytics",
+      description:
+        "Analyze organizational cost and time investment across all meetings.",
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue-600",
+      tag: "Cost",
+      tagColor: "bg-blue-50 text-blue-700 border-blue-100",
+      accentRing: "group-hover:ring-blue-100",
+      adminOnly: true,
+    },
   ];
 
-  const visibleCards = FEATURE_CARDS.filter(
-    (card) => !card.adminOnly || isAdmin
-  );
+  const visibleCards = FEATURE_CARDS.filter((card) => {
+    if (card.adminOnly && !isAdmin) return false;
+    if (card.requiresCreateMeeting && !canCreateMeeting) return false;
+    return true;
+  });
+
+  const handleAISearch = () => navigate("/ai-search");
+  const handleCardClick = (id) => navigate(ROUTE_MAP[id]);
 
   return (
     <div className="min-h-screen flex flex-col bg-linear-to-b from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
       <Navbar />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16 sm:pb-20">
+      <div className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-12 sm:pb-16">
         {/* ── Hero + AI Search — unified panel ── */}
         <section
           aria-label="Dashboard hero"
-          className="relative mb-10 sm:mb-12 fade-in-up stagger-1"
+          className="relative mb-6 sm:mb-8 fade-in-up stagger-1"
         >
           <div
             aria-hidden="true"
@@ -159,46 +180,59 @@ const Dashboard = () => {
               className="h-1 bg-linear-to-r from-blue-600 via-violet-600 to-indigo-600"
             />
 
-            <div className="px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
-              {/* Org header */}
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex items-start gap-4">
-                  <div
-                    aria-hidden="true"
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-blue-600 to-indigo-600 shadow-md shadow-blue-600/20 sm:h-14 sm:w-14 sm:rounded-2xl"
-                  >
-                    <Building2 className="h-6 w-6 text-white sm:h-7 sm:w-7" />
-                  </div>
+            {/* Branded org header — banner background with readable overlay */}
+            <div className="relative">
+              <OrganizationBanner
+                src={organizationBannerUrl}
+                name={userData?.organization?.name || organizationName}
+                heightClass="h-full"
+                className="absolute inset-0"
+              />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 bg-linear-to-r from-slate-900/75 via-slate-900/55 to-slate-900/35 dark:from-gray-950/85 dark:via-gray-900/65 dark:to-gray-900/45"
+              />
+              <div className="relative px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-4">
+                    <OrganizationLogo
+                      src={organizationLogoUrl}
+                      name={userData?.organization?.name || organizationName}
+                      size="lg"
+                    />
 
-                  <div className="min-w-0 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-gray-100 sm:text-3xl lg:text-4xl">
-                        {organizationName}
-                      </h1>
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${roleStyle}`}
-                      >
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-4xl">
+                          {organizationName}
+                        </h1>
                         <span
-                          className="h-1.5 w-1.5 rounded-full bg-current opacity-70"
-                          aria-hidden="true"
-                        />
-                        {displayRole}
-                      </span>
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${roleStyle}`}
+                        >
+                          <span
+                            className="h-1.5 w-1.5 rounded-full bg-current opacity-70"
+                            aria-hidden="true"
+                          />
+                          {displayRole}
+                        </span>
+                      </div>
+                      <p className="max-w-xl text-sm leading-relaxed text-slate-200 sm:text-base">
+                        {t("dashboard.welcomeBack")}{" "}
+                        <span className="font-semibold text-white">
+                          {userData?.name || t("dashboard.there")}
+                        </span>
+                        {t("dashboard.everythingHere")}
+                      </p>
                     </div>
-                    <p className="max-w-xl text-sm leading-relaxed text-slate-500 dark:text-gray-400 sm:text-base">
-                      {t("dashboard.welcomeBack")}{" "}
-                      <span className="font-semibold text-slate-800 dark:text-gray-200">
-                        {userData?.name || t("dashboard.there")}
-                      </span>
-                      {t("dashboard.everythingHere")}
-                    </p>
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* AI Smart Search — integrated CTA */}
+            {/* AI Smart Search — integrated CTA */}
+            <div className="px-5 pt-7 pb-7 sm:px-8 sm:pt-8 sm:pb-9 lg:px-10">
               <div
-                className="mt-7 rounded-xl border border-slate-200/80 dark:border-gray-700 bg-slate-50/80 dark:bg-gray-700/50 p-5 sm:mt-8 sm:p-6"
+                className="rounded-xl border border-slate-200/80 dark:border-gray-700 bg-slate-50/80 dark:bg-gray-700/50 p-5 sm:p-6"
                 role="region"
                 aria-label="AI Smart Search"
               >
@@ -245,9 +279,12 @@ const Dashboard = () => {
           </div>
         </section>
 
+        {/* ── Operational Metrics ── */}
+        <DashboardMetricsWidget />
+
         {/* ── Feature Cards ── */}
         <section aria-label="Dashboard features">
-          <header className="mb-6 sm:mb-8 fade-in-up stagger-2">
+          <header className="mb-4 sm:mb-5 fade-in-up stagger-2">
             <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-gray-500">
               {t("dashboard.features")}
             </p>
@@ -257,16 +294,14 @@ const Dashboard = () => {
           </header>
 
           <div
-            ref={gridRef}
-            className="grid grid-cols-1 auto-rows-fr gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3"
+            data-testid="feature-cards-grid"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
           >
-            {visibleCards.map((card, index) => {
+            {visibleCards.map((card) => {
               const Icon = card.icon;
-              const staggerClass = `stagger-${Math.min(index + 1, 6)}`;
               return (
-                <article
+                <div
                   key={card.id}
-                  id={`dashboard-card-${card.id}`}
                   role="button"
                   tabIndex={0}
                   aria-label={`Navigate to ${card.title}`}
@@ -277,11 +312,11 @@ const Dashboard = () => {
                       handleCardClick(card.id);
                     }
                   }}
-                  className={`dash-card fade-in-up ${staggerClass} group relative flex min-h-[220px] cursor-pointer flex-col rounded-xl border border-slate-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm ring-1 ring-transparent transition-all duration-200 hover:-translate-y-1 hover:border-slate-300/80 dark:hover:border-gray-600 hover:shadow-md focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:p-6 ${card.accentRing}`}
+                  className={`dash-card group relative flex cursor-pointer flex-col rounded-xl border border-slate-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm ring-1 ring-transparent transition-all duration-200 hover:border-slate-300/80 dark:hover:border-gray-600 hover:shadow-md focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:p-5 ${card.accentRing}`}
                 >
-                  <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="mb-3 flex items-start justify-between gap-3">
                     <div
-                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${card.iconBg} transition-transform duration-200 group-hover:scale-105`}
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${card.iconBg} transition-transform duration-200 group-hover:scale-105`}
                     >
                       <Icon
                         className={`h-5 w-5 ${card.iconColor}`}
@@ -295,28 +330,41 @@ const Dashboard = () => {
                     </span>
                   </div>
 
-                  <div className="flex flex-1 flex-col">
-                    <h3 className="mb-2 text-base font-semibold leading-snug text-slate-900 dark:text-gray-100">
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    <h3 className="mb-1.5 text-base font-semibold leading-snug text-slate-900 dark:text-gray-100">
                       {card.title}
                     </h3>
-                    <p className="flex-1 text-sm leading-relaxed text-slate-500 dark:text-gray-400">
+                    <p className="line-clamp-3 flex-1 text-sm leading-relaxed text-slate-500 dark:text-gray-400">
                       {card.description}
                     </p>
                   </div>
 
-                  <div className="mt-5 flex items-center gap-1.5 border-t border-slate-100 dark:border-gray-700 pt-4 text-xs font-semibold text-slate-400 dark:text-gray-500 transition-colors duration-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                  <div className="mt-3 flex items-center gap-1.5 border-t border-slate-100 dark:border-gray-700 pt-3 text-xs font-semibold text-slate-400 dark:text-gray-500 transition-colors duration-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                     <span>{t("dashboard.open")}</span>
                     <ArrowRight
                       className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
                       aria-hidden="true"
                     />
                   </div>
-                </article>
+                </div>
               );
             })}
           </div>
         </section>
-      </main>
+
+        {/* ── Additional Widgets (Gamification & Notes) ── */}
+        <section
+          aria-label="Additional Widgets"
+          className="mt-6 sm:mt-8 fade-in-up stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-6"
+        >
+          <TopContributorsWidget
+            organizationId={
+              userData?.organization?._id || userData?.organization
+            }
+          />
+          <PersonalNotesSidebar />
+        </section>
+      </div>
     </div>
   );
 };

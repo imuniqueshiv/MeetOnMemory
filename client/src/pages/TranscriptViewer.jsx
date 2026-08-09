@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../services/apiClient.js";
+import { speakerMappingApi } from "../services/speakerMappingApi.js";
 import {
   FileText,
   Search,
@@ -11,8 +12,31 @@ import {
   Calendar,
   X,
   Sparkles,
+  Edit2,
+  Check,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import { sanitizeHtml } from "../utils/sanitizeHtml";
+import MeetingSentimentChart from "../components/MeetingSentimentChart";
+import AppContent from "../context/AppContent.js";
+
+const HighlightedText = ({ text, query }) => {
+  if (!query) return <>{text}</>;
+  const parts = text.split(new RegExp(`(${query})`, "gi"));
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase() ? (
+          <mark key={i} className="bg-yellow-300 text-black">
+            {part}
+          </mark>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
+};
 
 const TranscriptViewer = () => {
   const { meetingId } = useParams();
@@ -24,38 +48,62 @@ const TranscriptViewer = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [highlightedSegment, setHighlightedSegment] = useState(null);
 
-  const backendUrl = import.meta.env.VITE_BACKEND_URL;
+  const { userData } = useContext(AppContent);
+  const [editingSpeakerIndex, setEditingSpeakerIndex] = useState(null);
+  const [newSpeakerName, setNewSpeakerName] = useState("");
 
   const fetchTranscript = useCallback(async () => {
     try {
       setLoading(true);
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("token="))
-        ?.split("=")[1];
+      const response = await api.get(`/transcripts/meeting/${meetingId}`);
 
-      const response = await axios.get(
-        `${backendUrl}/api/transcripts/meeting/${meetingId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
-        }
-      );
-
-      setTranscript(response.data);
+      const data = response.data;
+      if (data && data.segments) {
+        data.segments = data.segments.filter(
+          (segment, index, self) =>
+            index ===
+            self.findIndex(
+              (s) =>
+                s.startTime === segment.startTime &&
+                s.text === segment.text &&
+                s.speaker === segment.speaker,
+            ),
+        );
+      }
+      setTranscript(data);
     } catch (error) {
       console.error("Error fetching transcript:", error);
       toast.error("Failed to load transcript");
     } finally {
       setLoading(false);
     }
-  }, [meetingId, backendUrl]);
+  }, [meetingId]);
 
   useEffect(() => {
     fetchTranscript();
   }, [fetchTranscript]);
+
+  const handleSpeakerChange = async (index, oldSpeaker) => {
+    if (!newSpeakerName.trim()) return;
+
+    try {
+      // Use the new Speaker Mapping API
+      await speakerMappingApi.saveAndApplyMapping(
+        meetingId,
+        oldSpeaker,
+        newSpeakerName.trim(),
+      );
+
+      toast.success("Speaker mapped successfully");
+      // Refresh transcript fully to ensure UI sync
+      fetchTranscript();
+    } catch (error) {
+      console.error("Error updating speaker:", error);
+      toast.error(error.response?.data?.message || "Failed to update speaker");
+    } finally {
+      setEditingSpeakerIndex(null);
+    }
+  };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -64,20 +112,9 @@ const TranscriptViewer = () => {
     }
 
     try {
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("token="))
-        ?.split("=")[1];
-
-      const response = await axios.post(
-        `${backendUrl}/api/transcripts/meeting/${meetingId}/search`,
+      const response = await api.post(
+        `/transcripts/meeting/${meetingId}/search`,
         { query: searchQuery },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
-        }
       );
 
       setSearchResults(response.data.matches || []);
@@ -89,20 +126,11 @@ const TranscriptViewer = () => {
 
   const handleExportText = async () => {
     try {
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("token="))
-        ?.split("=")[1];
-
-      const response = await axios.get(
-        `${backendUrl}/api/transcripts/meeting/${meetingId}/export/text`,
+      const response = await api.get(
+        `/transcripts/meeting/${meetingId}/export/text`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
           responseType: "blob",
-        }
+        },
       );
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -121,20 +149,11 @@ const TranscriptViewer = () => {
 
   const handleExportPDF = async () => {
     try {
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("token="))
-        ?.split("=")[1];
-
-      const response = await axios.get(
-        `${backendUrl}/api/transcripts/meeting/${meetingId}/export/pdf`,
+      const response = await api.get(
+        `/transcripts/meeting/${meetingId}/export/pdf`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
           responseType: "blob",
-        }
+        },
       );
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -160,7 +179,10 @@ const TranscriptViewer = () => {
   const highlightText = (text, query) => {
     if (!query) return text;
     const regex = new RegExp(`(${query})`, "gi");
-    return text.replace(regex, '<mark class="bg-yellow-300 text-black">$1</mark>');
+    return text.replace(
+      regex,
+      '<mark class="bg-yellow-300 text-black">$1</mark>',
+    );
   };
 
   const scrollToSegment = (index) => {
@@ -177,7 +199,9 @@ const TranscriptViewer = () => {
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading transcript...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">
+            Loading transcript...
+          </p>
         </div>
       </div>
     );
@@ -207,6 +231,14 @@ const TranscriptViewer = () => {
 
   const meeting = transcript.meeting;
 
+  const canEdit =
+    userData &&
+    meeting &&
+    (userData.role === "admin" ||
+      userData.role === "owner" ||
+      (meeting.uploadedBy && meeting.uploadedBy === userData._id) ||
+      (meeting.uploadedBy && meeting.uploadedBy._id === userData._id));
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Header */}
@@ -218,7 +250,10 @@ const TranscriptViewer = () => {
                 onClick={() => navigate(-1)}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
               >
-                <ArrowLeft size={20} className="text-gray-600 dark:text-gray-400" />
+                <ArrowLeft
+                  size={20}
+                  className="text-gray-600 dark:text-gray-400"
+                />
               </button>
               <div>
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -227,12 +262,16 @@ const TranscriptViewer = () => {
                 <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 dark:text-gray-400">
                   <span className="flex items-center gap-1">
                     <Calendar size={14} />
-                    {meeting?.date ? new Date(meeting.date).toLocaleDateString() : "N/A"}
+                    {meeting?.date
+                      ? new Date(meeting.date).toLocaleDateString()
+                      : "N/A"}
                   </span>
                   <span className="flex items-center gap-1">
                     <Clock size={14} />
                     {Math.floor(transcript.duration / 60)}:
-                    {Math.floor(transcript.duration % 60).toString().padStart(2, "0")}
+                    {Math.floor(transcript.duration % 60)
+                      .toString()
+                      .padStart(2, "0")}
                   </span>
                   <span className="flex items-center gap-1">
                     <Users size={14} />
@@ -304,6 +343,19 @@ const TranscriptViewer = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Transcript Content */}
           <div className="lg:col-span-2 space-y-4">
+            {/* Sentiment Chart */}
+            <MeetingSentimentChart
+              transcript={transcript}
+              onPointClick={(segmentData) => {
+                const index = transcript.segments.findIndex(
+                  (s) => s.startTime === segmentData.startTime,
+                );
+                if (index !== -1) {
+                  scrollToSegment(index);
+                }
+              }}
+            />
+
             {transcript.segments?.length === 0 ? (
               <div className="bg-white dark:bg-slate-800 rounded-lg p-8 text-center">
                 <FileText size={48} className="mx-auto text-gray-400 mb-4" />
@@ -324,9 +376,61 @@ const TranscriptViewer = () => {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-medium rounded">
-                        {segment.speaker || "Speaker"}
-                      </span>
+                      {editingSpeakerIndex === index ? (
+                        <div className="flex items-center gap-2 relative">
+                          <input
+                            type="text"
+                            className="px-2 py-1 bg-white dark:bg-slate-700 border border-indigo-300 rounded text-xs text-gray-800 dark:text-gray-200"
+                            value={newSpeakerName}
+                            onChange={(e) => setNewSpeakerName(e.target.value)}
+                            list="participants-list"
+                            autoFocus
+                          />
+                          <datalist id="participants-list">
+                            {meeting?.participants?.map((p, i) => (
+                              <option key={i} value={p.name} />
+                            ))}
+                          </datalist>
+                          <div className="flex items-center gap-1">
+                            <label className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1 cursor-pointer">
+                              Map all '{segment.speaker}' globally
+                            </label>
+                          </div>
+                          <button
+                            onClick={() =>
+                              handleSpeakerChange(index, segment.speaker)
+                            }
+                            className="p-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                          >
+                            <Check size={14} />
+                          </button>
+                          <button
+                            onClick={() => setEditingSpeakerIndex(null)}
+                            className="p-1 bg-gray-200 text-gray-600 rounded hover:bg-gray-300"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span
+                          onClick={() => {
+                            if (canEdit) {
+                              setEditingSpeakerIndex(index);
+                              setNewSpeakerName(segment.speaker);
+                            }
+                          }}
+                          className={`px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-medium rounded ${canEdit ? "cursor-pointer hover:bg-indigo-200 dark:hover:bg-indigo-800/50 transition-colors" : ""}`}
+                          title={canEdit ? "Click to edit speaker" : ""}
+                        >
+                          {segment.speaker || "Speaker"}
+                          {canEdit && (
+                            <Edit2
+                              size={10}
+                              className="inline ml-1 opacity-50"
+                            />
+                          )}
+                        </span>
+                      )}
                       <span className="text-gray-500 dark:text-gray-400 text-xs">
                         {formatTimestamp(segment.startTime)}
                       </span>
@@ -335,9 +439,14 @@ const TranscriptViewer = () => {
                   <p
                     className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed"
                     dangerouslySetInnerHTML={{
-                      __html: highlightText(segment.text, searchQuery),
+                      __html: sanitizeHtml(
+                        highlightText(segment.text, searchQuery),
+                      ),
                     }}
                   />
+                  <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
+                    <HighlightedText text={segment.text} query={searchQuery} />
+                  </p>
                 </div>
               ))
             )}
@@ -360,7 +469,9 @@ const TranscriptViewer = () => {
                   {searchResults.map((result, index) => (
                     <button
                       key={index}
-                      onClick={() => scrollToSegment(transcript.segments.indexOf(result))}
+                      onClick={() =>
+                        scrollToSegment(transcript.segments.indexOf(result))
+                      }
                       className="w-full text-left p-3 bg-gray-50 dark:bg-slate-700 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors"
                     >
                       <div className="flex items-center gap-2 mb-1">

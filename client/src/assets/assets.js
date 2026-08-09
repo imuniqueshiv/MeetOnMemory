@@ -10,7 +10,6 @@ export const assets = {
   arrow_icon,
   lock_icon,
   logo,
-  favicon: logo,
   mail_icon,
   person_icon,
   hand_wave,

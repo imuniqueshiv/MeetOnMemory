@@ -2,6 +2,8 @@
 .env
 .env.local
 .env.*
+!.env.example
+!**/.env.example
 server/.env.local
 
 # node modules
@@ -14,6 +16,10 @@ node_modules/
 config/*.json
 credentials.json
 
+# uploads
+server/uploads/
+server/tmp/
+
 # build or dist folders
 dist/
 build/
@@ -24,3 +30,17 @@ Thumbs.db
 
 # TLS keys
 *.pem
+
+# CI / lint artifacts
+eslint-output.json
+fix_lint*.mjs
+coverage/
+server/uploads/
+
+# Prevent accidental Git patch files
+*.patch
+*.orig
+*.rej
+
+# Merge-conflict scratch dumps (e.g. cm_check.txt, cm_upstream*.txt)
+cm_*.txt

@@ -23,7 +23,7 @@ import {
   Mail,
   MapPin,
   FileLock,
-  FileSignature
+  FileSignature,
 } from "lucide-react";
 
 // Sections data
@@ -219,7 +219,7 @@ const Privacy = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSection, setActiveSection] = useState("introduction");
   const [expandedFaq, setExpandedFaq] = useState(null);
-  
+
   // Consent Manager State
   const [cookieConsent, setCookieConsent] = useState({
     essential: true,
@@ -293,7 +293,7 @@ const Privacy = () => {
     return sections.filter(
       (sec) =>
         sec.title.toLowerCase().includes(query) ||
-        sec.content.toLowerCase().includes(query)
+        sec.content.toLowerCase().includes(query),
     );
   }, [searchQuery]);
 
@@ -324,7 +324,8 @@ const Privacy = () => {
             Privacy Policy
           </h1>
           <p className="mt-4 max-w-2xl mx-auto text-base sm:text-lg text-gray-500 dark:text-slate-400">
-            Learn how we handle, process, and safeguard your meeting data, transcriptions, and organizational information.
+            Learn how we handle, process, and safeguard your meeting data,
+            transcriptions, and organizational information.
           </p>
 
           <div className="mt-8 max-w-md mx-auto relative">
@@ -360,14 +361,14 @@ const Privacy = () => {
       </header>
 
       {/* Main Grid Content */}
-      <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 flex-1">
+      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 flex-1">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
           {/* Left Column: Navigation Sidebar */}
           <aside className="lg:col-span-4 hidden lg:block">
             <div className="sticky top-28 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm max-h-[calc(100vh-140px)] overflow-y-auto">
               <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-1.5 px-2">
-                <FileSignature className="w-4 h-4 text-indigo-500" /> Document Outline
+                <FileSignature className="w-4 h-4 text-indigo-500" /> Document
+                Outline
               </h3>
               <nav className="space-y-1.5">
                 {sections.map((sec) => {
@@ -383,9 +384,15 @@ const Privacy = () => {
                           : "text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700/30"
                       }`}
                     >
-                      <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? "text-indigo-600 dark:text-indigo-400" : "text-gray-400"}`} />
-                      <span className="truncate">{sec.title.split(". ")[1]}</span>
-                      {isActive && <ChevronRight className="w-4 h-4 ml-auto text-indigo-600 dark:text-indigo-400 shrink-0 animate-pulse" />}
+                      <Icon
+                        className={`w-4.5 h-4.5 shrink-0 ${isActive ? "text-indigo-600 dark:text-indigo-400" : "text-gray-400"}`}
+                      />
+                      <span className="truncate">
+                        {sec.title.split(". ")[1]}
+                      </span>
+                      {isActive && (
+                        <ChevronRight className="w-4 h-4 ml-auto text-indigo-600 dark:text-indigo-400 shrink-0 animate-pulse" />
+                      )}
                     </button>
                   );
                 })}
@@ -400,7 +407,8 @@ const Privacy = () => {
                   <Shield className="w-4 h-4" /> Need assistance?
                 </h4>
                 <p className="text-[11px] text-indigo-100 mt-2 leading-relaxed">
-                  Have questions about GDPR data deletes or Gemini API security scopes? Contact our compliance help desk.
+                  Have questions about GDPR data deletes or Gemini API security
+                  scopes? Contact our compliance help desk.
                 </p>
                 <a
                   href="mailto:privacy@meetonmemory.com"
@@ -414,7 +422,6 @@ const Privacy = () => {
 
           {/* Right Column: Dynamic Clauses and Modules */}
           <div className="lg:col-span-8 space-y-12">
-            
             {/* Warning Info box if searching */}
             {searchQuery && (
               <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-4 flex gap-3 text-sm text-blue-700 dark:text-blue-300">
@@ -422,7 +429,8 @@ const Privacy = () => {
                 <div>
                   <p className="font-semibold">Search Filter Active</p>
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    Showing sections that match "{searchQuery}". Clear search to view full policy structure.
+                    Showing sections that match "{searchQuery}". Clear search to
+                    view full policy structure.
                   </p>
                 </div>
               </div>
@@ -433,9 +441,12 @@ const Privacy = () => {
               {filteredSections.length === 0 ? (
                 <div className="text-center py-12">
                   <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
-                  <h3 className="font-bold text-lg text-gray-800 dark:text-white">No matches found</h3>
+                  <h3 className="font-bold text-lg text-gray-800 dark:text-white">
+                    No matches found
+                  </h3>
                   <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">
-                    Try searching for different terms like 'retention', 'Gemini', 'delete', or 'cookies'.
+                    Try searching for different terms like 'retention',
+                    'Gemini', 'delete', or 'cookies'.
                   </p>
                   <button
                     onClick={() => setSearchQuery("")}
@@ -483,7 +494,8 @@ const Privacy = () => {
                     Privacy Preference Center
                   </h2>
                   <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                    Customize your cookie consent parameters and AI training participation.
+                    Customize your cookie consent parameters and AI training
+                    participation.
                   </p>
                 </div>
               </div>
@@ -499,7 +511,9 @@ const Privacy = () => {
                       </span>
                     </h4>
                     <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                      Required for key app features, API validation tokens, organization workspace loading, and login security credentials.
+                      Required for key app features, API validation tokens,
+                      organization workspace loading, and login security
+                      credentials.
                     </p>
                   </div>
                   <input
@@ -517,7 +531,9 @@ const Privacy = () => {
                       Analytics Tracking Cookies
                     </h4>
                     <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                      Allows us to gather statistics on visitor count, landing page scroll patterns, and page load issues so we can refine performance.
+                      Allows us to gather statistics on visitor count, landing
+                      page scroll patterns, and page load issues so we can
+                      refine performance.
                     </p>
                   </div>
                   <input
@@ -540,7 +556,8 @@ const Privacy = () => {
                       Functional Memory Customization
                     </h4>
                     <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                      Retains interface adjustments like language settings (Hindi vs. English) and dark/light UI mode preferences.
+                      Retains interface adjustments like language settings
+                      (Hindi vs. English) and dark/light UI mode preferences.
                     </p>
                   </div>
                   <input
@@ -566,7 +583,9 @@ const Privacy = () => {
                       </span>
                     </h4>
                     <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                      Check this box only if you want to allow anonymous, de-identified meeting summaries to contribute to external developer evaluations. We default this to OFF.
+                      Check this box only if you want to allow anonymous,
+                      de-identified meeting summaries to contribute to external
+                      developer evaluations. We default this to OFF.
                     </p>
                   </div>
                   <input
@@ -586,7 +605,8 @@ const Privacy = () => {
               {/* Actions Footer for Cookie Preference */}
               <div className="mt-6 pt-5 border-t border-gray-100 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-4">
                 <p className="text-[11px] text-gray-400 dark:text-slate-500 max-w-sm leading-normal">
-                  Decisions saved here affect this local browser session. You can update or retract consent at any time.
+                  Decisions saved here affect this local browser session. You
+                  can update or retract consent at any time.
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -615,7 +635,10 @@ const Privacy = () => {
               {showConsentToast && (
                 <div className="mt-4 p-3.5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-xl flex items-center gap-3 text-xs text-emerald-800 dark:text-emerald-400 animate-fade-in">
                   <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
-                  <span>Preferences saved successfully! Your browser storage parameters have been updated.</span>
+                  <span>
+                    Preferences saved successfully! Your browser storage
+                    parameters have been updated.
+                  </span>
                 </div>
               )}
             </section>
@@ -631,7 +654,8 @@ const Privacy = () => {
                     Privacy FAQs
                   </h2>
                   <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                    Quick answers regarding data security, transcripts, and storage boundaries.
+                    Quick answers regarding data security, transcripts, and
+                    storage boundaries.
                   </p>
                 </div>
               </div>
@@ -679,7 +703,8 @@ const Privacy = () => {
                     Revision History
                   </h2>
                   <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                    Track the modifications we have implemented in this privacy mandate over time.
+                    Track the modifications we have implemented in this privacy
+                    mandate over time.
                   </p>
                 </div>
               </div>
@@ -690,10 +715,14 @@ const Privacy = () => {
                   <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-indigo-500 bg-white dark:bg-slate-800" />
                   <h4 className="font-bold text-sm text-gray-800 dark:text-white flex items-center gap-2.5">
                     Version 1.2
-                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">July 16, 2026 (Current)</span>
+                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">
+                      July 16, 2026 (Current)
+                    </span>
                   </h4>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-normal">
-                    Added clauses outlining Pinecone vector isolation partitioning and explicit details clarifying Google Gemini API processing data-sharing restrictions.
+                    Added clauses outlining Pinecone vector isolation
+                    partitioning and explicit details clarifying Google Gemini
+                    API processing data-sharing restrictions.
                   </p>
                 </div>
 
@@ -702,10 +731,14 @@ const Privacy = () => {
                   <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-indigo-200 dark:border-indigo-900 bg-white dark:bg-slate-800" />
                   <h4 className="font-bold text-sm text-gray-800 dark:text-white flex items-center gap-2.5">
                     Version 1.1
-                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">March 04, 2026</span>
+                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">
+                      March 04, 2026
+                    </span>
                   </h4>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-normal">
-                    Incorporated compliance standards for role-based workspace structures (RBAC) and updated the policy retention criteria for MongoDB Atlas cloud buckets.
+                    Incorporated compliance standards for role-based workspace
+                    structures (RBAC) and updated the policy retention criteria
+                    for MongoDB Atlas cloud buckets.
                   </p>
                 </div>
 
@@ -714,18 +747,21 @@ const Privacy = () => {
                   <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-indigo-200 dark:border-indigo-900 bg-white dark:bg-slate-800" />
                   <h4 className="font-bold text-sm text-gray-800 dark:text-white flex items-center gap-2.5">
                     Version 1.0
-                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">November 10, 2025</span>
+                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">
+                      November 10, 2025
+                    </span>
                   </h4>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-normal">
-                    Initial publication of terms regulating platform transcription processing, user account registration, and essential cookie tracking setups.
+                    Initial publication of terms regulating platform
+                    transcription processing, user account registration, and
+                    essential cookie tracking setups.
                   </p>
                 </div>
               </div>
             </section>
-
           </div>
         </div>
-      </main>
+      </div>
 
       {/* Quick Footer banner redirection */}
       <div className="bg-gray-100 dark:bg-slate-900 border-t border-gray-200/80 dark:border-slate-800/80 py-10 mt-auto">

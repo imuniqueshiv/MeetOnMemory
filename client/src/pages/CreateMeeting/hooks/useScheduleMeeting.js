@@ -1,8 +1,55 @@
-import { useState } from "react";
 import { toast } from "react-toastify";
-import { meetingApi } from "../../../services";
+import {
+  meetingApi,
+  meetingTemplateApi,
+  aiSummaryTemplateApi,
+} from "../../../services";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import AppContent from "../../../context/AppContent";
+import {
+  buildMeetingDraftKey,
+  useFormDraft,
+} from "../../../hooks/useFormDraft";
+import {
+  moveAgendaItem,
+  normalizeAgendaItems,
+} from "../../../utils/agendaOrdering";
 
-export const useScheduleMeeting = () => {
+export const buildDuplicateScheduleState = (duplicateData = {}) => ({
+  scheduleData: {
+    title: duplicateData.title || "",
+    description: duplicateData.description || "",
+    meetingType: duplicateData.meetingType || "conference",
+    date: "",
+    time: "",
+    duration: duplicateData.duration ?? "",
+    location: duplicateData.location || "",
+    venue: duplicateData.venue || "",
+    syncToCalendar: true,
+  },
+  participants: (duplicateData.participants || []).map(
+    (participant, index) => ({
+      ...participant,
+      id: `duplicate-participant-${index}`,
+    }),
+  ),
+  agendaItems: (duplicateData.agendaItems || []).map((item, index) => ({
+    ...item,
+    id: `duplicate-agenda-${index}`,
+  })),
+  metadata: {
+    tags: duplicateData.tags || [],
+    policyDetails: duplicateData.policyDetails || null,
+    recordingType: duplicateData.recordingType || "upload",
+  },
+});
+
+export const useScheduleMeeting = ({
+  mode = "create",
+  meetingId = null,
+  serverUpdatedAt = null,
+} = {}) => {
+  const { userData } = useContext(AppContent);
   const [scheduleData, setScheduleData] = useState({
     title: "",
     description: "",
@@ -12,6 +59,7 @@ export const useScheduleMeeting = () => {
     duration: "",
     location: "",
     venue: "",
+    syncToCalendar: true,
   });
   const [participants, setParticipants] = useState([]);
   const [newParticipant, setNewParticipant] = useState({ name: "", email: "" });
@@ -19,6 +67,134 @@ export const useScheduleMeeting = () => {
   const [newAgenda, setNewAgenda] = useState("");
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [aiSummaryTemplates, setAiSummaryTemplates] = useState([]);
+  const [selectedAiSummaryTemplateId, setSelectedAiSummaryTemplateId] =
+    useState("");
+  const [duplicateMetadata, setDuplicateMetadata] = useState({
+    tags: [],
+    policyDetails: null,
+    recordingType: "upload",
+  });
+
+  const userId = userData?._id || userData?.id;
+  const organizationId =
+    userData?.organization?._id || userData?.organization || null;
+  const draftKey = buildMeetingDraftKey({
+    userId,
+    organizationId,
+    mode,
+    meetingId,
+  });
+
+  const draftValues = useMemo(
+    () => ({
+      scheduleData,
+      participants,
+      selectedTemplateId,
+      selectedAiSummaryTemplateId,
+    }),
+    [
+      participants,
+      scheduleData,
+      selectedTemplateId,
+      selectedAiSummaryTemplateId,
+    ],
+  );
+
+  const restoreDraftValues = (draft) => {
+    if (draft?.scheduleData) setScheduleData(draft.scheduleData);
+    if (Array.isArray(draft?.participants)) setParticipants(draft.participants);
+    if (Array.isArray(draft?.agendaItems)) setAgendaItems(draft.agendaItems);
+    if (typeof draft?.selectedTemplateId === "string") {
+      setSelectedTemplateId(draft.selectedTemplateId);
+    }
+    if (typeof draft?.selectedAiSummaryTemplateId === "string") {
+      setSelectedAiSummaryTemplateId(draft.selectedAiSummaryTemplateId);
+    }
+  };
+
+  const {
+    recoverableDraft,
+    lastSavedAt,
+    status: draftStatus,
+    restoreDraft,
+    discardDraft,
+    clearDraft,
+  } = useFormDraft({
+    key: draftKey,
+    values: draftValues,
+    enabled: Boolean(draftKey) && !loading,
+    maxAgeMs: 7 * 24 * 60 * 60 * 1000,
+    serverUpdatedAt,
+    onRestore: restoreDraftValues,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    if (userData?.organization) {
+      meetingTemplateApi
+        .getTemplates(userData.organization._id || userData.organization)
+        .then((res) => {
+          if (!cancelled && res.data?.success) setTemplates(res.data.templates);
+        })
+        .catch((err) =>
+          console.error("Failed to fetch meeting templates:", err),
+        );
+
+      aiSummaryTemplateApi
+        .getTemplates()
+        .then((res) => {
+          if (!cancelled && res.data) {
+            setAiSummaryTemplates(res.data);
+            if (
+              res.data.length > 0 &&
+              !draftValues.selectedAiSummaryTemplateId
+            ) {
+              const defaultTemplate = res.data.find((t) => t.isDefault);
+              if (defaultTemplate)
+                setSelectedAiSummaryTemplateId(defaultTemplate._id);
+            }
+          }
+        })
+        .catch((err) =>
+          console.error("Failed to fetch AI summary templates:", err),
+        );
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [userData, draftValues.selectedAiSummaryTemplateId]);
+
+  const hydrateDuplicateMeeting = useCallback((duplicateData) => {
+    const duplicated = buildDuplicateScheduleState(duplicateData);
+    setScheduleData(duplicated.scheduleData);
+    setParticipants(duplicated.participants);
+    setAgendaItems(duplicated.agendaItems);
+    setSelectedTemplateId("");
+    setDuplicateMetadata(duplicated.metadata);
+  }, []);
+
+  const handleTemplateSelect = (e) => {
+    const templateId = e.target.value;
+    setSelectedTemplateId(templateId);
+
+    if (templateId) {
+      const template = templates.find((t) => t._id === templateId);
+      if (template) {
+        const newBlocks = template.agendaBlocks.map((block) => ({
+          text: block.title,
+          description: block.description,
+          duration: block.duration,
+          id: Date.now().toString() + Math.random(),
+        }));
+        setAgendaItems(newBlocks);
+        setAgendaItems(normalizeAgendaItems(newBlocks));
+        toast.info("Template agenda applied");
+      }
+    }
+  };
 
   const handleScheduleChange = (e) => {
     const { name, value } = e.target;
@@ -41,14 +217,25 @@ export const useScheduleMeeting = () => {
 
   const addAgendaItem = () => {
     if (newAgenda.trim()) {
-      setAgendaItems([...agendaItems, { text: newAgenda, id: Date.now() }]);
+      setAgendaItems((current) =>
+        normalizeAgendaItems([
+          ...current,
+          { text: newAgenda, id: crypto.randomUUID?.() || String(Date.now()) },
+        ]),
+      );
       setNewAgenda("");
       toast.success("Agenda item added");
     }
   };
 
   const removeAgendaItem = (id) => {
-    setAgendaItems(agendaItems.filter((a) => a.id !== id));
+    setAgendaItems((current) =>
+      normalizeAgendaItems(current.filter((a) => a.id !== id)),
+    );
+  };
+
+  const reorderAgendaItem = (fromIndex, toIndex) => {
+    setAgendaItems((current) => moveAgendaItem(current, fromIndex, toIndex));
   };
 
   const handleAttachmentUpload = (e) => {
@@ -78,7 +265,10 @@ export const useScheduleMeeting = () => {
       const payload = {
         ...scheduleData,
         participants,
-        agendaItems,
+        tags: duplicateMetadata.tags,
+        policyDetails: duplicateMetadata.policyDetails,
+        recordingType: duplicateMetadata.recordingType,
+        agendaItems: normalizeAgendaItems(agendaItems),
       };
 
       const response = await meetingApi.scheduleMeeting(payload);
@@ -101,10 +291,18 @@ export const useScheduleMeeting = () => {
           duration: "",
           location: "",
           venue: "",
+          syncToCalendar: true,
         });
         setParticipants([]);
         setAgendaItems([]);
         setAttachments([]);
+        setDuplicateMetadata({
+          tags: [],
+          policyDetails: null,
+          recordingType: "upload",
+        });
+        setSelectedTemplateId("");
+        clearDraft();
       } else {
         toast.error(response.data?.message || "Failed to schedule meeting");
       }
@@ -124,18 +322,31 @@ export const useScheduleMeeting = () => {
     participants,
     newParticipant,
     setNewParticipant,
-    agendaItems,
     newAgenda,
     setNewAgenda,
     attachments,
     loading,
+    templates,
+    selectedTemplateId,
+    aiSummaryTemplates,
+    selectedAiSummaryTemplateId,
+    setSelectedAiSummaryTemplateId,
+    handleTemplateSelect,
     handleScheduleChange,
     addParticipant,
     removeParticipant,
     addAgendaItem,
     removeAgendaItem,
+    reorderAgendaItem,
     handleAttachmentUpload,
     removeAttachment,
     handleScheduleSubmit,
+    hydrateDuplicateMeeting,
+    recoverableDraft,
+    lastSavedAt,
+    draftStatus,
+    restoreDraft,
+    discardDraft,
+    setAgendaItems,
   };
 };

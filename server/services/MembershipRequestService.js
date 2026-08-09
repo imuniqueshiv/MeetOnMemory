@@ -32,7 +32,7 @@ class MembershipRequestService {
     }
 
     const cleanOrganizationId = new mongoose.Types.ObjectId(
-      String(organizationId)
+      String(organizationId),
     );
 
     const organization = await Organization.findById(cleanOrganizationId);
@@ -82,15 +82,25 @@ class MembershipRequestService {
    * Get membership requests for an organization
    */
   static async getOrganizationRequests(userId, organizationId, query) {
-    const { status, search, page = 1, limit = 10, sortBy = "createdAt", sortOrder = "desc" } = query;
+    const {
+      status,
+      search,
+      page = 1,
+      limit = 10,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = query;
 
     if (!this._isValidObjectId(organizationId)) {
       throw new ValidationError("Invalid organization ID.");
     }
-    const cleanOrganizationId = new mongoose.Types.ObjectId(String(organizationId));
+    const cleanOrganizationId = new mongoose.Types.ObjectId(
+      String(organizationId),
+    );
 
     const allowedStatuses = ["pending", "approved", "rejected", "cancelled"];
-    const validStatus = status && allowedStatuses.includes(status) ? status : null;
+    const validStatus =
+      status && allowedStatuses.includes(status) ? status : null;
     if (status && !validStatus) {
       throw new ValidationError("Invalid status value.");
     }
@@ -146,7 +156,11 @@ class MembershipRequestService {
         const userName = req.user?.name?.toLowerCase() || "";
         const userEmail = req.user?.email?.toLowerCase() || "";
         const uId = req.user?._id?.toString() || "";
-        return userName.includes(searchTerm) || userEmail.includes(searchTerm) || uId.includes(searchTerm);
+        return (
+          userName.includes(searchTerm) ||
+          userEmail.includes(searchTerm) ||
+          uId.includes(searchTerm)
+        );
       });
     }
 
@@ -184,7 +198,8 @@ class MembershipRequestService {
     }
     const cleanRequestId = new mongoose.Types.ObjectId(String(requestId));
 
-    const request = await MembershipRequest.findById(cleanRequestId).populate("organization");
+    const request =
+      await MembershipRequest.findById(cleanRequestId).populate("organization");
     if (!request) {
       throw new NotFoundError("Membership request not found.");
     }
@@ -206,26 +221,37 @@ class MembershipRequestService {
     const session = await mongoose.startSession();
     session.startTransaction();
     let newMembership;
-    
+
     try {
       request.status = "approved";
       request.reviewedBy = userId;
       request.reviewedAt = new Date();
-      request.reviewNotes = reviewNotes ? String(reviewNotes).trim().substring(0, 500) : "";
+      request.reviewNotes = reviewNotes
+        ? String(reviewNotes).trim().substring(0, 500)
+        : "";
       await request.save({ session });
 
-      [newMembership] = await Membership.create([{
-        user: request.user,
-        organization: request.organization._id,
-        role: "member",
-        status: "active",
-      }], { session });
+      [newMembership] = await Membership.create(
+        [
+          {
+            user: request.user,
+            organization: request.organization._id,
+            role: "member",
+            status: "active",
+          },
+        ],
+        { session },
+      );
 
-      await userModel.findByIdAndUpdate(request.user, {
-        role: "member",
-        organization: request.organization._id,
-        hasCompletedOnboarding: true,
-      }, { session });
+      await userModel.findByIdAndUpdate(
+        request.user,
+        {
+          role: "member",
+          organization: request.organization._id,
+          hasCompletedOnboarding: true,
+        },
+        { session },
+      );
 
       await session.commitTransaction();
     } catch (error) {
@@ -256,7 +282,8 @@ class MembershipRequestService {
     }
     const cleanRequestId = new mongoose.Types.ObjectId(String(requestId));
 
-    const request = await MembershipRequest.findById(cleanRequestId).populate("organization");
+    const request =
+      await MembershipRequest.findById(cleanRequestId).populate("organization");
     if (!request) {
       throw new NotFoundError("Membership request not found.");
     }
@@ -278,7 +305,9 @@ class MembershipRequestService {
     request.status = "rejected";
     request.reviewedBy = userId;
     request.reviewedAt = new Date();
-    request.reviewNotes = reviewNotes ? String(reviewNotes).trim().substring(0, 500) : "";
+    request.reviewNotes = reviewNotes
+      ? String(reviewNotes).trim().substring(0, 500)
+      : "";
     await request.save();
 
     AuditService.logAction({
@@ -351,7 +380,10 @@ class MembershipRequestService {
     // Run each in its own transaction (or without if we can't batch easily, but we'll use transaction inside the loop or just process one by one)
     for (const request of requests) {
       if (request.status !== "pending") {
-        errors.push({ requestId: request._id, message: "Request is not in pending status." });
+        errors.push({
+          requestId: request._id,
+          message: "Request is not in pending status.",
+        });
         continue;
       }
 
@@ -361,10 +393,14 @@ class MembershipRequestService {
         role: "admin",
         status: "active",
       }).lean();
-      const isOwner = request.organization.owner.toString() === userId.toString();
-      
+      const isOwner =
+        request.organization.owner.toString() === userId.toString();
+
       if (!membership && !isOwner) {
-        errors.push({ requestId: request._id, message: "Not authorized to approve this request." });
+        errors.push({
+          requestId: request._id,
+          message: "Not authorized to approve this request.",
+        });
         continue;
       }
 
@@ -375,21 +411,32 @@ class MembershipRequestService {
         request.status = "approved";
         request.reviewedBy = userId;
         request.reviewedAt = new Date();
-        request.reviewNotes = reviewNotes ? String(reviewNotes).trim().substring(0, 500) : "";
+        request.reviewNotes = reviewNotes
+          ? String(reviewNotes).trim().substring(0, 500)
+          : "";
         await request.save({ session });
 
-        [newMembership] = await Membership.create([{
-          user: request.user,
-          organization: request.organization._id,
-          role: "member",
-          status: "active",
-        }], { session });
+        [newMembership] = await Membership.create(
+          [
+            {
+              user: request.user,
+              organization: request.organization._id,
+              role: "member",
+              status: "active",
+            },
+          ],
+          { session },
+        );
 
-        await userModel.findByIdAndUpdate(request.user, {
-          role: "member",
-          organization: request.organization._id,
-          hasCompletedOnboarding: true,
-        }, { session });
+        await userModel.findByIdAndUpdate(
+          request.user,
+          {
+            role: "member",
+            organization: request.organization._id,
+            hasCompletedOnboarding: true,
+          },
+          { session },
+        );
 
         await session.commitTransaction();
 
@@ -402,10 +449,17 @@ class MembershipRequestService {
           details: { userId: request.user },
         });
 
-        results.push({ requestId: request._id, membershipId: newMembership._id, status: "approved" });
-      } catch (error) {
+        results.push({
+          requestId: request._id,
+          membershipId: newMembership._id,
+          status: "approved",
+        });
+      } catch (_error) {
         await session.abortTransaction();
-        errors.push({ requestId: request._id, message: "Internal server error during approval." });
+        errors.push({
+          requestId: request._id,
+          message: "Internal server error during approval.",
+        });
       } finally {
         session.endSession();
       }
@@ -443,7 +497,10 @@ class MembershipRequestService {
 
     for (const request of requests) {
       if (request.status !== "pending") {
-        errors.push({ requestId: request._id, message: "Request is not in pending status." });
+        errors.push({
+          requestId: request._id,
+          message: "Request is not in pending status.",
+        });
         continue;
       }
 
@@ -453,17 +510,23 @@ class MembershipRequestService {
         role: "admin",
         status: "active",
       }).lean();
-      const isOwner = request.organization.owner.toString() === userId.toString();
-      
+      const isOwner =
+        request.organization.owner.toString() === userId.toString();
+
       if (!membership && !isOwner) {
-        errors.push({ requestId: request._id, message: "Not authorized to reject this request." });
+        errors.push({
+          requestId: request._id,
+          message: "Not authorized to reject this request.",
+        });
         continue;
       }
 
       request.status = "rejected";
       request.reviewedBy = userId;
       request.reviewedAt = new Date();
-      request.reviewNotes = reviewNotes ? String(reviewNotes).trim().substring(0, 500) : "";
+      request.reviewNotes = reviewNotes
+        ? String(reviewNotes).trim().substring(0, 500)
+        : "";
       await request.save();
 
       AuditService.logAction({

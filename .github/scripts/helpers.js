@@ -1,5 +1,6 @@
 import { EXPECTED_REPOSITORY } from "./constants.js";
 import {
+  extractLinkedIssueNumbers,
   formatError,
   hasMarker,
   logError,
@@ -197,6 +198,66 @@ export async function listOpenAssignedIssues(github, context, core) {
   );
 }
 
+/**
+ * Find OPEN PRs (including drafts) that link to the given issue number.
+ * Uses a scoped search + body/title parse to avoid listing every PR.
+ * Results are suitable for expiration freeze (any open linked PR freezes).
+ */
+export async function listOpenLinkedPullRequests(
+  github,
+  context,
+  core,
+  issueNumber,
+  cache = null,
+) {
+  const key = String(issueNumber);
+  if (cache && cache.has(key)) return cache.get(key);
+
+  const owner = context.repo.owner;
+  const repo = context.repo.repo;
+  const q = `repo:${owner}/${repo} is:pr is:open ${issueNumber} in:body,title`;
+  const items = await safeCall(
+    core,
+    "search.issuesAndPullRequests(linked open PRs)",
+    () =>
+      github.paginate(github.rest.search.issuesAndPullRequests, {
+        q,
+        per_page: 30,
+      }),
+    [],
+  );
+
+  const linked = (items || []).filter((pr) => {
+    const isPr =
+      Boolean(pr.pull_request) || String(pr.html_url || "").includes("/pull/");
+    if (!isPr) return false;
+    const numbers = extractLinkedIssueNumbers(
+      `${pr.title || ""}\n${pr.body || ""}`,
+    );
+    return numbers.includes(Number(issueNumber));
+  });
+
+  if (cache) cache.set(key, linked);
+  return linked;
+}
+
+export async function hasOpenLinkedPullRequest(
+  github,
+  context,
+  core,
+  issueNumber,
+  cache = null,
+) {
+  const linked = await listOpenLinkedPullRequests(
+    github,
+    context,
+    core,
+    issueNumber,
+    cache,
+  );
+  return linked.length > 0;
+}
+
 export async function getCollaboratorPermission(
   github,
   context,
@@ -225,6 +286,25 @@ export function isIssueUnavailable(issue, context, core) {
   return false;
 }
 
+export function summarizeRequiredCheckStates(
+  checkRuns = [],
+  requiredNames = [],
+) {
+  const requiredRuns = checkRuns.filter((c) => requiredNames.includes(c.name));
+  const failed = requiredRuns.filter(
+    (c) => c.status === "completed" && c.conclusion === "failure",
+  );
+  const pending = requiredRuns.filter((c) => c.status !== "completed");
+  const allCompleted = requiredRuns.length > 0 && pending.length === 0;
+  return {
+    total: requiredRuns.length,
+    failedCount: failed.length,
+    pendingCount: pending.length,
+    allCompleted,
+    failedRuns: failed,
+  };
+}
+
 export function summarizeCheckStates(checkRuns = []) {
   const failed = checkRuns.filter(
     (c) => c.status === "completed" && c.conclusion === "failure",
@@ -235,6 +315,82 @@ export function summarizeCheckStates(checkRuns = []) {
     pendingCount: pending.length,
     failedNames: failed.map((c) => c.name),
   };
+}
+
+export async function listReviews(github, context, core, prNumber) {
+  const reviews = await safeCall(
+    core,
+    "pulls.listReviews",
+    () =>
+      github.paginate(github.rest.pulls.listReviews, {
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        pull_number: prNumber,
+        per_page: 100,
+      }),
+    [],
+  );
+  return reviews || [];
+}
+
+export async function findReviewByMarker(
+  github,
+  context,
+  core,
+  prNumber,
+  marker,
+) {
+  const reviews = await listReviews(github, context, core, prNumber);
+  return (
+    reviews.find(
+      (review) => review.user?.type === "Bot" && hasMarker(review.body, marker),
+    ) || null
+  );
+}
+
+export async function requestChangesReview(
+  github,
+  context,
+  core,
+  prNumber,
+  body,
+) {
+  return safeCall(
+    core,
+    "pulls.createReview(REQUEST_CHANGES)",
+    () =>
+      github.rest.pulls.createReview({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        pull_number: prNumber,
+        event: "REQUEST_CHANGES",
+        body,
+      }),
+    null,
+  );
+}
+
+export async function dismissReview(
+  github,
+  context,
+  core,
+  prNumber,
+  reviewId,
+  message,
+) {
+  return safeCall(
+    core,
+    "pulls.dismissReview",
+    () =>
+      github.rest.pulls.dismissReview({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        pull_number: prNumber,
+        review_id: reviewId,
+        message,
+      }),
+    null,
+  );
 }
 
 export { logInfo, logWarning, logError, formatError };

@@ -164,16 +164,24 @@ export async function captureSnapshot(organization, options = {}) {
  * Lists snapshots for an organization, newest first, with metadata only
  * (no node/edge payload) so the timeline view stays cheap to load.
  */
-export async function listSnapshots(organization, { limit = 50, before } = {}) {
+export async function listSnapshots(
+  organization,
+  { limit = 20, before, page } = {},
+) {
   const query = { organization: organization || null };
   if (before) {
     query.createdAt = { $lt: new Date(before) };
   }
 
-  const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 200);
+  let skip = 0;
+  if (page && Number(page) > 1) {
+    skip = (Math.max(Number(page), 1) - 1) * safeLimit;
+  }
 
   return GraphSnapshot.find(query)
     .sort({ createdAt: -1 })
+    .skip(skip)
     .limit(safeLimit)
     .select("-nodes -edges")
     .populate("sourceMeetingId", "title date")

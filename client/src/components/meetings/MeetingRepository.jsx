@@ -1,21 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { toast } from "react-toastify";
 import { meetingApi } from "../../services";
-import { Trash2, Download, Edit2, Eye, Search, Filter } from "lucide-react";
-import AppContent from "../../context/AppContent";
 import MeetingCard from "./MeetingCard.jsx";
 import MeetingSearch from "./MeetingSearch.jsx";
 import MeetingFilters from "./MeetingFilters.jsx";
 import Pagination from "./Pagination.jsx";
 import EmptyState from "./EmptyState.jsx";
 import { useNavigate } from "react-router-dom";
+import useApiRequest from "../../hooks/useApiRequest.js";
 
 const MeetingRepository = () => {
   const navigate = useNavigate();
-  const [meetings, setMeetings] = useState([]);
   const [filteredMeetings, setFilteredMeetings] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState({
     status: "all",
@@ -28,33 +24,40 @@ const MeetingRepository = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 9;
 
-  // Fetch meetings
-  const fetchMeetings = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await meetingApi.getAllMeetings();
+  // Abort in-flight loads when a newer refresh starts (#1131 / #978).
+  const loadMeetings = useCallback(async (signal) => {
+    const response = await meetingApi.getAllMeetings({}, { signal });
 
-      if (response.data?.success) {
-        setMeetings(response.data.meetings || []);
-      } else {
-        setError("Failed to fetch meetings");
-      }
-    } catch (err) {
-      console.error("Error fetching meetings:", err);
-      setError(err.response?.data?.message || "Failed to load meetings");
-    } finally {
-      setLoading(false);
+    if (!response.data?.success) {
+      const failure = new Error(
+        response.data?.message || "Failed to fetch meetings",
+      );
+      throw failure;
     }
-  };
+
+    return response.data.meetings || [];
+  }, []);
+
+  const {
+    data: meetings,
+    error: requestError,
+    loading,
+    execute: fetchMeetings,
+  } = useApiRequest(loadMeetings, { initialData: [] });
+
+  const error = requestError
+    ? requestError.response?.data?.message ||
+      requestError.message ||
+      "Failed to load meetings"
+    : null;
 
   useEffect(() => {
     fetchMeetings();
-  }, []);
+  }, [fetchMeetings]);
 
   // Apply filters and search
   useEffect(() => {
-    let filtered = [...meetings];
+    let filtered = [...(meetings || [])];
 
     // Apply search
     if (searchQuery.trim()) {
@@ -149,7 +152,7 @@ const MeetingRepository = () => {
 
   // Meeting actions
   const handleDelete = async (meetingId) => {
-    if (!window.confirm("Are you sure you want to delete this meeting?")) {
+    if (!window.confirm("Move this meeting to the recycle bin?")) {
       return;
     }
 
@@ -215,7 +218,9 @@ const MeetingRepository = () => {
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600">Loading meetings...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">
+            Loading meetings...
+          </p>
         </div>
       </div>
     );
@@ -226,9 +231,9 @@ const MeetingRepository = () => {
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
-          <p className="text-gray-700 text-lg">{error}</p>
+          <p className="text-gray-700 dark:text-gray-200 text-lg">{error}</p>
           <button
-            onClick={fetchMeetings}
+            onClick={() => fetchMeetings()}
             className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Retry
@@ -256,30 +261,32 @@ const MeetingRepository = () => {
       {/* Active Filters Display */}
       {hasActiveFilters && (
         <div className="flex flex-wrap gap-2 items-center text-sm">
-          <span className="text-gray-600">Active filters:</span>
+          <span className="text-gray-600 dark:text-gray-400">
+            Active filters:
+          </span>
           {searchQuery && (
-            <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full">
+            <span className="bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 px-3 py-1 rounded-full">
               Search: "{searchQuery}"
             </span>
           )}
           {filters.status !== "all" && (
-            <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full">
+            <span className="bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 px-3 py-1 rounded-full">
               Status: {filters.status}
             </span>
           )}
           {filters.meetingType !== "all" && (
-            <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full">
+            <span className="bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 px-3 py-1 rounded-full">
               Type: {filters.meetingType}
             </span>
           )}
           {filters.dateRange !== "all" && (
-            <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full">
+            <span className="bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 px-3 py-1 rounded-full">
               Date: {filters.dateRange}
             </span>
           )}
           <button
             onClick={handleClearFilters}
-            className="text-red-600 hover:text-red-800 underline"
+            className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 underline"
           >
             Clear all
           </button>

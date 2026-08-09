@@ -27,6 +27,9 @@ async function makeMeeting(overrides = {}) {
 }
 
 describe("graph/graphIndex", () => {
+  beforeAll(async () => {
+    await mongoose.connect(process.env.TEST_MONGODB_URI);
+  });
   describe("buildGraph", () => {
     it("links decisions to each other via relatesTo edges", async () => {
       const meeting = await makeMeeting();

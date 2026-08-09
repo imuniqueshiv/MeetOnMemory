@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io } from "socket.io-client";
 import * as Y from "yjs";
+import { createClerkSocketOptions } from "../services/apiClient.js";
 
 /**
  * Connects to the /sync Socket.io namespace and manages a shared Yjs Y.Text document.
@@ -11,6 +12,7 @@ import * as Y from "yjs";
  * @returns {{
  *   content: string,           — current plain-text content
  *   setContent: Function,      — write new text (broadcasts CRDT update)
+ *   collaborators: Array,      — real-time presence list [{ socketId, userId, name, email }]
  *   connectedUsers: number,    — number of active collaborators
  *   isSynced: boolean,         — true once initial state received from server
  *   isConnected: boolean,      — socket connection status
@@ -18,7 +20,7 @@ import * as Y from "yjs";
  */
 const useCollaborativeDoc = (meetingId, backendUrl) => {
   const [content, setContentState] = useState("");
-  const [connectedUsers, setConnectedUsers] = useState(1);
+  const [collaborators, setCollaborators] = useState([]);
   const [isSynced, setIsSynced] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -27,9 +29,14 @@ const useCollaborativeDoc = (meetingId, backendUrl) => {
   const ydocRef = useRef(null);
   const ytextRef = useRef(null);
   const isRemoteUpdateRef = useRef(false); // prevent echo loops
+  const presenceRef = useRef(new Map()); // socketId -> collaborator
 
   useEffect(() => {
     if (!meetingId || !backendUrl) return;
+
+    let cancelled = false;
+    let socket;
+    let onUpdate;
 
     // 1. Create local Yjs doc
     const ydoc = new Y.Doc();
@@ -37,83 +44,111 @@ const useCollaborativeDoc = (meetingId, backendUrl) => {
     ydocRef.current = ydoc;
     ytextRef.current = ytext;
 
-    // 2. Connect to /sync namespace
-    const socket = io(`${backendUrl}/sync`, {
-      transports: ["websocket"],
-      withCredentials: true,
-    });
-    socketRef.current = socket;
+    (async () => {
+      // 2. Connect to /sync namespace
+      const opts = await createClerkSocketOptions({
+        transports: ["websocket"],
+      });
+      if (cancelled) return;
 
-    // 3. Socket lifecycle
-    socket.on("connect", () => {
-      setIsConnected(true);
-      // Join the document room for this meeting
-      socket.emit("join-document", { meetingId });
-    });
+      socket = io(`${backendUrl}/sync`, opts);
+      socketRef.current = socket;
 
-    socket.on("disconnect", () => {
-      setIsConnected(false);
-      setIsSynced(false);
-    });
-
-    // 4. Receive full initial state from server
-    socket.on("sync-full", ({ update }) => {
-      if (update) {
-        isRemoteUpdateRef.current = true;
-        try {
-          Y.applyUpdate(ydoc, new Uint8Array(update));
-        } finally {
-          isRemoteUpdateRef.current = false;
-        }
-      }
-      setIsSynced(true);
-    });
-
-    // 5. Receive incremental update from other clients
-    socket.on("sync-update", ({ update }) => {
-      if (update) {
-        isRemoteUpdateRef.current = true;
-        try {
-          Y.applyUpdate(ydoc, new Uint8Array(update));
-        } finally {
-          isRemoteUpdateRef.current = false;
-        }
-      }
-    });
-
-    // 6. Receive cursor/presence updates
-    socket.on("cursor-update", () => {
-      // Presence tracking — bump connected user count (simple heuristic)
-      // A full implementation would maintain a map of { socketId → user }
-      setConnectedUsers((prev) => Math.max(prev, 2));
-    });
-
-    // 7. Observe local Yjs changes and broadcast them
-    const onUpdate = (update) => {
-      // Don't echo remote updates back to server
-      if (isRemoteUpdateRef.current) return;
-
-      // Send our local change to server
-      socket.emit("sync-update", {
-        meetingId,
-        update: Array.from(update),
+      // 3. Socket lifecycle
+      socket.on("connect", () => {
+        setIsConnected(true);
+        // Join the document room for this meeting
+        socket.emit("join-document", { meetingId });
       });
 
-      // Update local React state
-      setContentState(ytext.toString());
-    };
+      socket.on("disconnect", () => {
+        setIsConnected(false);
+        setIsSynced(false);
+      });
 
-    ydoc.on("update", onUpdate);
+      // 4. Receive full initial state from server
+      socket.on("sync-full", ({ update }) => {
+        if (update) {
+          isRemoteUpdateRef.current = true;
+          try {
+            Y.applyUpdate(ydoc, new Uint8Array(update));
+          } finally {
+            isRemoteUpdateRef.current = false;
+          }
+        }
+        setIsSynced(true);
+      });
 
-    // Also listen for any change to the ytext specifically (catches remote updates)
-    ytext.observe(() => {
-      setContentState(ytext.toString());
-    });
+      // 5. Receive incremental update from other clients
+      socket.on("sync-update", ({ update }) => {
+        if (update) {
+          isRemoteUpdateRef.current = true;
+          try {
+            Y.applyUpdate(ydoc, new Uint8Array(update));
+          } finally {
+            isRemoteUpdateRef.current = false;
+          }
+        }
+      });
+
+      // 6. Receive real-time presence updates (Issue #1236)
+      socket.on("presence-update", ({ collaborators = [] }) => {
+        presenceRef.current = new Map(
+          collaborators.map((c) => [c.socketId || c.userId, c]),
+        );
+        setCollaborators(Array.from(presenceRef.current.values()));
+      });
+
+      socket.on("presence-joined", ({ collaborator }) => {
+        if (!collaborator) return;
+        presenceRef.current.set(
+          collaborator.socketId || collaborator.userId,
+          collaborator,
+        );
+        setCollaborators(Array.from(presenceRef.current.values()));
+      });
+
+      socket.on("presence-left", ({ socketId }) => {
+        if (presenceRef.current.delete(socketId)) {
+          setCollaborators(Array.from(presenceRef.current.values()));
+        }
+      });
+
+      // cursor-update — optional real-time cursor presence relay
+      socket.on("cursor-update", () => {
+        // Cursor telemetry only; presence is tracked via presence-* events above
+      });
+
+      // 7. Observe local Yjs changes and broadcast them
+      onUpdate = (update) => {
+        // Don't echo remote updates back to server
+        if (isRemoteUpdateRef.current) return;
+
+        // Send our local change to server
+        socket.emit("sync-update", {
+          meetingId,
+          update: Array.from(update),
+        });
+
+        // Update local React state
+        setContentState(ytext.toString());
+      };
+
+      ydoc.on("update", onUpdate);
+
+      // Also listen for any change to the ytext specifically (catches remote updates)
+      ytext.observe(() => {
+        setContentState(ytext.toString());
+      });
+    })();
 
     return () => {
-      ydoc.off("update", onUpdate);
-      socket.disconnect();
+      cancelled = true;
+      if (onUpdate) ydoc.off("update", onUpdate);
+      socket?.disconnect();
       ydoc.destroy();
+      presenceRef.current = new Map();
+      setCollaborators([]);
     };
   }, [meetingId, backendUrl]);
 
@@ -165,7 +200,8 @@ const useCollaborativeDoc = (meetingId, backendUrl) => {
   return {
     content,
     setContent,
-    connectedUsers,
+    collaborators,
+    connectedUsers: collaborators.length,
     isSynced,
     isConnected,
   };

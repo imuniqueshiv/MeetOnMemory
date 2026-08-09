@@ -7,8 +7,7 @@ export function calculateRelationshipConfidence({
 
   if (createdAt) {
     const ageDays =
-      (Date.now() - new Date(createdAt).getTime()) /
-      (1000 * 60 * 60 * 24);
+      (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
 
     score += Math.max(0, 15 - ageDays * 0.1);
   }

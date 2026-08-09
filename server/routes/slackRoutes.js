@@ -17,14 +17,19 @@ import {
   slackSignatureMiddleware,
 } from "../controllers/slackController.js";
 import userAuth from "../middleware/userAuth.js";
-import { requireOrgMembership, requirePermission } from "../middleware/rbac.js";
+import { requireOrgMembership, requirePermission } from "../middleware/rbac.js"; // eslint-disable-line no-unused-vars
 
 const router = Router();
 
 // GET /api/slack/install
 // Requires the user to be authenticated so we can derive their organizationId.
 // The organizationId is also accepted as a query param for direct deep-link flows.
-router.get("/install", userAuth, requirePermission("settings", "edit"), slackInstall);
+router.get(
+  "/install",
+  userAuth,
+  requirePermission("settings", "edit"),
+  slackInstall,
+);
 
 // GET /api/slack/oauth_redirect
 // Public route — Slack redirects here after the user approves the OAuth consent.

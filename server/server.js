@@ -1,48 +1,42 @@
 import express from "express";
-import cors from "cors";
 import dotenv from "dotenv";
-import cookieParser from "cookie-parser";
-import { Server } from "socket.io";
 import http from "http";
+import path from "path";
+import { fileURLToPath } from "url";
 
 import connectDB from "./config/mongodb.js";
 
-import authRoutes from "./routes/authRoutes.js";
-import organizationRoutes from "./routes/organizationRoutes.js";
-import membershipRoutes from "./routes/membershipRoutes.js";
-import membershipRequestRoutes from "./routes/membershipRequestRoutes.js";
-import invitationRoutes from "./routes/invitationRoutes.js";
-import meetingRoutes from "./routes/meetingRoutes.js";
-import searchRoutes from "./routes/searchRoutes.js";
-import aiRoutes from "./routes/aiRoutes.js";
-import policyRoutes from "./routes/policyRoutes.js";
-import analyticsRoutes from "./routes/analyticsRoutes.js";
-import geminiRoutes from "./routes/geminiRoutes.js";
-import userRoutes from "./routes/userRoutes.js";
-import notificationRoutes from "./routes/notificationRoutes.js";
-import knowledgeRoutes from "./routes/knowledgeRoutes.js";
-import policyComplianceRoutes from "./routes/policyComplianceRoutes.js";
-import sessionRoutes from "./routes/sessionRoutes.js";
-import webhookRoutes from "./routes/webhookRoutes.js";
-import slackRoutes from "./routes/slackRoutes.js";
-import transcriptRoutes from "./routes/transcriptRoutes.js";
+import { initCalendarSyncCron } from "./services/calendarSyncService.js";
+import { configureExpress, configureErrorHandling } from "./config/express.js";
+import { configureSocket } from "./config/socket.js";
+import { startWorkers } from "./config/workers.js";
+import routes from "./routes/index.js";
 
-// Import slackService to register its eventBus 'mom.generated' listener.
-// The import itself is enough — the listener is set up at module load time.
+// Import side-effect modules that register eventBus listeners
 import "./services/slackService.js";
+import "./services/cacheInvalidationService.js";
+import "./services/conflictScanTrigger.js";
 
-import { initVectorStore } from "./utils/embeddingUtils.js";
-import meetingSocket from "./socket/meetingSocket.js";
-import documentSync from "./socket/documentSync.js";
-import { initRedis, getRedisClient } from "./services/redisService.js";
-import { createAdapter } from "@socket.io/redis-adapter";
-import { createClient } from "redis";
-import { initAIWorker, initDataExportWorker } from "./services/queueService.js";
-import { initWebhookWorker } from "./services/webhookDispatcherService.js";
-import { globalLimiter } from "./middleware/rateLimiter.js";
-import errorHandler from "./middleware/errorHandler.js";
-import path from "path";
-import { fileURLToPath } from "url";
+// Import socket handlers (side-effect imports for registration)
+import meetingSocket from "./socket/meetingSocket.js"; // eslint-disable-line no-unused-vars
+import documentSync from "./socket/documentSync.js"; // eslint-disable-line no-unused-vars
+import transcriptSocket from "./socket/transcriptSocket.js"; // eslint-disable-line no-unused-vars
+
+// Import notification event listeners (ACTUALLY USED below)
+import { initListeners } from "./events/listeners.js";
+
+// Redis imports (used in socket configuration)
+import { initRedis, getRedisClient } from "./services/redisService.js"; // eslint-disable-line no-unused-vars
+import { createAdapter } from "@socket.io/redis-adapter"; // eslint-disable-line no-unused-vars
+import { startCalendarSyncJob } from "./jobs/calendarSyncJob.js";
+import startPollExpirationJob from "./jobs/pollExpirationJob.js";
+import { createClient } from "redis"; // eslint-disable-line no-unused-vars
+import {
+  initAIWorker, // eslint-disable-line no-unused-vars
+  initDataExportWorker, // eslint-disable-line no-unused-vars
+  initConflictScanWorker, // eslint-disable-line no-unused-vars
+} from "./services/queueService.js";
+import { initWebhookWorker } from "./services/webhookDispatcherService.js"; // eslint-disable-line no-unused-vars
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,7 +47,6 @@ dotenv.config({ path: envPath });
 dotenv.config();
 
 const app = express();
-app.set("trust proxy", 1); // Trust first proxy hop (Render, Vercel)
 const PORT = process.env.PORT || 4000;
 
 if (!process.env.JWT_SECRET) {
@@ -64,140 +57,58 @@ if (!process.env.JWT_SECRET) {
 // DATABASE & CACHE
 await connectDB();
 
-import { corsOptions, allowedOrigins } from "./config/corsOptions.js";
-import { csrfMiddleware, csrfTokenProvider } from "./middleware/csrfProtection.js";
-
-// MIDDLEWARES
-app.use(cors(corsOptions));
-
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
-app.use(cookieParser());
-
-// Enforce CSRF protection on mutation routes
-app.use(csrfMiddleware);
-
-// CSRF token provider
-app.get("/api/csrf-token", csrfTokenProvider, (req, res) => {
-  res.json({ csrfToken: req.csrfToken() });
-});
-
-// VECTOR DB WARMUP
-// (Pre-warming moved to server.listen callback for lazy background startup)
+// EXPRESS CONFIGURATION
+configureExpress(app);
 
 // ROUTES
-app.use("/api/auth", authRoutes);
-app.use(["/api/organization", "/api/organizations"], organizationRoutes);
-app.use("/api/membership", membershipRoutes);
-app.use("/api/membership-request", membershipRequestRoutes);
-app.use("/api/invitation", invitationRoutes);
-app.use("/api/meetings", meetingRoutes);
-app.use("/api/search", searchRoutes);
-app.use("/api/ai", aiRoutes);
-app.use("/api/policies", policyRoutes);
-app.use("/api/analytics", analyticsRoutes);
-app.use("/api/gemini", geminiRoutes);
-app.use("/api/user", userRoutes);
-app.use("/api/notifications", notificationRoutes);
-app.use("/api/knowledge", knowledgeRoutes);
-app.use("/api/compliance", policyComplianceRoutes);
-import { slackWebhookParser } from "./middleware/slackWebhookParser.js";
+app.use(routes);
 
-app.use("/api/sessions", sessionRoutes);
-app.use("/api/webhooks", webhookRoutes);
-app.use("/api/slack", slackWebhookParser, slackRoutes);
-app.use("/api/transcripts", transcriptRoutes);
-
-// Health check endpoint — registered BEFORE the global rate limiter so
-// keep-alive pings (e.g. from GitHub Actions cron job) are never blocked.
-app.get(["/health", "/api/health"], (req, res) => {
-  res.status(200).json({
-    status: "UP",
-    timestamp: new Date().toISOString(),
-    env: process.env.NODE_ENV,
-  });
-});
-
-// GLOBAL RATE LIMITER
-app.use(globalLimiter);
+// ERROR HANDLING (Must be after routes)
+configureErrorHandling(app);
 
 const server = http.createServer(app);
+
+// SOCKET.IO
+const io = configureSocket(server, app);
+
+// Initialize notification event listeners
+// This MUST happen after Socket.IO is configured so listeners can emit real-time notifications
+if (io) {
+  const listenersInitialized = initListeners(io);
+  if (listenersInitialized) {
+    console.log("✅ Notification event listeners initialized successfully");
+  } else {
+    console.warn(
+      "⚠️ Notification event listeners were already initialized or failed to initialize",
+    );
+  }
+} else {
+  console.error(
+    "❌ Failed to initialize notification listeners: Socket.IO instance not available",
+  );
+}
 
 // SERVER START (Skipped during Jest test execution)
 if (process.env.NODE_ENV !== "test") {
   server.listen(PORT, () => {
     console.log(`🚀 MeetOnMemory Server running on port ${PORT}`);
 
-    setImmediate(() => {
-      const safeInit = async (name, initFn) => {
-        try {
-          await initFn();
-        } catch (err) {
-          console.error(`⚠️ Failed to initialize background service "${name}":`, err.message || err);
-        }
-      };
-
-      safeInit("Redis", () => initRedis());
-      safeInit("AI Worker", () => initAIWorker(app));
-      safeInit("Data Export Worker", () => initDataExportWorker(app));
-      safeInit("Webhook Worker", () => initWebhookWorker());
-      safeInit("Vector Store", () => initVectorStore());
-    });
+    setTimeout(() => {
+      startWorkers(app);
+    }, 0);
   });
+
+  // Init Calendar Sync Cron
+  initCalendarSyncCron();
+
+  // Start calendar sync job
+  startCalendarSyncJob();
+
+  // Start poll expiration background job
+  startPollExpirationJob(io);
 }
 
-// SOCKET.IO
-const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    credentials: true,
-    methods: ["GET", "POST"],
-  },
-});
-
-app.set("io", io);
-
-// REDIS PUB/SUB ADAPTER (Horizontal Scaling)
-// Enables collaborative editing to work across multiple server instances.
-// Gracefully skips if Redis is not configured.
-(async () => {
-  const redisUri = process.env.REDIS_URI || process.env.REDIS_URL;
-  if (redisUri) {
-    try {
-      const pubClient = createClient({ url: redisUri });
-      const subClient = pubClient.duplicate();
-
-      pubClient.on("error", (err) => {
-        console.error("❌ Redis PubClient Error:", err.message);
-      });
-      subClient.on("error", (err) => {
-        console.error("❌ Redis SubClient Error:", err.message);
-      });
-
-      await Promise.all([pubClient.connect(), subClient.connect()]);
-      io.adapter(createAdapter(pubClient, subClient));
-      console.log(
-        "✅ Socket.io Redis Pub/Sub adapter attached (horizontal scaling enabled)",
-      );
-    } catch (err) {
-      console.warn(
-        "⚠️  Redis adapter failed — running in single-instance mode:",
-        err.message,
-      );
-    }
-  } else {
-    console.log(
-      "ℹ️  No REDIS_URI/REDIS_URL set — Socket.io running in single-instance mode",
-    );
-  }
-})();
-
-meetingSocket(io);
-documentSync(io);
 // (AI, Data Export, and Webhook workers are initialized inside server.listen callback)
-
-// ERROR HANDLER
-app.use(errorHandler);
 
 // GRACEFUL SHUTDOWN
 process.on("SIGTERM", () => {

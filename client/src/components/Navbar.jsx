@@ -13,7 +13,10 @@ import useTheme from "../context/useTheme.jsx";
 import { toast } from "react-toastify";
 import { notificationApi, authApi, organizationApi } from "../services";
 import { io } from "socket.io-client";
+import { createClerkSocketOptions } from "../services/apiClient.js";
 import LanguageSwitcher from "./LanguageSwitcher.jsx";
+import BrandLogo from "./branding/BrandLogo.jsx";
+import { useUser } from "@clerk/clerk-react";
 import {
   Menu,
   X,
@@ -21,7 +24,6 @@ import {
   Calendar,
   CalendarDays,
   Building2,
-  Search,
   Bell,
   User,
   Settings,
@@ -36,7 +38,48 @@ import {
   Plus,
   Compass,
   Check,
+  MessageSquare,
+  Code2,
+  ScanSearch,
+  GitMerge,
+  History,
+  Archive,
 } from "lucide-react";
+
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+const isPlaceholderClerkEmail = (email) => {
+  if (!email || typeof email !== "string") return true;
+  return (
+    email.endsWith("@clerk.placeholder") ||
+    /^user_[A-Za-z0-9]+(@|$)/.test(email)
+  );
+};
+
+/** Shows Mongo email, falling back to Clerk primary email when Mongo still has a provision placeholder. */
+const UserEmailText = ({ email, className }) => {
+  if (!clerkPubKey || clerkPubKey.trim().length === 0) {
+    return <p className={className}>{email || "user@example.com"}</p>;
+  }
+  return <ClerkUserEmailText email={email} className={className} />;
+};
+
+const ClerkUserEmailText = ({ email, className }) => {
+  const { user } = useUser();
+  const clerkEmail =
+    user?.primaryEmailAddress?.emailAddress ||
+    user?.emailAddresses?.[0]?.emailAddress ||
+    null;
+  const display = !isPlaceholderClerkEmail(email)
+    ? email
+    : clerkEmail || email || "user@example.com";
+
+  return (
+    <p className={className} title={display}>
+      {display}
+    </p>
+  );
+};
 
 const NAV_LINK_KEYS = [
   { labelKey: "navbar.features", href: "#features" },
@@ -142,10 +185,10 @@ const Navbar = () => {
 
       const fetchRecentNotifications = async () => {
         try {
-          const { data } = await notificationApi.getNotifications();
+          const { data } = await notificationApi.getNotifications({ limit: 5 });
           if (data.success) {
             setNotifications(
-              data.notifications.slice(0, 5).map((n) => ({
+              data.notifications.map((n) => ({
                 id: n.id,
                 title: n.title,
                 description: n.description,
@@ -166,10 +209,15 @@ const Navbar = () => {
 
   // Real-time notifications via Socket.IO
   useEffect(() => {
-    if (userData && backendUrl) {
-      const socket = io(backendUrl, {
-        withCredentials: true,
-      });
+    if (!userData || !backendUrl) return;
+
+    let socket;
+    let cancelled = false;
+
+    (async () => {
+      const opts = await createClerkSocketOptions();
+      if (cancelled) return;
+      socket = io(backendUrl, opts);
 
       socket.on("connect", () => {
         console.log(
@@ -197,11 +245,12 @@ const Navbar = () => {
         });
         toast.info(`🔔 ${newNotif.title}`);
       });
+    })();
 
-      return () => {
-        socket.disconnect();
-      };
-    }
+    return () => {
+      cancelled = true;
+      socket?.disconnect();
+    };
   }, [userData, backendUrl]);
 
   const menuRef = useRef();
@@ -264,6 +313,7 @@ const Navbar = () => {
       if (e.key === "Escape") {
         setMenuOpen(false);
         setNotificationsOpen(false);
+        setOrgDropdownOpen(false);
         setMobileOpen(false);
       }
     };
@@ -283,6 +333,11 @@ const Navbar = () => {
       setUserData(null);
       localStorage.removeItem("userData");
       setIsLoggedin(false);
+      if (clerkPubKey && clerkPubKey.trim().length > 0) {
+        window.dispatchEvent(
+          new CustomEvent("meetonmemory:request-clerk-signout"),
+        );
+      }
       toast.success("Logged out successfully");
 
       navigate("/");
@@ -327,9 +382,6 @@ const Navbar = () => {
         currentPath === "/join-organization"
       );
     }
-    if (tabPath === "/ai-search") {
-      return currentPath === "/ai-search";
-    }
     return currentPath === tabPath;
   };
 
@@ -338,7 +390,7 @@ const Navbar = () => {
       label: t("navbar.dashboard"),
       href: "/dashboard",
       icon: LayoutDashboard,
-      permission: { resource: "reports", action: "view" },
+      permission: null,
     },
     {
       label: t("navbar.meetings"),
@@ -358,12 +410,6 @@ const Navbar = () => {
       icon: Building2,
       permission: { resource: "organizations", action: "view" },
     },
-    {
-      label: t("navbar.aiSearch"),
-      href: "/ai-search",
-      icon: Search,
-      permission: { resource: "ai_search", action: "search" },
-    },
   ].filter(
     (link) =>
       !link.permission ||
@@ -371,6 +417,30 @@ const Navbar = () => {
   );
 
   const secondaryLinks = [
+    {
+      label: "Conflict Resolution",
+      href: "/knowledge/conflicts",
+      icon: ScanSearch,
+      permission: { resource: "knowledge", action: "view" },
+    },
+    {
+      label: "Memory Lifecycle",
+      href: "/knowledge/lifecycle",
+      icon: History,
+      permission: { resource: "knowledge", action: "view" },
+    },
+    {
+      label: "Knowledge Archive",
+      href: "/knowledge/archive",
+      icon: Archive,
+      permission: { resource: "knowledge", action: "view" },
+    },
+    {
+      label: "Meeting Templates",
+      href: "/meeting-templates",
+      icon: GitMerge,
+      permission: { resource: "meetings", action: "view" },
+    },
     {
       label: t("navbar.compliance"),
       href: "/policy-compliance",
@@ -388,6 +458,11 @@ const Navbar = () => {
       href: "/team-members",
       icon: Users,
       permission: { resource: "team_members", action: "view" },
+    },
+    {
+      label: "Developer Docs",
+      href: "/docs",
+      icon: Code2,
     },
   ].filter(
     (link) =>
@@ -418,35 +493,12 @@ const Navbar = () => {
             onKeyDown={(e) => e.key === "Enter" && navigate("/")}
           >
             <div className="flex items-center justify-center shrink-0">
-              {/* Clean Extra Large Native Option A Infinity Symbol with scale only */}
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 100 100"
+              <BrandLogo
+                variant="mark"
+                alt=""
+                aria-hidden="true"
                 className="relative w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 transition-transform duration-300 group-hover:scale-105"
-              >
-                <defs>
-                  <linearGradient
-                    id="navInfinityGrad"
-                    x1="0%"
-                    y1="0%"
-                    x2="100%"
-                    y2="100%"
-                  >
-                    <stop offset="0%" stop-color="#2563eb" />
-                    <stop offset="100%" stop-color="#7c3aed" />
-                  </linearGradient>
-                </defs>
-                <path
-                  d="M25,50 C25,35 38,30 50,50 C62,70 75,65 75,50 C75,35 62,30 50,50 C38,70 25,65 25,50 Z"
-                  fill="none"
-                  stroke="url(#navInfinityGrad)"
-                  stroke-width="11"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-                <circle cx="25" cy="50" r="6.5" fill="#2563eb" />
-                <circle cx="75" cy="50" r="6.5" fill="#7c3aed" />
-              </svg>
+              />
             </div>
             {/* Clean, Consistent Text Layout (Hover effects removed) */}
             <span className="font-bold text-lg sm:text-2xl text-gray-900 dark:text-gray-100 tracking-tight shrink-0">
@@ -458,7 +510,7 @@ const Navbar = () => {
           {userData ? (
             /* Logged In Desktop App Nav */
             <nav
-              className="hidden md:flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 p-1 rounded-2xl"
+              className="hidden md:flex items-center gap-1 lg:gap-1.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 p-1 rounded-2xl"
               aria-label="Application navigation"
             >
               {primaryLinks.map((link) => {
@@ -466,8 +518,10 @@ const Navbar = () => {
                 return (
                   <button
                     key={link.href}
+                    type="button"
                     onClick={() => navigate(link.href)}
-                    className={`flex items-center px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer ${
+                    aria-current={active ? "page" : undefined}
+                    className={`flex items-center px-3 lg:px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-900 cursor-pointer ${
                       active
                         ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-xs border border-gray-100/50 dark:border-gray-600/50"
                         : "text-gray-600 dark:text-gray-300 border border-transparent hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100/60 dark:hover:bg-gray-700/60"
@@ -497,7 +551,7 @@ const Navbar = () => {
           )}
 
           {/* Right Side Controls */}
-          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 lg:gap-3 shrink-0">
             {/* Language Switcher */}
             <LanguageSwitcher />
 
@@ -619,6 +673,16 @@ const Navbar = () => {
                       </div>
 
                       <div className="p-1.5 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+                        <button
+                          onClick={() => {
+                            setOrgDropdownOpen(false);
+                            navigate("/organization/settings");
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"
+                        >
+                          <Settings className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+                          Organization Settings
+                        </button>
                         <button
                           onClick={() => {
                             setOrgDropdownOpen(false);
@@ -763,9 +827,10 @@ const Navbar = () => {
                         <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
                           {userData?.name || "User"}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
-                          {userData?.email || "user@example.com"}
-                        </p>
+                        <UserEmailText
+                          email={userData?.email}
+                          className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5"
+                        />
                         <div className="mt-2.5 flex flex-wrap gap-1.5">
                           <span className="text-[10px] font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 px-2 py-0.5 rounded-full capitalize">
                             {userData?.role || "Member"}
@@ -899,251 +964,276 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile Drawer Menu */}
+      {/* Mobile Drawer Menu - Enhanced with viewport-based height and internal scrolling */}
       <div
         ref={mobileMenuRef}
-        className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 ${
-          mobileOpen
-            ? "max-h-[600px] opacity-100 shadow-lg"
-            : "max-h-0 opacity-0"
+        className={`md:hidden transition-all duration-300 ease-in-out bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 shadow-lg ${
+          mobileOpen ? "opacity-100 visible" : "opacity-0 invisible max-h-0"
         }`}
+        style={{
+          maxHeight: mobileOpen ? "calc(100vh - 4rem)" : "0",
+          height: mobileOpen ? "calc(100vh - 4rem)" : "0",
+        }}
         aria-hidden={!mobileOpen}
+        role="navigation"
+        aria-label="Mobile navigation menu"
       >
-        <nav
-          className="px-4 py-5 flex flex-col gap-1.5"
-          aria-label="Mobile navigation"
-        >
-          {userData ? (
-            /* Logged In Mobile Nav List */
-            <>
-              <div className="px-3.5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100/60 dark:border-gray-700 flex items-center gap-3 rounded-2xl mb-2">
-                <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0">
-                  <div className="absolute inset-0 bg-linear-to-br from-blue-600 to-violet-600 text-white flex items-center justify-center font-bold text-base shadow-xs">
-                    {userData?.name
-                      ? userData.name.charAt(0).toUpperCase()
-                      : "U"}
+        <div className="h-full overflow-y-auto overflow-x-hidden overscroll-contain">
+          <nav
+            className="px-4 py-5 flex flex-col gap-1.5 min-h-full"
+            aria-label="Mobile navigation"
+          >
+            {userData ? (
+              /* Logged In Mobile Nav List */
+              <>
+                {/* User Profile Card */}
+                <div className="px-3.5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100/60 dark:border-gray-700 flex items-center gap-3 rounded-2xl mb-2 sticky top-0 z-10 backdrop-blur-sm bg-opacity-95">
+                  <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-violet-600 text-white flex items-center justify-center font-bold text-base shadow-xs">
+                      {userData?.name
+                        ? userData.name.charAt(0).toUpperCase()
+                        : "U"}
+                    </div>
+                    {userData?.profilePic && !imgFailed && (
+                      <img
+                        src={userData.profilePic}
+                        alt={userData.name}
+                        className="absolute inset-0 w-full h-full object-cover border border-gray-200/40"
+                        onError={() => setImgFailed(true)}
+                      />
+                    )}
                   </div>
-                  {userData?.profilePic && !imgFailed && (
-                    <img
-                      src={userData.profilePic}
-                      alt={userData.name}
-                      className="absolute inset-0 w-full h-full object-cover border border-gray-200/40"
-                      onError={() => setImgFailed(true)}
+                  <div className="overflow-hidden min-w-0 flex-1">
+                    <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
+                      {userData?.name || "User"}
+                    </p>
+                    <UserEmailText
+                      email={userData?.email}
+                      className="text-xs text-gray-400 dark:text-gray-500 truncate"
                     />
-                  )}
-                </div>
-                <div className="overflow-hidden">
-                  <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
-                    {userData?.name || "User"}
-                  </p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                    {userData?.email || "user@example.com"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Mobile Organization Switcher */}
-              <div className="px-3.5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100/60 dark:border-gray-700 rounded-2xl mb-2">
-                <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-gray-100 dark:border-gray-700">
-                  <div className="flex items-center gap-2.5 truncate">
-                    <div className="w-6 h-6 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0 overflow-hidden">
-                      {userData.organization?.logo ? (
-                        <img
-                          src={userData.organization.logo}
-                          alt={userData.organization.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                      )}
-                    </div>
-                    <div className="truncate">
-                      <p className="text-xs font-bold text-gray-800 dark:text-gray-100 truncate">
-                        {userData.organization?.name || "Select Org"}
-                      </p>
-                      <p className="text-[9px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">
-                        Current: {userData.role || "Member"}
-                      </p>
-                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-1 max-h-40 overflow-y-auto mb-2">
-                  {userOrgs.length > 0 ? (
-                    userOrgs.map((org) => {
-                      const isCurrent = org._id === userData.organization?._id;
-                      return (
-                        <button
-                          key={org._id}
-                          onClick={() => {
-                            setMobileOpen(false);
-                            if (!isCurrent) handleSwitchOrg(org._id);
-                          }}
-                          className={`w-full flex items-center justify-between gap-3 px-2 py-1.5 rounded-lg text-left text-xs cursor-pointer ${
-                            isCurrent
-                              ? "bg-blue-50/75 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold"
-                              : "text-gray-700 dark:text-gray-200 hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
+                {/* Mobile Organization Switcher */}
+                <div className="px-3.5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100/60 dark:border-gray-700 rounded-2xl mb-2">
+                  <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-gray-100 dark:border-gray-700">
+                    <div className="flex items-center gap-2.5 truncate min-w-0">
+                      <div className="w-6 h-6 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0 overflow-hidden">
+                        {userData.organization?.logo ? (
+                          <img
+                            src={userData.organization.logo}
+                            alt={userData.organization.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        )}
+                      </div>
+                      <div className="truncate min-w-0">
+                        <p className="text-xs font-bold text-gray-800 dark:text-gray-100 truncate">
+                          {userData.organization?.name || "Select Org"}
+                        </p>
+                        <p className="text-[9px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">
+                          Current: {userData.role || "Member"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-1 max-h-32 overflow-y-auto mb-2 custom-scrollbar">
+                    {userOrgs.length > 0 ? (
+                      userOrgs.map((org) => {
+                        const isCurrent =
+                          org._id === userData.organization?._id;
+                        return (
+                          <button
+                            key={org._id}
+                            onClick={() => {
+                              setMobileOpen(false);
+                              if (!isCurrent) handleSwitchOrg(org._id);
+                            }}
+                            className={`w-full flex items-center justify-between gap-3 px-2 py-1.5 rounded-lg text-left text-xs cursor-pointer transition-colors ${
+                              isCurrent
+                                ? "bg-blue-50/75 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold"
+                                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
+                            }`}
+                            disabled={switchingOrg}
+                          >
+                            <span className="truncate min-w-0 flex-1">
+                              {org.name} ({org.role || "Member"})
+                            </span>
+                            {isCurrent && (
+                              <Check className="w-3.5 h-3.5 shrink-0 text-blue-600" />
+                            )}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="py-2 text-center text-gray-400 dark:text-gray-500 text-xs">
+                        No joined organizations
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => {
+                        setMobileOpen(false);
+                        navigate("/create-organization");
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1 py-2 bg-white dark:bg-gray-700 hover:bg-gray-50 border border-gray-200/60 dark:border-gray-600 rounded-lg text-[11px] font-bold text-gray-700 dark:text-gray-200 cursor-pointer transition-colors"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Create Org</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMobileOpen(false);
+                        navigate("/browse-organizations");
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1 py-2 bg-white dark:bg-gray-700 hover:bg-gray-50 border border-gray-200/60 dark:border-gray-600 rounded-lg text-[11px] font-bold text-gray-700 dark:text-gray-200 cursor-pointer transition-colors"
+                    >
+                      <Compass className="w-3 h-3" />
+                      <span>Browse Orgs</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Main Navigation Links */}
+                <div className="space-y-1 py-2">
+                  {appLinks.map((link) => {
+                    const Icon = link.icon;
+                    const active = isTabActive(link.href);
+                    return (
+                      <button
+                        key={link.href}
+                        type="button"
+                        onClick={() => {
+                          setMobileOpen(false);
+                          navigate(link.href);
+                        }}
+                        aria-current={active ? "page" : undefined}
+                        className={`w-full flex items-center gap-3 px-4 py-3.5 text-sm font-semibold rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer ${
+                          active
+                            ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                            : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+                        }`}
+                      >
+                        <Icon
+                          className={`w-5 h-5 shrink-0 ${
+                            active
+                              ? "text-blue-600 dark:text-blue-400"
+                              : "text-gray-400 dark:text-gray-500"
                           }`}
-                          disabled={switchingOrg}
-                        >
-                          <span className="truncate">
-                            {org.name} ({org.role || "Member"})
-                          </span>
-                          {isCurrent && (
-                            <Check className="w-3.5 h-3.5 shrink-0 text-blue-600" />
-                          )}
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <div className="py-2 text-center text-gray-400 dark:text-gray-500 text-xs">
-                      No joined organizations
-                    </div>
-                  )}
+                        />
+                        <span>{link.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
-                <div className="flex gap-2 pt-1">
-                  <button
-                    onClick={() => {
-                      setMobileOpen(false);
-                      navigate("/create-organization");
-                    }}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white dark:bg-gray-700 hover:bg-gray-50 border border-gray-200/60 dark:border-gray-600 rounded-lg text-[10px] font-bold text-gray-700 dark:text-gray-200 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" />
-                    Create Org
-                  </button>
-                  <button
-                    onClick={() => {
-                      setMobileOpen(false);
-                      navigate("/browse-organizations");
-                    }}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white dark:bg-gray-700 hover:bg-gray-50 border border-gray-200/60 dark:border-gray-600 rounded-lg text-[10px] font-bold text-gray-700 dark:text-gray-200 cursor-pointer"
-                  >
-                    <Compass className="w-3 h-3" />
-                    Browse Orgs
-                  </button>
-                </div>
-              </div>
+                {/* Secondary Links */}
+                <div className="border-t border-gray-100 dark:border-gray-700 my-3"></div>
 
-              {appLinks.map((link) => {
-                const Icon = link.icon;
-                const active = isTabActive(link.href);
-                return (
-                  <button
-                    key={link.href}
-                    onClick={() => {
-                      setMobileOpen(false);
-                      navigate(link.href);
-                    }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all cursor-pointer ${
-                      active
-                        ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                        : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
-                    }`}
-                  >
-                    <Icon
-                      className={`w-4 h-4 ${active ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-gray-500"}`}
-                    />
-                    <span>{link.label}</span>
-                  </button>
-                );
-              })}
-
-              {/* Mobile Notifications Section Toggle */}
-              <button
-                onClick={() => {
-                  setMobileOpen(false);
-                  navigate("/notifications");
-                }}
-                className={`w-full flex items-center justify-between px-4 py-3 text-sm font-semibold rounded-xl transition-all cursor-pointer ${
-                  mobileNotifOpen
-                    ? "bg-blue-50/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                    : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Bell
-                    className={`w-4 h-4 ${mobileNotifOpen ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-gray-500"}`}
-                  />
-                  <span>{t("navbar.notifications")}</span>
-                </div>
-                {unreadCount > 0 && (
-                  <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
-                    {unreadCount} {t("navbar.new")}
-                  </span>
-                )}
-              </button>
-
-              <button
-                onClick={() => {
-                  setMobileOpen(false);
-                  navigate("/profile");
-                }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all cursor-pointer"
-              >
-                <User className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-                <span>{t("navbar.myProfile")}</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setMobileOpen(false);
-                  navigate("/settings");
-                }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all cursor-pointer"
-              >
-                <Settings className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-                <span>{t("navbar.settings")}</span>
-              </button>
-
-              {hasPermission("admin_panel", "view") && (
                 <button
                   onClick={() => {
                     setMobileOpen(false);
-                    navigate("/admin-panel");
+                    navigate("/notifications");
                   }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all cursor-pointer"
+                  className={`w-full flex items-center justify-between px-4 py-3.5 text-sm font-semibold rounded-xl transition-all cursor-pointer ${
+                    mobileNotifOpen
+                      ? "bg-blue-50/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                      : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+                  }`}
                 >
-                  <Sparkles className="w-4 h-4 text-yellow-500" />
-                  <span>{t("navbar.adminPanel")}</span>
+                  <div className="flex items-center gap-3">
+                    <Bell
+                      className={`w-5 h-5 shrink-0 ${
+                        mobileNotifOpen
+                          ? "text-blue-600 dark:text-blue-400"
+                          : "text-gray-400 dark:text-gray-500"
+                      }`}
+                    />
+                    <span>{t("navbar.notifications")}</span>
+                  </div>
+                  {unreadCount > 0 && (
+                    <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0">
+                      {unreadCount} {t("navbar.new")}
+                    </span>
+                  )}
                 </button>
-              )}
 
-              <hr className="my-1.5 border-gray-100 dark:border-gray-700" />
-
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition-all cursor-pointer"
-              >
-                <LogOut className="w-4 h-4 text-red-500 dark:text-red-400" />
-                <span>{t("navbar.logout")}</span>
-              </button>
-            </>
-          ) : (
-            /* Logged Out Mobile Nav List */
-            <>
-              {NAV_LINK_KEYS.map((link) => (
                 <button
-                  key={link.href}
-                  onClick={() => handleNavLinkClick(link.href)}
-                  className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    navigate("/profile");
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all cursor-pointer"
                 >
-                  {t(link.labelKey)}
+                  <User className="w-5 h-5 shrink-0 text-gray-400 dark:text-gray-500" />
+                  <span>{t("navbar.myProfile")}</span>
                 </button>
-              ))}
-              <button
-                onClick={() => {
-                  setMobileOpen(false);
-                  navigate("/login?mode=signup");
-                }}
-                className="mt-3 w-full px-4 py-3 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 text-white text-sm font-bold shadow-md shadow-blue-500/20 hover:shadow-lg transition-all duration-200 text-center cursor-pointer"
-              >
-                {t("navbar.getStarted")}
-              </button>
-            </>
-          )}
-        </nav>
+
+                <button
+                  onClick={() => {
+                    setMobileOpen(false);
+                    navigate("/settings");
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all cursor-pointer"
+                >
+                  <Settings className="w-5 h-5 shrink-0 text-gray-400 dark:text-gray-500" />
+                  <span>{t("navbar.settings")}</span>
+                </button>
+
+                {hasPermission("admin_panel", "view") && (
+                  <button
+                    onClick={() => {
+                      setMobileOpen(false);
+                      navigate("/admin-panel");
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all cursor-pointer"
+                  >
+                    <Sparkles className="w-5 h-5 shrink-0 text-yellow-500" />
+                    <span>{t("navbar.adminPanel")}</span>
+                  </button>
+                )}
+
+                {/* Logout Button - Sticky at bottom */}
+                <div className="border-t border-gray-100 dark:border-gray-700 mt-3 pt-3 sticky bottom-0 bg-white dark:bg-gray-900 pb-2">
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition-all cursor-pointer"
+                  >
+                    <LogOut className="w-5 h-5 shrink-0 text-red-500 dark:text-red-400" />
+                    <span>{t("navbar.logout")}</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* Logged Out Mobile Nav List */
+              <>
+                <div className="space-y-1 py-2">
+                  {NAV_LINK_KEYS.map((link) => (
+                    <button
+                      key={link.href}
+                      onClick={() => handleNavLinkClick(link.href)}
+                      className="w-full text-left px-4 py-3.5 text-sm font-semibold text-gray-700 dark:text-gray-200 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                    >
+                      {t(link.labelKey)}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => {
+                    setMobileOpen(false);
+                    navigate("/signup");
+                  }}
+                  className="mt-3 w-full px-4 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-bold shadow-md shadow-blue-500/20 hover:shadow-lg transition-all duration-200 text-center cursor-pointer"
+                >
+                  {t("navbar.getStarted")}
+                </button>
+              </>
+            )}
+          </nav>
+        </div>
       </div>
     </header>
   );

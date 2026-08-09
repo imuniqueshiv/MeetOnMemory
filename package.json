@@ -2,17 +2,28 @@
   "type": "module",
   "scripts": {
     "format:check": "prettier . --check",
+    "format:check:changed": "node scripts/validate-format-changed.mjs",
     "format": "prettier . --write",
     "lint": "npm run lint --prefix client",
     "build": "npm run build --prefix client",
-    "prepare": "husky"
+    "prepare": "husky",
+    "validate:banner": "node -e \"console.log('\\x1b[36m[validate]\\x1b[0m Running contributor-fast validation...')\"",
+    "validate:security": "node -e \"console.log('\\x1b[33m[validate]\\x1b[0m Running npm audit checks (informational, mirrors CI non-blocking behavior)...')\" && npm audit --audit-level=high || true && npm audit --prefix server --audit-level=high || true && npm audit --prefix client --audit-level=high || true",
+    "validate:client": "npm run validate --prefix client",
+    "validate:server": "npm run validate --prefix server",
+    "validate": "npm run validate:banner && npm run validate:changed",
+    "validate:changed": "node scripts/validate-changed.mjs",
+    "validate:full": "npm run format:check && npm run validate:server:full && npm run validate:client:full && npm run validate:security",
+    "validate:client:full": "npm run validate:full --prefix client",
+    "validate:server:full": "npm run validate:full --prefix server"
   },
   "dependencies": {
     "@pinecone-database/pinecone": "^6.1.3",
     "@xenova/transformers": "^2.17.2",
     "axios": "^1.13.1",
     "dotenv": "^17.4.2",
-    "openai": "^6.8.0"
+    "openai": "^6.8.0",
+    "protobufjs": "^7.5.5"
   },
   "devDependencies": {
     "eslint": "^10.7.0",

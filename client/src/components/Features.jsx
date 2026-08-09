@@ -11,7 +11,6 @@ import {
 } from "react-icons/fa";
 import { FaArrowRight } from "react-icons/fa6";
 
-
 const FeatureCard = ({ icon, title, description, iconBg, index }) => {
   const ref = useRef(null);
 
@@ -173,7 +172,7 @@ const Features = () => {
         <div className="text-center mt-14">
           <button
             id="features-cta-btn"
-            onClick={() => navigate("/login?mode=signup")}
+            onClick={() => navigate("/signup")}
             className="group inline-flex items-center gap-2 px-8 py-3.5 bg-linear-to-r from-blue-600 to-violet-600 text-white rounded-xl font-semibold hover:shadow-xl hover:shadow-blue-500/30 hover:scale-105 active:scale-100 transition-all duration-300 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             aria-label="Start using MeetOnMemory for free"
           >
@@ -187,4 +186,3 @@ const Features = () => {
 };
 
 export default Features;
-

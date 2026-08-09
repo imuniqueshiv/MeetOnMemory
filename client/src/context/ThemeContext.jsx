@@ -8,52 +8,87 @@ import React, {
 
 const ThemeContext = createContext(undefined);
 
-// Helper to get initial theme synchronously
-const getInitialTheme = () => {
-  const savedTheme = localStorage.getItem("theme");
-  if (savedTheme) return savedTheme;
-  const systemPrefersDark = window.matchMedia(
-    "(prefers-color-scheme: dark)",
-  ).matches;
-  return systemPrefersDark ? "dark" : "light";
+const getStoredThemeMode = () => {
+  if (typeof window === "undefined") return "system";
+  return localStorage.getItem("theme") || "system";
+};
+
+const getSystemPreference = () => {
+  if (typeof window === "undefined" || !window.matchMedia) return "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
 };
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(() => getInitialTheme());
+  const [themeMode, setThemeModeState] = useState(() => getStoredThemeMode());
+  const [resolvedTheme, setResolvedTheme] = useState(() => {
+    const mode = getStoredThemeMode();
+    return mode === "system" ? getSystemPreference() : mode;
+  });
   const [mounted, setMounted] = useState(false);
 
+  // Synchronize document dark class and system listener
   useEffect(() => {
     setMounted(true);
-    // Document class is already applied in main.jsx, just ensure sync
-    document.documentElement.classList.toggle("dark", theme === "dark");
+    const applyTheme = (mode) => {
+      const actualTheme = mode === "system" ? getSystemPreference() : mode;
+      setResolvedTheme(actualTheme);
+      if (typeof document !== "undefined") {
+        document.documentElement.classList.toggle(
+          "dark",
+          actualTheme === "dark",
+        );
+      }
+    };
 
-    // Listen for system theme changes only when no saved theme exists
-    if (!localStorage.getItem("theme")) {
+    applyTheme(themeMode);
+
+    if (
+      themeMode === "system" &&
+      typeof window !== "undefined" &&
+      window.matchMedia
+    ) {
       const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
       const handleChange = (e) => {
-        const newTheme = e.matches ? "dark" : "light";
-        setTheme(newTheme);
-        document.documentElement.classList.toggle("dark", newTheme === "dark");
+        const newSystemTheme = e.matches ? "dark" : "light";
+        setResolvedTheme(newSystemTheme);
+        document.documentElement.classList.toggle(
+          "dark",
+          newSystemTheme === "dark",
+        );
       };
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
+
+      if (mediaQuery.addEventListener) {
+        mediaQuery.addEventListener("change", handleChange);
+        return () => mediaQuery.removeEventListener("change", handleChange);
+      }
     }
-  }, [theme]);
+  }, [themeMode]);
+
+  const setThemeMode = useCallback((mode) => {
+    setThemeModeState(mode);
+    if (mode === "system") {
+      localStorage.removeItem("theme");
+    } else {
+      localStorage.setItem("theme", mode);
+    }
+  }, []);
 
   const toggleTheme = useCallback(() => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    localStorage.setItem("theme", newTheme);
-    document.documentElement.classList.toggle("dark", newTheme === "dark");
-  }, [theme]);
+    const nextMode = resolvedTheme === "light" ? "dark" : "light";
+    setThemeMode(nextMode);
+  }, [resolvedTheme, setThemeMode]);
 
   const value = useMemo(
     () => ({
-      theme,
+      theme: themeMode,
+      resolvedTheme,
+      setThemeMode,
       toggleTheme,
       mounted,
     }),
-    [theme, mounted, toggleTheme],
+    [themeMode, resolvedTheme, setThemeMode, toggleTheme, mounted],
   );
 
   return (
