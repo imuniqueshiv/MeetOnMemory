@@ -257,14 +257,16 @@ const CommentSection = ({ meetingId }) => {
                 className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
               >
                 👍{" "}
-                {comment.reactions?.filter((r) => r.emoji === "👍").length || 0}
+                {comment.reactions?.filter((r) => r && r.emoji === "👍")
+                  .length || 0}
               </button>
               <button
                 onClick={() => handleToggleReaction(comment._id, "❤️")}
                 className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
               >
                 ❤️{" "}
-                {comment.reactions?.filter((r) => r.emoji === "❤️").length || 0}
+                {comment.reactions?.filter((r) => r && r.emoji === "❤️")
+                  .length || 0}
               </button>
               {!isReply && (
                 <button

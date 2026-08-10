@@ -21,6 +21,7 @@ import { AlertTriangle, X, Loader2 } from "lucide-react";
  * @param {string} confirmText - Confirm button text
  * @param {string} cancelText - Cancel button text
  * @param {boolean} isLoading - Loading state
+ * @param {string} loadingText - Text to display when loading
  * @param {string} variant - "danger" or "warning"
  */
 const ConfirmModal = ({
@@ -32,6 +33,7 @@ const ConfirmModal = ({
   confirmText = "Delete",
   cancelText = "Cancel",
   isLoading = false,
+  loadingText = "Processing...",
   variant = "danger",
 }) => {
   const modalRef = useRef(null);
@@ -235,7 +237,7 @@ const ConfirmModal = ({
             tabIndex={0}
           >
             {isLoading && <Loader2 size={16} className="animate-spin" />}
-            <span>{isLoading ? "Deleting..." : confirmText}</span>
+            <span>{isLoading ? loadingText : confirmText}</span>
           </button>
         </div>
       </div>

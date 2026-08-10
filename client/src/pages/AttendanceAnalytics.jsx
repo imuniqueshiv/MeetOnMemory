@@ -50,6 +50,7 @@ const AttendanceAnalytics = () => {
     endDate: format(new Date(), "yyyy-MM-dd"),
   });
   const [granularity, setGranularity] = useState("daily");
+  const [dateError, setDateError] = useState("");
 
   const [stats, setStats] = useState([]);
   const [totalOrgMeetings, setTotalOrgMeetings] = useState(0);
@@ -59,6 +60,18 @@ const AttendanceAnalytics = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Validate date range ordering (#1367)
+    if (
+      dateRange.startDate &&
+      dateRange.endDate &&
+      dateRange.startDate > dateRange.endDate
+    ) {
+      setDateError("Start date cannot be after end date");
+      setLoading(false);
+      return;
+    }
+    setDateError("");
+
     const fetchData = async () => {
       setLoading(true);
       try {
@@ -187,6 +200,15 @@ const AttendanceAnalytics = () => {
             </select>
           </div>
         </div>
+
+        {dateError && (
+          <div
+            role="alert"
+            className="p-3 bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 rounded-lg border border-red-200 dark:border-red-800 text-sm font-medium"
+          >
+            {dateError}
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center items-center h-64">

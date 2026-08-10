@@ -181,54 +181,119 @@ const Bookmarks = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {bookmarks.map((bookmark) => (
-                <Link
-                  to={`/meeting/${bookmark.meeting._id}`}
-                  key={bookmark._id}
-                  className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow p-5 flex flex-col group relative"
-                >
-                  <button
-                    onClick={(e) =>
-                      handleRemoveBookmark(bookmark.meeting._id, e)
-                    }
-                    className="absolute top-4 right-4 text-blue-500 hover:text-red-500 transition-colors z-10"
-                    title="Remove bookmark"
-                  >
-                    <FaBookmark />
-                  </button>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2 pr-6 line-clamp-2">
-                      {bookmark.meeting.title}
-                    </h3>
-                    <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-4">
-                      <span className="flex items-center gap-1">
-                        <FaCalendarAlt />
-                        {new Date(bookmark.meeting.date).toLocaleDateString()}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <FaClock />
-                        {bookmark.meeting.duration} min
-                      </span>
+              {bookmarks.map((bookmark) => {
+                const isOrphaned = !bookmark.meeting;
+                const meetingId =
+                  bookmark.rawMeetingId || bookmark.meeting?._id || null;
+
+                const cardContent = (
+                  <>
+                    <button
+                      onClick={(e) => handleRemoveBookmark(meetingId, e)}
+                      className="absolute top-4 right-4 text-blue-500 hover:text-red-500 transition-colors z-10"
+                      title="Remove bookmark"
+                    >
+                      <FaBookmark />
+                    </button>
+                    <div className="flex-1">
+                      <h3
+                        className={
+                          "text-lg font-semibold text-gray-800 " +
+                          "dark:text-white mb-2 pr-6 line-clamp-2"
+                        }
+                      >
+                        {isOrphaned
+                          ? "Meeting no longer available"
+                          : bookmark.meeting.title}
+                      </h3>
+                      {!isOrphaned && (
+                        <div
+                          className={
+                            "flex items-center gap-4 text-sm " +
+                            "text-gray-500 dark:text-gray-400 mb-4"
+                          }
+                        >
+                          <span className="flex items-center gap-1">
+                            <FaCalendarAlt />
+                            {new Date(
+                              bookmark.meeting.date,
+                            ).toLocaleDateString()}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <FaClock />
+                            {bookmark.meeting.duration} min
+                          </span>
+                        </div>
+                      )}
+                      {bookmark.notes && (
+                        <div
+                          className={
+                            "bg-gray-50 dark:bg-gray-700/50 p-3 " +
+                            "rounded-lg text-sm text-gray-700 " +
+                            "dark:text-gray-300 italic mb-4 line-clamp-3"
+                          }
+                        >
+                          "{bookmark.notes}"
+                        </div>
+                      )}
                     </div>
-                    {bookmark.notes && (
-                      <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg text-sm text-gray-700 dark:text-gray-300 italic mb-4 line-clamp-3">
-                        "{bookmark.notes}"
+                    <div
+                      className={
+                        "mt-auto pt-4 border-t border-gray-100 " +
+                        "dark:border-gray-700 flex justify-between " +
+                        "items-center"
+                      }
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <div
+                          className="w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: bookmark.color }}
+                        ></div>
+                        <span
+                          className={
+                            "text-xs font-medium text-gray-600 " +
+                            "dark:text-gray-400"
+                          }
+                        >
+                          {bookmark.collectionName}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                  <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                    <div className="flex items-center gap-1.5">
-                      <div
-                        className="w-2.5 h-2.5 rounded-full"
-                        style={{ backgroundColor: bookmark.color }}
-                      ></div>
-                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                        {bookmark.collectionName}
-                      </span>
                     </div>
-                  </div>
-                </Link>
-              ))}
+                  </>
+                );
+
+                if (isOrphaned) {
+                  return (
+                    <div
+                      key={bookmark._id}
+                      className={
+                        "bg-white dark:bg-gray-800 rounded-xl " +
+                        "shadow-sm border border-gray-200 " +
+                        "dark:border-gray-700 p-5 flex flex-col " +
+                        "group relative opacity-75"
+                      }
+                    >
+                      {cardContent}
+                    </div>
+                  );
+                }
+
+                return (
+                  <Link
+                    to={`/meeting/${bookmark.meeting._id}`}
+                    key={bookmark._id}
+                    className={
+                      "bg-white dark:bg-gray-800 rounded-xl " +
+                      "shadow-sm border border-gray-200 " +
+                      "dark:border-gray-700 hover:shadow-md " +
+                      "transition-shadow p-5 flex flex-col " +
+                      "group relative"
+                    }
+                  >
+                    {cardContent}
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>

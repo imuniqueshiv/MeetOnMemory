@@ -86,7 +86,12 @@ const searchMeetingSchema = z.object({
 const notifyLiveMeetingSchema = z.object({
   roomId: z.string().min(1, "roomId is required"),
   participants: z
-    .array(z.object({ name: z.string(), email: z.string().optional() }))
+    .array(
+      z.object({
+        name: z.string().min(1, "Name is required"),
+        email: z.string().email("Invalid email format"),
+      }),
+    )
     .min(1, "At least one participant is required"),
 });
 

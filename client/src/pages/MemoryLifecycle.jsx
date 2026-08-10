@@ -499,12 +499,20 @@ const MemoryLifecycle = () => {
         </div>
       </div>
 
-      {/* Transition Confirmation Modal */}
+      {/* State Transition Confirmation Modal (#1368) */}
       {transitionModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="transition-modal-title"
+        >
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white capitalize">
+              <h3
+                id="transition-modal-title"
+                className="text-lg font-bold text-slate-900 dark:text-white capitalize"
+              >
                 {transitionModal.targetState === "active"
                   ? "Restore Memory"
                   : `Change State to ${transitionModal.targetState}`}
@@ -575,12 +583,20 @@ const MemoryLifecycle = () => {
         </div>
       )}
 
-      {/* History Timeline Modal */}
+      {/* History Timeline Modal (#1368) */}
       {historyModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="history-modal-title"
+        >
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <h3
+                id="history-modal-title"
+                className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2"
+              >
                 <History className="w-5 h-5 text-indigo-600" />
                 Lifecycle Audit History
               </h3>

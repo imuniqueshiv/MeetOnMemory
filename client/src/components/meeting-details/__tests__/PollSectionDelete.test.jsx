@@ -33,6 +33,14 @@ vi.mock("../../../api/pollApi", () => ({
   deletePoll: vi.fn(),
 }));
 
+vi.mock("react-toastify", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+import { toast } from "react-toastify";
 import PollSection from "../PollSection";
 import AppContent from "../../../context/AppContent";
 import { closePoll, deletePoll, getPollsByMeeting } from "../../../api/pollApi";
@@ -71,7 +79,6 @@ describe("PollSection poll deletion (#1069)", () => {
     vi.clearAllMocks();
     getPollsByMeeting.mockResolvedValue([POLL]);
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    vi.spyOn(window, "alert").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -99,18 +106,22 @@ describe("PollSection poll deletion (#1069)", () => {
     await waitFor(() => expect(deletePoll).toHaveBeenCalledWith("poll-1"));
   });
 
-  it("removes the poll from the list on success without waiting for the socket", async () => {
-    deletePoll.mockResolvedValue({ message: "Poll deleted successfully" });
-    renderPollSection();
+  it(
+    "removes the poll from the list on success " +
+      "without waiting for the socket",
+    async () => {
+      deletePoll.mockResolvedValue({ message: "Poll deleted successfully" });
+      renderPollSection();
 
-    expect(await screen.findByText("Ship on Friday?")).toBeTruthy();
+      expect(await screen.findByText("Ship on Friday?")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: /delete/i }));
+      fireEvent.click(screen.getByRole("button", { name: /delete/i }));
 
-    await waitFor(() =>
-      expect(screen.queryByText("Ship on Friday?")).toBeNull(),
-    );
-  });
+      await waitFor(() =>
+        expect(screen.queryByText("Ship on Friday?")).toBeNull(),
+      );
+    },
+  );
 
   it("surfaces the server message when the delete fails", async () => {
     deletePoll.mockRejectedValue({
@@ -121,7 +132,7 @@ describe("PollSection poll deletion (#1069)", () => {
     fireEvent.click(await screen.findByRole("button", { name: /delete/i }));
 
     await waitFor(() =>
-      expect(window.alert).toHaveBeenCalledWith(
+      expect(toast.error).toHaveBeenCalledWith(
         "Forbidden: Only creator or admin",
       ),
     );
@@ -134,7 +145,7 @@ describe("PollSection poll deletion (#1069)", () => {
     fireEvent.click(await screen.findByRole("button", { name: /delete/i }));
 
     await waitFor(() =>
-      expect(window.alert).toHaveBeenCalledWith("Error deleting poll"),
+      expect(toast.error).toHaveBeenCalledWith("Error deleting poll"),
     );
   });
 
@@ -144,7 +155,7 @@ describe("PollSection poll deletion (#1069)", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /delete/i }));
 
-    await waitFor(() => expect(window.alert).toHaveBeenCalled());
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(screen.getByText("Ship on Friday?")).toBeTruthy();
   });
 
@@ -157,7 +168,7 @@ describe("PollSection poll deletion (#1069)", () => {
     fireEvent.click(await screen.findByRole("button", { name: /close poll/i }));
 
     await waitFor(() =>
-      expect(window.alert).toHaveBeenCalledWith("Poll already closed"),
+      expect(toast.error).toHaveBeenCalledWith("Poll already closed"),
     );
   });
 });

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Calendar,
   Clock,
@@ -21,6 +21,24 @@ const MeetingCard = ({ meeting, onDelete, onRename, onView }) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(meeting.title);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowMenu(false);
+        setShowExportSubMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showMenu]);
 
   const handleRenameSubmit = (e) => {
     e.preventDefault();
@@ -80,7 +98,7 @@ const MeetingCard = ({ meeting, onDelete, onRename, onView }) => {
               {meeting.title || "Untitled Meeting"}
             </h3>
           )}
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <button
               onClick={() => {
                 setShowMenu(!showMenu);

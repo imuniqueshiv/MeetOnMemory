@@ -1,6 +1,7 @@
 import {
   createComment,
   updateComment,
+  toggleReaction,
 } from "../controllers/commentController.js";
 import Comment, { MAX_COMMENT_LENGTH } from "../models/commentModel.js";
 import Meeting from "../models/meetingModel.js";
@@ -158,6 +159,60 @@ describe("Comment Controller - Length Validation", () => {
       expect(JSON.stringify(jsonArgs)).not.toContain(
         "Database connection failed",
       );
+    });
+  });
+
+  describe("toggleReaction", () => {
+    it("should handle null or invalid reactions safely", async () => {
+      const commentId = new mongoose.Types.ObjectId().toString();
+      req.params = { id: commentId };
+      req.body = { emoji: "👍" };
+
+      // Setup a comment document mock that has invalid/null entries in reactions
+      const mockComment = {
+        _id: commentId,
+        meeting: new mongoose.Types.ObjectId().toString(),
+        reactions: [
+          null,
+          { emoji: "❤️", user: null },
+          { emoji: "👍", user: new mongoose.Types.ObjectId() },
+        ],
+        save: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        toObject: function () {
+          return {
+            _id: this._id,
+            meeting: this.meeting,
+            reactions: this.reactions,
+          };
+        },
+      };
+
+      jest.spyOn(Comment, "findById").mockResolvedValue(mockComment);
+
+      await toggleReaction(req, res);
+
+      // Should succeed and sanitize reactions (filter out invalid reactions)
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockComment.save).toHaveBeenCalled();
+      const responseData = res.json.mock.calls[0][0];
+      expect(responseData.reactions).toBeDefined();
+      expect(responseData.reactions.every((r) => r && r.emoji && r.user)).toBe(
+        true,
+      );
+    });
+
+    it("should reject toggle request if emoji is missing", async () => {
+      const commentId = new mongoose.Types.ObjectId().toString();
+      req.params = { id: commentId };
+      req.body = {};
+
+      await toggleReaction(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Reaction emoji is required",
+      });
     });
   });
 });

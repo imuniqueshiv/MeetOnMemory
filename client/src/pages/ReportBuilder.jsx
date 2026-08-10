@@ -51,12 +51,7 @@ const ReportBuilder = () => {
 
   const [generatedReport, setGeneratedReport] = useState(null);
   const [generating, setGenerating] = useState(false);
-
-  useEffect(() => {
-    if (templateId) {
-      fetchTemplate();
-    }
-  }, [templateId, fetchTemplate]);
+  const [titleError, setTitleError] = useState("");
 
   const fetchTemplate = useCallback(async () => {
     setLoading(true);
@@ -70,7 +65,19 @@ const ReportBuilder = () => {
     }
   }, [templateId]);
 
+  useEffect(() => {
+    if (templateId) {
+      fetchTemplate();
+    }
+  }, [templateId, fetchTemplate]);
+
   const handleSave = async () => {
+    if (!template.name || !template.name.trim()) {
+      setTitleError("Template title cannot be empty");
+      return;
+    }
+    setTitleError("");
+
     try {
       if (templateId) {
         await reportApi.updateTemplate(templateId, template);
@@ -340,11 +347,20 @@ const ReportBuilder = () => {
                 <input
                   type="text"
                   value={template.name}
-                  onChange={(e) =>
-                    setTemplate({ ...template, name: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setTemplate({ ...template, name: e.target.value });
+                    if (e.target.value.trim()) setTitleError("");
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-transparent dark:text-white"
                 />
+                {titleError && (
+                  <p
+                    role="alert"
+                    className="mt-1 text-xs text-red-600 font-medium"
+                  >
+                    {titleError}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

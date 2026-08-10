@@ -12,16 +12,45 @@ export const useLiveMeeting = () => {
   const [showRecordingDialog, setShowRecordingDialog] = useState(false);
 
   const addLiveParticipant = () => {
-    if (newLiveParticipant.name.trim() && newLiveParticipant.email.trim()) {
-      setLiveParticipants([
-        ...liveParticipants,
-        { ...newLiveParticipant, id: Date.now() },
-      ]);
-      setNewLiveParticipant({ name: "", email: "" });
-      toast.success("Participant added");
-    } else {
-      toast.error("Please enter both name and email");
+    const trimmedName = newLiveParticipant.name.trim();
+    const trimmedEmail = newLiveParticipant.email.trim();
+
+    if (!trimmedName) {
+      toast.error("Full name is required");
+      return;
     }
+
+    if (!trimmedEmail) {
+      toast.error("Email address is required");
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
+    // Prevent duplicate email entries
+    const isDuplicate = liveParticipants.some(
+      (p) => p.email.toLowerCase() === trimmedEmail.toLowerCase(),
+    );
+    if (isDuplicate) {
+      toast.error("This email address is already added");
+      return;
+    }
+
+    setLiveParticipants([
+      ...liveParticipants,
+      {
+        name: trimmedName,
+        email: trimmedEmail,
+        id: Date.now(),
+      },
+    ]);
+    setNewLiveParticipant({ name: "", email: "" });
+    toast.success("Participant added");
   };
 
   const removeLiveParticipant = (id) => {
