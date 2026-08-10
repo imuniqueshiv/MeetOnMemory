@@ -9,6 +9,8 @@ import MeetingTranscript from "../components/meeting-details/MeetingTranscript";
 import MeetingParticipants from "../components/meeting-details/MeetingParticipants";
 import MeetingMetadata from "../components/meeting-details/MeetingMetadata";
 import MeetingActions from "../components/meeting-details/MeetingActions";
+import VaultKeyPrompt from "../components/VaultKeyPrompt";
+import { isEncrypted, decryptText } from "../utils/cryptoUtils";
 
 const MeetingDetails = () => {
   const { id } = useParams();
@@ -16,6 +18,8 @@ const MeetingDetails = () => {
   const [meeting, setMeeting] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [encryptionKey, setEncryptionKey] = useState(null);
+  const [needsDecryption, setNeedsDecryption] = useState(false);
 
   useEffect(() => {
     const fetchMeetingDetails = async () => {
@@ -24,7 +28,11 @@ const MeetingDetails = () => {
         setError(null);
         const { data } = await meetingApi.getMeetingById(id);
         if (data.success) {
-          setMeeting(data.meeting);
+          const m = data.meeting;
+          if (isEncrypted(m.transcript) || isEncrypted(m.summary)) {
+            setNeedsDecryption(true);
+          }
+          setMeeting(m);
         } else {
           setError(data.message || "Failed to fetch meeting details");
         }
@@ -40,6 +48,32 @@ const MeetingDetails = () => {
 
     fetchMeetingDetails();
   }, [id]);
+
+  useEffect(() => {
+    const decryptMeeting = async () => {
+      if (needsDecryption && encryptionKey && meeting) {
+        try {
+          const decryptedMeeting = { ...meeting };
+          if (isEncrypted(meeting.transcript)) {
+            decryptedMeeting.transcript = await decryptText(meeting.transcript, encryptionKey);
+          }
+          if (isEncrypted(meeting.summary)) {
+            decryptedMeeting.summary = await decryptText(meeting.summary, encryptionKey);
+          }
+          if (meeting.structuredMoM?.encrypted) {
+            const decStructuredStr = await decryptText(meeting.structuredMoM.encrypted, encryptionKey);
+            decryptedMeeting.structuredMoM = JSON.parse(decStructuredStr);
+          }
+          setMeeting(decryptedMeeting);
+          setNeedsDecryption(false);
+        } catch (err) {
+          console.error("Decryption failed", err);
+          setError("Decryption failed. Invalid Vault Password.");
+        }
+      }
+    };
+    decryptMeeting();
+  }, [needsDecryption, encryptionKey, meeting]);
 
   const handleDelete = async (meetingId) => {
     try {
@@ -151,6 +185,7 @@ const MeetingDetails = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
+      {needsDecryption && !encryptionKey && <VaultKeyPrompt onKeyReady={setEncryptionKey} />}
       <div className="max-w-6xl mx-auto">
         <MeetingHeader meeting={meeting} />
         <MeetingSummary meeting={meeting} />

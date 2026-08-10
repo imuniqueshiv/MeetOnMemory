@@ -2,6 +2,8 @@ import { useState, useRef } from "react";
 import { toast } from "react-toastify";
 import useDragAndDrop from "./useDragAndDrop";
 import useUploadMeetingApi from "./useUploadMeetingApi";
+import { meetingApi } from "../services";
+import { encryptText } from "../utils/cryptoUtils";
 
 import { formatFileSize, isValidAudioFile } from "../utils/fileUtils";
 
@@ -47,19 +49,35 @@ const useMeetingUpload = () => {
     }
   };
 
-  const handleUpload = (title, setTitle) => {
+  const handleUpload = (title, setTitle, encryptionKey) => {
     if (!file) {
       toast.error("Please select an audio file first.");
+      return;
+    }
+    if (!encryptionKey) {
+      toast.error("Encryption key not ready. Please unlock your vault.");
       return;
     }
     setTranscript("");
     setMeetingId(null);
     uploadMeeting(file, title, {
-      onSuccess: (data) => {
-        toast.success("Transcription complete!");
-        setTranscript(data.transcript || "");
-        setMeetingId(data.meetingId || null);
-        if (data.autoTitle && setTitle) setTitle(data.autoTitle);
+      onSuccess: async (data) => {
+        toast.success("Transcription complete! Encrypting and saving...");
+        
+        try {
+          const rawTranscript = data.transcript || "";
+          if (rawTranscript) {
+            const encryptedTranscript = await encryptText(rawTranscript, encryptionKey);
+            await meetingApi.updateMeeting(data.meetingId, { transcript: encryptedTranscript });
+          }
+          
+          setTranscript(rawTranscript); // Keep plaintext in state for UI
+          setMeetingId(data.meetingId || null);
+          if (data.autoTitle && setTitle) setTitle(data.autoTitle);
+        } catch (err) {
+          console.error("Encryption/Save error", err);
+          toast.error("Failed to securely save transcript.");
+        }
       },
       onError: (error) => {
         toast.error(error.message || "Upload failed");

@@ -13,6 +13,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import VaultKeyPrompt from "../components/VaultKeyPrompt";
+import { isEncrypted, decryptText } from "../utils/cryptoUtils";
 
 const TranscriptViewer = () => {
   const { meetingId } = useParams();
@@ -23,6 +25,9 @@ const TranscriptViewer = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [highlightedSegment, setHighlightedSegment] = useState(null);
+  
+  const [encryptionKey, setEncryptionKey] = useState(null);
+  const [needsDecryption, setNeedsDecryption] = useState(false);
 
   const backendUrl = import.meta.env.VITE_BACKEND_URL;
 
@@ -44,7 +49,13 @@ const TranscriptViewer = () => {
         }
       );
 
-      setTranscript(response.data);
+      const rawTranscript = response.data;
+      if (typeof rawTranscript === 'string' && isEncrypted(rawTranscript)) {
+        setNeedsDecryption(true);
+        setTranscript(rawTranscript);
+      } else {
+        setTranscript(rawTranscript);
+      }
     } catch (error) {
       console.error("Error fetching transcript:", error);
       toast.error("Failed to load transcript");
@@ -56,6 +67,22 @@ const TranscriptViewer = () => {
   useEffect(() => {
     fetchTranscript();
   }, [fetchTranscript]);
+
+  useEffect(() => {
+    const decryptData = async () => {
+      if (needsDecryption && encryptionKey && typeof transcript === 'string' && isEncrypted(transcript)) {
+        try {
+          const dec = await decryptText(transcript, encryptionKey);
+          setTranscript(dec);
+          setNeedsDecryption(false);
+        } catch (err) {
+          console.error("Decryption failed", err);
+          toast.error("Decryption failed. Invalid Vault Password.");
+        }
+      }
+    };
+    decryptData();
+  }, [needsDecryption, encryptionKey, transcript]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -208,7 +235,8 @@ const TranscriptViewer = () => {
   const meeting = transcript.meeting;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {needsDecryption && !encryptionKey && <VaultKeyPrompt onKeyReady={setEncryptionKey} />}
       {/* Header */}
       <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">

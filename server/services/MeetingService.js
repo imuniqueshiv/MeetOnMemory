@@ -182,7 +182,7 @@ export const uploadAndTranscribeMeeting = async (
     date: body.date ? new Date(body.date) : new Date(),
     meetingType: body.meetingType || "internal",
     fileUrl: file.path,
-    transcript: transcriptText,
+    transcript: "", // E2EE: Do not store plaintext transcript
     summary: "",
     structuredMoM: null,
     status: "completed",
@@ -225,14 +225,15 @@ export const uploadAudioForExistingMeeting = async (
   const transcriptText = await transcribeFile(filePath);
   console.log("✅ Transcription completed");
 
-  meeting.transcript = transcriptText;
+  meeting.transcript = ""; // E2EE: Do not store plaintext transcript
   meeting.fileUrl = file.path;
   meeting.status = "completed";
   await meeting.save();
 
-  indexMeeting(meeting).catch((err) =>
-    console.error("⚠️ indexMeeting error (continuing):", err.message),
-  );
+  // Skip indexing plaintext transcript for E2EE
+  // indexMeeting(meeting).catch((err) =>
+  //   console.error("⚠️ indexMeeting error (continuing):", err.message),
+  // );
 
   try {
     fs.unlinkSync(validatePath(filePath));
@@ -319,17 +320,16 @@ export const generateMeetingMoM = async (
       organization: user.organization,
       title: mom.title,
       date: new Date(date),
-      transcript: textToSummarize,
-      summary: momText,
-      structuredMoM: mom,
+      transcript: "", // E2EE: Do not save plaintext
+      summary: "", // E2EE: Do not save plaintext
+      structuredMoM: null, // E2EE: Do not save plaintext
       status: "completed",
     });
-    await indexMeeting(meetingToUpdate);
+    // Skip indexing plaintext MoM for E2EE
   } else if (meetingToUpdate) {
     meetingToUpdate.title = mom.title;
     meetingToUpdate.date = new Date(date);
-    meetingToUpdate.summary = momText;
-    meetingToUpdate.structuredMoM = mom;
+    // E2EE: We do not save plaintext MoM. The client will encrypt and save it via a separate PATCH request.
     await meetingToUpdate.save();
   }
 
@@ -433,6 +433,9 @@ export const updateMeeting = async (userId, meetingId, data, doc = null) => {
     location,
     venue,
     tags,
+    transcript,
+    summary,
+    structuredMoM,
   } = data;
 
   if (title) meeting.title = title.trim();
@@ -444,12 +447,19 @@ export const updateMeeting = async (userId, meetingId, data, doc = null) => {
   if (location !== undefined) meeting.location = location;
   if (venue !== undefined) meeting.venue = venue;
   if (tags) meeting.tags = tags;
+  if (transcript !== undefined) meeting.transcript = transcript;
+  if (summary !== undefined) meeting.summary = summary;
+  if (structuredMoM !== undefined) meeting.structuredMoM = structuredMoM;
 
   await meeting.save();
 
-  indexMeeting(meeting).catch((err) =>
-    console.error("⚠️ indexMeeting error (continuing):", err.message),
-  );
+  // If transcript is encrypted, indexing it in Pinecone might produce garbage embeddings,
+  // but we can skip it or let it fail gracefully. Ideally, we shouldn't index ciphertext.
+  if (transcript && transcript.startsWith && !transcript.startsWith("eyJ")) {
+    indexMeeting(meeting).catch((err) =>
+      console.error("⚠️ indexMeeting error (continuing):", err.message),
+    );
+  }
 
   if (meeting.googleEventId) {
     User.findById(userId)

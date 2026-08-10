@@ -239,17 +239,16 @@ ${textToSummarize}
         organization: userOrg,
         title: mom.title,
         date: new Date(date),
-        transcript: textToSummarize,
-        summary: humanReadable,
-        structuredMoM: mom,
+        transcript: "", // E2EE: Do not save plaintext
+        summary: "", // E2EE: Do not save plaintext
+        structuredMoM: null, // E2EE: Do not save plaintext
         status: "completed",
       });
-      await indexMeeting(meetingToUpdate);
+      // Skip indexing since it's encrypted
     } else if (meetingToUpdate) {
       meetingToUpdate.title = mom.title;
       meetingToUpdate.date = new Date(date);
-      meetingToUpdate.summary = humanReadable;
-      meetingToUpdate.structuredMoM = mom;
+      // E2EE: We do not save plaintext MoM. The client will encrypt and save it via a separate PATCH request.
       await meetingToUpdate.save();
     }
 

@@ -24,6 +24,8 @@ import useExport from "../hooks/useExport.js";
 import { meetingApi } from "../services";
 import useMeetingUpload from "../hooks/useMeetingUpload";
 import Dropzone from "../components/meetings/Dropzone.jsx";
+import VaultKeyPrompt from "../components/VaultKeyPrompt.jsx";
+import { encryptText } from "../utils/cryptoUtils";
 
 const UploadMeeting = () => {
   const { userData } = useContext(AppContent);
@@ -61,19 +63,35 @@ const UploadMeeting = () => {
   const [summary, setSummary] = useState("");
   const [showExportMenu, setShowExportMenu] = useState(false);
   const { exportMeeting, isExporting } = useExport();
+  const [encryptionKey, setEncryptionKey] = useState(null);
 
   // Real-time listener for MoM completion
   const { backendUrl } = useContext(AppContent);
   useEffect(() => {
-    if (userData && backendUrl) {
+    if (userData && backendUrl && encryptionKey) {
       const socket = io(backendUrl, { withCredentials: true });
-      socket.on("mom-generation-complete", (data) => {
+      socket.on("mom-generation-complete", async (data) => {
         if (data && data.meetingId) {
-          // If the completed meeting matches our current meeting, update UI
-          setSummary(
-            data.summary || data.momText || JSON.stringify(data.mom || data),
-          );
-          toast.success("Minutes of Meeting created!");
+          // If the completed meeting matches our current meeting, encrypt and save MoM
+          const rawMoMText = data.summary || data.momText || JSON.stringify(data.mom || data);
+          setSummary(rawMoMText);
+          toast.success("Minutes of Meeting created! Encrypting and saving...");
+          
+          try {
+            const encryptedSummary = await encryptText(rawMoMText, encryptionKey);
+            let encryptedStructured = undefined;
+            if (data.mom) {
+               encryptedStructured = await encryptText(JSON.stringify(data.mom), encryptionKey);
+            }
+            await meetingApi.updateMeeting(data.meetingId, { 
+              summary: encryptedSummary,
+              structuredMoM: encryptedStructured ? { encrypted: encryptedStructured } : undefined
+            });
+            toast.success("Minutes of Meeting saved securely.");
+          } catch (err) {
+            console.error("Failed to encrypt and save MoM", err);
+            toast.error("Failed to securely save MoM.");
+          }
           setIsSummarizing(false);
         }
       });
@@ -81,7 +99,7 @@ const UploadMeeting = () => {
         socket.disconnect();
       };
     }
-  }, [userData, backendUrl]);
+  }, [userData, backendUrl, encryptionKey]);
 
   // New fields for required date + optional title
   const [meetingDate, setMeetingDate] = useState(() => {
@@ -128,12 +146,25 @@ const UploadMeeting = () => {
         );
         // Keep isSummarizing true until socket event completes it
       } else if (res.data?.success) {
-        setSummary(
-          res.data.momText ||
-            res.data.summary ||
-            JSON.stringify(res.data.mom || res.data),
-        );
-        toast.success("Minutes of Meeting created!");
+        const rawMoMText = res.data.momText || res.data.summary || JSON.stringify(res.data.mom || res.data);
+        setSummary(rawMoMText);
+        toast.success("Minutes of Meeting created! Encrypting and saving...");
+        
+        try {
+          const encryptedSummary = await encryptText(rawMoMText, encryptionKey);
+          let encryptedStructured = undefined;
+          if (res.data.mom) {
+             encryptedStructured = await encryptText(JSON.stringify(res.data.mom), encryptionKey);
+          }
+          await meetingApi.updateMeeting(res.data.meetingId || meetingId, { 
+            summary: encryptedSummary,
+            structuredMoM: encryptedStructured ? { encrypted: encryptedStructured } : undefined
+          });
+          toast.success("Minutes of Meeting saved securely.");
+        } catch (err) {
+          console.error("Failed to encrypt and save MoM", err);
+          toast.error("Failed to securely save MoM.");
+        }
         setIsSummarizing(false);
       } else {
         toast.error(res.data?.message || "Failed to generate summary");
@@ -175,6 +206,7 @@ const UploadMeeting = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-slate-50 to-blue-50/50 dark:from-gray-900 dark:via-slate-900 dark:to-blue-900/20 flex flex-col font-sans">
+      <VaultKeyPrompt onKeyReady={setEncryptionKey} />
       <Navbar />
       <div className="flex-grow pt-28 pb-16 px-4 sm:px-6 lg:px-8 animate-fade-in">
         <div className="max-w-5xl mx-auto">
@@ -273,7 +305,7 @@ const UploadMeeting = () => {
             <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3 w-full sm:w-auto justify-start order-2 sm:order-1">
                 <button
-                  onClick={() => handleUpload(title, setTitle)}
+                  onClick={() => handleUpload(title, setTitle, encryptionKey)}
                   disabled={isUploading || !file}
                   className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
                     isUploading || !file

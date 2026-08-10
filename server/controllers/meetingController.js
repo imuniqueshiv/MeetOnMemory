@@ -67,6 +67,9 @@ const updateMeetingSchema = z.object({
   location: z.string().optional(),
   venue: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  transcript: z.string().optional(),
+  summary: z.string().optional(),
+  structuredMoM: z.any().optional(),
 });
 
 const searchMeetingSchema = z.object({
