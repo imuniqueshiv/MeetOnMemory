@@ -1,6 +1,7 @@
 import {
   parseClassification,
   buildClassificationPrompt,
+  isPolicyEffectiveForDecision,
 } from "../services/policyComplianceService.js";
 import fixtures from "./fixtures/policyComplianceFixtures.json" with { type: "json" };
 
@@ -55,6 +56,26 @@ describe("parseClassification", () => {
     const result = parseClassification(raw);
     expect(result.classification).toBe("unrelated");
     expect(result.reasoning).toBe("");
+  });
+});
+
+describe("isPolicyEffectiveForDecision", () => {
+  test("excludes policies created after the decision", () => {
+    expect(
+      isPolicyEffectiveForDecision(
+        { createdAt: new Date("2026-06-01T00:00:00.000Z") },
+        { createdAt: new Date("2026-05-15T00:00:00.000Z") },
+      ),
+    ).toBe(false);
+  });
+
+  test("includes policies that existed when the decision was recorded", () => {
+    expect(
+      isPolicyEffectiveForDecision(
+        { createdAt: new Date("2026-05-01T00:00:00.000Z") },
+        { createdAt: new Date("2026-05-15T00:00:00.000Z") },
+      ),
+    ).toBe(true);
   });
 });
 

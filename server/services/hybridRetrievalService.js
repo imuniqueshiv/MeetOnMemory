@@ -62,9 +62,13 @@ export function resolveOptions(rawOptions = {}) {
       parseInt(rawOptions.semanticTopK, 10) || DEFAULT_OPTIONS.semanticTopK,
     ),
   );
+  const parsedMaxHops = parseInt(rawOptions.maxHops, 10);
   const maxHops = Math.max(
     0,
-    Math.min(4, parseInt(rawOptions.maxHops, 10) ?? DEFAULT_OPTIONS.maxHops),
+    Math.min(
+      4,
+      !Number.isNaN(parsedMaxHops) ? parsedMaxHops : DEFAULT_OPTIONS.maxHops,
+    ),
   );
   const decay =
     clamp01(rawOptions.decay, DEFAULT_OPTIONS.decay) || DEFAULT_OPTIONS.decay;
@@ -76,14 +80,15 @@ export function resolveOptions(rawOptions = {}) {
     ),
   );
 
-  let semanticWeight = clamp01(
-    rawOptions.semanticWeight,
-    DEFAULT_OPTIONS.semanticWeight,
-  );
-  let graphWeight = clamp01(
-    rawOptions.graphWeight,
-    DEFAULT_OPTIONS.graphWeight,
-  );
+  let semanticWeight =
+    typeof rawOptions.semanticWeight === "number" &&
+    rawOptions.semanticWeight >= 0
+      ? rawOptions.semanticWeight
+      : DEFAULT_OPTIONS.semanticWeight;
+  let graphWeight =
+    typeof rawOptions.graphWeight === "number" && rawOptions.graphWeight >= 0
+      ? rawOptions.graphWeight
+      : DEFAULT_OPTIONS.graphWeight;
 
   // Normalize so the two weights always sum to 1 - keeps the fused score
   // interpretable (0-1) regardless of what the caller passed in, while still
@@ -129,13 +134,12 @@ async function runSemanticSearch(query, organization, graph, options) {
 
   if (options.includeTypes.includes("meeting")) {
     try {
-      // Note: Pinecone metadata does not currently store an organization
-      // field (see embeddingUtils.indexMeeting), so an organization filter
-      // here would silently zero out every result. Matching the existing
-      // `/api/search` behavior, meeting hits are not org-filtered at the
-      // vector-store layer.
+      if (!organization) {
+        throw new Error("Organization context is required for hybrid search");
+      }
       const meetingHits = await searchVectorStore(query, {
         limit: options.semanticTopK,
+        organization: organization.toString(),
       });
       for (const hit of meetingHits) {
         results.push({

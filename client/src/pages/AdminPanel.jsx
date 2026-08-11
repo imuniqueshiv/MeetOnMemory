@@ -13,8 +13,10 @@ import {
   Menu,
   X,
   Sparkles,
+  ClipboardList,
 } from "lucide-react";
 import Navbar from "../components/Navbar.jsx";
+import TemplateBuilder from "../components/admin/TemplateBuilder.jsx";
 
 const MODULES = [
   {
@@ -56,6 +58,14 @@ const MODULES = [
     icon: Calendar,
     iconBg: "bg-rose-50 dark:bg-rose-900/30",
     iconColor: "text-rose-600 dark:text-rose-400",
+  },
+  {
+    id: "templates",
+    labelKey: "Meeting Templates", // Fallback text instead of translation key
+    descriptionKey: "Manage reusable meeting agenda templates",
+    icon: ClipboardList,
+    iconBg: "bg-fuchsia-50 dark:bg-fuchsia-900/30",
+    iconColor: "text-fuchsia-600 dark:text-fuchsia-400",
   },
   {
     id: "policies",
@@ -152,7 +162,9 @@ const AdminPanel = () => {
             }`}
           >
             <Icon className="w-4 h-4 shrink-0" />
-            <span className="truncate">{t(mod.labelKey)}</span>
+            <span className="truncate">
+              {mod.labelKey.includes(".") ? t(mod.labelKey) : mod.labelKey}
+            </span>
           </button>
         );
       })}
@@ -202,7 +214,7 @@ const AdminPanel = () => {
         )}
 
         {/* Main content */}
-        <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-start gap-3 mb-6">
             <button
               type="button"
@@ -221,11 +233,15 @@ const AdminPanel = () => {
                   <ActiveIcon className={`w-5 h-5 ${active.iconColor}`} />
                 </div>
                 <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                  {t(active.labelKey)}
+                  {active.labelKey.includes(".")
+                    ? t(active.labelKey)
+                    : active.labelKey}
                 </h1>
               </div>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                {t(active.descriptionKey)}
+                {active.descriptionKey.includes(".")
+                  ? t(active.descriptionKey)
+                  : active.descriptionKey}
               </p>
             </div>
           </div>
@@ -257,6 +273,8 @@ const AdminPanel = () => {
                 </div>
               </div>
             </div>
+          ) : activeModule === "templates" ? (
+            <TemplateBuilder />
           ) : (
             <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-8 shadow-sm text-center">
               <div
@@ -265,17 +283,21 @@ const AdminPanel = () => {
                 <ActiveIcon className={`w-7 h-7 ${active.iconColor}`} />
               </div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                {t(active.labelKey)}
+                {active.labelKey.includes(".")
+                  ? t(active.labelKey)
+                  : active.labelKey}
               </h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-md mx-auto">
-                {t(active.descriptionKey)}
+                {active.descriptionKey.includes(".")
+                  ? t(active.descriptionKey)
+                  : active.descriptionKey}
               </p>
               <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800">
                 {t("adminPanel.comingSoon")}
               </span>
             </div>
           )}
-        </main>
+        </div>
       </div>
     </div>
   );

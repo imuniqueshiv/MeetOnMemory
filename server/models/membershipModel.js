@@ -15,13 +15,17 @@ const membershipSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "member"],
+      enum: ["owner", "admin", "member", "viewer"],
       default: "member",
     },
     status: {
       type: String,
       enum: ["active", "suspended", "removed"],
       default: "active",
+    },
+    engagementScore: {
+      type: Number,
+      default: 0,
     },
     joinedAt: {
       type: Date,

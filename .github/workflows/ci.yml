@@ -1,18 +1,51 @@
 name: CI Pipeline
 
 on:
-  push:
-    branches: [main, master]
   pull_request:
     branches: [main, master]
 
+concurrency:
+  group: ci-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  format:
-    name: Format
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      formatting: ${{ steps.filter.outputs.formatting }}
+    steps:
+      - name: Detect changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'server/**'
+            frontend:
+              - 'client/**'
+            formatting:
+              - '**/*.{js,jsx,ts,tsx,css,html,json,md,yml,yaml}'
+              - '.prettierrc'
+              - '.prettierrc.*'
+              - 'prettier.config.*'
+              - '.github/workflows/**'
+
+  root-prettier:
+    name: Root Prettier
+    needs: changes
+    if: needs.changes.outputs.formatting == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
@@ -21,26 +54,25 @@ jobs:
           cache: "npm"
           cache-dependency-path: package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install root dependencies
+        run: npm install
 
-      - name: Verify Code Formatting
-        run: |
-          git fetch origin ${{ github.base_ref || 'main' }} --depth=1
-          TARGET_BRANCH="origin/${{ github.base_ref || 'main' }}"
-          CHANGED_FILES=$(git diff --name-only $TARGET_BRANCH...HEAD | grep -E '\.(js|jsx|ts|tsx|css|html|json|md|yml|yaml)$' || true)
-          if [ -n "$CHANGED_FILES" ]; then
-            npx prettier --check $CHANGED_FILES
-          else
-            echo "No changed files to check."
-          fi
+      - name: Fetch base branch for changed-file checks
+        run: git fetch origin ${{ github.base_ref }} --depth=1
 
-  lint:
-    name: Lint
+      - name: Check changed files with Prettier
+        run: npm run format:check:changed
+
+  frontend-validation:
+    name: Frontend Validation
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
@@ -50,55 +82,37 @@ jobs:
           cache-dependency-path: client/package-lock.json
 
       - name: Install client dependencies
-        run: npm ci --prefix client
+        run: npm install --prefix client
 
-      - name: Run Lint checks
-        run: npm run lint
+      - name: Fetch base branch for changed-file checks
+        run: git fetch origin ${{ github.base_ref }} --depth=1
 
-  prettier:
-    name: Prettier Check
+      - name: Run PR frontend validation
+        run: npm run validate:pr --prefix client
+
+  server-validation:
+    name: Server Validation
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: server/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install server dependencies
+        run: npm install --prefix server
 
-      - name: Verify Prettier Check
-        run: |
-          git fetch origin ${{ github.base_ref || 'main' }} --depth=1
-          TARGET_BRANCH="origin/${{ github.base_ref || 'main' }}"
-          CHANGED_FILES=$(git diff --name-only $TARGET_BRANCH...HEAD | grep -E '\.(js|jsx|ts|tsx|css|html|json|md|yml|yaml)$' || true)
-          if [ -n "$CHANGED_FILES" ]; then
-            npx prettier --check $CHANGED_FILES
-          else
-            echo "No changed files to check."
-          fi
+      - name: Fetch base branch for changed-file checks
+        run: git fetch origin ${{ github.base_ref }} --depth=1
 
-  build:
-    name: Production Build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: client/package-lock.json
-
-      - name: Install client dependencies
-        run: npm ci --prefix client
-
-      - name: Verify Production Build
-        run: npm run build
+      - name: Run PR server validation
+        run: npm run validate:pr --prefix server

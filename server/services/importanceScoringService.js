@@ -9,6 +9,7 @@
 import Decision from "../models/decisionModel.js";
 import ActionItem from "../models/actionItemModel.js";
 import { computeImportanceScore } from "../utils/importanceScoring.js";
+import { transitionLifecycleState } from "./memoryLifecycleService.js";
 
 const MODELS = {
   decision: Decision,
@@ -63,7 +64,6 @@ export async function recalculateAllImportanceScores({
 
   for (const [key, Model] of Object.entries(MODELS)) {
     let skip = 0;
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       const batch = await Model.find(filter).skip(skip).limit(batchSize);
       if (batch.length === 0) break;
@@ -95,6 +95,17 @@ export async function recordMemoryAccess(type, id) {
 
     document.accessCount = (document.accessCount || 0) + 1;
     document.lastAccessedAt = new Date();
+
+    // Intelligent restoration (Issue #377): a dormant/archived/expired
+    // memory that gets referenced again is clearly still useful, so bring
+    // it back to "active" as part of the same access. Never blocks or
+    // fails the access-tracking path.
+    if ((document.lifecycleState || "active") !== "active") {
+      await transitionLifecycleState(document, "active", {
+        reason: "Restored automatically on reference",
+        triggeredBy: "system",
+      });
+    }
 
     return await applyImportanceScore(document);
   } catch (error) {

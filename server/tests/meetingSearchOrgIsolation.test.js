@@ -12,10 +12,54 @@ jest.unstable_mockModule("../models/meetingModel.js", () => ({
   },
 }));
 
+// meetingController eagerly imports zod + calendarSyncService; both have dense
+// ESM graphs that hit Jest's VM "module is already linked" on this runtime.
+// Passthrough mocks keep controller org-scoping behaviour under test without
+// pulling those graphs into the MeetingService Cluster C link set.
+const zodPassthroughSchema = {
+  parse: (value) => value,
+  safeParse: (value) => ({ success: true, data: value }),
+};
+
+const coerceMock = new Proxy(
+  {},
+  {
+    get(target, prop) {
+      if (prop === "number") {
+        return () => zodChain;
+      }
+      return undefined;
+    },
+  },
+);
+
+const zodChain = new Proxy(zodPassthroughSchema, {
+  get(target, prop) {
+    if (prop in target) return target[prop];
+    return () => zodChain;
+  },
+});
+jest.unstable_mockModule("zod", () => ({
+  z: new Proxy(
+    { coerce: coerceMock },
+    {
+      get(target, prop) {
+        if (prop in target) return target[prop];
+        return (..._args) => zodChain;
+      },
+    },
+  ),
+}));
+jest.unstable_mockModule("../services/calendarSyncService.js", () => ({
+  pushMeetingToIntegrations: jest.fn().mockResolvedValue(undefined),
+}));
+
 const Meeting = (await import("../models/meetingModel.js")).default;
-const MeetingStorageService = await import("../services/MeetingStorageService.js");
+const MeetingStorageService =
+  await import("../services/MeetingStorageService.js");
 const MeetingService = await import("../services/MeetingService.js");
-const { searchMeetingsByText } = await import("../controllers/meetingController.js");
+const { searchMeetingsByText } =
+  await import("../controllers/meetingController.js");
 const { requireOrgMembership } = await import("../middleware/rbac.js");
 
 describe("Meeting Search Organization Scoping & Isolation (#387)", () => {
@@ -42,8 +86,15 @@ describe("Meeting Search Organization Scoping & Isolation (#387)", () => {
       );
 
       expect(Meeting.find).toHaveBeenCalledWith({
-        $text: { $search: searchQuery },
-        organization: "org_123",
+        $and: [
+          {
+            $text: { $search: searchQuery },
+            organization: "org_123",
+          },
+          {
+            $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+          },
+        ],
       });
       expect(results).toHaveLength(1);
       expect(results[0].title).toBe("Q3 Budget");
@@ -71,8 +122,15 @@ describe("Meeting Search Organization Scoping & Isolation (#387)", () => {
       );
 
       expect(Meeting.find).toHaveBeenCalledWith({
-        $text: { $search: "strategy" },
-        $or: [{ organization: "org_A" }, { uploadedBy: "user_A" }],
+        $and: [
+          {
+            $text: { $search: "strategy" },
+            $or: [{ organization: "org_A" }, { uploadedBy: "user_A" }],
+          },
+          {
+            $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+          },
+        ],
       });
       expect(result.count).toBe(1);
       expect(result.results[0].title).toBe("Strategy Session");
@@ -91,8 +149,15 @@ describe("Meeting Search Organization Scoping & Isolation (#387)", () => {
       await MeetingService.searchMeetings(queryParams, orgId, null);
 
       expect(Meeting.find).toHaveBeenCalledWith({
-        $text: { $search: "security audit" },
-        $or: [{ organization: "org_B" }],
+        $and: [
+          {
+            $text: { $search: "security audit" },
+            $or: [{ organization: "org_B" }],
+          },
+          {
+            $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+          },
+        ],
       });
     });
   });

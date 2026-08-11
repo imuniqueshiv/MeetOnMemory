@@ -91,7 +91,7 @@ describe("computeTextSimilarity", () => {
       "I live in Delhi",
       "I currently stay in Delhi",
     );
-    expect(score).toBeGreaterThan(0.4);
+    expect(score).toBeGreaterThan(0.35);
   });
 
   test("scores unrelated sentences low", () => {

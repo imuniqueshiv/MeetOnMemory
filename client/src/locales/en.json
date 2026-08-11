@@ -185,7 +185,9 @@
     "description": "AI-powered meeting intelligence and organizational knowledge management platform.",
     "madeWith": "Made with",
     "by": "by",
-    "meetOnMemoryTeam": "the MeetOnMemory Team"
+    "meetOnMemoryTeam": "the MeetOnMemory Team",
+    "status": "System Status",
+    "security": "Security"
   },
   "dashboard": {
     "welcomeBack": "Welcome back,",

@@ -28,6 +28,9 @@ async function makeMeeting(overrides = {}) {
 }
 
 describe("services/graphSnapshotService", () => {
+  beforeAll(async () => {
+    await mongoose.connect(process.env.TEST_MONGODB_URI);
+  });
   describe("captureSnapshot", () => {
     it("persists a snapshot with node/edge counts matching the live graph", async () => {
       const meeting = await makeMeeting();
@@ -150,6 +153,45 @@ describe("services/graphSnapshotService", () => {
       );
       expect(snapshots[0].nodes).toBeUndefined();
       expect(snapshots[0].edges).toBeUndefined();
+    });
+
+    it("supports cursor-based pagination via before parameter", async () => {
+      const meeting = await makeMeeting();
+      await Decision.create({ text: "D1", sourceMeetingId: meeting._id });
+      await captureSnapshot(null, { trigger: "manual" });
+
+      await Decision.create({ text: "D2", sourceMeetingId: meeting._id });
+      await captureSnapshot(null, { trigger: "manual" });
+
+      const allSnapshots = await listSnapshots(null, { limit: 10 });
+      expect(allSnapshots.length).toBe(2);
+
+      const firstSnapshot = allSnapshots[0];
+      const olderSnapshots = await listSnapshots(null, {
+        limit: 10,
+        before: firstSnapshot.createdAt.toISOString(),
+      });
+
+      expect(olderSnapshots.length).toBe(1);
+      expect(olderSnapshots[0]._id.toString()).toBe(
+        allSnapshots[1]._id.toString(),
+      );
+    });
+
+    it("supports page offset pagination", async () => {
+      const meeting = await makeMeeting();
+      await Decision.create({ text: "D1", sourceMeetingId: meeting._id });
+      await captureSnapshot(null, { trigger: "manual" });
+
+      await Decision.create({ text: "D2", sourceMeetingId: meeting._id });
+      await captureSnapshot(null, { trigger: "manual" });
+
+      const page1 = await listSnapshots(null, { limit: 1, page: 1 });
+      const page2 = await listSnapshots(null, { limit: 1, page: 2 });
+
+      expect(page1.length).toBe(1);
+      expect(page2.length).toBe(1);
+      expect(page1[0]._id.toString()).not.toBe(page2[0]._id.toString());
     });
   });
 

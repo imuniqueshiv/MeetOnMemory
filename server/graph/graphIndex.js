@@ -60,6 +60,41 @@ export async function buildGraph(organization) {
     ),
   ]);
 
+  return assembleGraph(decisions, actionItems);
+}
+
+/**
+ * Builds a knowledge graph spanning multiple organizations.
+ * Every data-owner principle from buildGraph applies here, but across all
+ * organizations the user has access to rather than a single one.
+ *
+ * @param {string[]} organizationIds - array of organization ObjectId strings
+ * @returns {Promise<{adjacency: Map, nodes: Map}>}
+ */
+export async function buildMultiOrgGraph(organizationIds) {
+  if (!organizationIds?.length) {
+    return { adjacency: new Map(), nodes: new Map() };
+  }
+
+  const orgFilter = { organization: { $in: organizationIds } };
+
+  const [decisions, actionItems] = await Promise.all([
+    Decision.find(orgFilter).select(
+      "text owner status sourceMeetingId relatesTo createdAt embedding organization accessCount lastAccessedAt feedbackScore feedbackCount",
+    ),
+    ActionItem.find(orgFilter).select(
+      "text owner status sourceMeetingId relatesTo createdAt embedding organization accessCount lastAccessedAt feedbackScore feedbackCount",
+    ),
+  ]);
+
+  return assembleGraph(decisions, actionItems);
+}
+
+/**
+ * Shared internal: assembles adjacency + node maps from already-fetched
+ * decision and action-item documents.
+ */
+async function assembleGraph(decisions, actionItems) {
   const adjacency = new Map();
   const nodes = new Map();
 

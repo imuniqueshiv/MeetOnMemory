@@ -7,10 +7,15 @@ import MeetingSummary from "../components/meeting-details/MeetingSummary";
 import MeetingCollaborativeNotes from "../components/meeting-details/MeetingCollaborativeNotes";
 import MeetingTranscript from "../components/meeting-details/MeetingTranscript";
 import MeetingParticipants from "../components/meeting-details/MeetingParticipants";
+import MeetingAgenda from "../components/meeting-details/MeetingAgenda";
 import MeetingMetadata from "../components/meeting-details/MeetingMetadata";
 import MeetingActions from "../components/meeting-details/MeetingActions";
 import VaultKeyPrompt from "../components/VaultKeyPrompt";
 import { isEncrypted, decryptText } from "../utils/cryptoUtils";
+import TranscriptAnnotations from "../components/meeting-details/TranscriptAnnotations";
+import ShareModal from "../components/shared-links/ShareModal";
+import MeetingFollowUpBanner from "../components/meeting-details/MeetingFollowUpBanner";
+import PresentMode from "../components/meeting-details/PresentMode";
 
 const MeetingDetails = () => {
   const { id } = useParams();
@@ -20,6 +25,9 @@ const MeetingDetails = () => {
   const [error, setError] = useState(null);
   const [encryptionKey, setEncryptionKey] = useState(null);
   const [needsDecryption, setNeedsDecryption] = useState(false);
+  const [decryptionError, setDecryptionError] = useState(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [isPresentModeOpen, setIsPresentModeOpen] = useState(false);
 
   useEffect(() => {
     const fetchMeetingDetails = async () => {
@@ -29,7 +37,7 @@ const MeetingDetails = () => {
         const { data } = await meetingApi.getMeetingById(id);
         if (data.success) {
           const m = data.meeting;
-          if (isEncrypted(m.transcript) || isEncrypted(m.summary)) {
+          if (isEncrypted(m.transcript) || isEncrypted(m.summary) || m.structuredMoM?.encrypted) {
             setNeedsDecryption(true);
           }
           setMeeting(m);
@@ -66,9 +74,11 @@ const MeetingDetails = () => {
           }
           setMeeting(decryptedMeeting);
           setNeedsDecryption(false);
+          setDecryptionError(null);
         } catch (err) {
           console.error("Decryption failed", err);
-          setError("Decryption failed. Invalid Vault Password.");
+          setDecryptionError("Decryption failed. Invalid Vault Password.");
+          setEncryptionKey(null);
         }
       }
     };
@@ -187,11 +197,18 @@ const MeetingDetails = () => {
     <div className="min-h-screen bg-gray-50 p-6">
       {needsDecryption && !encryptionKey && <VaultKeyPrompt onKeyReady={setEncryptionKey} />}
       <div className="max-w-6xl mx-auto">
-        <MeetingHeader meeting={meeting} />
+        <MeetingFollowUpBanner meeting={meeting} />
+        <MeetingHeader
+          meeting={meeting}
+          onShare={() => setShareModalOpen(true)}
+          onPresent={() => setIsPresentModeOpen(true)}
+        />
         <MeetingSummary meeting={meeting} />
         <MeetingCollaborativeNotes meeting={meeting} />
         <MeetingTranscript meeting={meeting} />
+        <TranscriptAnnotations meeting={meeting} />
         <MeetingParticipants meeting={meeting} />
+        <MeetingAgenda meeting={meeting} />
         <MeetingMetadata meeting={meeting} />
         <MeetingActions
           meeting={meeting}
@@ -199,6 +216,21 @@ const MeetingDetails = () => {
           onRename={handleRename}
         />
       </div>
+
+      <ShareModal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        resourceId={meeting._id}
+        resourceType="Meeting"
+        title={meeting.title}
+      />
+
+      {isPresentModeOpen && (
+        <PresentMode
+          meeting={meeting}
+          onClose={() => setIsPresentModeOpen(false)}
+        />
+      )}
     </div>
   );
 };

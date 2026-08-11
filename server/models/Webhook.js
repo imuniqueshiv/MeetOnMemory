@@ -13,6 +13,12 @@ const webhookSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      validate: {
+        validator: function (v) {
+          return typeof v === "string" && v.startsWith("https://");
+        },
+        message: "Target URL must start with https://",
+      },
     },
     events: {
       type: [String],
@@ -28,6 +34,19 @@ const webhookSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    consecutiveFailures: {
+      type: Number,
+      default: 0,
+    },
+    healthStatus: {
+      type: String,
+      enum: ["healthy", "degraded", "paused"],
+      default: "healthy",
+    },
+    lastDeliveredAt: {
+      type: Date,
+      default: null,
     },
   },
   { timestamps: true },

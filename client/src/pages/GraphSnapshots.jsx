@@ -20,9 +20,9 @@ import {
 /**
  * GraphSnapshots.jsx
  *
- * Memory Graph Snapshot & Time-Travel view (issue #374).
- * Lets users browse historical captures of the knowledge graph, pick any
- * two to compare, and see exactly what nodes/edges were added, removed,
+ * Memory Graph Snapshot & Time-Travel view (issue #374 & issue #913).
+ * Lets users browse historical captures of the knowledge graph with pagination support,
+ * pick any two to compare, and see exactly what nodes/edges were added, removed,
  * or modified between them.
  */
 
@@ -38,6 +38,8 @@ const TYPE_LABELS = {
   actionItem: "Action Item",
   meeting: "Meeting",
 };
+
+const PAGE_LIMIT = 20;
 
 function SnapshotRow({ snapshot, selected, onToggle }) {
   return (
@@ -123,6 +125,9 @@ function DiffNodeCard({ node, tone }) {
 const GraphSnapshots = () => {
   const [snapshots, setSnapshots] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
   const [capturing, setCapturing] = useState(false);
   const [selected, setSelected] = useState([]); // up to 2 snapshot ids, oldest first
   const [diff, setDiff] = useState(null);
@@ -131,9 +136,16 @@ const GraphSnapshots = () => {
   const loadSnapshots = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await knowledgeApi.getGraphSnapshots({ limit: 50 });
+      const res = await knowledgeApi.getGraphSnapshots({ limit: PAGE_LIMIT });
       if (res.data?.success) {
-        setSnapshots(res.data.snapshots || []);
+        const list = res.data.snapshots || [];
+        setSnapshots(list);
+        setTotalCount(res.data.totalCount || res.data.count || list.length);
+        setHasMore(
+          res.data.hasMore !== undefined
+            ? res.data.hasMore
+            : list.length >= PAGE_LIMIT,
+        );
       }
     } catch (err) {
       console.error("Failed to load graph snapshots", err);
@@ -142,6 +154,40 @@ const GraphSnapshots = () => {
       setLoading(false);
     }
   }, []);
+
+  const loadMoreSnapshots = async () => {
+    if (loadingMore || !hasMore || snapshots.length === 0) return;
+
+    setLoadingMore(true);
+    try {
+      const lastSnapshot = snapshots[snapshots.length - 1];
+      const res = await knowledgeApi.getGraphSnapshots({
+        limit: PAGE_LIMIT,
+        before: lastSnapshot?.createdAt,
+      });
+
+      if (res.data?.success) {
+        const newSnapshots = res.data.snapshots || [];
+        setSnapshots((prev) => {
+          const existingIds = new Set(prev.map((s) => s._id));
+          const uniqueNew = newSnapshots.filter((s) => !existingIds.has(s._id));
+          return [...prev, ...uniqueNew];
+        });
+
+        if (res.data.totalCount) setTotalCount(res.data.totalCount);
+        setHasMore(
+          res.data.hasMore !== undefined
+            ? res.data.hasMore
+            : newSnapshots.length >= PAGE_LIMIT,
+        );
+      }
+    } catch (err) {
+      console.error("Failed to load more snapshots", err);
+      toast.error("Failed to load older snapshots.");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     loadSnapshots();
@@ -213,7 +259,9 @@ const GraphSnapshots = () => {
   const downloadSnapshot = async (id) => {
     try {
       const res = await knowledgeApi.exportGraphSnapshot(id);
-      const blob = new Blob([JSON.stringify(res.data, null, 2)], {
+      const payload =
+        res.data?.data?.snapshot || res.data?.snapshot || res.data;
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
         type: "application/json",
       });
       const url = URL.createObjectURL(blob);
@@ -275,7 +323,11 @@ const GraphSnapshots = () => {
               <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
                 Timeline{" "}
                 <span className="text-slate-400 font-normal">
-                  (select up to 2)
+                  (
+                  {totalCount && totalCount !== snapshots.length
+                    ? `${snapshots.length} of ${totalCount}`
+                    : totalCount || snapshots.length}{" "}
+                  snapshots)
                 </span>
               </h2>
               <button
@@ -324,6 +376,29 @@ const GraphSnapshots = () => {
                   </button>
                 </div>
               ))}
+
+              {hasMore && (
+                <button
+                  onClick={loadMoreSnapshots}
+                  disabled={loadingMore}
+                  className="w-full py-2 px-3 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg border border-blue-200 dark:border-blue-800 transition-colors flex items-center justify-center gap-2 mt-3"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Loading older snapshots...
+                    </>
+                  ) : (
+                    "Load older snapshots"
+                  )}
+                </button>
+              )}
+
+              {!hasMore && snapshots.length > 0 && (
+                <p className="text-center text-xs text-slate-400 dark:text-slate-500 py-3">
+                  All snapshots loaded
+                </p>
+              )}
             </div>
           </div>
 

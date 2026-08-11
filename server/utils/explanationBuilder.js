@@ -41,6 +41,9 @@ export function confidenceLabel(score) {
  *   meetings, which don't carry this data today.
  * @param {string|null} [params.organization=null] - the requesting user's organization,
  *   for the "organization relevance" check.
+ * @param {object|null} [params.workspace=null] - workspace metadata for federated results,
+ *   e.g. { id, name, slug }. When present, overrides the simple boolean match in
+ *   organizationRelevance with full workspace details.
  * @param {Date} [params.now=new Date()] - injection point for deterministic tests.
  */
 export function buildExplanation({
@@ -51,6 +54,7 @@ export function buildExplanation({
   vectorRank = null,
   memory = null,
   organization = null,
+  workspace = null,
   now = new Date(),
 }) {
   const relatesTo = memory?.relatesTo || [];
@@ -104,8 +108,16 @@ export function buildExplanation({
             score: Math.round(recencyScore),
           }
         : { accessed: false, score: null },
-    organizationRelevance:
-      memory && organization
+    organizationRelevance: workspace
+      ? {
+          workspaceId: workspace.id,
+          workspaceName: workspace.name || null,
+          workspaceSlug: workspace.slug || null,
+          matches: organization
+            ? String(workspace.id || "") === String(organization)
+            : true,
+        }
+      : memory && organization
         ? {
             matches: String(memory.organization || "") === String(organization),
           }

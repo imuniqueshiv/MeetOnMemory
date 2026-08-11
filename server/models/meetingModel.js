@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { normalizeAgendaItems } from "../utils/agendaOrdering.js";
 
 const meetingSchema = new mongoose.Schema(
   {
@@ -56,6 +57,37 @@ const meetingSchema = new mongoose.Schema(
     agendaItems: [
       {
         text: { type: String, required: true },
+        description: { type: String, default: "" },
+        // Planned length, in MINUTES. Named `duration` for backwards
+        // compatibility; see `actualDuration` below for the unit mismatch this
+        // creates and why it is deliberate.
+        duration: { type: Number, default: null },
+        position: { type: Number, min: 0, default: 0 },
+
+        // ── Live agenda timer (Issue #1159) ────────────────────────────────
+        // `agendaTimerController` has always written these four fields. None
+        // of them existed on the schema, and Mongoose is strict by default, so
+        // every assignment was discarded before the document was saved — the
+        // start/stop/skip endpoints returned 200 and persisted nothing, `stop`
+        // returned 400 unconditionally because `status` was always `undefined`
+        // on reload, and the pacing report was structurally all zeros.
+        status: {
+          type: String,
+          enum: ["pending", "active", "completed", "skipped"],
+          default: "pending",
+        },
+        startedAt: { type: Date, default: null },
+        completedAt: { type: Date, default: null },
+        // Accumulated elapsed time, in MILLISECONDS.
+        //
+        // The unit differs from `duration` above, which is minutes. That is not
+        // an oversight: `getAgendaPacingReport` already divides this by 60000
+        // to report minutes, and `client/src/utils/agendaTiming.js` already
+        // multiplies `duration` by 60 * 1000 to compare them. Both sides were
+        // written against milliseconds; storing minutes here would silently
+        // break both. It accumulates across start/stop cycles, so an item that
+        // is paused and resumed reports its total.
+        actualDuration: { type: Number, default: 0, min: 0 },
       },
     ],
     policyDetails: {
@@ -90,12 +122,82 @@ const meetingSchema = new mongoose.Schema(
       type: String, // Optional - additional AI notes
       default: "",
     },
+    aiSummaryTemplate: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AiSummaryTemplate",
+      default: null,
+    },
     status: {
       type: String,
       enum: ["uploaded", "processing", "completed", "failed"],
       default: "uploaded",
     },
     tags: [String], // e.g., ["policy", "finance", "staff"]
+
+    // ── Meeting series membership (Issue #1160) ──────────────────────────────
+    // `createSeries` has always built its occurrences with `series` and
+    // `seriesOccurrence` set and handed them to `Meeting.insertMany`. Neither
+    // was a schema path, so Mongoose stripped both — the meetings were created
+    // and then orphaned.
+    //
+    // Everything downstream reads the link: `getSeriesMeetings` queries
+    // `{ series: id }` and returned zero rows for every series ever created,
+    // and `cancelSeries` ran a `deleteMany` on the same filter and deleted
+    // nothing while reporting success.
+    series: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "MeetingSeries",
+      default: null,
+    },
+    // 1-based index of this meeting within its series; the sort key for
+    // `getSeriesMeetings`.
+    seriesOccurrence: {
+      type: Number,
+      default: null,
+      min: 1,
+    },
+    externalCalendarRefs: [
+      {
+        provider: { type: String, enum: ["google", "outlook"], required: true },
+        eventId: { type: String, required: true },
+      },
+    ],
+
+    // Calendar integration - store external event IDs for both providers
+    calendarEvents: {
+      google: {
+        eventId: { type: String, default: null },
+        syncedAt: { type: Date, default: null },
+      },
+      microsoft: {
+        eventId: { type: String, default: null },
+        syncedAt: { type: Date, default: null },
+      },
+    },
+
+    // Legacy field for backward compatibility
+    archived: {
+      type: Boolean,
+      default: false,
+    },
+
+    // Soft-delete lifecycle (Issue #1013)
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    deletionReason: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: null,
+    },
 
     // Google Calendar integration
     googleEventId: {
@@ -112,15 +214,43 @@ const meetingSchema = new mongoose.Schema(
       type: String, // Plain-text snapshot for read-only views and semantic search
       default: "",
     },
+
+    // Overall progress through the agenda (Issue #1159).
+    //
+    // `agendaTimerController` set this on the document and
+    // `getAgendaPacingReport` selected and returned it, but it was never a
+    // schema path — so the write was dropped and the read was always
+    // `undefined`.
+    agendaProgress: {
+      type: String,
+      enum: ["not_started", "in_progress", "completed"],
+      default: "not_started",
+    },
   },
   { timestamps: true },
 );
 
+meetingSchema.pre("validate", function normalizeAgendaOrder(next) {
+  if (this.isModified("agendaItems") || this.isNew) {
+    this.agendaItems = normalizeAgendaItems(
+      (this.agendaItems || []).map((item) =>
+        typeof item.toObject === "function" ? item.toObject() : item,
+      ),
+    );
+  }
+  next();
+});
+
 // Indexes for query performance
 meetingSchema.index({ organization: 1, createdAt: -1 });
+meetingSchema.index({ organization: 1, deletedAt: 1, createdAt: -1 });
 meetingSchema.index({ uploadedBy: 1, createdAt: -1 });
 meetingSchema.index({ status: 1 });
 meetingSchema.index({ title: "text", summary: "text" });
+// `getSeriesMeetings` filters on `series` and sorts on `seriesOccurrence`
+// (Issue #1160); `sparse` keeps the index to the small minority of meetings
+// that actually belong to a series.
+meetingSchema.index({ series: 1, seriesOccurrence: 1 }, { sparse: true });
 
 const Meeting = mongoose.model("Meeting", meetingSchema);
 export default Meeting;

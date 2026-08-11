@@ -6,34 +6,17 @@ const csrfProtection = csrf({
     key: "_csrf",
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
   },
 });
 
-export const csrfMiddleware = (req, res, next) => {
-  const isSafeMethod = ["GET", "HEAD", "OPTIONS"].includes(req.method);
-  const isAuthRoute = req.path.startsWith("/api/auth");
-  const isSyncPath = req.path.startsWith("/sync");
-  // Slack cannot send CSRF tokens — exclude all Slack endpoints
-  const isSlackRoute = req.path.startsWith("/api/slack");
+export const csrfProtectionMiddleware = csrfProtection;
 
-  if (
-    isSafeMethod ||
-    isAuthRoute ||
-    isSyncPath ||
-    isSlackRoute ||
-    process.env.NODE_ENV === "test"
-  ) {
-    return next();
+export const csrfErrorHandler = (err, req, res, next) => {
+  if (err && err.code === "EBADCSRFTOKEN") {
+    return sendCsrfInvalid(res, req?.requestId);
   }
-
-  return csrfProtection(req, res, (err) => {
-    if (!err) return next();
-    if (err.code === "EBADCSRFTOKEN") {
-      return sendCsrfInvalid(res);
-    }
-    return next(err);
-  });
+  return next(err);
 };
 
 export const csrfTokenProvider = csrfProtection;

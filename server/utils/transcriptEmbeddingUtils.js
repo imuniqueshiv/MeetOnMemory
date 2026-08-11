@@ -59,7 +59,11 @@ export const indexTranscriptChunks = async (transcript, meeting) => {
   try {
     const indexInstance = await initVectorStore();
 
-    if (!transcript || !transcript.segments || transcript.segments.length === 0) {
+    if (
+      !transcript ||
+      !transcript.segments ||
+      transcript.segments.length === 0
+    ) {
       console.warn("⚠️ Skipping empty transcript embedding");
       return;
     }
@@ -83,13 +87,8 @@ export const indexTranscriptChunks = async (transcript, meeting) => {
           transcriptId: transcript._id.toString(),
           chunkIndex: i,
           chunkType: "transcript",
-          speaker: chunk.speaker,
-          startTime: chunk.startTime,
-          endTime: chunk.endTime,
           text: chunk.text,
-          title: meeting.title,
-          meetingDate: meeting.date,
-          createdAt: transcript.createdAt || new Date(),
+          organization: meeting.organization?.toString() || null,
         },
       });
     }
@@ -97,7 +96,7 @@ export const indexTranscriptChunks = async (transcript, meeting) => {
     await indexInstance.upsert(vectors);
 
     console.log(
-      `✅ Indexed transcript chunks for meeting ${meeting.title} (${chunks.length} chunks)`
+      `✅ Indexed transcript chunks for meeting ${meeting.title} (${chunks.length} chunks)`,
     );
   } catch (error) {
     console.error("❌ Failed to index transcript chunks:", error);
@@ -117,7 +116,9 @@ export const searchTranscriptChunks = async (query, meetingId = null) => {
 
     const queryEmbedding = await embedText(query);
 
-    const filter = meetingId ? { meetingId: { $eq: meetingId.toString() } } : {};
+    const filter = meetingId
+      ? { meetingId: { $eq: meetingId.toString() } }
+      : {};
 
     const results = await indexInstance.query({
       vector: queryEmbedding,
@@ -137,12 +138,12 @@ export const searchTranscriptChunks = async (query, meetingId = null) => {
         meetingId: match.metadata.meetingId,
         transcriptId: match.metadata.transcriptId,
         chunkIndex: match.metadata.chunkIndex,
-        speaker: match.metadata.speaker,
-        startTime: match.metadata.startTime,
-        endTime: match.metadata.endTime,
+        speaker: match.metadata.speaker || null,
+        startTime: match.metadata.startTime || null,
+        endTime: match.metadata.endTime || null,
         text: match.metadata.text,
-        title: match.metadata.title,
-        meetingDate: match.metadata.meetingDate,
+        title: match.metadata.title || "Untitled Meeting",
+        meetingDate: match.metadata.meetingDate || null,
         similarityScore: parseFloat(match.score?.toFixed(3)) || 0,
       }));
 
@@ -173,6 +174,9 @@ export const deleteTranscriptChunks = async (transcriptId) => {
 
     console.log(`✅ Deleted transcript chunks from Pinecone: ${transcriptId}`);
   } catch (error) {
-    console.error("❌ Failed to delete transcript chunks from Pinecone:", error);
+    console.error(
+      "❌ Failed to delete transcript chunks from Pinecone:",
+      error,
+    );
   }
 };

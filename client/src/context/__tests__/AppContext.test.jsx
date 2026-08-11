@@ -1,20 +1,14 @@
 import React, { useContext } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { AppContextProvider } from "../AppContext";
 import AppContent from "../AppContent";
 
-const mockFetchToken = vi.fn();
-const mockClearToken = vi.fn();
 const mockGetAuthState = vi.fn();
 const mockGetUserData = vi.fn();
 
 vi.mock("../../services", () => ({
-  csrfService: {
-    fetchToken: (...args) => mockFetchToken(...args),
-    clearToken: (...args) => mockClearToken(...args),
-  },
   authApi: {
     getAuthState: (...args) => mockGetAuthState(...args),
     getUserData: (...args) => mockGetUserData(...args),
@@ -30,7 +24,7 @@ vi.mock("react-toastify", () => ({
 }));
 
 const Probe = () => {
-  const { loading, isLoggedin, userData, initializeAuth } =
+  const { loading, isLoggedin, userData, initializeAuth, setLoading } =
     useContext(AppContent);
 
   return (
@@ -40,7 +34,10 @@ const Probe = () => {
       <div data-testid="user-name">{userData?.name || ""}</div>
       <button
         type="button"
-        onClick={() => initializeAuth()}
+        onClick={async () => {
+          await initializeAuth();
+          setLoading(false);
+        }}
         data-testid="rebootstrap"
       >
         Rebootstrap
@@ -52,7 +49,6 @@ const Probe = () => {
 describe("AppContext initializeAuth", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetchToken.mockResolvedValue("csrf-token");
 
     const store = {};
     vi.stubGlobal("localStorage", {
@@ -67,9 +63,28 @@ describe("AppContext initializeAuth", () => {
         Object.keys(store).forEach((key) => delete store[key]);
       }),
     });
+
+    vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "pk_test_mocked_key");
   });
 
-  it("restores an authenticated session on mount", async () => {
+  it("defers mount bootstrap to ClerkSessionSync when Clerk is configured", async () => {
+    render(
+      <MemoryRouter>
+        <AppContextProvider>
+          <Probe />
+        </AppContextProvider>
+      </MemoryRouter>,
+    );
+
+    // With VITE_CLERK_PUBLISHABLE_KEY present, AppContext must not race is-auth.
+    await waitFor(() => {
+      expect(screen.getByTestId("loading")).toHaveTextContent("true");
+    });
+    expect(mockGetAuthState).not.toHaveBeenCalled();
+    expect(screen.getByTestId("logged-in")).toHaveTextContent("false");
+  });
+
+  it("restores an authenticated session via initializeAuth", async () => {
     mockGetAuthState.mockResolvedValue({ data: { success: true } });
     mockGetUserData.mockResolvedValue({
       data: {
@@ -90,11 +105,13 @@ describe("AppContext initializeAuth", () => {
       </MemoryRouter>,
     );
 
+    fireEvent.click(screen.getByTestId("rebootstrap"));
+
     await waitFor(() => {
       expect(screen.getByTestId("loading")).toHaveTextContent("false");
     });
 
-    expect(mockFetchToken).toHaveBeenCalled();
+    expect(mockGetAuthState).toHaveBeenCalled();
     expect(screen.getByTestId("logged-in")).toHaveTextContent("true");
     expect(screen.getByTestId("user-name")).toHaveTextContent("Sanjana");
   });
@@ -109,6 +126,8 @@ describe("AppContext initializeAuth", () => {
         </AppContextProvider>
       </MemoryRouter>,
     );
+
+    fireEvent.click(screen.getByTestId("rebootstrap"));
 
     await waitFor(() => {
       expect(screen.getByTestId("loading")).toHaveTextContent("false");
@@ -130,11 +149,46 @@ describe("AppContext initializeAuth", () => {
       </MemoryRouter>,
     );
 
+    fireEvent.click(screen.getByTestId("rebootstrap"));
+
     await waitFor(() => {
       expect(screen.getByTestId("loading")).toHaveTextContent("false");
     });
 
     expect(screen.getByTestId("logged-in")).toHaveTextContent("false");
     expect(screen.getByTestId("user-name")).toHaveTextContent("");
+  });
+
+  it("passes explicit authorization through to is-auth and user-data", async () => {
+    mockGetAuthState.mockResolvedValue({ data: { success: true } });
+    mockGetUserData.mockResolvedValue({
+      data: {
+        success: true,
+        user: { name: "Ada", hasCompletedOnboarding: false },
+      },
+    });
+
+    let initializeAuthFn;
+    const Capture = () => {
+      initializeAuthFn = useContext(AppContent).initializeAuth;
+      return null;
+    };
+
+    render(
+      <MemoryRouter>
+        <AppContextProvider>
+          <Capture />
+        </AppContextProvider>
+      </MemoryRouter>,
+    );
+
+    await initializeAuthFn({ authorization: "Bearer explicit_jwt" });
+
+    expect(mockGetAuthState).toHaveBeenCalledWith({
+      headers: { Authorization: "Bearer explicit_jwt" },
+    });
+    expect(mockGetUserData).toHaveBeenCalledWith({
+      headers: { Authorization: "Bearer explicit_jwt" },
+    });
   });
 });

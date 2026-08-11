@@ -53,6 +53,21 @@ const mergeConflictSchema = new mongoose.Schema(
   { _id: false },
 );
 
+// One entry per lifecycle state transition (Issue #377), so every
+// archive/restore/expiry decision made by the sweep (or an admin) is
+// traceable after the fact without needing a separate AuditLog lookup.
+const lifecycleTransitionSchema = new mongoose.Schema(
+  {
+    from: { type: String, default: null },
+    to: { type: String, required: true },
+    reason: { type: String, default: "" },
+    // "system" for scheduled sweep transitions, otherwise the acting user id.
+    triggeredBy: { type: String, default: "system" },
+    transitionedAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
 const actionItemSchema = new mongoose.Schema(
   {
     text: { type: String, required: true, trim: true },
@@ -75,6 +90,16 @@ const actionItemSchema = new mongoose.Schema(
     dueDate: {
       type: Date,
       default: null,
+    },
+    remindersEnabled: {
+      type: Boolean,
+      default: true,
+    },
+    reminderSent: {
+      upcoming: { type: Boolean, default: false },
+      overdue: { type: Boolean, default: false },
+      upcomingSentAt: { type: Date, default: null },
+      overdueSentAt: { type: Date, default: null },
     },
     embedding: {
       type: [Number],
@@ -134,9 +159,27 @@ const actionItemSchema = new mongoose.Schema(
       default: null,
     },
     lastConsolidatedAt: { type: Date, default: null },
+
+    // --- Memory Lifecycle Management (Issue #377) ---
+    lifecycleState: {
+      type: String,
+      enum: ["active", "dormant", "archived", "expired"],
+      default: "active",
+      index: true,
+    },
+    lifecycleUpdatedAt: { type: Date, default: null },
+    archivedAt: { type: Date, default: null },
+    // When set, the sweep may permanently delete this memory once past
+    // this timestamp (only ever reached from the "archived" state).
+    expiresAt: { type: Date, default: null },
+    lifecycleHistory: { type: [lifecycleTransitionSchema], default: [] },
   },
   { timestamps: true },
 );
+
+actionItemSchema.index({ organization: 1, status: 1, createdAt: -1 });
+actionItemSchema.index({ organization: 1, dueDate: 1 });
+actionItemSchema.index({ organization: 1, owner: 1 });
 
 const ActionItem =
   mongoose.models.ActionItem || mongoose.model("ActionItem", actionItemSchema);

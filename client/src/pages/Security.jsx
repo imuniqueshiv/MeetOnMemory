@@ -23,7 +23,7 @@ import {
   AlertOctagon,
   UserCheck,
   Scale,
-  Globe
+  Globe,
 } from "lucide-react";
 
 // Sections data
@@ -223,9 +223,23 @@ const Security = () => {
 
   // Security Status Rating
   const securityRating = useMemo(() => {
-    if (securityScore < 40) return { label: "Standard Protection", color: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border-amber-200" };
-    if (securityScore < 80) return { label: "Strong Guard", color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 border-blue-200" };
-    return { label: "Enterprise Hardened", color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200" };
+    if (securityScore < 40)
+      return {
+        label: "Standard Protection",
+        color:
+          "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border-amber-200",
+      };
+    if (securityScore < 80)
+      return {
+        label: "Strong Guard",
+        color:
+          "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 border-blue-200",
+      };
+    return {
+      label: "Enterprise Hardened",
+      color:
+        "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200",
+    };
   }, [securityScore]);
 
   // References for scroll detection
@@ -293,7 +307,7 @@ const Security = () => {
     return sections.filter(
       (sec) =>
         sec.title.toLowerCase().includes(query) ||
-        sec.content.toLowerCase().includes(query)
+        sec.content.toLowerCase().includes(query),
     );
   }, [searchQuery]);
 
@@ -316,7 +330,8 @@ const Security = () => {
             Security & Compliance
           </h1>
           <p className="mt-4 max-w-2xl mx-auto text-base sm:text-lg text-gray-500 dark:text-slate-400">
-            Understand how we secure your meeting records, transcription files, vector search indexes, and access parameters.
+            Understand how we secure your meeting records, transcription files,
+            vector search indexes, and access parameters.
           </p>
 
           <div className="mt-8 max-w-md mx-auto relative">
@@ -352,9 +367,8 @@ const Security = () => {
       </header>
 
       {/* Main Grid Content */}
-      <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 flex-1">
+      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 flex-1">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
           {/* Left Column: Navigation Sidebar */}
           <aside className="lg:col-span-4 hidden lg:block">
             <div className="sticky top-28 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm max-h-[calc(100vh-140px)] overflow-y-auto">
@@ -375,9 +389,15 @@ const Security = () => {
                           : "text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700/30"
                       }`}
                     >
-                      <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? "text-indigo-600 dark:text-indigo-400" : "text-gray-400"}`} />
-                      <span className="truncate">{sec.title.split(". ")[1]}</span>
-                      {isActive && <ChevronRight className="w-4 h-4 ml-auto text-indigo-600 dark:text-indigo-400 shrink-0 animate-pulse" />}
+                      <Icon
+                        className={`w-4.5 h-4.5 shrink-0 ${isActive ? "text-indigo-600 dark:text-indigo-400" : "text-gray-400"}`}
+                      />
+                      <span className="truncate">
+                        {sec.title.split(". ")[1]}
+                      </span>
+                      {isActive && (
+                        <ChevronRight className="w-4 h-4 ml-auto text-indigo-600 dark:text-indigo-400 shrink-0 animate-pulse" />
+                      )}
                     </button>
                   );
                 })}
@@ -392,7 +412,8 @@ const Security = () => {
                   <Terminal className="w-4 h-4" /> Bug Bounty Program
                 </h4>
                 <p className="text-[11px] text-indigo-100 mt-2 leading-relaxed">
-                  Report verified high-severity API or database vulnerabilities and participate in our responsible disclosure program.
+                  Report verified high-severity API or database vulnerabilities
+                  and participate in our responsible disclosure program.
                 </p>
                 <a
                   href="mailto:security@meetonmemory.com"
@@ -406,7 +427,6 @@ const Security = () => {
 
           {/* Right Column: Clauses and Calculator */}
           <div className="lg:col-span-8 space-y-12">
-            
             {/* Interactive Security Strength Calculator */}
             <section className="bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xs">
               <div className="flex items-center gap-3 mb-4">
@@ -418,7 +438,8 @@ const Security = () => {
                     Workspace Hardening Calculator
                   </h2>
                   <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                    Toggle parameters to simulate your organization's posture and review hardening suggestions.
+                    Toggle parameters to simulate your organization's posture
+                    and review hardening suggestions.
                   </p>
                 </div>
               </div>
@@ -450,19 +471,32 @@ const Security = () => {
                         className="transition-all duration-500 ease-out"
                       />
                     </svg>
-                    <span className="absolute text-xl font-extrabold text-gray-950 dark:text-white">{securityScore}%</span>
+                    <span className="absolute text-xl font-extrabold text-gray-950 dark:text-white">
+                      {securityScore}%
+                    </span>
                   </div>
                   <div>
-                    <span className="text-xs text-gray-400 dark:text-slate-500 uppercase font-bold tracking-wider">Simulated Strength</span>
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mt-0.5">Security Score</h3>
-                    <p className="text-xs text-gray-500 mt-1 max-w-[200px]">Adjust settings below to hardening configurations.</p>
+                    <span className="text-xs text-gray-400 dark:text-slate-500 uppercase font-bold tracking-wider">
+                      Simulated Strength
+                    </span>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mt-0.5">
+                      Security Score
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1 max-w-[200px]">
+                      Adjust settings below to hardening configurations.
+                    </p>
                   </div>
                 </div>
 
-                <div className={`p-4 rounded-xl border flex flex-col items-center sm:items-start text-center sm:text-left ${securityRating.color} transition-all duration-300`}>
-                  <span className="text-[10px] font-bold uppercase tracking-wider opacity-60">Status Rating</span>
+                <div
+                  className={`p-4 rounded-xl border flex flex-col items-center sm:items-start text-center sm:text-left ${securityRating.color} transition-all duration-300`}
+                >
+                  <span className="text-[10px] font-bold uppercase tracking-wider opacity-60">
+                    Status Rating
+                  </span>
                   <span className="font-extrabold text-sm sm:text-base mt-1 flex items-center gap-1.5">
-                    <Shield className="w-4 h-4 shrink-0" /> {securityRating.label}
+                    <Shield className="w-4 h-4 shrink-0" />{" "}
+                    {securityRating.label}
                   </span>
                   <button
                     onClick={() => setShowCalcTip(!showCalcTip)}
@@ -478,13 +512,11 @@ const Security = () => {
                   <h5 className="font-bold flex items-center gap-1.5 mb-1 text-indigo-900 dark:text-indigo-300">
                     <Info className="w-3.5 h-3.5" /> Recommendation:
                   </h5>
-                  {securityScore < 60 ? (
-                    "Enable SSO (SAML) and Strict Session Timeouts to shield administrator workspaces from external hijacking attempts."
-                  ) : securityScore < 100 ? (
-                    "To reach Enterprise status, check both Single Sign-On (SSO) and Strict Session timeouts, hardening access controls."
-                  ) : (
-                    "Your organization has selected full security capabilities. Your vectors partition, databases, and login routes are hardened."
-                  )}
+                  {securityScore < 60
+                    ? "Enable SSO (SAML) and Strict Session Timeouts to shield administrator workspaces from external hijacking attempts."
+                    : securityScore < 100
+                      ? "To reach Enterprise status, check both Single Sign-On (SSO) and Strict Session timeouts, hardening access controls."
+                      : "Your organization has selected full security capabilities. Your vectors partition, databases, and login routes are hardened."}
                 </div>
               )}
 
@@ -493,13 +525,23 @@ const Security = () => {
                 {/* Toggle 1 */}
                 <label className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-800 rounded-xl hover:bg-gray-50/50 dark:hover:bg-slate-700/10 cursor-pointer select-none">
                   <div className="max-w-[80%] pr-3">
-                    <h4 className="font-semibold text-sm text-gray-800 dark:text-white">Multi-Factor Authentication (MFA)</h4>
-                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Mandate email/authenticator verification codes on admin login attempts. (+25%)</p>
+                    <h4 className="font-semibold text-sm text-gray-800 dark:text-white">
+                      Multi-Factor Authentication (MFA)
+                    </h4>
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                      Mandate email/authenticator verification codes on admin
+                      login attempts. (+25%)
+                    </p>
                   </div>
                   <input
                     type="checkbox"
                     checked={calcSettings.mfa}
-                    onChange={(e) => setCalcSettings({ ...calcSettings, mfa: e.target.checked })}
+                    onChange={(e) =>
+                      setCalcSettings({
+                        ...calcSettings,
+                        mfa: e.target.checked,
+                      })
+                    }
                     className="h-4.5 w-4.5 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                   />
                 </label>
@@ -507,13 +549,23 @@ const Security = () => {
                 {/* Toggle 2 */}
                 <label className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-800 rounded-xl hover:bg-gray-50/50 dark:hover:bg-slate-700/10 cursor-pointer select-none">
                   <div className="max-w-[80%] pr-3">
-                    <h4 className="font-semibold text-sm text-gray-800 dark:text-white">SAML Single Sign-On (SSO)</h4>
-                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Integrate user access through centralized directories (Okta, Google Workspace). (+20%)</p>
+                    <h4 className="font-semibold text-sm text-gray-800 dark:text-white">
+                      SAML Single Sign-On (SSO)
+                    </h4>
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                      Integrate user access through centralized directories
+                      (Okta, Google Workspace). (+20%)
+                    </p>
                   </div>
                   <input
                     type="checkbox"
                     checked={calcSettings.sso}
-                    onChange={(e) => setCalcSettings({ ...calcSettings, sso: e.target.checked })}
+                    onChange={(e) =>
+                      setCalcSettings({
+                        ...calcSettings,
+                        sso: e.target.checked,
+                      })
+                    }
                     className="h-4.5 w-4.5 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                   />
                 </label>
@@ -521,13 +573,23 @@ const Security = () => {
                 {/* Toggle 3 */}
                 <label className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-800 rounded-xl hover:bg-gray-50/50 dark:hover:bg-slate-700/10 cursor-pointer select-none">
                   <div className="max-w-[80%] pr-3">
-                    <h4 className="font-semibold text-sm text-gray-800 dark:text-white">Media Encryption At-Rest (AES-256)</h4>
-                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Encrypt raw meeting audio files before writing to cloud storage buckets. (+20%)</p>
+                    <h4 className="font-semibold text-sm text-gray-800 dark:text-white">
+                      Media Encryption At-Rest (AES-256)
+                    </h4>
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                      Encrypt raw meeting audio files before writing to cloud
+                      storage buckets. (+20%)
+                    </p>
                   </div>
                   <input
                     type="checkbox"
                     checked={calcSettings.encryption}
-                    onChange={(e) => setCalcSettings({ ...calcSettings, encryption: e.target.checked })}
+                    onChange={(e) =>
+                      setCalcSettings({
+                        ...calcSettings,
+                        encryption: e.target.checked,
+                      })
+                    }
                     className="h-4.5 w-4.5 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                   />
                 </label>
@@ -535,13 +597,23 @@ const Security = () => {
                 {/* Toggle 4 */}
                 <label className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-800 rounded-xl hover:bg-gray-50/50 dark:hover:bg-slate-700/10 cursor-pointer select-none">
                   <div className="max-w-[80%] pr-3">
-                    <h4 className="font-semibold text-sm text-gray-800 dark:text-white">Pinecone Vector Index Isolation</h4>
-                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Isolate organizational search metadata in distinct database partitions. (+20%)</p>
+                    <h4 className="font-semibold text-sm text-gray-800 dark:text-white">
+                      Pinecone Vector Index Isolation
+                    </h4>
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                      Isolate organizational search metadata in distinct
+                      database partitions. (+20%)
+                    </p>
                   </div>
                   <input
                     type="checkbox"
                     checked={calcSettings.vectorIsolation}
-                    onChange={(e) => setCalcSettings({ ...calcSettings, vectorIsolation: e.target.checked })}
+                    onChange={(e) =>
+                      setCalcSettings({
+                        ...calcSettings,
+                        vectorIsolation: e.target.checked,
+                      })
+                    }
                     className="h-4.5 w-4.5 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                   />
                 </label>
@@ -549,19 +621,29 @@ const Security = () => {
                 {/* Toggle 5 */}
                 <label className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-800 rounded-xl hover:bg-gray-50/50 dark:hover:bg-slate-700/10 cursor-pointer select-none">
                   <div className="max-w-[80%] pr-3">
-                    <h4 className="font-semibold text-sm text-gray-800 dark:text-white">Strict Session Invalidation</h4>
-                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Enforce automatic token timeouts after 15 minutes of user inactivity. (+15%)</p>
+                    <h4 className="font-semibold text-sm text-gray-800 dark:text-white">
+                      Strict Session Invalidation
+                    </h4>
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                      Enforce automatic token timeouts after 15 minutes of user
+                      inactivity. (+15%)
+                    </p>
                   </div>
                   <input
                     type="checkbox"
                     checked={calcSettings.sessionTimeout}
-                    onChange={(e) => setCalcSettings({ ...calcSettings, sessionTimeout: e.target.checked })}
+                    onChange={(e) =>
+                      setCalcSettings({
+                        ...calcSettings,
+                        sessionTimeout: e.target.checked,
+                      })
+                    }
                     className="h-4.5 w-4.5 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                   />
                 </label>
               </div>
             </section>
-            
+
             {/* Search warning banner */}
             {searchQuery && (
               <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-4 flex gap-3 text-sm text-blue-700 dark:text-blue-300">
@@ -569,7 +651,8 @@ const Security = () => {
                 <div>
                   <p className="font-semibold">Search Filter Active</p>
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    Showing topics that match "{searchQuery}". Clear query to view the full security blueprint.
+                    Showing topics that match "{searchQuery}". Clear query to
+                    view the full security blueprint.
                   </p>
                 </div>
               </div>
@@ -580,9 +663,12 @@ const Security = () => {
               {filteredSections.length === 0 ? (
                 <div className="text-center py-12">
                   <AlertOctagon className="w-12 h-12 text-amber-500 mx-auto mb-3 animate-bounce" />
-                  <h3 className="font-bold text-lg text-gray-800 dark:text-white">No matches found</h3>
+                  <h3 className="font-bold text-lg text-gray-800 dark:text-white">
+                    No matches found
+                  </h3>
                   <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">
-                    Try searching for different terms like 'encryption', 'Pinecone', 'DDoS', or 'WAF'.
+                    Try searching for different terms like 'encryption',
+                    'Pinecone', 'DDoS', or 'WAF'.
                   </p>
                   <button
                     onClick={() => setSearchQuery("")}
@@ -630,7 +716,8 @@ const Security = () => {
                     Security FAQs
                   </h2>
                   <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                    Quick clarifications regarding vector caches, SLA, and staff databases access.
+                    Quick clarifications regarding vector caches, SLA, and staff
+                    databases access.
                   </p>
                 </div>
               </div>
@@ -678,7 +765,8 @@ const Security = () => {
                     Revision History
                   </h2>
                   <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                    Timeline details showing audits and security standard upgrades.
+                    Timeline details showing audits and security standard
+                    upgrades.
                   </p>
                 </div>
               </div>
@@ -689,10 +777,13 @@ const Security = () => {
                   <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-indigo-500 bg-white dark:bg-slate-800" />
                   <h4 className="font-bold text-sm text-gray-800 dark:text-white flex items-center gap-2.5">
                     Version 1.2
-                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">July 16, 2026 (Current)</span>
+                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">
+                      July 16, 2026 (Current)
+                    </span>
                   </h4>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-normal">
-                    Added namespaces partitioning scopes for Pinecone searches and clarified TLS 1.3 and sub-processors details.
+                    Added namespaces partitioning scopes for Pinecone searches
+                    and clarified TLS 1.3 and sub-processors details.
                   </p>
                 </div>
 
@@ -701,10 +792,13 @@ const Security = () => {
                   <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-indigo-200 dark:border-indigo-900 bg-white dark:bg-slate-800" />
                   <h4 className="font-bold text-sm text-gray-800 dark:text-white flex items-center gap-2.5">
                     Version 1.1
-                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">March 04, 2026</span>
+                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">
+                      March 04, 2026
+                    </span>
                   </h4>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-normal">
-                    Incorporated daily snapshot backup restoration validation tests and configured WAF shielding guidelines.
+                    Incorporated daily snapshot backup restoration validation
+                    tests and configured WAF shielding guidelines.
                   </p>
                 </div>
 
@@ -713,18 +807,20 @@ const Security = () => {
                   <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-indigo-200 dark:border-indigo-900 bg-white dark:bg-slate-800" />
                   <h4 className="font-bold text-sm text-gray-800 dark:text-white flex items-center gap-2.5">
                     Version 1.0
-                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">November 10, 2025</span>
+                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500">
+                      November 10, 2025
+                    </span>
                   </h4>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-normal">
-                    Initial launch documenting bcrypt credentials hashing and JSON Web Tokens session validations.
+                    Initial launch documenting bcrypt credentials hashing and
+                    JSON Web Tokens session validations.
                   </p>
                 </div>
               </div>
             </section>
-
           </div>
         </div>
-      </main>
+      </div>
 
       {/* Quick Footer banner redirection */}
       <div className="bg-gray-100 dark:bg-slate-900 border-t border-gray-200/80 dark:border-slate-800/80 py-10 mt-auto">

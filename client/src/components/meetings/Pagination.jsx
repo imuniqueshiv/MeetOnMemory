@@ -45,7 +45,8 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        aria-label="Previous page"
+        className="p-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         <ChevronLeft size={20} />
       </button>
@@ -53,14 +54,17 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
       {getPageNumbers().map((page, index) => (
         <React.Fragment key={index}>
           {page === "..." ? (
-            <span className="px-3 py-2 text-gray-500">...</span>
+            <span className="px-3 py-2 text-gray-500 dark:text-gray-400">
+              ...
+            </span>
           ) : (
             <button
               onClick={() => onPageChange(page)}
+              aria-current={currentPage === page ? "page" : undefined}
               className={`px-4 py-2 rounded-lg border transition-colors ${
                 currentPage === page
                   ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
               }`}
             >
               {page}
@@ -72,7 +76,8 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        aria-label="Next page"
+        className="p-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         <ChevronRight size={20} />
       </button>

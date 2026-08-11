@@ -13,12 +13,17 @@
  */
 
 import Organization from "../models/organizationModel.js";
+import User from "../models/userModel.js";
+import jwt from "jsonwebtoken";
+import { hasPermission } from "../utils/rbacPermissions.js";
 import * as MeetingService from "../services/MeetingService.js";
 import {
   verifySlackSignature,
   exchangeSlackCodeForToken,
   buildMeetingCreatedBlocks,
 } from "../services/slackService.js";
+import { sendError } from "../utils/responseHandler.js";
+import { encryptToken } from "../utils/crypto.js";
 
 // Helpers
 
@@ -39,7 +44,9 @@ const parseSlashCommandText = (text = "") => {
 
   // Match a quoted string at the start: "Q3 Planning" or 'Q3 Planning'
   const quotedMatch = trimmed.match(/^["'](.+?)["']/);
-  const title = quotedMatch ? quotedMatch[1].trim() : trimmed.replace(/@\S+/g, "").trim();
+  const title = quotedMatch
+    ? quotedMatch[1].trim()
+    : trimmed.replace(/@\S+/g, "").trim();
 
   // Collect all @-mentions from the full text
   const tags = [...trimmed.matchAll(/@(\S+)/g)].map((m) => m[1]);
@@ -62,23 +69,30 @@ export const slackInstall = async (req, res, next) => {
   try {
     const clientId = process.env.SLACK_CLIENT_ID;
     if (!clientId) {
-      return res
-        .status(500)
-        .json({ success: false, message: "Slack integration is not configured on this server." });
+      return sendError(
+        res,
+        500,
+        "Slack integration is not configured on this server.",
+      );
     }
 
     // organizationId can come from an authenticated request (query or user object)
     let organizationId =
-      req.query.organizationId ||
-      req.user?.organization?.toString() ||
-      "";
+      req.query.organizationId || req.user?.organization?.toString() || "";
 
-    if (typeof organizationId !== "string" || !/^[0-9a-fA-F]{24}$/.test(organizationId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid or missing organizationId format.",
-      });
+    if (
+      typeof organizationId !== "string" ||
+      !/^[0-9a-fA-F]{24}$/.test(organizationId)
+    ) {
+      return sendError(res, 400, "Invalid or missing organizationId format.");
     }
+
+    // Generate JWT for state to protect against CSRF and verify authorization on callback
+    const stateToken = jwt.sign(
+      { orgId: organizationId, userId: req.user._id.toString() },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" },
+    );
 
     const redirectUri = process.env.SLACK_REDIRECT_URI;
     const scopes = "commands,chat:write,channels:read";
@@ -86,11 +100,13 @@ export const slackInstall = async (req, res, next) => {
     const params = new URLSearchParams({
       client_id: clientId,
       scope: scopes,
-      state: organizationId,
+      state: stateToken,
       ...(redirectUri && { redirect_uri: redirectUri }),
     });
 
-    return res.redirect(`https://slack.com/oauth/v2/authorize?${params.toString()}`);
+    return res.redirect(
+      `https://slack.com/oauth/v2/authorize?${params.toString()}`,
+    );
   } catch (err) {
     return next(err);
   }
@@ -108,40 +124,53 @@ export const slackInstall = async (req, res, next) => {
  */
 export const slackOAuthRedirect = async (req, res, next) => {
   try {
-    const { code, state: organizationId, error: slackError } = req.query;
+    const { code, state: stateToken, error: slackError } = req.query;
 
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-
-    if (organizationId && (typeof organizationId !== "string" || !/^[0-9a-fA-F]{24}$/.test(organizationId))) {
-      return res.status(400).json({ success: false, message: "Invalid organizationId format." });
+    const frontendUrl = process.env.CLIENT_URL || "http://localhost:5173";
+    if (!stateToken || typeof stateToken !== "string") {
+      return sendError(res, 400, "Missing OAuth state.");
     }
+
+    let decodedState;
+    try {
+      decodedState = jwt.verify(stateToken, process.env.JWT_SECRET);
+    } catch (_err) {
+      return sendError(res, 400, "Invalid or expired OAuth state.");
+    }
+
+    const organizationId = decodedState.orgId;
+    const userId = decodedState.userId;
 
     // Handle user-denied or Slack error cases
     if (slackError) {
       const sanitizedError = encodeURIComponent(String(slackError));
       return res.redirect(
-        `${frontendUrl}/organizations/${organizationId}?slackInstall=error&reason=${sanitizedError}`
+        `${frontendUrl}/organizations/${organizationId}?slackInstall=error&reason=${sanitizedError}`,
       );
     }
 
     if (!code || typeof code !== "string") {
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing or invalid OAuth code from Slack." });
+      return sendError(res, 400, "Missing or invalid OAuth code from Slack.");
     }
 
-    if (!organizationId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing organizationId in OAuth state." });
+    // Verify the user who initiated the install is still authorized for this org
+    const user = await User.findById(userId);
+    if (!user || user.organization?.toString() !== organizationId) {
+      return sendError(res, 403, "Unauthorized organization binding.");
+    }
+
+    if (!hasPermission(user.role, "settings", "edit")) {
+      return sendError(
+        res,
+        403,
+        "Insufficient permissions to install integrations.",
+      );
     }
 
     // Verify the organization exists before persisting anything
     const org = await Organization.findById(organizationId);
     if (!org) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Organization not found." });
+      return sendError(res, 404, "Organization not found.");
     }
 
     // Exchange the code for a bot token
@@ -153,7 +182,7 @@ export const slackOAuthRedirect = async (req, res, next) => {
     // slackData.team.id / slackData.team.name = the Slack workspace info
     await Organization.findByIdAndUpdate(organizationId, {
       $set: {
-        "slackIntegration.botToken": slackData.access_token,
+        "slackIntegration.botToken": encryptToken(slackData.access_token),
         "slackIntegration.channelId":
           slackData.incoming_webhook?.channel_id || "",
         "slackIntegration.teamId": slackData.team?.id || "",
@@ -163,12 +192,12 @@ export const slackOAuthRedirect = async (req, res, next) => {
     });
 
     console.log(
-      `✅ [Slack] Workspace "${slackData.team?.name}" connected to org ${organizationId}`
+      `✅ [Slack] Workspace "${slackData.team?.name}" connected to org ${organizationId}`,
     );
 
     // Redirect user back to the organization page in the frontend
     return res.redirect(
-      `${frontendUrl}/organizations/${organizationId}?slackInstall=success`
+      `${frontendUrl}/organizations/${organizationId}?slackInstall=success`,
     );
   } catch (err) {
     return next(err);
@@ -193,7 +222,7 @@ export const handleSlackEvents = async (req, res, next) => {
   try {
     const body = req.body;
 
-    // Case 1: Slack URL verification handshake 
+    // Case 1: Slack URL verification handshake
     // Slack sends this once when you first configure the Events API URL.
     if (body?.type === "url_verification") {
       return res.status(200).json({ challenge: body.challenge });
@@ -206,7 +235,8 @@ export const handleSlackEvents = async (req, res, next) => {
       const text = typeof body.text === "string" ? body.text : "";
       const { title, tags } = parseSlashCommandText(text);
       const teamId = typeof body.team_id === "string" ? body.team_id : "";
-      const userName = typeof body.user_name === "string" ? body.user_name : "someone";
+      const userName =
+        typeof body.user_name === "string" ? body.user_name : "someone";
 
       if (!teamId) {
         return res.status(200).json({
@@ -239,16 +269,18 @@ export const handleSlackEvents = async (req, res, next) => {
       // We pass null as userId (no authenticated user in slash commands);
       // the meeting is attributed to the organization's owner.
       const meeting = await MeetingService.createMeeting(
-        org.owner.toString(),  // userId — use org owner as the author
-        org._id.toString(),    // organizationId
+        org.owner.toString(), // userId — use org owner as the author
+        org._id.toString(), // organizationId
         {
           title,
-          description: tags.length ? `Created via Slack by @${userName}. Participants: ${tags.join(", ")}` : `Created via Slack by @${userName}`,
+          description: tags.length
+            ? `Created via Slack by @${userName}. Participants: ${tags.join(", ")}`
+            : `Created via Slack by @${userName}`,
           meetingType: "conference",
           date: new Date().toISOString(),
           tags,
         },
-        null  // io — socket not available in this context
+        null, // io — socket not available in this context
       );
 
       // Respond immediately with a Block Kit message (Slack requires <3 s response)
@@ -268,7 +300,9 @@ export const handleSlackEvents = async (req, res, next) => {
       res.status(200).send();
 
       const event = body.event;
-      console.log(`ℹ️ [Slack] Received event: ${event?.type} from team ${body.team_id}`);
+      console.log(
+        `ℹ️ [Slack] Received event: ${event?.type} from team ${body.team_id}`,
+      );
       // Future: handle app_mention, message events, etc.
       return;
     }

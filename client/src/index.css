@@ -146,15 +146,6 @@ html {
   opacity: 1;
 }
 
-/* Dashboard feature cards — held until IntersectionObserver adds .visible */
-.dash-card.fade-in-up {
-  animation-play-state: paused;
-}
-
-.dash-card.fade-in-up.visible {
-  animation-play-state: running;
-}
-
 /* Stagger delays for child items */
 .stagger-1 {
   animation-delay: 0.05s;
@@ -241,77 +232,4 @@ html {
 
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
-}
-
-/* Professional Cursor Effect Styles */
-@media (pointer: fine) {
-  /* Hide default cursor on desktop */
-  html,
-  body,
-  a,
-  button,
-  input,
-  select,
-  textarea,
-  [role="button"] {
-    cursor: none !important;
-  }
-
-  /* Inner Dot - Instant 1:1 Movement */
-  .custom-cursor {
-    width: 6px;
-    height: 6px;
-    background-color: #4f46e5; /* MeetOnMemory Identity Color */
-    border-radius: 50%;
-    position: fixed;
-    top: 0;
-    left: 0;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-    z-index: 99999999; /* Ultra-high z-index to stay forward */
-    will-change: transform;
-    opacity: 0;
-    transition:
-      width 0.25s ease,
-      height 0.25s ease,
-      opacity 0.25s ease,
-      background-color 0.25s ease;
-  }
-
-  /* Outer Hollow Circle - Smooth Follow Lags Behind */
-  .custom-cursor-ring {
-    width: 30px;
-    height: 30px;
-    border: 1.5px solid rgba(79, 70, 229, 0.45);
-    border-radius: 50%;
-    position: fixed;
-    top: 0;
-    left: 0;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-    z-index: 99999998; /* Stay just behind the dot */
-    will-change: transform;
-    opacity: 0;
-    /* Only transition size and colors, let JS handle the smooth movement */
-    transition:
-      width 0.3s cubic-bezier(0.25, 1, 0.5, 1),
-      height 0.3s cubic-bezier(0.25, 1, 0.5, 1),
-      opacity 0.25s ease,
-      border-color 0.3s ease,
-      background-color 0.3s ease;
-  }
-
-  /* Interactive Hover States */
-  .custom-cursor.hovered {
-    width: 4px;
-    height: 4px;
-    background-color: #4f46e5;
-  }
-
-  .custom-cursor-ring.hovered {
-    width: 46px;
-    height: 46px;
-    border-color: rgba(79, 70, 229, 0.85);
-    background-color: rgba(79, 70, 229, 0.06); /* Soft center reveal */
-  }
 }

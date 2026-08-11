@@ -1,5 +1,7 @@
-import { getAuthUrl } from "../services/calendarService.js";
+import { sendSuccess, sendError } from "../utils/responseHandler.js";
 import AuthService from "../services/AuthService.js";
+import { provisionOrLinkClerkUser } from "../services/authLinkingService.js";
+import { AccountMergeError } from "../services/userAccountMergeService.js";
 
 // --------------------------- HELPERS ---------------------------
 const validateFields = (fields, res) => {
@@ -30,7 +32,7 @@ export const register = async (req, res) => {
       .status(201)
       .json({ success: true, message: "Registration successful" });
   } catch (error) {
-    console.error("Register error:", error);
+    console.error("Register error:", error.message);
     res.json({ success: false, message: error.message });
   }
 };
@@ -52,12 +54,18 @@ export const login = async (req, res) => {
 
     return res.json({ success: true, message: "Login successful" });
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("Login error:", error.message);
     res.json({ success: false, message: error.message });
   }
 };
 
 // --------------------------- LOGOUT ---------------------------
+const DIAG = "[SYNC-CLERK-DIAG]";
+
+/**
+ * Clerk-aware logout acknowledgement.
+ * Client must call Clerk signOut; server clears any residual legacy cookie.
+ */
 export const logout = async (req, res) => {
   try {
     res.clearCookie("token", {
@@ -65,9 +73,9 @@ export const logout = async (req, res) => {
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
     });
-    return res.json({ success: true, message: "Logged out successfully" });
+    return sendSuccess(res, {}, "Logged out successfully");
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    sendError(res, 400, error.message);
   }
 };
 
@@ -75,14 +83,17 @@ export const logout = async (req, res) => {
 export const sendVerifyOtp = async (req, res) => {
   try {
     const { userId } = req;
-    
+
     await AuthService.sendVerifyOtp(userId);
 
     res.json({ success: true, message: "Verification OTP sent on email" });
   } catch (error) {
-    console.error("SendVerifyOtp error:", error);
+    console.error("SendVerifyOtp error:", error.message);
     // Maintain old generic error for sendVerifyOtp to not break tests if it relies on exact string
-    if (error.message === "Authentication failed" || error.message === "Account already verified") {
+    if (
+      error.message === "Authentication failed" ||
+      error.message === "Account already verified"
+    ) {
       res.json({ success: false, message: error.message });
     } else {
       res.json({ success: false, message: "Failed to send verification OTP" });
@@ -105,15 +116,6 @@ export const verifyEmail = async (req, res) => {
   }
 };
 
-// --------------------------- CHECK AUTH ---------------------------
-export const isAuthenticated = async (req, res) => {
-  try {
-    return res.json({ success: true });
-  } catch (error) {
-    res.json({ success: false, message: error.message });
-  }
-};
-
 // --------------------------- SEND PASSWORD RESET OTP ---------------------------
 export const sendResetOtp = async (req, res) => {
   const { email } = req.body;
@@ -124,7 +126,7 @@ export const sendResetOtp = async (req, res) => {
 
     res.json({ success: true, message: "OTP sent to your email" });
   } catch (error) {
-    console.error("SendResetOtp error:", error);
+    console.error("SendResetOtp error:", error.message);
     res.json({
       success: false,
       message: "Failed to process password reset request",
@@ -149,42 +151,132 @@ export const resetPassword = async (req, res) => {
   }
 };
 
-// --------------------------- GET USER DATA (For Dashboard) ---------------------------
+// --------------------------- CHECK AUTH ---------------------------
+export const isAuthenticated = async (req, res) => {
+  try {
+    return sendSuccess(res);
+  } catch (error) {
+    sendError(res, 400, error.message);
+  }
+};
+
 export const getUserData = async (req, res) => {
   try {
-    const user = await AuthService.getUserData(req.user.id);
-
-    res.status(200).json({ success: true, user });
+    const userId = req.user._id || req.user.id;
+    const user = await AuthService.getUserData(userId);
+    sendSuccess(res, { user });
   } catch (error) {
-    console.error("Error fetching user data:", error);
+    console.error("Error fetching user data:", error.message);
     if (error.statusCode === 404) {
-      res.status(404).json({ success: false, message: "User not found" });
+      sendError(res, 404, "User not found");
     } else {
-      res.status(500).json({ success: false, message: "Server error" });
+      sendError(res, 500, "Server error");
     }
   }
 };
 
-// --------------------------- GOOGLE CALENDAR AUTH ---------------------------
-export const googleCalendarAuth = (req, res) => {
-  const url = getAuthUrl();
-  res.redirect(url);
-};
+export const syncClerkUser = async (req, res) => {
+  // TEMP DIAGNOSTIC — remove after root-cause confirmed in Render logs
+  console.error(`${DIAG} 1. Request entered syncClerkUser`, {
+    method: req.method,
+    url: req.originalUrl || req.url,
+    hasAuthHeader: Boolean(
+      req.headers?.authorization || req.headers?.Authorization,
+    ),
+    bodyKeys: req.body ? Object.keys(req.body) : [],
+    reqUserId: req.user?._id?.toString?.() || req.user?.id || null,
+    reqUserClerkId: req.user?.clerkUserId || null,
+    reqUserEmail: req.user?.email || null,
+    reqAuthClerkId: req.auth?.clerkUserId || null,
+  });
 
-export const googleCalendarCallback = async (req, res) => {
-  const { code } = req.query;
   try {
-    const token = req.cookies?.token;
-    await AuthService.googleCalendarCallback({ code, token });
+    // Issue #1104: identity comes only from the verified Clerk JWT (req.auth),
+    // populated by userAuth. Request-body clerkUserId / email / etc. are ignored
+    // so clients cannot force unauthorized account linking.
+    const authIdentity = req.auth;
+    const clerkUserId = authIdentity?.clerkUserId;
 
-    res.redirect(`${process.env.CLIENT_URL || "http://localhost:5173"}/profile?sync=success`);
-  } catch (error) {
-    console.error("Google Calendar Callback error:", error);
-    if (error.statusCode === 401) {
-      return res.status(401).json({ success: false, message: "Not authenticated" });
-    } else if (error.statusCode === 404) {
-      return res.status(404).json({ success: false, message: "User not found" });
+    console.error(`${DIAG} 3/4. Resolved sync inputs (JWT only)`, {
+      clerkUserId: clerkUserId || null,
+      email: authIdentity?.email || null,
+      name: authIdentity?.name || null,
+      hasProfilePic: Boolean(authIdentity?.profilePic),
+      ignoredBodyIdentityKeys: [
+        "clerkUserId",
+        "email",
+        "name",
+        "profilePic",
+      ].filter(
+        (key) =>
+          req.body && Object.prototype.hasOwnProperty.call(req.body, key),
+      ),
+    });
+
+    if (!clerkUserId) {
+      console.error(`${DIAG} FAIL early: verified JWT identity missing`);
+      return sendError(
+        res,
+        401,
+        "Authenticated Clerk identity is required for sync",
+      );
     }
-    res.redirect(`${process.env.CLIENT_URL || "http://localhost:5173"}/profile?sync=error`);
+
+    console.error(`${DIAG} Calling provisionOrLinkClerkUser…`);
+    const user = await provisionOrLinkClerkUser({
+      clerkUserId,
+      email: authIdentity.email,
+      name: authIdentity.name,
+      profilePic: authIdentity.profilePic,
+    });
+
+    console.error(`${DIAG} provisionOrLinkClerkUser returned`, {
+      mongoUserId: user?._id?.toString?.() || user?.id || null,
+      clerkUserId: user?.clerkUserId || null,
+      email: user?.email || null,
+      role: user?.role ?? null,
+      organization:
+        user?.organization?.toString?.() || user?.organization || null,
+      hasCompletedOnboarding: user?.hasCompletedOnboarding,
+    });
+
+    console.error(
+      `${DIAG} 9. Organization bootstrap: NOT invoked on this path (identity sync only)`,
+    );
+
+    return sendSuccess(res, { user }, "User synchronized successfully");
+  } catch (error) {
+    if (error instanceof AccountMergeError) {
+      return sendError(
+        res,
+        409,
+        error.message || "Failed to sync user due to account conflict",
+      );
+    }
+    // Do not swallow — dump full exception for Render logs
+    console.error(`${DIAG} EXCEPTION in syncClerkUser`);
+    console.error(error);
+    console.error(error?.stack);
+    console.error(`${DIAG} exception meta`, {
+      name: error?.name,
+      message: error?.message,
+      code: error?.code,
+      keyPattern: error?.keyPattern,
+      keyValue: error?.keyValue,
+      errors: error?.errors
+        ? Object.fromEntries(
+            Object.entries(error.errors).map(([k, v]) => [
+              k,
+              {
+                message: v?.message,
+                kind: v?.kind,
+                path: v?.path,
+                value: v?.value,
+              },
+            ]),
+          )
+        : undefined,
+    });
+    return sendError(res, 500, error.message || "Failed to sync user");
   }
 };

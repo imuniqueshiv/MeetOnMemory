@@ -185,7 +185,9 @@
     "description": "AI-संचालित बैठक बुद्धिमत्ता और संगठनात्मक ज्ञान प्रबंधन प्लेटफ़ॉर्म।",
     "madeWith": "बनाया गया",
     "by": "द्वारा",
-    "meetOnMemoryTeam": "MeetOnMemory टीम"
+    "meetOnMemoryTeam": "MeetOnMemory टीम",
+    "status": "सिस्टम स्थिति",
+    "security": "सुरक्षा"
   },
   "dashboard": {
     "welcomeBack": "वापसी पर स्वागत है,",

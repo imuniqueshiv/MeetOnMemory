@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FileText, ExternalLink } from "lucide-react";
-
+import GlossaryHighlighter from "./GlossaryHighlighter";
 const MeetingTranscript = ({ meeting }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const navigate = useNavigate();
@@ -36,6 +36,12 @@ const MeetingTranscript = ({ meeting }) => {
 
   const shouldShowExpandButton = transcript.length > 1000;
 
+  const truncateAtWord = (text, maxLength) => {
+    if (text.length <= maxLength) return text;
+    const lastSpace = text.lastIndexOf(" ", maxLength);
+    return text.substring(0, lastSpace > 0 ? lastSpace : maxLength) + "...";
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
       <div className="flex items-center justify-between mb-4">
@@ -61,10 +67,10 @@ const MeetingTranscript = ({ meeting }) => {
       </div>
 
       <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-        <p className="text-gray-700 text-sm whitespace-pre-wrap leading-relaxed">
+        <div className="text-gray-700 text-sm whitespace-pre-wrap leading-relaxed">
           {shouldShowExpandButton && !isExpanded ? (
             <>
-              {transcript.substring(0, 1000)}...
+              <GlossaryHighlighter text={truncateAtWord(transcript, 1000)} />
               <button
                 onClick={() => setIsExpanded(true)}
                 className="ml-2 text-blue-600 hover:text-blue-800 font-medium"
@@ -74,7 +80,7 @@ const MeetingTranscript = ({ meeting }) => {
             </>
           ) : (
             <>
-              {transcript}
+              <GlossaryHighlighter text={transcript} />
               {shouldShowExpandButton && isExpanded && (
                 <button
                   onClick={() => setIsExpanded(false)}
@@ -85,7 +91,7 @@ const MeetingTranscript = ({ meeting }) => {
               )}
             </>
           )}
-        </p>
+        </div>
       </div>
     </div>
   );

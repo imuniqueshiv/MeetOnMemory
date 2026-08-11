@@ -15,4 +15,8 @@ export const policyApi = {
   deletePolicy: (policyId) => apiClient.delete(`/api/policies/${policyId}`),
   analyzePolicy: (policyId) =>
     apiClient.post(`/api/policies/${policyId}/analyze`),
+  compareVersions: (policyId, from, to) =>
+    apiClient.get(`/api/policies/${policyId}/diff`, {
+      params: { from, to },
+    }),
 };

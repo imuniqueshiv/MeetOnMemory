@@ -50,7 +50,7 @@ const Hero = () => {
   const mockupRef = useFadeIn();
 
   const handleGetStarted = () => {
-    navigate("/login?mode=signup");
+    navigate("/signup");
   };
 
   const handleLearnMore = () => {
@@ -135,7 +135,11 @@ const Hero = () => {
                 label={t("hero.statAutoSummaries")}
                 sub={t("hero.statAutoSummariesSub")}
               />
-              <StatItem emoji="🏢" label={t("hero.statOrgs")} sub={t("hero.statOrgsSub")} />
+              <StatItem
+                emoji="🏢"
+                label={t("hero.statOrgs")}
+                sub={t("hero.statOrgsSub")}
+              />
             </div>
           </div>
 

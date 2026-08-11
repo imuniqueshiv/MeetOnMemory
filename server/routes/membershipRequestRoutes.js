@@ -64,7 +64,17 @@ router.patch(
 );
 
 // Bulk actions
-router.post("/bulk-approve", requireOrgMembership, requirePermission("team_members", "invite"), bulkApproveMembershipRequests);
-router.post("/bulk-reject", requireOrgMembership, requirePermission("team_members", "invite"), bulkRejectMembershipRequests);
+router.post(
+  "/bulk-approve",
+  requireOrgMembership,
+  requirePermission("team_members", "invite"),
+  bulkApproveMembershipRequests,
+);
+router.post(
+  "/bulk-reject",
+  requireOrgMembership,
+  requirePermission("team_members", "invite"),
+  bulkRejectMembershipRequests,
+);
 
 export default router;

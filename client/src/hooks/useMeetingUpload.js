@@ -49,7 +49,7 @@ const useMeetingUpload = () => {
     }
   };
 
-  const handleUpload = (title, setTitle, encryptionKey) => {
+  const handleUpload = (title, setTitle, encryptionKey, tags = []) => {
     if (!file) {
       toast.error("Please select an audio file first.");
       return;
@@ -60,7 +60,7 @@ const useMeetingUpload = () => {
     }
     setTranscript("");
     setMeetingId(null);
-    uploadMeeting(file, title, {
+    uploadMeeting(file, title, tags, {
       onSuccess: async (data) => {
         toast.success("Transcription complete! Encrypting and saving...");
         

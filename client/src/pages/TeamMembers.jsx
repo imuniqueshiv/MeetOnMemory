@@ -103,11 +103,11 @@ const TeamMembers = () => {
     return (
       <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
         <Navbar />
-        <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
+        <div className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 dark:border-slate-700 border-t-blue-600"></div>
           </div>
-        </main>
+        </div>
       </div>
     );
   }
@@ -116,7 +116,7 @@ const TeamMembers = () => {
     return (
       <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
         <Navbar />
-        <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
+        <div className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
           <div className="flex flex-col items-center justify-center h-64 text-center">
             <XCircle className="h-16 w-16 text-red-500 mb-4" />
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
@@ -130,7 +130,7 @@ const TeamMembers = () => {
               Try Again
             </button>
           </div>
-        </main>
+        </div>
       </div>
     );
   }
@@ -139,7 +139,7 @@ const TeamMembers = () => {
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <Navbar />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
+      <div className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
         {/* Header */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -370,7 +370,7 @@ const TeamMembers = () => {
             )}
           </>
         )}
-      </main>
+      </div>
 
       {showInviteModal && (
         <InviteMemberForm

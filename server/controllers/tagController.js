@@ -1,0 +1,210 @@
+import { z } from "zod";
+import Tag from "../models/tagModel.js";
+import Meeting from "../models/meetingModel.js";
+import { sendSuccess } from "../utils/responseHandler.js";
+import { ValidationError, NotFoundError } from "../utils/errors.js";
+import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
+import { caseInsensitiveEquals, escapeRegExp } from "../utils/regexUtils.js";
+
+// Validation schemas
+const createTagSchema = z.object({
+  name: z.string().min(1).max(50),
+  color: z.string().optional(),
+  description: z.string().max(200).optional(),
+});
+
+const updateTagSchema = z.object({
+  name: z.string().min(1).max(50).optional(),
+  color: z.string().optional(),
+  description: z.string().max(200).optional(),
+});
+
+/**
+ * "Is there already a tag called this?" — as an equality query (Issue #1157).
+ *
+ * This used to be `{ $regex: new RegExp(`^${name}$`, "i") }`, which answers a
+ * different question: "is there a tag *matching the pattern* `name`?" A tag
+ * literally called `.*` therefore matched every subsequent lookup and made it
+ * impossible to create any further tag in the organization, while `C++` threw
+ * `SyntaxError: Nothing to repeat` before the query ran and surfaced as a 500.
+ */
+const findTagByName = (orgId, name) => {
+  const { filter, collation } = caseInsensitiveEquals("name", name);
+  return Tag.findOne({ organization: orgId, ...filter }).collation(collation);
+};
+
+export const createTag = async (req, res, next) => {
+  try {
+    const { name, color, description } = createTagSchema.parse(req.body);
+    const orgId = req.user.organization;
+
+    // Check uniqueness
+    const existingTag = await findTagByName(orgId, name);
+    if (existingTag) {
+      throw new ValidationError(
+        "Tag with this name already exists in your organization.",
+      );
+    }
+
+    const tag = await Tag.create({
+      name,
+      color,
+      description,
+      organization: orgId,
+      createdBy: req.user._id,
+    });
+
+    return sendSuccess(res, tag, "Tag created successfully", 201);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getOrgTags = async (req, res, next) => {
+  try {
+    const orgId = req.user.organization;
+    const tags = await Tag.find({ organization: orgId }).sort({
+      usageCount: -1,
+      name: 1,
+    });
+
+    return sendSuccess(res, tags, "Tags retrieved successfully");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateTag = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const orgId = req.user.organization;
+    const updates = updateTagSchema.parse(req.body);
+
+    const tag = await Tag.findOne({ _id: id, organization: orgId });
+    if (!tag) {
+      throw new NotFoundError("Tag not found");
+    }
+
+    const oldName = tag.name;
+
+    // If name is changing, check uniqueness
+    if (updates.name && updates.name.toLowerCase() !== tag.name.toLowerCase()) {
+      const existingTag = await findTagByName(orgId, updates.name);
+      if (existingTag) {
+        throw new ValidationError(
+          "Tag with this name already exists in your organization.",
+        );
+      }
+    }
+
+    Object.assign(tag, updates);
+    await tag.save();
+
+    // Cascade rename in meetings if name changed
+    if (updates.name && updates.name !== oldName) {
+      await Meeting.updateMany(
+        { organization: orgId, tags: oldName },
+        { $set: { "tags.$": updates.name } },
+      );
+    }
+
+    return sendSuccess(res, tag, "Tag updated successfully");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteTag = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const orgId = req.user.organization;
+
+    const tag = await Tag.findOneAndDelete({ _id: id, organization: orgId });
+    if (!tag) {
+      throw new NotFoundError("Tag not found");
+    }
+
+    // Cascade delete in meetings
+    await Meeting.updateMany(
+      { organization: orgId },
+      { $pull: { tags: tag.name } },
+    );
+
+    return sendSuccess(res, null, "Tag deleted successfully");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const autocomplete = async (req, res, next) => {
+  try {
+    const { q } = req.query;
+    const orgId = req.user.organization;
+
+    if (!q) {
+      return sendSuccess(res, []);
+    }
+
+    // Prefix matching is a genuine pattern query, so this one stays a regex —
+    // it just uses the shared helper rather than a fourth open-coded copy of
+    // the same character class (Issue #1157).
+    const tags = await Tag.find({
+      organization: orgId,
+      name: { $regex: new RegExp(`^${escapeRegExp(q)}`, "i") },
+    })
+      .limit(10)
+      .sort({ usageCount: -1 });
+
+    return sendSuccess(res, tags);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getMeetingsByTag = async (req, res, next) => {
+  try {
+    const { name } = req.params;
+    const orgId = req.user.organization;
+    const { page, limit, skip } = parsePagination(req.query, {
+      defaultLimit: 10,
+    });
+
+    const query = { organization: orgId, tags: name };
+
+    const meetings = await Meeting.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("uploadedBy", "name email");
+
+    const total = await Meeting.countDocuments(query);
+    const pagination = buildPaginationMeta({ total, page, limit });
+
+    return sendSuccess(res, {
+      meetings,
+      currentPage: pagination.page,
+      totalPages: pagination.totalPages,
+      totalCount: pagination.total,
+      pagination,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getTagStats = async (req, res, next) => {
+  try {
+    const orgId = req.user.organization;
+
+    // Top 10 tags by usage count
+    const topTags = await Tag.find({ organization: orgId })
+      .sort({ usageCount: -1 })
+      .limit(10);
+
+    return sendSuccess(res, {
+      topTags,
+    });
+  } catch (err) {
+    next(err);
+  }
+};

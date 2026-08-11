@@ -10,20 +10,59 @@
  *  5. POST /api/slack/events - generic event_callback acknowledgement
  *  6. GET  /api/slack/install - missing organizationId
  *  7. GET  /api/slack/oauth_redirect - missing code
+ *
+ * Jest ESM note (Node 24+):
+ * Importing the real `axios` or `@clerk/express` packages under
+ * `--experimental-vm-modules` throws "module is already linked" (and a follow-on
+ * post-teardown require). Those graphs are pulled in by `server.js` /
+ * `slackService.js` / `userAuth.js`. Mock them *before* any app imports, and
+ * mount only the Slack stack instead of loading `server.js`.
  */
 
 import request from "supertest";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
-import axios from "axios";
+import express from "express";
 import { jest } from "@jest/globals";
+import { createClerkTestToken, authHeader } from "./helpers/clerkTestAuth.js";
 
-import { app } from "../server.js";
-import User from "../models/userModel.js";
-import Organization from "../models/organizationModel.js";
-import Membership from "../models/membershipModel.js";
-import { verifySlackSignature } from "../services/slackService.js";
+const axiosPost = jest.fn().mockResolvedValue({
+  status: 200,
+  data: {
+    ok: true,
+    access_token: "xoxb-test-token",
+    team: { id: "T12345TEST", name: "Test Workspace" },
+    incoming_webhook: { channel_id: "C12345TEST" },
+  },
+});
+
+jest.unstable_mockModule("axios", () => ({
+  default: {
+    post: axiosPost,
+    get: jest.fn(),
+    create: jest.fn(() => ({ post: axiosPost, get: jest.fn() })),
+  },
+}));
+
+jest.unstable_mockModule("@clerk/express", () => ({
+  verifyToken: jest.fn(),
+  clerkMiddleware: jest.fn(),
+}));
+
+const { verifySlackSignature } = await import("../services/slackService.js");
+const { slackWebhookParser } =
+  await import("../middleware/slackWebhookParser.js");
+const slackRoutes = (await import("../routes/slackRoutes.js")).default;
+const User = (await import("../models/userModel.js")).default;
+const Organization = (await import("../models/organizationModel.js")).default;
+const Membership = (await import("../models/membershipModel.js")).default;
+const { decryptToken } = await import("../utils/crypto.js");
+
+// Mirror production Slack mount order (see config/express.js) without booting
+// the full application graph from server.js.
+const app = express();
+app.use("/api/slack", slackWebhookParser, slackRoutes);
 
 // Test helpers
 
@@ -35,7 +74,10 @@ const SIGNING_SECRET = "test_signing_secret";
  * @param {number} [timestamp] - Unix timestamp (defaults to now)
  * @returns {{ signature: string, timestamp: string }}
  */
-const generateSlackSignature = (body, timestamp = Math.floor(Date.now() / 1000)) => {
+const generateSlackSignature = (
+  body,
+  timestamp = Math.floor(Date.now() / 1000),
+) => {
   const sigBasestring = `v0:${timestamp}:${body}`;
   const signature =
     "v0=" +
@@ -46,29 +88,21 @@ const generateSlackSignature = (body, timestamp = Math.floor(Date.now() / 1000))
   return { signature, timestamp: String(timestamp) };
 };
 
-// Mocks
+// Mocks / env
 
-let axiosSpy;
-
-beforeAll(() => {
-  // Prevent real HTTP calls to Slack API
-  axiosSpy = jest.spyOn(axios, "post").mockResolvedValue({
-    status: 200,
-    data: {
-      ok: true,
-      access_token: "xoxb-test-token",
-      team: { id: "T12345TEST", name: "Test Workspace" },
-      incoming_webhook: { channel_id: "C12345TEST" },
-    },
-  });
+beforeAll(async () => {
   process.env.SLACK_SIGNING_SECRET = SIGNING_SECRET;
   process.env.SLACK_CLIENT_ID = "test_client_id";
   process.env.SLACK_CLIENT_SECRET = "test_client_secret";
-  process.env.SLACK_REDIRECT_URI = "http://localhost:4000/api/slack/oauth_redirect";
+  process.env.SLACK_REDIRECT_URI =
+    "http://localhost:4000/api/slack/oauth_redirect";
+
+  if (mongoose.connection.readyState !== 1) {
+    await mongoose.connect(process.env.TEST_MONGODB_URI);
+  }
 });
 
 afterAll(() => {
-  axiosSpy.mockRestore();
   delete process.env.SLACK_SIGNING_SECRET;
   delete process.env.SLACK_CLIENT_ID;
   delete process.env.SLACK_CLIENT_SECRET;
@@ -268,14 +302,16 @@ describe("GET /api/slack/install", () => {
       password: "password123",
       role: "admin",
     });
-    const token = jwt.sign(
-      { id: user._id },
-      process.env.JWT_SECRET || "fallback_secret"
-    );
+    user.clerkUserId = `user_test_${user._id}`;
+    await user.save();
+    const token = createClerkTestToken({
+      clerkUserId: user.clerkUserId,
+      email: user.email,
+    });
 
     const res = await request(app)
       .get("/api/slack/install")
-      .set("Authorization", `Bearer ${token}`);
+      .set(authHeader(token));
 
     // No organizationId in query or user.organization → 400
     expect(res.status).toBe(400);
@@ -286,65 +322,118 @@ describe("GET /api/slack/install", () => {
 // Integration tests — /api/slack/oauth_redirect
 
 describe("GET /api/slack/oauth_redirect", () => {
+  const JWT_SECRET = process.env.JWT_SECRET || "test_jwt_secret";
+
+  const createValidState = (orgId, userId) => {
+    return jwt.sign(
+      { orgId: orgId.toString(), userId: userId.toString() },
+      JWT_SECRET,
+      { expiresIn: "15m" },
+    );
+  };
+
   it("returns 400 when no code is provided", async () => {
+    const fakeOrgId = new mongoose.Types.ObjectId();
+    const fakeUserId = new mongoose.Types.ObjectId();
+    const stateToken = createValidState(fakeOrgId, fakeUserId);
+
     const res = await request(app)
       .get("/api/slack/oauth_redirect")
-      .query({ state: new mongoose.Types.ObjectId().toString() });
+      .query({ state: stateToken });
 
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/code/i);
   });
 
-  it("returns 400 when no state (organizationId) is provided", async () => {
+  it("returns 400 when no state is provided", async () => {
     const res = await request(app)
       .get("/api/slack/oauth_redirect")
       .query({ code: "fake_code" });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/organizationId/i);
+    expect(res.body.message).toMatch(/oauth state/i);
   });
 
-  it("returns 404 when organization does not exist", async () => {
-    const fakeOrgId = new mongoose.Types.ObjectId().toString();
+  it("returns 403 when user is not authorized for the organization", async () => {
+    // Seed user without organization or permissions
+    const user = await User.create({
+      name: "Unauthorized User",
+      email: `unauth-${Math.random()}@example.com`,
+      password: "password123",
+      role: "guest",
+    });
+    const fakeOrgId = new mongoose.Types.ObjectId();
+    const stateToken = createValidState(fakeOrgId, user._id);
 
     const res = await request(app)
       .get("/api/slack/oauth_redirect")
-      .query({ code: "fake_code", state: fakeOrgId });
+      .query({ code: "fake_code", state: stateToken });
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/unauthorized organization binding/i);
+  });
+
+  it("returns 404 when organization does not exist", async () => {
+    const fakeOrgId = new mongoose.Types.ObjectId();
+    const owner = await User.create({
+      name: "Fake Org Owner",
+      email: `fakeorg-${Math.random()}@example.com`,
+      password: "password123",
+      role: "admin",
+      organization: fakeOrgId, // Bind user to the fake org
+    });
+
+    const stateToken = createValidState(fakeOrgId, owner._id);
+
+    const res = await request(app)
+      .get("/api/slack/oauth_redirect")
+      .query({ code: "fake_code", state: stateToken });
 
     expect(res.status).toBe(404);
     expect(res.body.message).toMatch(/organization not found/i);
   });
 
   it("saves Slack integration to org on successful OAuth", async () => {
-    // Seed org
+    // Seed org and authorized owner
     const owner = await User.create({
       name: "OAuth Owner",
       email: `oauthowner-${Math.random()}@example.com`,
       password: "password123",
+      role: "admin",
     });
     const org = await Organization.create({
       name: "OAuth Org",
       slug: "oauth-org-" + Math.random().toString(36).substring(7),
       owner: owner._id,
     });
+    // Associate user with the org so they pass the binding check
+    await User.findByIdAndUpdate(owner._id, { organization: org._id });
+
+    const stateToken = createValidState(org._id, owner._id);
 
     const res = await request(app)
       .get("/api/slack/oauth_redirect")
-      .query({ code: "valid_code", state: org._id.toString() });
+      .query({ code: "valid_code", state: stateToken });
 
     // axios.post is mocked to return a successful Slack response
     // So this should redirect (302) to the frontend with ?slackInstall=success
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain("slackInstall=success");
 
-    // Verify the org was updated in the database
+    // Verify the org was updated in the database and the token is encrypted
     const updatedOrg = await Organization.findById(org._id)
       .select("+slackIntegration.botToken")
       .lean();
     expect(updatedOrg.slackIntegration.teamId).toBe("T12345TEST");
     expect(updatedOrg.slackIntegration.teamName).toBe("Test Workspace");
     expect(updatedOrg.slackIntegration.channelId).toBe("C12345TEST");
-    expect(updatedOrg.slackIntegration.botToken).toBe("xoxb-test-token");
+    // Verify it is not stored as plain text
+    expect(updatedOrg.slackIntegration.botToken).not.toBe("xoxb-test-token");
+    expect(updatedOrg.slackIntegration.botToken).toContain(":");
+    // Verify it decrypts back correctly
+    expect(decryptToken(updatedOrg.slackIntegration.botToken)).toBe(
+      "xoxb-test-token",
+    );
     expect(updatedOrg.slackIntegration.installedAt).toBeTruthy();
   });
 });

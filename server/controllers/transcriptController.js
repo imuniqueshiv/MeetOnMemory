@@ -1,13 +1,675 @@
-/**
- * transcriptController.js
- * Handles transcript CRUD operations and export functionality
- */
-
 import Transcript from "../models/transcriptModel.js";
 import Meeting from "../models/meetingModel.js";
-import { indexMeeting } from "../utils/embeddingUtils.js";
+import { transcribeFileWithSegments } from "../services/TranscriptionService.js";
+import {
+  indexTranscript,
+  searchVectorStore,
+  indexMeeting,
+} from "../utils/embeddingUtils.js";
 import { indexTranscriptChunks } from "../utils/transcriptEmbeddingUtils.js";
+import { getContentDispositionHeader } from "../utils/fileUtils.js";
+import { sendSuccess, sendError } from "../utils/responseHandler.js";
+import fs from "fs";
+import path from "path";
+import os from "os";
+import OpenAI from "openai";
 
+import { sentimentAnalysisQueue } from "../services/queueService.js";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || "dummy-key-for-tests",
+});
+
+/** In-progress statuses: "recording" (session) + legacy "active" (live chunks). */
+const IN_PROGRESS_STATUSES = ["recording", "active"];
+
+const findInProgressTranscript = (meetingId) =>
+  Transcript.findOne({
+    meeting: meetingId,
+    status: { $in: IN_PROGRESS_STATUSES },
+  });
+
+/**
+ * @desc  Start a recording session for a meeting
+ * @route POST /api/meetings/:meetingId/recording/start
+ * @access Private (requires auth + org membership)
+ */
+export const startRecording = async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const userId = req.user.id;
+
+    // Verify meeting exists and user has access
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({
+        success: false,
+        message: "Meeting not found",
+      });
+    }
+
+    // Check if user is owner or in same org
+    const isOwner = meeting.uploadedBy?.toString() === userId.toString();
+    const isInSameOrg =
+      meeting.organization &&
+      req.user.organization &&
+      meeting.organization.toString() === req.user.organization.toString();
+
+    if (!isOwner && !isInSameOrg) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You don't have access to this meeting",
+      });
+    }
+
+    // Check if there's already an active recording
+    const existingTranscript = await findInProgressTranscript(meetingId);
+
+    if (existingTranscript) {
+      return res.status(400).json({
+        success: false,
+        message: "Recording already in progress for this meeting",
+      });
+    }
+
+    // Create new transcript document
+    const transcript = new Transcript({
+      meeting: meetingId,
+      organizationId: meeting.organization,
+      status: "recording",
+      language: "en",
+      recordingTimestamps: {
+        recordingStartedAt: new Date(),
+      },
+    });
+
+    await transcript.save();
+
+    // Return room ID for Socket.IO
+    const roomId = `meeting:${meetingId}:transcript`;
+
+    res.status(200).json({
+      success: true,
+      message: "Recording started",
+      roomId,
+      transcriptId: transcript._id,
+    });
+  } catch (error) {
+    console.error("Error starting recording:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to start recording",
+    });
+  }
+};
+
+/**
+ * @desc  Stop a recording session and trigger transcription
+ * @route POST /api/meetings/:meetingId/recording/stop
+ * @access Private (requires auth + org membership)
+ */
+export const stopRecording = async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const userId = req.user.id;
+
+    // Verify meeting exists and user has access
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({
+        success: false,
+        message: "Meeting not found",
+      });
+    }
+
+    // Check if user is owner or in same org
+    const isOwner = meeting.uploadedBy?.toString() === userId.toString();
+    const isInSameOrg =
+      meeting.organization &&
+      req.user.organization &&
+      meeting.organization.toString() === req.user.organization.toString();
+
+    if (!isOwner && !isInSameOrg) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You don't have access to this meeting",
+      });
+    }
+
+    // Find active recording transcript
+    const transcript = await findInProgressTranscript(meetingId);
+
+    if (!transcript) {
+      return res.status(404).json({
+        success: false,
+        message: "No active recording found for this meeting",
+      });
+    }
+
+    // Update transcript status to processing
+    transcript.status = "processing";
+    if (!transcript.recordingTimestamps) {
+      transcript.recordingTimestamps = {};
+    }
+    transcript.recordingTimestamps.recordingEndedAt = new Date();
+    transcript.recordingTimestamps.processingStartedAt = new Date();
+    await transcript.save();
+
+    // Trigger transcription in background (non-blocking)
+    processTranscription(transcript._id).catch((err) => {
+      console.error("Background transcription failed:", err);
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Recording stopped, transcription started",
+      transcriptId: transcript._id,
+    });
+  } catch (error) {
+    console.error("Error stopping recording:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to stop recording",
+    });
+  }
+};
+
+/**
+ * @desc  Upload audio chunk for transcript
+ * @route POST /api/meetings/:meetingId/transcript/upload
+ * @access Private (requires auth + org membership)
+ */
+export const uploadTranscriptAudio = async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const userId = req.user.id;
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No audio file provided",
+      });
+    }
+
+    const ALLOWED_RECORDING_MIME_TYPES = [
+      "audio/mpeg",
+      "audio/mp3",
+      "audio/wav",
+      "audio/x-wav",
+      "audio/m4a",
+      "audio/x-m4a",
+      "audio/ogg",
+      "audio/webm",
+      "audio/flac",
+      "audio/aac",
+      "audio/mp4",
+      "video/mp4",
+      "video/webm",
+      "video/quicktime",
+      "video/x-msvideo",
+      "video/x-matroska",
+      "application/octet-stream",
+    ];
+
+    const ALLOWED_RECORDING_EXTENSIONS = [
+      ".mp3",
+      ".wav",
+      ".m4a",
+      ".ogg",
+      ".webm",
+      ".flac",
+      ".aac",
+      ".mp4",
+      ".mov",
+      ".avi",
+      ".mkv",
+    ];
+
+    const ext = path.extname(req.file.originalname || "").toLowerCase();
+    const mimeType = req.file.mimetype;
+    const isExtAllowed = !ext || ALLOWED_RECORDING_EXTENSIONS.includes(ext);
+    const isMimeAllowed =
+      !mimeType ||
+      mimeType === "blob" ||
+      ALLOWED_RECORDING_MIME_TYPES.includes(mimeType);
+
+    if (!isExtAllowed || !isMimeAllowed) {
+      if (req.file.path && fs.existsSync(req.file.path)) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch {
+          // ignore
+        }
+      }
+      return res.status(400).json({
+        success: false,
+        message: "Invalid file type or extension for meeting recording",
+      });
+    }
+
+    // Verify meeting exists and user has access
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({
+        success: false,
+        message: "Meeting not found",
+      });
+    }
+
+    // Check if user is owner or in same org
+    const isOwner = meeting.uploadedBy?.toString() === userId.toString();
+    const isInSameOrg =
+      meeting.organization &&
+      req.user.organization &&
+      meeting.organization.toString() === req.user.organization.toString();
+
+    if (!isOwner && !isInSameOrg) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You don't have access to this meeting",
+      });
+    }
+
+    // Find active recording transcript
+    const transcript = await findInProgressTranscript(meetingId);
+
+    if (!transcript) {
+      // Clean up uploaded file
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({
+        success: false,
+        message: "No active recording found for this meeting",
+      });
+    }
+
+    // Store the file path for later processing
+    // In a real implementation, you might stream this to AssemblyAI in real-time
+    // For now, we'll store it and process on stop
+    transcript.audioFilePath = req.file.path;
+    await transcript.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Audio uploaded successfully",
+    });
+  } catch (error) {
+    console.error("Error uploading transcript audio:", error);
+    // Clean up uploaded file if it exists
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to upload audio",
+    });
+  }
+};
+
+/**
+ * @desc  Upload audio chunk for live transcript and append
+ * @route POST /api/meetings/:meetingId/transcript/chunk
+ * @access Private
+ */
+export const uploadTranscriptChunk = async (req, res) => {
+  let tempFilePath = null;
+  try {
+    const { meetingId } = req.params;
+    const userId = req.user.id;
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: "No audio chunk provided",
+      });
+    }
+
+    // Verify meeting exists and user has access
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({
+        success: false,
+        message: "Meeting not found",
+      });
+    }
+
+    // Check if user is owner or in same org
+    const isOwner = meeting.uploadedBy?.toString() === userId.toString();
+    const isInSameOrg =
+      meeting.organization &&
+      req.user.organization &&
+      meeting.organization.toString() === req.user.organization.toString();
+
+    if (!isOwner && !isInSameOrg) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You don't have access to this meeting",
+      });
+    }
+
+    let transcript = await Transcript.findOne({ meeting: meetingId });
+    if (!transcript) {
+      // Create transcript if it doesn't exist yet
+      transcript = new Transcript({
+        meeting: meetingId,
+        organizationId: meeting.organization,
+        status: "recording",
+        language: "en",
+        recordingTimestamps: {
+          recordingStartedAt: new Date(),
+        },
+      });
+    }
+
+    // Write buffer to temp file for OpenAI Whisper
+    const tempFileName = `chunk_${Date.now()}_${Math.floor(Math.random() * 1000)}.webm`;
+    tempFilePath = path.join(os.tmpdir(), tempFileName);
+    fs.writeFileSync(tempFilePath, req.file.buffer);
+
+    // Call OpenAI Whisper
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(tempFilePath),
+      model: "whisper-1",
+    });
+
+    const newText = transcription.text;
+
+    if (newText && newText.trim().length > 0) {
+      const segment = {
+        text: newText,
+        speaker: "Speaker", // Simple chunk logic might not diarize accurately
+        startTime: transcript.duration,
+        endTime: transcript.duration + 5, // Rough estimate
+        confidence: 1.0,
+      };
+
+      transcript.segments.push(segment);
+      transcript.fullText = (transcript.fullText + " " + newText).trim();
+      transcript.duration += 5; // Rough estimate of chunk duration
+      await transcript.save();
+
+      // Update Meeting
+      meeting.transcript = transcript.fullText;
+      await meeting.save();
+    }
+
+    // Clean up temp file
+    if (fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+
+    res.status(200).json({
+      success: true,
+      text: newText,
+      fullText: transcript.fullText,
+    });
+  } catch (error) {
+    console.error("Error processing transcript chunk:", error);
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to process audio chunk",
+    });
+  }
+};
+
+/**
+ * @desc  Get transcript for a meeting
+ * @route GET /api/meetings/:meetingId/transcript
+ * @access Private (requires auth + org membership)
+ */
+export const getTranscript = async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const userId = req.user.id;
+
+    // Verify meeting exists and user has access
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({
+        success: false,
+        message: "Meeting not found",
+      });
+    }
+
+    // Check if user is owner or in same org
+    const isOwner = meeting.uploadedBy?.toString() === userId.toString();
+    const isInSameOrg =
+      meeting.organization &&
+      req.user.organization &&
+      meeting.organization.toString() === req.user.organization.toString();
+
+    if (!isOwner && !isInSameOrg) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You don't have access to this meeting",
+      });
+    }
+
+    // Find transcript by canonical meeting field
+    const transcript = await Transcript.findOne({ meeting: meetingId });
+
+    if (!transcript) {
+      return res.status(404).json({
+        success: false,
+        message: "Transcript not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      transcript,
+    });
+  } catch (error) {
+    console.error("Error getting transcript:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to get transcript",
+    });
+  }
+};
+
+/**
+ * @desc  Retry failed transcription
+ * @route POST /api/meetings/:meetingId/transcript/retry
+ * @access Private (requires auth + org membership)
+ */
+export const retryTranscription = async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const userId = req.user.id;
+
+    // Verify meeting exists and user has access
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({
+        success: false,
+        message: "Meeting not found",
+      });
+    }
+
+    // Check if user is owner or in same org
+    const isOwner = meeting.uploadedBy?.toString() === userId.toString();
+    const isInSameOrg =
+      meeting.organization &&
+      req.user.organization &&
+      meeting.organization.toString() === req.user.organization.toString();
+
+    if (!isOwner && !isInSameOrg) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You don't have access to this meeting",
+      });
+    }
+
+    // Find failed transcript
+    const transcript = await Transcript.findOne({
+      meeting: meetingId,
+      status: "failed",
+    });
+
+    if (!transcript) {
+      return res.status(404).json({
+        success: false,
+        message: "No failed transcript found for this meeting",
+      });
+    }
+
+    // Reset status and retry
+    transcript.status = "processing";
+    if (!transcript.recordingTimestamps) {
+      transcript.recordingTimestamps = {};
+    }
+    transcript.recordingTimestamps.processingStartedAt = new Date();
+    transcript.errorMessage = null;
+    await transcript.save();
+
+    // Trigger transcription in background
+    processTranscription(transcript._id).catch((err) => {
+      console.error("Background transcription retry failed:", err);
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Transcription retry started",
+      transcriptId: transcript._id,
+    });
+  } catch (error) {
+    console.error("Error retrying transcription:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to retry transcription",
+    });
+  }
+};
+
+/**
+ * @desc  Voice-powered semantic search
+ * @route GET /api/search/voice?query=...
+ * @access Private (requires auth + org membership)
+ */
+export const voiceSearch = async (req, res) => {
+  try {
+    const { query } = req.query;
+
+    if (!query || typeof query !== "string" || query.trim().length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide a valid search query (minimum 3 characters)",
+      });
+    }
+
+    const userOrg = req.user?.organization?.toString();
+    if (!userOrg) {
+      return res.status(400).json({
+        success: false,
+        message: "Organization context is required for voice search",
+      });
+    }
+
+    console.log(`🎙️ Voice Search for query: "${query}"`);
+
+    // Perform vector search across all content types scoped to user's org
+    const results = await searchVectorStore(query, { organization: userOrg });
+
+    if (!results || results.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No relevant results found.",
+        results: [],
+      });
+    }
+
+    // Filter results to include only those belonging to user's organization
+    const filteredResults = results.filter((r) => {
+      if (!r.organization) return false;
+      return r.organization.toString() === userOrg;
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Voice search successful",
+      results: filteredResults,
+    });
+  } catch (error) {
+    console.error("Error in voice search:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Voice search failed",
+    });
+  }
+};
+
+/**
+ * Helper function to process transcription in background
+ */
+async function processTranscription(transcriptId) {
+  try {
+    const transcript = await Transcript.findById(transcriptId);
+    if (!transcript) {
+      console.error("Transcript not found for processing");
+      return;
+    }
+
+    if (!transcript.audioFilePath || !fs.existsSync(transcript.audioFilePath)) {
+      throw new Error("Audio file not found");
+    }
+
+    console.log(`🎙️ Processing transcription for transcript ${transcriptId}`);
+
+    // Transcribe audio with segments
+    const transcriptionResult = await transcribeFileWithSegments(
+      transcript.audioFilePath,
+    );
+
+    // Update transcript with results
+    transcript.fullText = transcriptionResult.fullText;
+    transcript.segments = transcriptionResult.segments;
+    transcript.status = "completed";
+    if (!transcript.recordingTimestamps) {
+      transcript.recordingTimestamps = {};
+    }
+    transcript.recordingTimestamps.completedAt = new Date();
+    await transcript.save();
+
+    // Clean up audio file
+    if (fs.existsSync(transcript.audioFilePath)) {
+      fs.unlinkSync(transcript.audioFilePath);
+    }
+
+    console.log(`✅ Transcription completed for transcript ${transcriptId}`);
+
+    // Index transcript in Pinecone for search
+    await indexTranscript(transcript);
+
+    // Update meeting with transcript reference
+    const meetingRef = transcript.meeting?._id || transcript.meeting;
+    await Meeting.findByIdAndUpdate(meetingRef, {
+      transcript: transcriptionResult.fullText,
+    });
+
+    console.log(`✅ Transcript indexed and meeting updated`);
+
+    // Queue sentiment analysis job
+    if (sentimentAnalysisQueue.isActive) {
+      await sentimentAnalysisQueue.add("analyze-sentiment", { transcriptId });
+      console.log(
+        `✅ Sentiment analysis queued for transcript ${transcriptId}`,
+      );
+    }
+  } catch (error) {
+    console.error("❌ Transcription processing failed:", error);
+
+    // Update transcript status to failed
+    const transcript = await Transcript.findById(transcriptId);
+    if (transcript) {
+      transcript.status = "failed";
+      transcript.errorMessage = error.message;
+      await transcript.save();
+    }
+  }
+}
 /**
  * Get transcript by meeting ID
  */
@@ -15,19 +677,18 @@ export const getTranscriptByMeeting = async (req, res) => {
   try {
     const { meetingId } = req.params;
 
-    const transcript = await Transcript.findOne({ meeting: meetingId }).populate(
-      "meeting",
-      "title date participants"
-    );
+    const transcript = await Transcript.findOne({
+      meeting: meetingId,
+    }).populate("meeting", "title date participants uploadedBy organization");
 
     if (!transcript) {
-      return res.status(404).json({ message: "Transcript not found" });
+      return sendError(res, 404, "Transcript not found");
     }
 
-    res.json(transcript);
+    sendSuccess(res, transcript);
   } catch (error) {
     console.error("Error fetching transcript:", error);
-    res.status(500).json({ message: "Failed to fetch transcript" });
+    sendError(res, 500, "Failed to fetch transcript");
   }
 };
 
@@ -40,28 +701,28 @@ export const searchTranscript = async (req, res) => {
     const { query } = req.body;
 
     if (!query || query.trim() === "") {
-      return res.status(400).json({ message: "Search query is required" });
+      return sendError(res, 400, "Search query is required");
     }
 
     const transcript = await Transcript.findOne({ meeting: meetingId });
 
     if (!transcript) {
-      return res.status(404).json({ message: "Transcript not found" });
+      return sendError(res, 404, "Transcript not found");
     }
 
     const searchTerms = query.toLowerCase().split(" ");
     const matchingSegments = transcript.segments.filter((segment) =>
-      searchTerms.some((term) => segment.text.toLowerCase().includes(term))
+      searchTerms.some((term) => segment.text.toLowerCase().includes(term)),
     );
 
-    res.json({
+    sendSuccess(res, {
       query,
       matches: matchingSegments,
       totalMatches: matchingSegments.length,
     });
   } catch (error) {
     console.error("Error searching transcript:", error);
-    res.status(500).json({ message: "Failed to search transcript" });
+    sendError(res, 500, "Failed to search transcript");
   }
 };
 
@@ -72,23 +733,26 @@ export const exportTranscriptAsText = async (req, res) => {
   try {
     const { meetingId } = req.params;
 
-    const transcript = await Transcript.findOne({ meeting: meetingId }).populate(
-      "meeting",
-      "title date"
-    );
+    const transcript = await Transcript.findOne({
+      meeting: meetingId,
+    }).populate("meeting", "title date");
 
     if (!transcript) {
-      return res.status(404).json({ message: "Transcript not found" });
+      return sendError(res, 404, "Transcript not found");
     }
 
     const meeting = transcript.meeting;
     const textContent = [
       `Meeting: ${meeting.title}`,
       `Date: ${meeting.date?.toLocaleDateString() || "N/A"}`,
-      `Duration: ${Math.floor(transcript.duration / 60)}:${Math.floor(transcript.duration % 60).toString().padStart(2, "0")}`,
+      `Duration: ${Math.floor(transcript.duration / 60)}:${Math.floor(
+        transcript.duration % 60,
+      )
+        .toString()
+        .padStart(2, "0")}`,
       "",
       "TRANSCRIPT",
-      "=" .repeat(50),
+      "=".repeat(50),
       "",
     ];
 
@@ -101,11 +765,11 @@ export const exportTranscriptAsText = async (req, res) => {
 
     const filename = `transcript-${meetingId}.txt`;
     res.setHeader("Content-Type", "text/plain");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Disposition", getContentDispositionHeader(filename));
     res.send(textContent.join("\n"));
   } catch (error) {
     console.error("Error exporting transcript as text:", error);
-    res.status(500).json({ message: "Failed to export transcript" });
+    sendError(res, 500, "Failed to export transcript");
   }
 };
 
@@ -118,13 +782,12 @@ export const exportTranscriptAsPDF = async (req, res) => {
     const PDFDocument = await import("pdfkit");
     const doc = new PDFDocument.default();
 
-    const transcript = await Transcript.findOne({ meeting: meetingId }).populate(
-      "meeting",
-      "title date"
-    );
+    const transcript = await Transcript.findOne({
+      meeting: meetingId,
+    }).populate("meeting", "title date");
 
     if (!transcript) {
-      return res.status(404).json({ message: "Transcript not found" });
+      return sendError(res, 404, "Transcript not found");
     }
 
     const meeting = transcript.meeting;
@@ -132,7 +795,7 @@ export const exportTranscriptAsPDF = async (req, res) => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="transcript-${meetingId}.pdf"`
+      getContentDispositionHeader(`transcript-${meetingId}.pdf`),
     );
 
     doc.pipe(res);
@@ -145,7 +808,11 @@ export const exportTranscriptAsPDF = async (req, res) => {
     doc.fontSize(12).text(`Meeting: ${meeting.title}`);
     doc.text(`Date: ${meeting.date?.toLocaleDateString() || "N/A"}`);
     doc.text(
-      `Duration: ${Math.floor(transcript.duration / 60)}:${Math.floor(transcript.duration % 60).toString().padStart(2, "0")}`
+      `Duration: ${Math.floor(transcript.duration / 60)}:${Math.floor(
+        transcript.duration % 60,
+      )
+        .toString()
+        .padStart(2, "0")}`,
     );
     doc.moveDown();
 
@@ -161,7 +828,7 @@ export const exportTranscriptAsPDF = async (req, res) => {
     doc.end();
   } catch (error) {
     console.error("Error exporting transcript as PDF:", error);
-    res.status(500).json({ message: "Failed to export transcript as PDF" });
+    sendError(res, 500, "Failed to export transcript as PDF");
   }
 };
 
@@ -175,7 +842,7 @@ export const finalizeTranscript = async (req, res) => {
     const transcript = await Transcript.findOne({ meeting: meetingId });
 
     if (!transcript) {
-      return res.status(404).json({ message: "Transcript not found" });
+      return sendError(res, 404, "Transcript not found");
     }
 
     // Update transcript status
@@ -195,10 +862,17 @@ export const finalizeTranscript = async (req, res) => {
       await indexTranscriptChunks(transcript, meeting);
     }
 
-    res.json({ message: "Transcript finalized and indexed successfully" });
+    // Queue sentiment analysis job
+    if (sentimentAnalysisQueue.isActive) {
+      await sentimentAnalysisQueue.add("analyze-sentiment", {
+        transcriptId: transcript._id,
+      });
+    }
+
+    sendSuccess(res, null, "Transcript finalized and indexed successfully");
   } catch (error) {
     console.error("Error finalizing transcript:", error);
-    res.status(500).json({ message: "Failed to finalize transcript" });
+    sendError(res, 500, "Failed to finalize transcript");
   }
 };
 
@@ -210,3 +884,133 @@ function formatTimestamp(seconds) {
   const secs = Math.floor(seconds % 60);
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 }
+
+/**
+ * Translate transcript (stub for translation operation)
+ */
+export const translateTranscript = async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+
+    // Authorization: User must be authenticated (handled by userAuth)
+    // Authorization: User must be part of organization and have view permission (handled by requireOrgAccess and requirePermission)
+
+    const transcript = await Transcript.findOne({
+      meeting: meetingId,
+    }).populate("meeting");
+    if (!transcript) {
+      return res.status(404).json({ message: "Transcript not found" });
+    }
+
+    const meeting = transcript.meeting;
+
+    // Translation ownership check (where applicable)
+    // Ensure only the user who uploaded the meeting or an admin can perform translation operations
+    const isOwner = meeting.uploadedBy?.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === "admin";
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({
+        message:
+          "Forbidden: You do not own this meeting and cannot perform translation operations",
+      });
+    }
+
+    // Since this is a placeholder for actual translation logic (per constraints),
+    // we return a success response immediately.
+    res.json({
+      message: "Translation authorized and processed successfully",
+      transcript: transcript.fullText,
+    });
+  } catch (error) {
+    console.error("Error translating transcript:", error);
+    res.status(500).json({ message: "Failed to translate transcript" });
+  }
+};
+
+/**
+ * Update speaker tags in a transcript
+ */
+export const updateSpeakers = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { oldSpeaker, newSpeaker, segmentIndex } = req.body;
+
+    if (!oldSpeaker || !newSpeaker) {
+      return sendError(res, 400, "Old speaker and new speaker are required");
+    }
+
+    const transcript = await Transcript.findById(id).populate("meeting");
+
+    if (!transcript) {
+      return sendError(res, 404, "Transcript not found");
+    }
+
+    const meeting = transcript.meeting;
+    const userId = (req.user._id || req.user.id)?.toString();
+
+    const isOwner = meeting.uploadedBy?.toString() === userId;
+    const isAdminInSameOrg =
+      (req.user.role === "admin" || req.user.role === "owner") &&
+      meeting.organization &&
+      req.user.organization &&
+      meeting.organization.toString() === req.user.organization.toString();
+
+    if (!isOwner && !isAdminInSameOrg) {
+      return sendError(
+        res,
+        403,
+        "Forbidden: You don't have permission to edit this transcript",
+      );
+    }
+
+    let updatedCount = 0;
+
+    if (segmentIndex !== undefined && segmentIndex !== null) {
+      // Update specific segment
+      const parsedIndex = Number(segmentIndex);
+      if (
+        Number.isInteger(parsedIndex) &&
+        parsedIndex >= 0 &&
+        parsedIndex < transcript.segments.length
+      ) {
+        if (transcript.segments[parsedIndex].speaker === oldSpeaker) {
+          transcript.segments[parsedIndex].speaker = newSpeaker;
+          updatedCount = 1;
+        }
+      }
+    } else {
+      // Bulk update
+      transcript.segments.forEach((segment) => {
+        if (segment.speaker === oldSpeaker) {
+          segment.speaker = newSpeaker;
+          updatedCount++;
+        }
+      });
+    }
+
+    if (updatedCount > 0) {
+      await transcript.save();
+
+      // Optionally, regenerate fullText based on segments here if needed
+      // Currently, it seems we don't automatically regenerate fullText to avoid losing formatting.
+
+      // Update the meeting transcript text if required (optional)
+
+      sendSuccess(
+        res,
+        transcript,
+        `Successfully updated ${updatedCount} segment(s)`,
+      );
+    } else {
+      sendSuccess(
+        res,
+        transcript,
+        "No segments found matching the specified speaker",
+      );
+    }
+  } catch (error) {
+    console.error("Error updating speakers:", error);
+    sendError(res, 500, "Failed to update speakers");
+  }
+};

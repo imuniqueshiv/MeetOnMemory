@@ -1,21 +1,15 @@
 import React, { useContext } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { AppContextProvider } from "../AppContext";
 import AppContent from "../AppContent";
 
-const mockFetchToken = vi.fn();
-const mockClearToken = vi.fn();
 const mockGetAuthState = vi.fn();
 const mockGetUserData = vi.fn();
 const mockLogout = vi.fn();
 
 vi.mock("../../services", () => ({
-  csrfService: {
-    fetchToken: (...args) => mockFetchToken(...args),
-    clearToken: (...args) => mockClearToken(...args),
-  },
   authApi: {
     getAuthState: (...args) => mockGetAuthState(...args),
     getUserData: (...args) => mockGetUserData(...args),
@@ -31,7 +25,14 @@ vi.mock("react-toastify", () => ({
 }));
 
 const Probe = () => {
-  const { loading, isLoggedin, userData, logoutUser } = useContext(AppContent);
+  const {
+    loading,
+    isLoggedin,
+    userData,
+    logoutUser,
+    initializeAuth,
+    setLoading,
+  } = useContext(AppContent);
 
   return (
     <div>
@@ -39,6 +40,16 @@ const Probe = () => {
       <div data-testid="logged-in">{String(isLoggedin)}</div>
       <div data-testid="user-name">{userData?.name || ""}</div>
       <div data-testid="org-name">{userData?.organization?.name || ""}</div>
+      <button
+        type="button"
+        onClick={async () => {
+          await initializeAuth();
+          setLoading(false);
+        }}
+        data-testid="bootstrap"
+      >
+        Bootstrap
+      </button>
       <button type="button" onClick={() => logoutUser()} data-testid="logout">
         Logout
       </button>
@@ -49,7 +60,6 @@ const Probe = () => {
 describe("AppContext session regression", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetchToken.mockResolvedValue("csrf-token");
     mockLogout.mockResolvedValue({ data: { success: true } });
 
     const store = {};
@@ -65,9 +75,11 @@ describe("AppContext session regression", () => {
         Object.keys(store).forEach((key) => delete store[key]);
       }),
     });
+
+    vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "pk_test_mocked_key");
   });
 
-  it("restores auth, user, and organization after a page refresh", async () => {
+  it("restores auth, user, and organization after ClerkSessionSync bootstrap", async () => {
     mockGetAuthState.mockResolvedValue({ data: { success: true } });
     mockGetUserData.mockResolvedValue({
       data: {
@@ -88,20 +100,22 @@ describe("AppContext session regression", () => {
       </MemoryRouter>,
     );
 
+    // Clerk-configured apps defer mount bootstrap to ClerkSessionSync.
+    expect(mockGetAuthState).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("bootstrap"));
+
     await waitFor(() => {
       expect(screen.getByTestId("loading")).toHaveTextContent("false");
     });
 
-    expect(mockFetchToken).toHaveBeenCalled();
+    expect(mockGetAuthState).toHaveBeenCalled();
     expect(screen.getByTestId("logged-in")).toHaveTextContent("true");
     expect(screen.getByTestId("user-name")).toHaveTextContent("Sanjana");
     expect(screen.getByTestId("org-name")).toHaveTextContent("MeetOnMemory");
   });
 
-  it("clears auth state and CSRF token on logout", async () => {
-    mockGetAuthState
-      .mockResolvedValueOnce({ data: { success: true } })
-      .mockResolvedValue({ data: { success: false } });
+  it("clears auth state on logout", async () => {
+    mockGetAuthState.mockResolvedValue({ data: { success: true } });
     mockGetUserData.mockResolvedValue({
       data: {
         success: true,
@@ -121,15 +135,16 @@ describe("AppContext session regression", () => {
       </MemoryRouter>,
     );
 
+    fireEvent.click(screen.getByTestId("bootstrap"));
+
     await waitFor(() => {
       expect(screen.getByTestId("logged-in")).toHaveTextContent("true");
     });
 
-    screen.getByTestId("logout").click();
+    fireEvent.click(screen.getByTestId("logout"));
 
     await waitFor(() => {
       expect(mockLogout).toHaveBeenCalled();
-      expect(mockClearToken).toHaveBeenCalled();
     });
 
     await waitFor(() => {

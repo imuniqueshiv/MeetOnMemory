@@ -1,4 +1,11 @@
-import React, { useContext, useRef, useCallback } from "react";
+import React, {
+  useContext,
+  useRef,
+  useCallback,
+  useState,
+  useEffect,
+} from "react";
+import { WifiOff } from "lucide-react";
 import Navbar from "../components/Navbar.jsx";
 import AppContent from "../context/AppContent";
 import { usePolicies } from "../hooks/usePolicies";
@@ -17,6 +24,21 @@ import { Modal } from "../components/policies/PolicyUtils";
 const Policies = () => {
   const { userData } = useContext(AppContent);
   const isAdmin = userData?.role === "admin" || userData?.role === "owner";
+
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   const {
     filtered,
@@ -70,6 +92,19 @@ const Policies = () => {
       <Navbar />
 
       <div className="max-w-7xl mx-auto w-full pt-24 pb-20 px-4 sm:px-6">
+        {isOffline && (
+          <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 flex items-center gap-3 text-yellow-800 dark:text-yellow-200">
+            <WifiOff className="w-5 h-5 flex-shrink-0" />
+            <div>
+              <p className="font-medium">Offline Mode</p>
+              <p className="text-sm opacity-90">
+                You are viewing cached policies. Some features like uploading
+                new policies are disabled until you reconnect.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-3">
@@ -93,7 +128,7 @@ const Policies = () => {
           </button>
         </div>
 
-        {isAdmin && (
+        {isAdmin && !isOffline && (
           <CreatePolicyModal
             ref={uploadCardRef}
             onFileSelect={handleFileSelect}

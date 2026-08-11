@@ -11,7 +11,7 @@ import Meeting from "../models/meetingModel.js";
 const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY;
 
 // Active transcription sessions
-const activeSessions = new Map();
+const activeSessions = new Map(); // eslint-disable-line no-unused-vars
 
 class StreamingTranscriptionService {
   constructor() {
@@ -46,7 +46,7 @@ class StreamingTranscriptionService {
           headers: {
             Authorization: ASSEMBLYAI_API_KEY,
           },
-        }
+        },
       );
 
       const session = {
@@ -63,12 +63,14 @@ class StreamingTranscriptionService {
 
       // Handle WebSocket events
       ws.on("open", () => {
-        console.log(`✅ Transcription session started for meeting ${meetingId}`);
+        console.log(
+          `✅ Transcription session started for meeting ${meetingId}`,
+        );
         // Configure for speaker diarization
         ws.send(
           JSON.stringify({
             speaker_labels: true,
-          })
+          }),
         );
       });
 
@@ -111,7 +113,7 @@ class StreamingTranscriptionService {
   async handlePartialTranscript(session, message) {
     if (!session.isActive) return;
 
-    const { text, words } = message;
+    const { text, words } = message; // eslint-disable-line no-unused-vars
 
     if (!text || text.trim() === "") return;
 
@@ -156,7 +158,10 @@ class StreamingTranscriptionService {
       $set: {
         fullText: session.segments.map((s) => s.text).join(" "),
         duration: (Date.now() - session.startTime) / 1000,
-        wordCount: session.segments.reduce((acc, s) => acc + s.text.split(" ").length, 0),
+        wordCount: session.segments.reduce(
+          (acc, s) => acc + s.text.split(" ").length,
+          0,
+        ),
       },
     });
 

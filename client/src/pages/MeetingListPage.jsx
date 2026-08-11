@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import AppContent from "../context/AppContent";
 import Navbar from "../components/Navbar.jsx";
 import MeetingRepository from "../components/meetings/MeetingRepository.jsx";
-import { PlusCircle, Calendar } from "lucide-react";
+import RoleGate from "../components/RoleGate.jsx";
+import { PlusCircle, Calendar, Trash2 } from "lucide-react";
 
 const MeetingListPage = () => {
   const { userData } = useContext(AppContent);
@@ -33,7 +34,7 @@ const MeetingListPage = () => {
       </header>
 
       {/* Main Section */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
         {/* Top Actions */}
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-xl font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
@@ -41,18 +42,29 @@ const MeetingListPage = () => {
             Meeting Repository
           </h2>
 
-          <button
-            onClick={handleCreateMeeting}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-full transition-all duration-200 cursor-pointer"
-          >
-            <PlusCircle className="w-5 h-5" />
-            Create New Meeting
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate("/meetings/recycle-bin")}
+              className="flex items-center gap-2 border border-gray-300 dark:border-gray-700 px-4 py-2.5 rounded-full"
+            >
+              <Trash2 className="w-5 h-5" />
+              Recycle Bin
+            </button>
+            <RoleGate resource="meetings" action="create">
+              <button
+                onClick={handleCreateMeeting}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-full transition-all duration-200 cursor-pointer"
+              >
+                <PlusCircle className="w-5 h-5" />
+                Create New Meeting
+              </button>
+            </RoleGate>
+          </div>
         </div>
 
         {/* Meeting Repository Component */}
         <MeetingRepository />
-      </main>
+      </div>
     </div>
   );
 };

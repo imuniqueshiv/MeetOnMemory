@@ -70,22 +70,34 @@ export const transcribeWithGemini = async (audioUrl) => {
   try {
     if (!GEMINI_API_KEY) throw new Error("Missing Gemini API key");
 
-    const body = {
-      contents: [
-        {
-          parts: [
-            { text: `Transcribe this audio file into plain text: ${audioUrl}` },
-          ],
-        },
-      ],
-    };
+    const audioRes = await axios.get(audioUrl, {
+      responseType: "arraybuffer",
+    });
+
+    const audioBase64 = Buffer.from(audioRes.data).toString("base64");
+    const mimeType = audioRes.headers["content-type"] || "audio/mpeg";
 
     const response = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateText",
-      body,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        contents: [
+          {
+            parts: [
+              {
+                inlineData: {
+                  mimeType,
+                  data: audioBase64,
+                },
+              },
+              {
+                text: "Transcribe this audio into plain text. Return only the transcription.",
+              },
+            ],
+          },
+        ],
+      },
       {
         headers: {
-          Authorization: `Bearer ${GEMINI_API_KEY}`,
           "Content-Type": "application/json",
         },
       },

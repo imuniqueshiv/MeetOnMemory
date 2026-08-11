@@ -1,93 +1,63 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState, useRef, useContext, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import Peer from "simple-peer";
+import { toast } from "react-toastify";
 import {
-  Mic,
-  MicOff,
-  PhoneOff,
   Loader2,
   CheckCircle2,
-  Sparkles,
-  Video,
-  VideoOff,
-  MonitorUp,
-  Users,
   Clock,
+  Users,
   Copy,
-  NotebookPen,
   PanelRightClose,
+  NotebookPen,
   Captions,
   FileText,
-  Download,
-  Search,
-  X,
 } from "lucide-react";
-import { toast } from "react-toastify";
-import ErrorState from "../components/ErrorState.jsx";
 import CollaborativeEditor from "../components/meetings/CollaborativeEditor.jsx";
+import PeerVideo from "../components/meetings/PeerVideo.jsx";
+import MeetingHeader from "../components/meetings/MeetingHeader.jsx";
+import MeetingControlBar from "../components/meetings/MeetingControlBar.jsx";
+import TranscriptPanel from "../components/meetings/TranscriptPanel.jsx";
+import LiveCaptions from "../components/meetings/LiveCaptions.jsx";
+import DeviceSetupModal from "../components/meetings/DeviceSetupModal.jsx";
+import useWebRTC from "../hooks/useWebRTC";
+import useDevicePermission from "../hooks/useDevicePermission";
+import useLiveTranscription from "../hooks/useLiveTranscription";
+import useReactions from "../hooks/useReactions.js";
+import ReactionBar from "../components/meetings/ReactionBar.jsx";
+import ReactionOverlay from "../components/meetings/ReactionOverlay.jsx";
+import {
+  getMeetingVideoGridClass,
+  MEETING_VIDEO_TILE_CLASS,
+} from "../utils/meetingVideoGrid.js";
+import {
+  getTrackEnabledState,
+  resolveMeetingMediaStream,
+} from "../utils/mediaStream.js";
+import AppContent from "../context/AppContent.js";
+import { createClerkSocketOptions } from "../services/apiClient.js";
 
-// A separate component to render each peer's video
-const PeerVideo = ({ peer, userInfo }) => {
-  const ref = useRef();
-
-  useEffect(() => {
-    peer.on("stream", (stream) => {
-      if (ref.current) {
-        ref.current.srcObject = stream;
-      }
-    });
-  }, [peer]);
-
-  return (
-    <div className="relative bg-black rounded-2xl overflow-hidden shadow-lg aspect-video flex-1 min-w-[280px] max-w-[600px] border border-gray-800">
-      <video
-        playsInline
-        autoPlay
-        ref={ref}
-        className="w-full h-full object-cover"
-      />
-      <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1.5 rounded-lg backdrop-blur-sm text-white text-sm flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-        {userInfo?.name || "Participant"}
-      </div>
-    </div>
-  );
-};
+/** Build join/signaling identity from authenticated AppContext user (Issue #1211). */
+const buildLocalUserInfo = (userData) => ({
+  id: userData?._id || userData?.id || undefined,
+  name: userData?.name || "Participant",
+  email: userData?.email || "",
+  profilePic: userData?.profilePic || "",
+});
 
 const MeetingRoom = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
+  const { userData } = useContext(AppContent);
+  const localUserInfo = useMemo(() => buildLocalUserInfo(userData), [userData]);
+  const localUserInfoRef = useRef(localUserInfo);
+  localUserInfoRef.current = localUserInfo;
 
-  const [joined, setJoined] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [meetingEnded, setMeetingEnded] = useState(false);
-  const [mediaError, setMediaError] = useState(null);
-
-  const [micOn, setMicOn] = useState(true);
-  const [cameraOn, setCameraOn] = useState(true);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-
-  const [peers, setPeers] = useState([]);
-  const [duration, setDuration] = useState(0);
-  const [showNotes, setShowNotes] = useState(false);
-  const [showCaptions] = useState(true);
-  const [showTranscript, setShowTranscript] = useState(false);
-  const [captions, setCaptions] = useState([]);
-  const [transcriptSegments, setTranscriptSegments] = useState([]);
-  const [transcriptionEnabled, setTranscriptionEnabled] = useState(false);
-  const [audioContext, setAudioContext] = useState(null);
-  const [audioProcessor, setAudioProcessor] = useState(null);
-
-  const socketRef = useRef();
-  const userVideoRef = useRef();
-  const streamRef = useRef();
   const screenTrackRef = useRef();
   const peersRef = useRef([]);
-
   const backendUrl = import.meta.env.VITE_BACKEND_URL;
 
-  // Format time for the duration timer
   const formatTime = (seconds) => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
@@ -95,32 +65,98 @@ const MeetingRoom = () => {
     return `${hrs > 0 ? hrs + ":" : ""}${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const formatTimestamp = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
+  const [joined, setJoined] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [meetingEnded, setMeetingEnded] = useState(false);
+  // eslint-disable-next-line no-unused-vars
+  const [mediaError, setMediaError] = useState(null);
 
+  const [micOn, setMicOn] = useState(true);
+  const [cameraOn, setCameraOn] = useState(true);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+
+  const [peers, setPeers] = useState([]);
+
+  // Shared Timer State
+  const [timerState, setTimerState] = useState({
+    isRunning: false,
+    elapsed: 0,
+    remaining: 0,
+    currentAgendaItem: null,
+  });
+  const timerStateRef = useRef(timerState);
+
+  // eslint-disable-next-line no-unused-vars
+  const [duration, setDuration] = useState(0);
+  const [showNotes, setShowNotes] = useState(false);
+
+  // Transcription state
+  const [showCaptions] = useState(true);
+  const [showTranscript, setShowTranscript] = useState(false);
+  const [captions, setCaptions] = useState([]);
+  const [transcriptSegments, setTranscriptSegments] = useState([]);
+  const [transcriptionEnabled, setTranscriptionEnabled] = useState(false);
+
+  // Device permission setup
+  const [deviceSetupDone, setDeviceSetupDone] = useState(false);
+  const permission = useDevicePermission();
+
+  // WebRTC
+  const { socketRef, userVideoRef, streamRef } = useWebRTC(roomId, {
+    showCaptions,
+    setCaptions,
+    setTranscriptSegments,
+    setTranscriptionEnabled,
+  });
+
+  // Transcription
+  const { toggleTranscription } = useLiveTranscription(
+    roomId,
+    socketRef,
+    streamRef,
+  );
+
+  // Reactions
+  const { reactions, sendReaction, onCooldown } = useReactions(
+    roomId,
+    socketRef,
+  );
+
+  // Local timer tick for smooth UI updates
   useEffect(() => {
-    let timer;
-    if (joined && !meetingEnded) {
-      timer = setInterval(() => {
-        setDuration((prev) => prev + 1);
+    let interval;
+    if (timerState.isRunning && !meetingEnded) {
+      interval = setInterval(() => {
+        setTimerState((prev) => {
+          const next = {
+            ...prev,
+            elapsed: prev.elapsed + 1,
+            remaining: Math.max(0, prev.remaining - 1),
+          };
+          timerStateRef.current = next;
+          return next;
+        });
       }, 1000);
     }
-    return () => clearInterval(timer);
-  }, [joined, meetingEnded]);
+    return () => clearInterval(interval);
+  }, [timerState.isRunning, meetingEnded]);
 
-  const joinMeeting = async () => {
+  const joinMeeting = async (providedStream = null, joinOptions = {}) => {
     try {
       setLoading(true);
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
+      const { mode = null } = joinOptions;
+      const stream = await resolveMeetingMediaStream({
+        providedStream,
+        mode,
+        videoDeviceId: permission.selectedCamera,
+        audioDeviceId: permission.selectedMicrophone,
       });
 
       streamRef.current = stream;
+      const trackState = getTrackEnabledState(stream);
+      setMicOn(trackState.micOn);
+      setCameraOn(trackState.cameraOn);
       setJoined(true);
 
       setTimeout(() => {
@@ -129,9 +165,13 @@ const MeetingRoom = () => {
         }
       }, 100);
 
-      socketRef.current = io(backendUrl, { transports: ["websocket"] });
+      socketRef.current = io(
+        backendUrl,
+        await createClerkSocketOptions({ transports: ["websocket"] }),
+      );
 
-      const userInfo = { name: "You" }; // In a real app, grab from context
+      // Server presence uses auth context; payload kept aligned with other clients.
+      const userInfo = localUserInfoRef.current;
 
       socketRef.current.emit("join-meeting", { roomId, userInfo });
 
@@ -163,6 +203,12 @@ const MeetingRoom = () => {
         });
 
         setPeers([...peersRef.current]);
+      });
+
+      // Timer synchronization event
+      socketRef.current.on("timer-sync", (serverState) => {
+        setTimerState((prev) => ({ ...prev, ...serverState }));
+        timerStateRef.current = { ...timerStateRef.current, ...serverState };
       });
 
       socketRef.current.on("user-joined-signal", (payload) => {
@@ -203,9 +249,40 @@ const MeetingRoom = () => {
 
       socketRef.current.on("transcript-final", (data) => {
         const { segment } = data;
+        setCaptions((prev) => {
+          // Check for exact duplicate in captions
+          const exists = prev.some(
+            (c) => c.text === segment.text && c.timestamp === data.timestamp,
+          );
+          if (exists) return prev;
+          return [
+            ...prev.slice(-4),
+            {
+              text: segment.text,
+              speaker: segment.speaker,
+              isFinal: true,
+              timestamp: data.timestamp,
+            },
+          ];
+        });
+        setTranscriptSegments((prev) => {
+          const exists = prev.some(
+            (s) =>
+              s.startTime === segment.startTime &&
+              s.text === segment.text &&
+              s.speaker === segment.speaker,
+          );
+          if (exists) return prev;
+          return [...prev, segment];
+        });
         setCaptions((prev) => [
           ...prev.slice(-4),
-          { text: segment.text, speaker: segment.speaker, isFinal: true, timestamp: data.timestamp },
+          {
+            text: segment.text,
+            speaker: segment.speaker,
+            isFinal: true,
+            timestamp: data.timestamp,
+          },
         ]);
         setTranscriptSegments((prev) => [...prev, segment]);
       });
@@ -242,6 +319,7 @@ const MeetingRoom = () => {
       setMediaError(errMsg);
       toast.error(errMsg);
       setLoading(false);
+      setDeviceSetupDone(false);
     }
   };
 
@@ -257,7 +335,8 @@ const MeetingRoom = () => {
         userToSignal,
         callerID,
         signal,
-        userInfo: { name: "You" },
+        // Server ignores this and uses authenticated socket.user (#1211).
+        userInfo: localUserInfoRef.current,
       });
     });
 
@@ -362,118 +441,34 @@ const MeetingRoom = () => {
     toast.success("Meeting link copied!");
   };
 
-  const startTranscription = async () => {
-    try {
-      socketRef.current.emit("start-transcription", { roomId });
-      setupAudioProcessing();
-    } catch (error) {
-      console.error("Failed to start transcription:", error);
-      toast.error("Failed to start transcription");
-    }
+  const handleJoinWithStream = (stream) => {
+    // Hand off ownership so Device Setup unmount cleanup does not stop tracks.
+    permission.releaseStream();
+    setDeviceSetupDone(true);
+    joinMeeting(stream);
   };
 
-  const stopTranscription = async () => {
-    try {
-      socketRef.current.emit("stop-transcription", { roomId });
-      if (audioProcessor) {
-        audioProcessor.disconnect();
-        setAudioProcessor(null);
-      }
-      if (audioContext) {
-        await audioContext.close();
-        setAudioContext(null);
-      }
-    } catch (error) {
-      console.error("Failed to stop transcription:", error);
-      toast.error("Failed to stop transcription");
-    }
-  };
-
-  const setupAudioProcessing = async () => {
-    try {
-      const context = new (window.AudioContext || window.webkitAudioContext)();
-      setAudioContext(context);
-
-      const source = context.createMediaStreamSource(streamRef.current);
-      const processor = context.createScriptProcessor(4096, 1, 1);
-
-      processor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
-        const audioData = new Float32Array(inputData);
-        const pcmData = new Int16Array(audioData.length);
-
-        for (let i = 0; i < audioData.length; i++) {
-          pcmData[i] = Math.max(-1, Math.min(1, audioData[i])) * 0x7fff;
-        }
-
-        socketRef.current.emit("audio-data", {
-          roomId,
-          audioData: pcmData.buffer,
-        });
-      };
-
-      source.connect(processor);
-      processor.connect(context.destination);
-      setAudioProcessor(processor);
-    } catch (error) {
-      console.error("Error setting up audio processing:", error);
-    }
-  };
-
-  const toggleTranscription = () => {
-    if (transcriptionEnabled) {
-      stopTranscription();
-    } else {
-      startTranscription();
-    }
+  const handleJoinWithout = (mode = "observer") => {
+    permission.releaseStream();
+    setDeviceSetupDone(true);
+    joinMeeting(null, { mode });
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-900 relative overflow-hidden font-sans">
-      {/* ---------- INTRO SCREEN ---------- */}
-      {!joined && !meetingEnded && (
-        <div className="flex-1 flex flex-col items-center justify-center relative z-10 px-6 md:px-8 text-center bg-gradient-to-br from-indigo-50 via-white to-purple-100 dark:from-slate-950 dark:via-slate-900 dark:to-purple-950/20">
-          <div className="absolute top-0 left-0 w-72 h-72 bg-indigo-200 dark:bg-indigo-900/10 opacity-20 blur-3xl rounded-full animate-pulse"></div>
-          <div className="absolute bottom-0 right-0 w-80 h-80 bg-purple-200 dark:bg-purple-900/10 opacity-30 blur-3xl rounded-full animate-pulse"></div>
+      {/* ---------- DEVICE SETUP / INTRO SCREEN ---------- */}
+      {!joined && !meetingEnded && !deviceSetupDone && (
+        <DeviceSetupModal
+          permission={permission}
+          onJoin={handleJoinWithStream}
+          onContinueWithout={handleJoinWithout}
+        />
+      )}
 
-          <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 dark:text-white mb-3 flex items-center justify-center gap-3">
-            🎥 MeetOnMemory{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
-              Live Room
-            </span>
-          </h1>
-
-          <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto leading-relaxed text-base md:text-lg">
-            Join room <strong>{roomId}</strong> with real-time transcription and
-            automatic AI-generated MoMs.
-          </p>
-
-          {mediaError ? (
-            <div className="w-full max-w-lg mx-auto">
-              <ErrorState
-                title="Device Access Error"
-                message={mediaError}
-                onRetry={() => {
-                  setMediaError(null);
-                  joinMeeting();
-                }}
-              />
-            </div>
-          ) : loading ? (
-            <button
-              disabled
-              className="px-8 py-3 bg-indigo-600 text-white rounded-full font-semibold shadow-md flex items-center justify-center gap-2 mx-auto cursor-not-allowed"
-            >
-              <Loader2 className="animate-spin" size={20} /> Connecting...
-            </button>
-          ) : (
-            <button
-              onClick={joinMeeting}
-              className="px-8 py-3 bg-indigo-600 text-white rounded-full font-semibold shadow-md hover:bg-indigo-700 hover:shadow-xl active:scale-95 transition-all duration-300 cursor-pointer"
-            >
-              🚀 Join Meeting
-            </button>
-          )}
+      {!joined && !meetingEnded && deviceSetupDone && loading && (
+        <div className="flex-1 flex flex-col items-center justify-center bg-gray-900">
+          <Loader2 className="animate-spin text-indigo-500" size={40} />
+          <p className="text-gray-400 mt-4 text-lg">Connecting to meeting...</p>
         </div>
       )}
 
@@ -488,7 +483,7 @@ const MeetingRoom = () => {
               </h2>
               <div className="flex items-center gap-2 text-gray-300 bg-gray-800 px-3 py-1 rounded-full text-sm font-mono">
                 <Clock size={14} />
-                <span>{formatTime(duration)}</span>
+                <span>{formatTime(timerState.elapsed)}</span>
               </div>
               <div className="flex items-center gap-2 text-gray-300 bg-gray-800 px-3 py-1 rounded-full text-sm">
                 <Users size={16} />
@@ -532,7 +527,11 @@ const MeetingRoom = () => {
                   ? "bg-green-600 text-white hover:bg-green-700"
                   : "bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700"
               }`}
-              title={transcriptionEnabled ? "Stop transcription" : "Start live transcription"}
+              title={
+                transcriptionEnabled
+                  ? "Stop transcription"
+                  : "Start live transcription"
+              }
             >
               <Captions size={16} />
               <span className="hidden sm:inline">
@@ -556,18 +555,36 @@ const MeetingRoom = () => {
               </span>
             </button>
           </div>
+          <ReactionOverlay reactions={reactions} />
+
+          <MeetingHeader
+            roomId={roomId}
+            duration={duration}
+            peers={peers}
+            copyLink={copyLink}
+            showNotes={showNotes}
+            setShowNotes={setShowNotes}
+            transcriptionEnabled={transcriptionEnabled}
+            toggleTranscription={toggleTranscription}
+            showTranscript={showTranscript}
+            setShowTranscript={setShowTranscript}
+          />
 
           {/* Main content area: video grid + notes panel */}
           <div className="flex-1 flex min-h-0 overflow-hidden">
-            {/* Video Grid */}
+            {/* Video Grid — responsive by participant count + viewport (#907) */}
             <div
-              className={`flex-1 p-6 overflow-y-auto bg-gray-900 flex items-center justify-center transition-all duration-300 ${
-                showNotes ? "hidden md:flex" : "flex"
+              className={`flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden bg-gray-900 transition-all duration-300 ${
+                showNotes ? "hidden md:block" : "block"
               }`}
             >
-              <div className="w-full h-full max-w-5xl flex flex-col md:flex-row gap-6 items-center justify-center min-h-[300px]">
+              <div
+                className={`grid gap-2 sm:gap-3 md:gap-4 p-2 sm:p-4 md:p-6 content-center justify-items-stretch min-h-full ${getMeetingVideoGridClass(
+                  peers.length + 1,
+                )}`}
+              >
                 {/* Local Stream */}
-                <div className="relative bg-black rounded-2xl overflow-hidden shadow-lg aspect-video flex-1 min-w-[280px] max-w-[600px] border border-gray-800">
+                <div className={MEETING_VIDEO_TILE_CLASS}>
                   <video
                     ref={userVideoRef}
                     autoPlay
@@ -577,16 +594,29 @@ const MeetingRoom = () => {
                   />
                   {!cameraOn && (
                     <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                      <div className="w-20 h-20 bg-indigo-600 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-xl">
-                        You
-                      </div>
+                      {localUserInfo.profilePic ? (
+                        <img
+                          src={localUserInfo.profilePic}
+                          alt=""
+                          className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shadow-xl"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-indigo-600 rounded-full flex items-center justify-center text-2xl sm:text-3xl font-bold text-white shadow-xl">
+                          {(localUserInfo.name || "P").charAt(0).toUpperCase()}
+                        </div>
+                      )}
                     </div>
                   )}
-                  <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1.5 rounded-lg backdrop-blur-sm text-white text-sm flex items-center gap-2">
+                  <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 bg-black/60 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg backdrop-blur-sm text-white text-xs sm:text-sm flex items-center gap-2 max-w-[calc(100%-1rem)]">
                     <span
-                      className={`w-2 h-2 rounded-full ${micOn ? "bg-green-500" : "bg-red-500"}`}
+                      className={`w-2 h-2 rounded-full shrink-0 ${micOn ? "bg-green-500" : "bg-red-500"}`}
                     />
-                    <span>You</span>
+                    <span className="truncate">{localUserInfo.name}</span>
+                    {isScreenSharing && (
+                      <span className="text-[10px] sm:text-xs text-indigo-300 shrink-0">
+                        Sharing
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -609,130 +639,26 @@ const MeetingRoom = () => {
             )}
 
             {/* Transcript Panel */}
-            {showTranscript && (
-              <div className="w-full md:w-[420px] lg:w-[480px] shrink-0 p-4 bg-gray-950 border-l border-gray-800 overflow-hidden flex flex-col">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-white font-semibold flex items-center gap-2">
-                    <FileText size={18} />
-                    Live Transcript
-                  </h3>
-                  <button
-                    onClick={() => setShowTranscript(false)}
-                    className="text-gray-400 hover:text-white transition-colors"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-                <div className="flex-1 overflow-y-auto space-y-3">
-                  {transcriptSegments.length === 0 ? (
-                    <div className="text-gray-500 text-center py-8">
-                      <Captions size={32} className="mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No transcript yet</p>
-                      <p className="text-xs mt-1">Enable captions to start transcription</p>
-                    </div>
-                  ) : (
-                    transcriptSegments.map((segment, index) => (
-                      <div
-                        key={index}
-                        className="bg-gray-800 rounded-lg p-3 border border-gray-700"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-indigo-400 text-sm font-medium">
-                            {segment.speaker || "Speaker"}
-                          </span>
-                          <span className="text-gray-500 text-xs">
-                            {formatTimestamp(segment.startTime)}
-                          </span>
-                        </div>
-                        <p className="text-gray-300 text-sm">{segment.text}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
+            <TranscriptPanel
+              showTranscript={showTranscript}
+              setShowTranscript={setShowTranscript}
+              transcriptSegments={transcriptSegments}
+            />
           </div>
 
-          {/* Live Caption Bar */}
-          {showCaptions && captions.length > 0 && (
-            <div className="bg-gray-800/90 backdrop-blur-sm border-t border-gray-700 px-6 py-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Captions size={16} className="text-indigo-400" />
-                <span className="text-gray-400 text-xs font-medium">Live Captions</span>
-              </div>
-              <div className="space-y-1 max-h-24 overflow-y-auto">
-                {captions.map((caption, index) => (
-                  <div
-                    key={index}
-                    className={`text-sm ${
-                      caption.isFinal ? "text-white" : "text-gray-400 italic"
-                    }`}
-                  >
-                    {caption.speaker && (
-                      <span className="text-indigo-400 font-medium mr-2">
-                    {caption.speaker}:
-                  </span>
-                )}
-                    {caption.text}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <LiveCaptions showCaptions={showCaptions} captions={captions} />
 
-          {/* Control Bar */}
-          <div className="h-24 bg-gray-900 border-t border-gray-800 flex items-center justify-center gap-4 px-6 z-20 shrink-0">
-            {/* Mic Toggle */}
-            <button
-              onClick={toggleMic}
-              className={`p-4 rounded-full transition-all shadow-md active:scale-95 cursor-pointer ${
-                micOn
-                  ? "bg-gray-800 text-white hover:bg-gray-700"
-                  : "bg-red-500 text-white hover:bg-red-600"
-              }`}
-              aria-label={micOn ? "Mute microphone" : "Unmute microphone"}
-            >
-              {micOn ? <Mic size={22} /> : <MicOff size={22} />}
-            </button>
+          <ReactionBar sendReaction={sendReaction} onCooldown={onCooldown} />
 
-            {/* Camera Toggle */}
-            <button
-              onClick={toggleCamera}
-              className={`p-4 rounded-full transition-all shadow-md active:scale-95 cursor-pointer ${
-                cameraOn
-                  ? "bg-gray-800 text-white hover:bg-gray-700"
-                  : "bg-red-500 text-white hover:bg-red-600"
-              }`}
-              aria-label={cameraOn ? "Turn off camera" : "Turn on camera"}
-            >
-              {cameraOn ? <Video size={22} /> : <VideoOff size={22} />}
-            </button>
-
-            {/* Screen Share */}
-            <button
-              onClick={toggleScreenShare}
-              className={`p-4 rounded-full transition-all shadow-md active:scale-95 cursor-pointer ${
-                isScreenSharing
-                  ? "bg-indigo-500 text-white hover:bg-indigo-600"
-                  : "bg-gray-800 text-white hover:bg-gray-700"
-              }`}
-              aria-label={
-                isScreenSharing ? "Stop screen share" : "Share screen"
-              }
-            >
-              <MonitorUp size={22} />
-            </button>
-
-            <div className="w-px h-8 bg-gray-700 mx-2"></div>
-
-            {/* Leave */}
-            <button
-              onClick={leaveMeeting}
-              className="px-6 py-4 bg-red-600 text-white rounded-full font-semibold hover:bg-red-700 shadow-lg transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
-            >
-              <PhoneOff size={22} /> Leave
-            </button>
-          </div>
+          <MeetingControlBar
+            micOn={micOn}
+            toggleMic={toggleMic}
+            cameraOn={cameraOn}
+            toggleCamera={toggleCamera}
+            isScreenSharing={isScreenSharing}
+            toggleScreenShare={toggleScreenShare}
+            leaveMeeting={leaveMeeting}
+          />
         </div>
       )}
 

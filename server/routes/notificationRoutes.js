@@ -9,6 +9,8 @@ import {
   markAllAsRead,
   deleteNotification,
   getUnreadCount,
+  getPreferences,
+  updatePreferences,
 } from "../controllers/notificationController.js";
 
 const notificationRouter = express.Router();
@@ -28,7 +30,7 @@ notificationRouter.get(
 notificationRouter.patch(
   "/mark-all-read",
   writeLimiter,
-  requirePermission("notifications", "manage"),
+  requirePermission("notifications", "self_manage"),
   markAllAsRead,
 );
 notificationRouter.patch(
@@ -37,10 +39,22 @@ notificationRouter.patch(
   requirePermission("notifications", "view"),
   markAsRead,
 );
+notificationRouter.get(
+  "/preferences",
+  requirePermission("notifications", "view"),
+  getPreferences,
+);
+notificationRouter.put(
+  "/preferences",
+  writeLimiter,
+  requirePermission("notifications", "self_manage"),
+  updatePreferences,
+);
+
 notificationRouter.delete(
   "/:id",
   writeLimiter,
-  requirePermission("notifications", "manage"),
+  requirePermission("notifications", "self_manage"),
   deleteNotification,
 );
 

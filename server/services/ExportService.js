@@ -23,10 +23,8 @@ class ExportService {
 
     const mom = meetingData.structuredMoM || {};
     const title = mom.title || meetingData.title || "Meeting Minutes";
-    const date =
-      mom.date || meetingData.date
-        ? new Date(meetingData.date).toLocaleDateString()
-        : "N/A";
+    const rawDate = mom.date || meetingData.date;
+    const date = rawDate ? new Date(rawDate).toLocaleDateString() : "N/A";
 
     const doc = new PDFDocument({ margin: 50 });
 
@@ -88,11 +86,7 @@ class ExportService {
       doc.font("Helvetica-Bold").fontSize(10);
       doc.text("Task", startX, startY);
       doc.text("Owner", startX + columnWidths[0], startY);
-      doc.text(
-        "Due Date",
-        startX + columnWidths[0] + columnWidths[1],
-        startY,
-      );
+      doc.text("Due Date", startX + columnWidths[0] + columnWidths[1], startY);
       doc.text(
         "Status",
         startX + columnWidths[0] + columnWidths[1] + columnWidths[2],
@@ -150,12 +144,9 @@ class ExportService {
         doc.text(owner, startX + columnWidths[0], startY, {
           width: columnWidths[1],
         });
-        doc.text(
-          dueDate,
-          startX + columnWidths[0] + columnWidths[1],
-          startY,
-          { width: columnWidths[2] },
-        );
+        doc.text(dueDate, startX + columnWidths[0] + columnWidths[1], startY, {
+          width: columnWidths[2],
+        });
         doc.text(
           status,
           startX + columnWidths[0] + columnWidths[1] + columnWidths[2],
@@ -268,9 +259,7 @@ class ExportService {
               children: [new Paragraph({ text: "Owner", style: "Strong" })],
             }),
             new TableCell({
-              children: [
-                new Paragraph({ text: "Due Date", style: "Strong" }),
-              ],
+              children: [new Paragraph({ text: "Due Date", style: "Strong" })],
             }),
             new TableCell({
               children: [new Paragraph({ text: "Status", style: "Strong" })],
@@ -291,9 +280,7 @@ class ExportService {
                 ],
               }),
               new TableCell({
-                children: [
-                  new Paragraph({ text: item.owner || "Unassigned" }),
-                ],
+                children: [new Paragraph({ text: item.owner || "Unassigned" })],
               }),
               new TableCell({
                 children: [
