@@ -6,7 +6,10 @@ import {
   getSuggestionsByMeeting,
 } from "../controllers/agendaSuggestionController.js";
 import userAuth from "../middleware/userAuth.js";
-import { requireOrgMembership, requirePermission } from "../middleware/rbac.js";
+import {
+  requireOrgMembership,
+  requirePermission,
+} from "../middleware/rbac.js";
 
 const router = express.Router();
 
