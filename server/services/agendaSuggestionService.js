@@ -176,9 +176,7 @@ export const applyAcceptedSuggestions = async (agendaSuggestionId, user) => {
     throw new AgendaSuggestionAuthorizationError(401, "Unauthorized");
   }
 
-  const agendaSuggestion = await AgendaSuggestion.findById(
-    agendaSuggestionId,
-  );
+  const agendaSuggestion = await AgendaSuggestion.findById(agendaSuggestionId);
   if (!agendaSuggestion) {
     throw new AgendaSuggestionAuthorizationError(
       404,
