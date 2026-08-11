@@ -18,21 +18,13 @@ router.use(userAuth);
 router.use(requireOrgMembership);
 
 // Generating, updating, and applying suggestions mutate meeting agenda data.
-router.post(
-  "/generate",
-  requirePermission("meetings", "edit"),
-  generateAgenda,
-);
+router.post("/generate", requirePermission("meetings", "edit"), generateAgenda);
 router.put(
   "/:id/item/:itemId",
   requirePermission("meetings", "edit"),
   updateSuggestionItem,
 );
-router.post(
-  "/:id/apply",
-  requirePermission("meetings", "edit"),
-  applyAgenda,
-);
+router.post("/:id/apply", requirePermission("meetings", "edit"), applyAgenda);
 
 // Listing suggestions is read-only.
 router.get(
