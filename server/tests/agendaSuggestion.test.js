@@ -25,11 +25,14 @@ jest.unstable_mockModule("../services/GenerativeAIService.js", () => ({
   ]),
 }));
 
-const { generateSuggestions, applyAcceptedSuggestions } =
-  await import("../services/agendaSuggestionService.js");
+const {
+  generateSuggestions,
+  applyAcceptedSuggestions,
+  authorizeAgendaMeeting,
+} = await import("../services/agendaSuggestionService.js");
 
 describe("Agenda Suggestion Service", () => {
-  let orgId, meetingId;
+  let orgId, foreignOrgId, meetingId, user;
 
   beforeAll(async () => {
     if (mongoose.connection.readyState !== 1) {
@@ -45,12 +48,18 @@ describe("Agenda Suggestion Service", () => {
 
   beforeEach(async () => {
     orgId = new mongoose.Types.ObjectId();
+    foreignOrgId = new mongoose.Types.ObjectId();
+    user = {
+      _id: new mongoose.Types.ObjectId(),
+      organization: orgId,
+      role: "member",
+    };
 
     const meeting = new Meeting({
       title: "Test Meeting",
       date: new Date(),
       organization: orgId,
-      uploadedBy: new mongoose.Types.ObjectId(),
+      uploadedBy: user._id,
       agendaItems: [],
     });
     await meeting.save();
@@ -61,7 +70,7 @@ describe("Agenda Suggestion Service", () => {
       status: "open",
       organization: orgId,
       sourceMeetingId: meetingId,
-      owner: new mongoose.Types.ObjectId(),
+      owner: user._id,
     });
     await actionItem.save();
   });
@@ -74,27 +83,119 @@ describe("Agenda Suggestion Service", () => {
   });
 
   it("should generate suggestions and save to DB", async () => {
-    const suggestion = await generateSuggestions(orgId, meetingId);
+    const suggestion = await generateSuggestions(orgId, meetingId, user);
 
     expect(suggestion).toBeDefined();
     expect(suggestion.suggestions).toHaveLength(2);
     expect(suggestion.suggestions[0].text).toBe("Discuss Q2 Marketing");
     expect(suggestion.suggestions[0].status).toBe("pending");
+    expect(suggestion.organization.toString()).toBe(orgId.toString());
 
     const savedSuggestion = await AgendaSuggestion.findById(suggestion._id);
     expect(savedSuggestion).toBeDefined();
     expect(savedSuggestion.suggestions).toHaveLength(2);
   });
 
-  it("should apply accepted suggestions to the meeting", async () => {
-    const suggestion = await generateSuggestions(orgId, meetingId);
+  it("blocks generation when the client supplies a foreign organization", async () => {
+    await expect(
+      generateSuggestions(foreignOrgId, meetingId, user),
+    ).rejects.toMatchObject({ statusCode: 403 });
 
-    // Mark first as accepted, second as rejected
+    expect(await AgendaSuggestion.countDocuments()).toBe(0);
+  });
+
+  it("blocks access to a meeting in another organization", async () => {
+    const foreignMeeting = await Meeting.create({
+      title: "Foreign Meeting",
+      date: new Date(),
+      organization: foreignOrgId,
+      uploadedBy: new mongoose.Types.ObjectId(),
+      agendaItems: [],
+    });
+
+    await expect(
+      authorizeAgendaMeeting(user, foreignMeeting._id, "view"),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it("blocks access when the user has no organization membership", async () => {
+    await expect(
+      authorizeAgendaMeeting(
+        { _id: user._id, role: "member" },
+        meetingId,
+        "view",
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it("blocks list access for a foreign meeting", async () => {
+    const foreignMeeting = await Meeting.create({
+      title: "Foreign Meeting",
+      date: new Date(),
+      organization: foreignOrgId,
+      uploadedBy: new mongoose.Types.ObjectId(),
+      agendaItems: [],
+    });
+
+    await expect(
+      authorizeAgendaMeeting(user, foreignMeeting._id, "view"),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it("blocks update access for a foreign agenda suggestion", async () => {
+    const foreignMeeting = await Meeting.create({
+      title: "Foreign Meeting",
+      date: new Date(),
+      organization: foreignOrgId,
+      uploadedBy: new mongoose.Types.ObjectId(),
+      agendaItems: [],
+    });
+    const foreignSuggestion = await AgendaSuggestion.create({
+      meeting: foreignMeeting._id,
+      organization: foreignOrgId,
+      suggestions: [],
+    });
+
+    await expect(
+      authorizeAgendaMeeting(user, foreignSuggestion.meeting, "edit"),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it("blocks apply access for a foreign agenda suggestion", async () => {
+    const foreignMeeting = await Meeting.create({
+      title: "Foreign Meeting",
+      date: new Date(),
+      organization: foreignOrgId,
+      uploadedBy: new mongoose.Types.ObjectId(),
+      agendaItems: [],
+    });
+    const foreignSuggestion = await AgendaSuggestion.create({
+      meeting: foreignMeeting._id,
+      organization: foreignOrgId,
+      suggestions: [],
+    });
+
+    await expect(
+      applyAcceptedSuggestions(foreignSuggestion._id, user),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it("blocks edit and apply permissions for viewers", async () => {
+    const viewer = { ...user, role: "viewer" };
+
+    await expect(
+      authorizeAgendaMeeting(viewer, meetingId, "edit"),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it("should apply accepted suggestions to the meeting", async () => {
+    const suggestion = await generateSuggestions(orgId, meetingId, user);
+
     suggestion.suggestions[0].status = "accepted";
     suggestion.suggestions[1].status = "rejected";
     await suggestion.save();
 
-    const updatedMeeting = await applyAcceptedSuggestions(suggestion._id);
+    const updatedMeeting = await applyAcceptedSuggestions(suggestion._id, user);
 
     expect(updatedMeeting.agendaItems).toHaveLength(1);
     expect(updatedMeeting.agendaItems[0].text).toBe("Discuss Q2 Marketing");
@@ -106,14 +207,13 @@ describe("Agenda Suggestion Service", () => {
   });
 
   it("should apply edited suggestions with acceptedText", async () => {
-    const suggestion = await generateSuggestions(orgId, meetingId);
+    const suggestion = await generateSuggestions(orgId, meetingId, user);
 
-    // Mark first as edited
     suggestion.suggestions[0].status = "edited";
     suggestion.suggestions[0].acceptedText = "Discuss Q2 Marketing - Updated";
     await suggestion.save();
 
-    const updatedMeeting = await applyAcceptedSuggestions(suggestion._id);
+    const updatedMeeting = await applyAcceptedSuggestions(suggestion._id, user);
 
     expect(updatedMeeting.agendaItems).toHaveLength(1);
     expect(updatedMeeting.agendaItems[0].text).toBe(
