@@ -310,7 +310,7 @@ export const uploadAudioForExistingMeeting = async (
   await meeting.save();
 
   // Skip indexing if transcript is encrypted (E2EE)
-  if (meeting.transcript && !meeting.transcript.startsWith('eyJ')) {
+  if (meeting.transcript && !meeting.transcript.startsWith("eyJ")) {
     scheduleIndexMeeting(meeting);
   }
 
@@ -631,7 +631,6 @@ export const updateMeeting = async (userId, meetingId, data, doc = null) => {
     eventBus.emit("meeting.updated", meeting);
   } catch (evtErr) {
     console.error("⚠️ Failed to emit meeting.updated event:", evtErr.message);
->>>>>>> upstream/main
   }
 
   scheduleIndexMeeting(meeting);
