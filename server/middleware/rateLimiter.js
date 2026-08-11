@@ -221,3 +221,51 @@ export const policyDeleteLimiter = rateLimit({
   },
   store: createStore("rl:policy_delete:"),
 });
+
+// ================================
+// INVITATION RATE LIMITERS
+// ================================
+
+/**
+ * Resolve the organization id used to scope invitation creation limits.
+ * Prefer the target organization from the request body (POST /api/invitations).
+ * @param {import("express").Request} req
+ * @returns {string|null}
+ */
+export const resolveInvitationRateLimitOrgId = (req) => {
+  const raw =
+    req?.body?.organizationId ??
+    req?.params?.organizationId ??
+    req?.user?.organization ??
+    null;
+  if (raw == null || raw === "") return null;
+  return String(raw);
+};
+
+/**
+ * Organization-scoped limiter for invitation creation (Issue #1360).
+ * Each organization may create at most 10 invitations per hour.
+ * Uses Redis via the shared rate-limit store when available; otherwise MemoryStore.
+ *
+ * @param {object} [overrides] express-rate-limit options (e.g. `{ store }` in tests)
+ */
+export const createInvitationCreateLimiter = (overrides = {}) =>
+  rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Org-scoped (not IP). Skipped when no organization id is present so the
+    // controller can still return a normal 400 validation error.
+    keyGenerator: (req) => `org:${resolveInvitationRateLimitOrgId(req)}`,
+    skip: (req) => !resolveInvitationRateLimitOrgId(req),
+    message: {
+      success: false,
+      message:
+        "Invitation rate limit exceeded. Your organization can create up to 10 invitations per hour. Please try again later.",
+    },
+    store: createStore("rl:invitation_create:"),
+    ...overrides,
+  });
+
+export const invitationCreateLimiter = createInvitationCreateLimiter();

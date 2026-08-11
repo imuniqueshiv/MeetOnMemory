@@ -160,7 +160,7 @@ export default (io) => {
      * Join a meeting room
      * Handles distributed presence tracking across multiple server instances
      */
-    socket.on("join-meeting", async ({ roomId, userInfo }) => {
+    socket.on("join-meeting", async ({ roomId }) => {
       try {
         // RBAC: Check if user has permission to view meetings
         if (
@@ -264,28 +264,61 @@ export default (io) => {
      * Socket.IO adapter ensures signals reach users on any instance
      */
     socket.on("sending-signal", (payload) => {
-      // payload: { userToSignal, callerID, signal }
-      io.to(payload.userToSignal).emit("user-joined-signal", {
-        signal: payload.signal,
-        callerID: payload.callerID,
-        userInfo: {
-          socketId: socket.id,
-          id: socket.userId,
-          userId: socket.userId,
-          name: socket.user?.name || "Anonymous",
-          email: socket.user?.email || "",
-          profilePic: socket.user?.profilePic || "",
-          role: socket.userRole || "member",
-        },
-      });
+      try {
+        if (
+          !payload ||
+          !payload.userToSignal ||
+          !payload.callerID ||
+          !payload.signal
+        ) {
+          console.warn(
+            `[WebRTC] Invalid sending-signal payload from ${socket.id}`,
+          );
+          return;
+        }
+
+        // payload: { userToSignal, callerID, signal }
+        io.to(payload.userToSignal).emit("user-joined-signal", {
+          signal: payload.signal,
+          callerID: payload.callerID,
+          userInfo: {
+            socketId: socket.id,
+            id: socket.userId,
+            userId: socket.userId,
+            name: socket.user?.name || "Anonymous",
+            email: socket.user?.email || "",
+            profilePic: socket.user?.profilePic || "",
+            role: socket.userRole || "member",
+          },
+        });
+      } catch (error) {
+        console.error(
+          `[WebRTC] Error in sending-signal from ${socket.id}:`,
+          error,
+        );
+      }
     });
 
     socket.on("returning-signal", (payload) => {
-      // payload: { signal, callerID }
-      io.to(payload.callerID).emit("receiving-returned-signal", {
-        signal: payload.signal,
-        id: socket.id,
-      });
+      try {
+        if (!payload || !payload.signal || !payload.callerID) {
+          console.warn(
+            `[WebRTC] Invalid returning-signal payload from ${socket.id}`,
+          );
+          return;
+        }
+
+        // payload: { signal, callerID }
+        io.to(payload.callerID).emit("receiving-returned-signal", {
+          signal: payload.signal,
+          id: socket.id,
+        });
+      } catch (error) {
+        console.error(
+          `[WebRTC] Error in returning-signal from ${socket.id}:`,
+          error,
+        );
+      }
     });
 
     /**

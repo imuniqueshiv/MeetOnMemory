@@ -3,8 +3,10 @@ import dotenv from "dotenv";
 import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
+import mongoose from "mongoose";
 
 import connectDB from "./config/mongodb.js";
+import { createGracefulShutdown } from "./utils/gracefulShutdown.js";
 
 import { initCalendarSyncCron } from "./services/calendarSyncService.js";
 import { configureExpress, configureErrorHandling } from "./config/express.js";
@@ -25,8 +27,12 @@ import transcriptSocket from "./socket/transcriptSocket.js"; // eslint-disable-l
 // Import notification event listeners (ACTUALLY USED below)
 import { initListeners } from "./events/listeners.js";
 
-// Redis imports (used in socket configuration)
-import { initRedis, getRedisClient } from "./services/redisService.js"; // eslint-disable-line no-unused-vars
+// Redis imports (used in socket configuration + graceful shutdown)
+import {
+  initRedis, // eslint-disable-line no-unused-vars
+  getRedisClient, // eslint-disable-line no-unused-vars
+  closeRedis,
+} from "./services/redisService.js";
 import { createAdapter } from "@socket.io/redis-adapter"; // eslint-disable-line no-unused-vars
 import { startCalendarSyncJob } from "./jobs/calendarSyncJob.js";
 import startPollExpirationJob from "./jobs/pollExpirationJob.js";
@@ -35,6 +41,7 @@ import {
   initAIWorker, // eslint-disable-line no-unused-vars
   initDataExportWorker, // eslint-disable-line no-unused-vars
   initConflictScanWorker, // eslint-disable-line no-unused-vars
+  shutdownQueues,
 } from "./services/queueService.js";
 import { initWebhookWorker } from "./services/webhookDispatcherService.js"; // eslint-disable-line no-unused-vars
 
@@ -110,19 +117,15 @@ if (process.env.NODE_ENV !== "test") {
 
 // (AI, Data Export, and Webhook workers are initialized inside server.listen callback)
 
-// GRACEFUL SHUTDOWN
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received. Shutting down gracefully...");
-  server.close(() => {
-    process.exit(0);
-  });
+// GRACEFUL SHUTDOWN — reuse Issue #975 controller (idempotent, ordered teardown)
+const gracefulShutdown = createGracefulShutdown({
+  server,
+  io,
+  closeQueues: shutdownQueues,
+  closeDatabase: () => mongoose.connection.close(),
+  closeRedis,
 });
 
-process.on("SIGINT", () => {
-  console.log("SIGINT received. Shutting down gracefully...");
-  server.close(() => {
-    process.exit(0);
-  });
-});
+gracefulShutdown.registerSignalHandlers();
 
 export { app, server };
