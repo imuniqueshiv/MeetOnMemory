@@ -1,28 +1,50 @@
 import {
   generateSuggestions,
   applyAcceptedSuggestions,
+  authorizeAgendaMeeting,
+  AgendaSuggestionAuthorizationError,
 } from "../services/agendaSuggestionService.js";
 import AgendaSuggestion from "../models/agendaSuggestionModel.js";
+
+const handleAuthorizationError = (res, error, fallbackMessage) => {
+  if (error instanceof AgendaSuggestionAuthorizationError) {
+    return res.status(error.statusCode).json({ message: error.message });
+  }
+
+  console.error(fallbackMessage, error);
+  return res.status(500).json({
+    message: fallbackMessage,
+    error: error.message,
+  });
+};
 
 // @route   POST /api/agenda-suggestions/generate
 // @desc    Generate new agenda suggestions based on organization context
 export const generateAgenda = async (req, res) => {
   try {
-    const meetingId = req.body.meetingId;
-    const organizationId = req.body.organizationId || req.user?.organization;
+    const { meetingId, organizationId } = req.body;
 
-    if (!organizationId) {
-      return res.status(400).json({ message: "organizationId is required" });
+    if (!req.user?.organization) {
+      return res
+        .status(403)
+        .json({ message: "Forbidden: Organization membership required" });
     }
 
-    const suggestion = await generateSuggestions(organizationId, meetingId);
+    // The client may provide organizationId for compatibility, but it must
+    // always match the authenticated user's organization.
+    const requestedOrganizationId = organizationId || req.user.organization;
+    const suggestion = await generateSuggestions(
+      requestedOrganizationId,
+      meetingId,
+      req.user,
+    );
     res.status(201).json(suggestion);
   } catch (error) {
-    console.error("Error generating agenda suggestions:", error);
-    res.status(500).json({
-      message: "Failed to generate agenda suggestions",
-      error: error.message,
-    });
+    return handleAuthorizationError(
+      res,
+      error,
+      "Failed to generate agenda suggestions",
+    );
   }
 };
 
@@ -38,6 +60,17 @@ export const updateSuggestionItem = async (req, res) => {
       return res.status(404).json({ message: "Agenda suggestion not found" });
     }
 
+    await authorizeAgendaMeeting(req.user, suggestionDoc.meeting, "edit");
+
+    if (
+      !suggestionDoc.organization ||
+      suggestionDoc.organization.toString() !== req.user.organization.toString()
+    ) {
+      return res.status(403).json({
+        message: "Forbidden: Agenda suggestion belongs to another organization",
+      });
+    }
+
     const item = suggestionDoc.suggestions.id(itemId);
     if (!item) {
       return res.status(404).json({ message: "Suggestion item not found" });
@@ -49,11 +82,11 @@ export const updateSuggestionItem = async (req, res) => {
     await suggestionDoc.save();
     res.status(200).json(suggestionDoc);
   } catch (error) {
-    console.error("Error updating suggestion item:", error);
-    res.status(500).json({
-      message: "Failed to update suggestion item",
-      error: error.message,
-    });
+    return handleAuthorizationError(
+      res,
+      error,
+      "Failed to update suggestion item",
+    );
   }
 };
 
@@ -62,14 +95,14 @@ export const updateSuggestionItem = async (req, res) => {
 export const applyAgenda = async (req, res) => {
   try {
     const { id } = req.params;
-    const meeting = await applyAcceptedSuggestions(id);
+    const meeting = await applyAcceptedSuggestions(id, req.user);
     res.status(200).json(meeting);
   } catch (error) {
-    console.error("Error applying agenda suggestions:", error);
-    res.status(500).json({
-      message: "Failed to apply agenda suggestions",
-      error: error.message,
-    });
+    return handleAuthorizationError(
+      res,
+      error,
+      "Failed to apply agenda suggestions",
+    );
   }
 };
 
@@ -78,15 +111,18 @@ export const applyAgenda = async (req, res) => {
 export const getSuggestionsByMeeting = async (req, res) => {
   try {
     const { meetingId } = req.params;
+    await authorizeAgendaMeeting(req.user, meetingId, "view");
+
     const suggestions = await AgendaSuggestion.find({
       meeting: meetingId,
+      organization: req.user.organization,
     }).sort({ createdAt: -1 });
     res.status(200).json(suggestions);
   } catch (error) {
-    console.error("Error fetching agenda suggestions:", error);
-    res.status(500).json({
-      message: "Failed to fetch agenda suggestions",
-      error: error.message,
-    });
+    return handleAuthorizationError(
+      res,
+      error,
+      "Failed to fetch agenda suggestions",
+    );
   }
 };
