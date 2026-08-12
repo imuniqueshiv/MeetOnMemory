@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import AgendaSuggestion from "../models/agendaSuggestionModel.js";
 import ActionItem from "../models/actionItemModel.js";
 import Decision from "../models/decisionModel.js";
@@ -46,11 +47,8 @@ export const authorizeAgendaMeeting = async (
 ) => {
   requireAgendaPermission(user, action);
 
-  if (!meetingId) {
-    throw new AgendaSuggestionAuthorizationError(
-      400,
-      "meetingId is required",
-    );
+  if (!mongoose.isValidObjectId(meetingId)) {
+    throw new AgendaSuggestionAuthorizationError(400, "Invalid meetingId");
   }
 
   const meeting = await Meeting.findById(meetingId);
@@ -58,8 +56,6 @@ export const authorizeAgendaMeeting = async (
     throw new AgendaSuggestionAuthorizationError(404, "Meeting not found");
   }
 
-  // Agenda suggestions must never cross organization boundaries. Do not rely
-  // on a client-supplied organizationId to establish access.
   if (
     !meeting.organization ||
     meeting.organization.toString() !== user.organization.toString()
@@ -73,26 +69,36 @@ export const authorizeAgendaMeeting = async (
   return meeting;
 };
 
-export const generateSuggestions = async (
-  organizationId,
-  meetingId,
+export const authorizeAgendaSuggestion = async (
   user,
+  agendaSuggestion,
+  action = "view",
 ) => {
-  // Validate the authenticated user's organization and meeting before using
-  // any organization-scoped data or calling the AI service.
-  await authorizeAgendaMeeting(user, meetingId, "edit");
-
-  if (
-    !organizationId ||
-    organizationId.toString() !== user.organization.toString()
-  ) {
+  if (!agendaSuggestion) {
     throw new AgendaSuggestionAuthorizationError(
-      403,
-      "Forbidden: Organization does not match the authenticated user",
+      404,
+      "Agenda suggestion not found",
     );
   }
 
-  // 1. Gather Context
+  await authorizeAgendaMeeting(user, agendaSuggestion.meeting, action);
+
+  if (
+    !agendaSuggestion.organization ||
+    agendaSuggestion.organization.toString() !== user.organization.toString()
+  ) {
+    throw new AgendaSuggestionAuthorizationError(
+      403,
+      "Forbidden: Agenda suggestion belongs to another organization",
+    );
+  }
+
+  return agendaSuggestion;
+};
+
+export const generateSuggestions = async (meetingId, user) => {
+  await authorizeAgendaMeeting(user, meetingId, "edit");
+
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -135,17 +141,13 @@ export const generateSuggestions = async (
         .lean(),
     ]);
 
-  const contextData = {
+  const aiSuggestions = await generateAI({
     openActionItems,
     deferredDecisions,
     openThreads,
     recentMeetings,
-  };
+  });
 
-  // 2. Call Generative AI
-  const aiSuggestions = await generateAI(contextData);
-
-  // 3. Map to Suggestion Item Schema format
   const suggestions = aiSuggestions.map((s) => ({
     text: s.text,
     description: s.description,
@@ -159,7 +161,6 @@ export const generateSuggestions = async (
     acceptedText: "",
   }));
 
-  // 4. Save to DB
   const agendaSuggestion = new AgendaSuggestion({
     meeting: meetingId,
     organization: user.organization,
@@ -167,37 +168,23 @@ export const generateSuggestions = async (
   });
 
   await agendaSuggestion.save();
-
   return agendaSuggestion;
 };
 
 export const applyAcceptedSuggestions = async (agendaSuggestionId, user) => {
-  if (!user) {
-    throw new AgendaSuggestionAuthorizationError(401, "Unauthorized");
+  if (!mongoose.isValidObjectId(agendaSuggestionId)) {
+    throw new AgendaSuggestionAuthorizationError(
+      400,
+      "Invalid agenda suggestion id",
+    );
   }
 
   const agendaSuggestion = await AgendaSuggestion.findById(agendaSuggestionId);
-  if (!agendaSuggestion) {
-    throw new AgendaSuggestionAuthorizationError(
-      404,
-      "Agenda suggestion not found",
-    );
-  }
+  await authorizeAgendaSuggestion(user, agendaSuggestion, "edit");
 
-  const meeting = await authorizeAgendaMeeting(
-    user,
-    agendaSuggestion.meeting,
-    "edit",
-  );
-
-  if (
-    !agendaSuggestion.organization ||
-    agendaSuggestion.organization.toString() !== user.organization.toString()
-  ) {
-    throw new AgendaSuggestionAuthorizationError(
-      403,
-      "Forbidden: Agenda suggestion belongs to another organization",
-    );
+  const meeting = await Meeting.findById(agendaSuggestion.meeting);
+  if (!meeting) {
+    throw new AgendaSuggestionAuthorizationError(404, "Meeting not found");
   }
 
   const itemsToApply = agendaSuggestion.suggestions.filter(
