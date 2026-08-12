@@ -30,9 +30,10 @@ const {
   authorizeAgendaMeeting,
 } = await import("../services/agendaSuggestionService.js");
 
-const { updateSuggestionItem } = await import(
-  "../controllers/agendaSuggestionController.js"
-);
+const {
+  updateSuggestionItem,
+  getSuggestionsByMeeting,
+} = await import("../controllers/agendaSuggestionController.js");
 
 describe("Agenda Suggestion Service", () => {
   let orgId, foreignOrgId, meetingId, user;
@@ -160,9 +161,18 @@ describe("Agenda Suggestion Service", () => {
       suggestions: [],
     });
 
-    await expect(
-      authorizeAgendaMeeting(user, foreignMeeting._id, "view"),
-    ).rejects.toMatchObject({ statusCode: 403 });
+    const req = {
+      params: { meetingId: foreignMeeting._id.toString() },
+      user,
+    };
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+    };
+
+    await getSuggestionsByMeeting(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
   });
 
   it("blocks update access for a foreign agenda suggestion", async () => {
