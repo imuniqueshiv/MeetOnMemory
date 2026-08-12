@@ -658,14 +658,14 @@ export const searchNotes = async (req, res) => {
           message: "Query must be a string",
         });
       }
-      if (query.length > 500) {
+      if (query.length > 200) {
         return res.status(400).json({
           success: false,
-          message: "Query length cannot exceed 500 characters",
+          message: "Query length cannot exceed 200 characters",
         });
       }
-      // Escape regex special characters to prevent ReDoS and regex injection
-      const escapedQuery = query.replace(/[/\-\\^$*+?.()|[\]{}]/g, "\\$&");
+      // Escape regex special characters to prevent ReDoS and regex injection (#1390)
+      const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       filter.$or = [
         { title: { $regex: escapedQuery, $options: "i" } },
         { content: { $regex: escapedQuery, $options: "i" } },
