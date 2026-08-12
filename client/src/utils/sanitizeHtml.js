@@ -1,21 +1,22 @@
 import DOMPurify from "dompurify";
 
+const ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto):)/i;
+
 /**
- * Sanitizes an HTML string to prevent XSS attacks.
- * It removes unsafe tags (like <script>), inline event handlers, and javascript URIs.
- * It preserves safe formatting tags like headings, paragraphs, lists, links, and bold text.
+ * Sanitizes untrusted HTML for use in the restricted recap/email preview.
+ *
+ * The allow-list intentionally contains only the markup needed to display
+ * formatted email content. DOMPurify removes scripts, event handlers, and
+ * unsafe URL protocols before the HTML is passed to the preview iframe.
  *
  * @param {string} html - The raw, potentially unsafe HTML string.
- * @returns {string} - The sanitized, safe HTML string.
+ * @returns {string} - Sanitized HTML safe for the restricted preview.
  */
 export const sanitizeHtml = (html) => {
   if (typeof html !== "string" || !html) {
     return "";
   }
 
-  // DOMPurify blocks scripts, javascript: URLs, and inline event handlers by default.
-  // We explicitly configure allowed tags and attributes for added safety while
-  // preserving expected document formatting.
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS: [
       "b",
@@ -57,6 +58,9 @@ export const sanitizeHtml = (html) => {
       "style",
       "id",
     ],
+    ALLOW_DATA_ATTR: false,
+    ALLOWED_URI_REGEXP,
+    FORBID_TAGS: ["script", "iframe", "object", "embed", "form"],
     RETURN_DOM: false,
     RETURN_DOM_FRAGMENT: false,
     RETURN_DOM_IMPORT: false,
