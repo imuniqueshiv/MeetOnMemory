@@ -1,20 +1,26 @@
+import mongoose from "mongoose";
+import AgendaSuggestion from "../models/agendaSuggestionModel.js";
 import {
   generateSuggestions,
   applyAcceptedSuggestions,
   authorizeAgendaMeeting,
+  authorizeAgendaSuggestion,
   AgendaSuggestionAuthorizationError,
 } from "../services/agendaSuggestionService.js";
-import AgendaSuggestion from "../models/agendaSuggestionModel.js";
+import logger from "../utils/logger.js";
 
 const handleAuthorizationError = (res, error, fallbackMessage) => {
   if (error instanceof AgendaSuggestionAuthorizationError) {
-    return res.status(error.statusCode).json({ message: error.message });
+    return res.status(error.statusCode).json({
+      success: false,
+      message: error.message,
+    });
   }
 
-  console.error(fallbackMessage, error);
+  logger.error(fallbackMessage, error);
   return res.status(500).json({
+    success: false,
     message: fallbackMessage,
-    error: error.message,
   });
 };
 
@@ -25,19 +31,23 @@ export const generateAgenda = async (req, res) => {
     const { meetingId, organizationId } = req.body;
 
     if (!req.user?.organization) {
-      return res
-        .status(403)
-        .json({ message: "Forbidden: Organization membership required" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: Organization membership required",
+      });
     }
 
-    // The client may provide organizationId for compatibility, but it must
-    // always match the authenticated user's organization.
-    const requestedOrganizationId = organizationId || req.user.organization;
-    const suggestion = await generateSuggestions(
-      requestedOrganizationId,
-      meetingId,
-      req.user,
-    );
+    if (
+      organizationId &&
+      organizationId.toString() !== req.user.organization.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: Organization does not match the authenticated user",
+      });
+    }
+
+    const suggestion = await generateSuggestions(meetingId, req.user);
     res.status(201).json(suggestion);
   } catch (error) {
     return handleAuthorizationError(
@@ -55,25 +65,22 @@ export const updateSuggestionItem = async (req, res) => {
     const { id, itemId } = req.params;
     const { status, acceptedText } = req.body;
 
-    const suggestionDoc = await AgendaSuggestion.findById(id);
-    if (!suggestionDoc) {
-      return res.status(404).json({ message: "Agenda suggestion not found" });
-    }
-
-    await authorizeAgendaMeeting(req.user, suggestionDoc.meeting, "edit");
-
-    if (
-      !suggestionDoc.organization ||
-      suggestionDoc.organization.toString() !== req.user.organization.toString()
-    ) {
-      return res.status(403).json({
-        message: "Forbidden: Agenda suggestion belongs to another organization",
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid agenda suggestion id",
       });
     }
 
+    const suggestionDoc = await AgendaSuggestion.findById(id);
+    await authorizeAgendaSuggestion(req.user, suggestionDoc, "edit");
+
     const item = suggestionDoc.suggestions.id(itemId);
     if (!item) {
-      return res.status(404).json({ message: "Suggestion item not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Suggestion item not found",
+      });
     }
 
     if (status) item.status = status;
