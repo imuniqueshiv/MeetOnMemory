@@ -6,6 +6,8 @@ import {
 } from "../services/recapApi";
 import { Dialog } from "@headlessui/react";
 import { toast } from "react-toastify";
+import SandboxedHtmlPreview from "./SandboxedHtmlPreview";
+import { sanitizeHtml } from "../utils/sanitizeHtml";
 
 const RecapPreferences = () => {
   const [preferences, setPreferences] = useState({
@@ -115,7 +117,7 @@ const RecapPreferences = () => {
             : null,
       };
       const html = await previewRecapEmail(payload);
-      setPreviewHtml(html);
+      setPreviewHtml(sanitizeHtml(html));
       setIsPreviewOpen(true);
     } catch {
       toast.error("Failed to generate preview");
@@ -131,7 +133,6 @@ const RecapPreferences = () => {
         Configure how and when you want to receive meeting summaries via email.
       </p>
 
-      {/* Delivery Timing */}
       <div className="mb-6">
         <h3 className="text-lg font-medium mb-2">Delivery Timing</h3>
         <div className="space-y-2">
@@ -151,44 +152,24 @@ const RecapPreferences = () => {
         </div>
       </div>
 
-      {/* Content Preferences */}
       <div className="mb-6">
         <h3 className="text-lg font-medium mb-2">Content to Include</h3>
         <div className="space-y-2">
           <label className="flex items-center space-x-3">
-            <input
-              type="checkbox"
-              name="includeSummary"
-              checked={preferences.includeSummary}
-              onChange={handleChange}
-              className="h-4 w-4 text-blue-600 rounded border-gray-300"
-            />
+            <input type="checkbox" name="includeSummary" checked={preferences.includeSummary} onChange={handleChange} className="h-4 w-4 text-blue-600 rounded border-gray-300" />
             <span>Meeting Summary</span>
           </label>
           <label className="flex items-center space-x-3">
-            <input
-              type="checkbox"
-              name="includeActionItems"
-              checked={preferences.includeActionItems}
-              onChange={handleChange}
-              className="h-4 w-4 text-blue-600 rounded border-gray-300"
-            />
+            <input type="checkbox" name="includeActionItems" checked={preferences.includeActionItems} onChange={handleChange} className="h-4 w-4 text-blue-600 rounded border-gray-300" />
             <span>Action Items</span>
           </label>
           <label className="flex items-center space-x-3">
-            <input
-              type="checkbox"
-              name="includeTranscript"
-              checked={preferences.includeTranscript}
-              onChange={handleChange}
-              className="h-4 w-4 text-blue-600 rounded border-gray-300"
-            />
+            <input type="checkbox" name="includeTranscript" checked={preferences.includeTranscript} onChange={handleChange} className="h-4 w-4 text-blue-600 rounded border-gray-300" />
             <span>Transcript Snippet</span>
           </label>
         </div>
       </div>
 
-      {/* Quiet Hours */}
       <div className="mb-6">
         <h3 className="text-lg font-medium mb-2">Quiet Hours (Optional)</h3>
         <p className="text-sm text-gray-500 mb-2">
@@ -197,111 +178,48 @@ const RecapPreferences = () => {
         </p>
         <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 items-start sm:items-center">
           <div className="w-full sm:w-auto">
-            <label
-              htmlFor="quietHoursStart"
-              className="block text-sm text-gray-700 mb-1"
-            >
-              Start Time
-            </label>
-            <select
-              id="quietHoursStart"
-              name="quietHoursStart"
-              value={preferences.quietHoursStart}
-              onChange={handleChange}
-              className={`w-full sm:w-32 bg-white border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${quietHoursError ? "border-red-500" : "border-gray-300"}`}
-            >
+            <label htmlFor="quietHoursStart" className="block text-sm text-gray-700 mb-1">Start Time</label>
+            <select id="quietHoursStart" name="quietHoursStart" value={preferences.quietHoursStart} onChange={handleChange} className={`w-full sm:w-32 bg-white border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${quietHoursError ? "border-red-500" : "border-gray-300"}`}>
               <option value="">None</option>
-              {hoursOptions.map((hour) => (
-                <option key={hour} value={hour}>
-                  {formatHour(hour)}
-                </option>
-              ))}
+              {hoursOptions.map((hour) => <option key={hour} value={hour}>{formatHour(hour)}</option>)}
             </select>
           </div>
           <div className="w-full sm:w-auto">
-            <label
-              htmlFor="quietHoursEnd"
-              className="block text-sm text-gray-700 mb-1"
-            >
-              End Time
-            </label>
-            <select
-              id="quietHoursEnd"
-              name="quietHoursEnd"
-              value={preferences.quietHoursEnd}
-              onChange={handleChange}
-              className={`w-full sm:w-32 bg-white border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${quietHoursError ? "border-red-500" : "border-gray-300"}`}
-            >
+            <label htmlFor="quietHoursEnd" className="block text-sm text-gray-700 mb-1">End Time</label>
+            <select id="quietHoursEnd" name="quietHoursEnd" value={preferences.quietHoursEnd} onChange={handleChange} className={`w-full sm:w-32 bg-white border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${quietHoursError ? "border-red-500" : "border-gray-300"}`}>
               <option value="">None</option>
-              {hoursOptions.map((hour) => (
-                <option key={hour} value={hour}>
-                  {formatHour(hour)}
-                </option>
-              ))}
+              {hoursOptions.map((hour) => <option key={hour} value={hour}>{formatHour(hour)}</option>)}
             </select>
           </div>
         </div>
-        {quietHoursError && (
-          <p className="text-sm text-red-500 mt-2 font-medium">
-            {quietHoursError}
-          </p>
-        )}
-        <p className="text-xs text-gray-500 mt-2">
-          Timezone: {preferences.timezone}
-        </p>
+        {quietHoursError && <p className="text-sm text-red-500 mt-2 font-medium">{quietHoursError}</p>}
+        <p className="text-xs text-gray-500 mt-2">Timezone: {preferences.timezone}</p>
       </div>
 
       <div className="flex space-x-4">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded"
-        >
+        <button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded">
           {saving ? "Saving..." : "Save Preferences"}
         </button>
-        <button
-          onClick={handlePreview}
-          className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 px-4 rounded border border-gray-300"
-        >
+        <button onClick={handlePreview} className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 px-4 rounded border border-gray-300">
           Preview Email
         </button>
       </div>
 
-      {/* Preview Modal */}
-      <Dialog
-        open={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
-        className="fixed z-50 inset-0 overflow-y-auto"
-      >
+      <Dialog open={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} className="fixed z-50 inset-0 overflow-y-auto">
         <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
           <Dialog.Overlay className="fixed inset-0 bg-black opacity-30" />
-          <span
-            className="hidden sm:inline-block sm:align-middle sm:h-screen"
-            aria-hidden="true"
-          >
-            &#8203;
-          </span>
+          <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
           <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6">
             <div className="sm:flex sm:items-start">
               <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                <Dialog.Title
-                  as="h3"
-                  className="text-lg leading-6 font-medium text-gray-900 mb-4"
-                >
-                  Email Preview
-                </Dialog.Title>
-                <div className="mt-2 w-full border rounded p-4 max-h-[60vh] overflow-y-auto bg-gray-50">
-                  {/* Dangerously set HTML since we generate it in backend */}
-                  <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                <Dialog.Title as="h3" className="text-lg leading-6 font-medium text-gray-900 mb-4">Email Preview</Dialog.Title>
+                <div className="mt-2 w-full max-h-[60vh] overflow-y-auto bg-gray-50">
+                  <SandboxedHtmlPreview htmlContent={previewHtml} title="Recap Email Preview" className="w-full" />
                 </div>
               </div>
             </div>
             <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-              <button
-                type="button"
-                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm"
-                onClick={() => setIsPreviewOpen(false)}
-              >
+              <button type="button" className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm" onClick={() => setIsPreviewOpen(false)}>
                 Close
               </button>
             </div>
