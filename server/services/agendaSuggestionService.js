@@ -35,11 +35,6 @@ const requireAgendaPermission = (user, action) => {
   }
 };
 
-/**
- * Agenda suggestions are scoped to a meeting and its organization.
- * Keep this check centralized so every endpoint follows the same order:
- * user -> organization membership -> meeting access -> RBAC permission.
- */
 export const authorizeAgendaMeeting = async (
   user,
   meetingId,
@@ -74,6 +69,8 @@ export const authorizeAgendaSuggestion = async (
   agendaSuggestion,
   action = "view",
 ) => {
+  requireAgendaPermission(user, action);
+
   if (!agendaSuggestion) {
     throw new AgendaSuggestionAuthorizationError(
       404,
@@ -172,6 +169,8 @@ export const generateSuggestions = async (meetingId, user) => {
 };
 
 export const applyAcceptedSuggestions = async (agendaSuggestionId, user) => {
+  requireAgendaPermission(user, "edit");
+
   if (!mongoose.isValidObjectId(agendaSuggestionId)) {
     throw new AgendaSuggestionAuthorizationError(
       400,
