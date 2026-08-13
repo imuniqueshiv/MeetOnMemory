@@ -8,6 +8,9 @@ import mongoose from "mongoose";
 import connectDB from "./config/mongodb.js";
 import { createGracefulShutdown } from "./utils/gracefulShutdown.js";
 
+import { getRedisManager, checkRedisHealth } from "./config/redis.js";
+import logger from "./services/loggerService.js";
+
 import { initCalendarSyncCron } from "./services/calendarSyncService.js";
 import { configureExpress, configureErrorHandling } from "./config/express.js";
 import { configureSocket } from "./config/socket.js";
