@@ -1,6 +1,6 @@
-// server/controllers/workspaceController.js
 import Meeting from "../models/meetingModel.js";
 import mongoose from "mongoose";
+import { canAccessWorkspaceMeeting } from "../utils/workspaceAuthorization.js";
 
 /**
  * @desc Get initial War Room state (Canvas + Action Board)
@@ -28,17 +28,10 @@ export const getWorkspaceState = async (req, res) => {
     }
 
     // Authorization check
-    const isParticipant = meeting.participants.some(
-      (p) =>
-        p.user?.toString() === req.user._id.toString() ||
-        p.email === req.user.email,
-    );
-    const isOwner = meeting.uploadedBy?.toString() === req.user._id.toString();
-
-    if (!isParticipant && !isOwner) {
+    if (!canAccessWorkspaceMeeting(meeting, req.user)) {
       return res.status(403).json({
         success: false,
-        message: "Forbidden: Not a meeting participant",
+        message: "Forbidden: Not authorized to access this meeting workspace",
       });
     }
 
@@ -90,6 +83,13 @@ export const addActionItem = async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Meeting not found" });
+
+    if (!canAccessWorkspaceMeeting(meeting, req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: Not authorized to modify this meeting workspace",
+      });
+    }
 
     if (!meeting.warRoom) meeting.warRoom = { actionColumns: {} };
     if (!meeting.warRoom.actionColumns) meeting.warRoom.actionColumns = {};
