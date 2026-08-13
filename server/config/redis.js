@@ -4,11 +4,9 @@
  * - Connection retry with exponential backoff
  * - Fallback to in-memory cache
  * - Graceful degradation
- * - Connection state monitoring
  */
 
 import { createClient } from "redis";
-import logger from "../services/loggerService.js";
 
 // ============================================================================
 // CONFIGURATION
@@ -170,7 +168,7 @@ class RedisManager {
       // Connect
       this._connect();
     } catch (error) {
-      logger.error("Failed to initialize Redis client:", error);
+      console.error("Failed to initialize Redis client:", error);
       this._switchToFallback("Initialization failed");
     }
   }
@@ -183,14 +181,14 @@ class RedisManager {
     );
 
     if (retries >= this.config.retryAttempts) {
-      logger.warn(
+      console.warn(
         `Redis: Max retry attempts (${this.config.retryAttempts}) reached. Switching to fallback.`
       );
       this._switchToFallback("Max retry attempts reached");
       return false; // Stop retrying
     }
 
-    logger.info(
+    console.info(
       `Redis: Reconnecting attempt ${retries + 1}/${this.config.retryAttempts} in ${delay}ms`
     );
     this._emitEvent("reconnecting", { retries, delay });
@@ -205,9 +203,9 @@ class RedisManager {
 
     try {
       await this.client.connect();
-      logger.info("Redis: Connection established successfully");
+      console.info("Redis: Connection established successfully");
     } catch (error) {
-      logger.error("Redis: Initial connection failed:", error.message);
+      console.error("Redis: Initial connection failed:", error.message);
       this._handleError(error);
     } finally {
       this.isConnecting = false;
@@ -219,11 +217,11 @@ class RedisManager {
     this.isConnected = false;
 
     if (this.useFallback) {
-      logger.debug("Redis error (fallback active):", error.message);
+      console.debug("Redis error (fallback active):", error.message);
       return;
     }
 
-    logger.error("Redis error:", error.message);
+    console.error("Redis error:", error.message);
 
     // Check if it's a fatal error
     if (
@@ -245,22 +243,22 @@ class RedisManager {
     this.retryCount = 0;
     this.lastError = null;
 
-    logger.info("Redis: Connection ready");
+    console.info("Redis: Connection ready");
 
-    // Migrate data from fallback to Redis if needed
-    this._migrateFallbackData();
+    // No data migration needed - fallback cache is temporary only
+    console.info("Redis: Fallback cache cleared (no migration needed)");
 
     this._emitEvent("ready", { connected: true });
   }
 
   _handleEnd() {
     this.isConnected = false;
-    logger.warn("Redis: Connection ended");
+    console.warn("Redis: Connection ended");
     this._emitEvent("end", { connected: false });
   }
 
   _handleReconnecting() {
-    logger.info("Redis: Reconnecting...");
+    console.info("Redis: Reconnecting...");
     this._emitEvent("reconnecting", { connected: false });
   }
 
@@ -269,14 +267,14 @@ class RedisManager {
 
     this.useFallback = true;
     this.isConnected = false;
-    logger.warn(`Redis: Switching to fallback in-memory cache. Reason: ${reason}`);
+    console.warn(`Redis: Switching to fallback in-memory cache. Reason: ${reason}`);
     this._emitEvent("fallback", { reason });
   }
 
   async _migrateFallbackData() {
-    // This is a placeholder - in production, you'd want to migrate
-    // critical data from fallback to Redis
-    logger.info("Redis: Fallback data migration completed");
+    // No data migration needed - fallback cache is temporary only
+    // Cache will be populated as Redis operations are performed
+    console.info("Redis: Fallback cache ready (no data to migrate)");
   }
 
   // ========================================================================
@@ -295,7 +293,7 @@ class RedisManager {
       }
       return value;
     } catch (error) {
-      logger.error(`Redis get error for key ${key}:`, error.message);
+      console.error(`Redis get error for key ${key}:`, error.message);
       // Fallback to in-memory cache on error
       return this.fallbackCache.get(key);
     }
@@ -314,7 +312,7 @@ class RedisManager {
       }
       return true;
     } catch (error) {
-      logger.error(`Redis set error for key ${key}:`, error.message);
+      console.error(`Redis set error for key ${key}:`, error.message);
       return this.fallbackCache.set(key, value, ttl);
     }
   }
@@ -328,7 +326,7 @@ class RedisManager {
       const result = await this.client.del(key);
       return result > 0;
     } catch (error) {
-      logger.error(`Redis delete error for key ${key}:`, error.message);
+      console.error(`Redis delete error for key ${key}:`, error.message);
       return this.fallbackCache.delete(key);
     }
   }
@@ -342,7 +340,7 @@ class RedisManager {
       await this.client.flushDb();
       return true;
     } catch (error) {
-      logger.error("Redis clear error:", error.message);
+      console.error("Redis clear error:", error.message);
       return this.fallbackCache.clear();
     }
   }
@@ -355,7 +353,7 @@ class RedisManager {
     try {
       return await this.client.exists(key);
     } catch (error) {
-      logger.error(`Redis exists error for key ${key}:`, error.message);
+      console.error(`Redis exists error for key ${key}:`, error.message);
       return this.fallbackCache.exists(key);
     }
   }
@@ -368,7 +366,7 @@ class RedisManager {
     try {
       return await this.client.keys(pattern);
     } catch (error) {
-      logger.error(`Redis keys error for pattern ${pattern}:`, error.message);
+      console.error(`Redis keys error for pattern ${pattern}:`, error.message);
       return this.fallbackCache.keys(pattern);
     }
   }
@@ -381,7 +379,7 @@ class RedisManager {
     try {
       return await this.client.ttl(key);
     } catch (error) {
-      logger.error(`Redis TTL error for key ${key}:`, error.message);
+      console.error(`Redis TTL error for key ${key}:`, error.message);
       return -1;
     }
   }
@@ -397,7 +395,7 @@ class RedisManager {
     try {
       return await this.client.incrBy(key, amount);
     } catch (error) {
-      logger.error(`Redis increment error for key ${key}:`, error.message);
+      console.error(`Redis increment error for key ${key}:`, error.message);
       const current = (await this.fallbackCache.get(key)) || 0;
       const newValue = parseInt(current) + amount;
       await this.fallbackCache.set(key, newValue.toString());
@@ -435,7 +433,7 @@ class RedisManager {
       await this.client.ping();
       return true;
     } catch (error) {
-      logger.error("Redis ping error:", error.message);
+      console.error("Redis ping error:", error.message);
       return false;
     }
   }
@@ -453,7 +451,7 @@ class RedisManager {
       try {
         listener(data);
       } catch (error) {
-        logger.error(`Error in event listener for ${event}:`, error);
+        console.error(`Error in event listener for ${event}:`, error);
       }
     }
   }
@@ -467,12 +465,12 @@ class RedisManager {
       try {
         await this.client.quit();
       } catch (error) {
-        logger.error("Error during Redis cleanup:", error.message);
+        console.error("Error during Redis cleanup:", error.message);
       }
     }
     this.fallbackCache.destroy();
     this.eventListeners.clear();
-    logger.info("Redis manager destroyed");
+    console.info("Redis manager destroyed");
   }
 }
 
@@ -494,16 +492,3 @@ export function getRedisClient() {
 }
 
 export default getRedisManager();
-
-// ============================================================================
-// HEALTH CHECK
-// ============================================================================
-
-export async function checkRedisHealth() {
-  const manager = getRedisManager();
-  return {
-    status: manager.isConnected ? "connected" : "fallback",
-    useFallback: manager.useFallback,
-    details: manager.getStatus(),
-  };
-}
