@@ -10,27 +10,34 @@ import {
   requireOrgMembership,
 } from "../middleware/rbac.js";
 import userAuth from "../middleware/userAuth.js";
+
+import {
+  validateMeeting,
+  validateMeetingQuery,
+  validateMeetingUpdate,
+} from "../middleware/validation.js";
+
 import {
   apiLimiter,
   writeLimiter,
   uploadLimiter,
 } from "../middleware/rateLimiter.js";
 import {
-  createMeeting, // NEW: Schedule meetings from CreateMeeting form
-  uploadMeeting, // EXISTING: Upload audio and transcribe
-  uploadAudioForMeeting, // NEW: Upload audio for existing meeting
-  summarizeMeeting, // EXISTING: Generate AI summary/MOM
+  createMeeting,
+  uploadMeeting,
+  uploadAudioForMeeting,
+  summarizeMeeting,
   getAllMeetings,
-  getMeetingById, // NEW: Get single meeting details
-  updateMeeting, // NEW: Update meeting (rename)
-  deleteMeeting, // Soft-delete meeting
+  getMeetingById,
+  updateMeeting,
+  deleteMeeting,
   getDeletedMeetings,
   restoreDeletedMeeting,
   permanentlyDeleteMeeting,
-  searchMeetingsByText, // 🆕 NEW: Voice/Text Search
+  searchMeetingsByText,
   archiveMeeting,
   restoreMeeting,
-  notifyLiveMeeting, // NEW: Notify participants of a live meeting
+  notifyLiveMeeting,
   handleMeetingClipOperation,
   getMeetingClip,
   getMeetingInvite,
@@ -119,24 +126,25 @@ const router = express.Router();
 const upload = multer({
   dest: "uploads/",
   fileFilter: meetingRecordingFilter,
-}); // temporary upload directory
+});
 const transcriptUpload = multer({
   dest: "uploads/transcripts/",
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+  limits: { fileSize: 100 * 1024 * 1024 },
   fileFilter: meetingRecordingFilter,
 });
 const transcriptChunkUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit per chunk
+  limits: { fileSize: 50 * 1024 * 1024 },
 });
+
+// ========== VALIDATION MIDDLEWARE ==========
+// All meeting routes now have input validation
 
 // Apply rate limiting to all routes
 router.use(apiLimiter);
 
 // ========== RECORDING / LIVE TRANSCRIPT (Issue #679 contract) ==========
-// Frontend expects these under /api/meetings/:meetingId/...
 
-// POST /api/meetings/:meetingId/recording/start
 router.post(
   "/:meetingId/recording/start",
   userAuth,
@@ -146,7 +154,6 @@ router.post(
   startRecording,
 );
 
-// POST /api/meetings/:meetingId/recording/stop
 router.post(
   "/:meetingId/recording/stop",
   userAuth,
@@ -156,7 +163,6 @@ router.post(
   stopRecording,
 );
 
-// POST /api/meetings/:meetingId/transcript/upload
 router.post(
   "/:meetingId/transcript/upload",
   userAuth,
@@ -167,7 +173,6 @@ router.post(
   uploadTranscriptAudio,
 );
 
-// POST /api/meetings/:meetingId/transcript/chunk
 router.post(
   "/:meetingId/transcript/chunk",
   userAuth,
@@ -178,7 +183,6 @@ router.post(
   uploadTranscriptChunk,
 );
 
-// GET /api/meetings/:meetingId/transcript
 router.get(
   "/:meetingId/transcript",
   userAuth,
@@ -187,7 +191,6 @@ router.get(
   getTranscript,
 );
 
-// POST /api/meetings/:meetingId/transcript/retry
 router.post(
   "/:meetingId/transcript/retry",
   userAuth,
@@ -199,7 +202,7 @@ router.post(
 
 // ========== EXISTING ROUTES (Working) ==========
 
-// ✅ Upload & Transcribe Meeting (from UploadMeetings page) - admin only
+// Upload & Transcribe Meeting - admin only
 router.post(
   "/upload",
   userAuth,
@@ -211,7 +214,7 @@ router.post(
   uploadMeeting,
 );
 
-// ✅ Summarize Transcript (send meetingId or transcript)
+// Summarize Transcript
 router.post(
   "/summarize",
   userAuth,
@@ -221,7 +224,7 @@ router.post(
   summarizeMeeting,
 );
 
-// ✅ Fetch All Meetings (for Summaries Page)
+// Fetch All Meetings
 router.get(
   "/all",
   userAuth,
@@ -230,10 +233,10 @@ router.get(
   getAllMeetings,
 );
 
-// ✅ Resolve shareable meeting invite (must be before /:id)
+// Resolve shareable meeting invite (must be before /:id)
 router.get("/invite/:code", userAuth, resolveMeetingInvite);
 
-// ✅ Meeting invite management (Issue #920)
+// Meeting invite management (Issue #920)
 router.get(
   "/:id/invite",
   userAuth,
@@ -258,7 +261,7 @@ router.patch(
   updateMeetingInvite,
 );
 
-// Recycle bin routes must be registered before /:id.
+// Recycle bin routes
 router.get(
   "/trash",
   userAuth,
@@ -283,7 +286,9 @@ router.delete(
   permanentlyDeleteMeeting,
 );
 
-// ✅ Get Single Meeting Details (for Meeting Details Page)
+// ========== MEETING CRUD ROUTES WITH VALIDATION ==========
+
+// Get Single Meeting Details
 router.get(
   "/:id",
   userAuth,
@@ -292,16 +297,17 @@ router.get(
   getMeetingById,
 );
 
-// ✅ Update Meeting (for Meeting Details Page - rename)
+// ✅ Update Meeting with validation
 router.patch(
   "/:id",
   userAuth,
+  validateMeetingUpdate,  // ✅ Added validation
   requireOwner(Meeting),
   requirePermission("meetings", "edit"),
   updateMeeting,
 );
 
-// ✅ Export Meeting
+// Export Meeting
 router.get(
   "/:id/export",
   userAuth,
@@ -310,7 +316,7 @@ router.get(
   exportMeeting,
 );
 
-// ✅ Archive Meeting
+// Archive Meeting
 router.patch(
   "/:id/archive",
   userAuth,
@@ -320,7 +326,7 @@ router.patch(
   archiveMeeting,
 );
 
-// ✅ Restore Meeting
+// Restore Meeting
 router.patch(
   "/:id/restore",
   userAuth,
@@ -330,7 +336,7 @@ router.patch(
   restoreMeeting,
 );
 
-// ✅ Delete Meeting
+// Delete Meeting
 router.delete(
   "/delete/:id",
   userAuth,
@@ -342,17 +348,18 @@ router.delete(
 
 // ========== NEW ROUTES (for CreateMeeting.jsx) ==========
 
-// ✅ Create/Schedule Meeting (from CreateMeeting Schedule section)
+// ✅ Create/Schedule Meeting with validation
 router.post(
   "/create",
   userAuth,
+  validateMeeting,  // ✅ Added validation
   writeLimiter,
   requireOrgMembership,
   requirePermission("meetings", "create"),
   createMeeting,
 );
 
-// ✅ Upload Audio for existing meeting (from CreateMeeting Upload section) - admin only
+// Upload Audio for existing meeting
 router.post(
   "/upload-audio",
   userAuth,
@@ -364,7 +371,7 @@ router.post(
   uploadAudioForMeeting,
 );
 
-// 🆕 ✅ Voice/Text Search Route (Frontend: Summaries.jsx or Live Search)
+// Voice/Text Search Route
 router.post(
   "/search",
   userAuth,
@@ -373,17 +380,18 @@ router.post(
   searchMeetingsByText,
 );
 
-// 🆕 ✅ Update Meeting Route (Frontend: Meeting Repository - rename, etc.)
+// Update Meeting Route with validation
 router.put(
   "/:id",
   userAuth,
+  validateMeetingUpdate,  // ✅ Added validation
   writeLimiter,
   requireOwner(Meeting),
   requirePermission("meetings", "edit"),
   updateMeeting,
 );
 
-// ✅ Notify Live Meeting Participants (from CreateMeeting Live section)
+// Notify Live Meeting Participants
 router.post(
   "/notify-live",
   userAuth,
@@ -392,7 +400,7 @@ router.post(
   notifyLiveMeeting,
 );
 
-// ✅ Create/Modify Meeting Clip
+// Create/Modify Meeting Clip
 router.post(
   "/:id/clip",
   userAuth,
@@ -402,7 +410,7 @@ router.post(
   handleMeetingClipOperation,
 );
 
-// ✅ View Meeting Clip
+// View Meeting Clip
 router.get(
   "/:id/clip/:clipId",
   userAuth,
@@ -412,7 +420,7 @@ router.get(
   getMeetingClip,
 );
 
-// ✅ Resend Meeting Digest
+// Resend Meeting Digest
 router.post(
   "/:id/digest/resend",
   userAuth,
@@ -421,7 +429,7 @@ router.post(
   resendDigest,
 );
 
-// ✅ Preview Meeting Digest
+// Preview Meeting Digest
 router.get(
   "/:id/digest/preview",
   userAuth,
@@ -429,7 +437,7 @@ router.get(
   previewDigest,
 );
 
-// ✅ Get Reaction Summary
+// Get Reaction Summary
 router.get(
   "/:id/reactions/summary",
   userAuth,
@@ -438,7 +446,7 @@ router.get(
   getReactionSummary,
 );
 
-// ✅ Get Reaction Timeline
+// Get Reaction Timeline
 router.get(
   "/:id/reactions/timeline",
   userAuth,
