@@ -1,6 +1,7 @@
 import axios from "axios"; // eslint-disable-line no-unused-vars
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { pipeline, env } from "@xenova/transformers";
+import { SummaryCacheService, BatchSummaryService } from "./summaryCacheService.js";
 import {
   AI_ERROR_KIND,
   callWithResilience,
@@ -363,6 +364,142 @@ const runLocalFallback = async (textToSummarize, date, title, degradation) => {
   };
 };
 
+// ============================================================================
+// CACHED SUMMARY FUNCTIONS - Issue #1479
+// ============================================================================
+
+/**
+ * Get meeting summary with caching (stale-while-revalidate)
+ * This is the main function to call from controllers
+ */
+export const getMeetingSummaryWithCache = async (meetingId, options = {}) => {
+  const cached = await SummaryCacheService.getWithStale(
+    meetingId,
+    options,
+    async (id, opts) => {
+      // This regenerates the summary when cache is stale
+      return await generateMoMWithAIFromScratch(id, opts);
+    }
+  );
+  return cached;
+};
+
+/**
+ * Generate a single meeting summary with caching
+ * Wraps the existing generation with cache
+ */
+export const generateMoMWithAI = async (
+  textToSummarize,
+  date,
+  title,
+  customInstructions = null,
+  meetingId = null,
+) => {
+  // If meetingId is provided, try cache first
+  if (meetingId) {
+    const cached = await SummaryCacheService.get(meetingId, { title, date });
+    if (cached) {
+      console.log(`📦 Cache hit for meeting ${meetingId}`);
+      return cached.summary;
+    }
+  }
+
+  // Generate fresh
+  const { mom } = await generateMoMDetailed(
+    textToSummarize,
+    date,
+    title,
+    customInstructions,
+  );
+
+  // Store in cache if meetingId provided
+  if (meetingId) {
+    await SummaryCacheService.set(meetingId, mom, { title, date });
+    console.log(`💾 Cached summary for meeting ${meetingId}`);
+  }
+
+  return mom;
+};
+
+/**
+ * Original generation function (renamed for clarity)
+ * Use this when you need to bypass cache
+ */
+export const generateMoMWithAIFromScratch = async (
+  textToSummarize,
+  date,
+  title,
+  customInstructions = null,
+) => {
+  const { mom } = await generateMoMDetailed(
+    textToSummarize,
+    date,
+    title,
+    customInstructions,
+  );
+  return mom;
+};
+
+// ============================================================================
+// BATCH PROCESSING - Issue #1479
+// ============================================================================
+
+/**
+ * Generate summaries for multiple meetings in batch
+ */
+export const generateBatchMeetingSummaries = async (meetingIds, options = {}) => {
+  const results = await BatchSummaryService.batchGenerate(
+    meetingIds,
+    async (batchIds, opts) => {
+      const batchResults = [];
+      for (const id of batchIds) {
+        const summary = await generateMoMWithAIFromScratch(
+          opts.textToSummarize || "",
+          opts.date || new Date().toISOString().split('T')[0],
+          opts.title || "Meeting",
+          opts.customInstructions || null,
+        );
+        batchResults.push({
+          meetingId: id,
+          summary,
+        });
+      }
+      return batchResults;
+    },
+    options
+  );
+  return results;
+};
+
+// ============================================================================
+// CACHE INVALIDATION - Issue #1479
+// ============================================================================
+
+/**
+ * Invalidate cached summary for a meeting
+ */
+export const invalidateMeetingSummary = async (meetingId, options = {}) => {
+  return await SummaryCacheService.invalidate(meetingId, options);
+};
+
+/**
+ * Invalidate all cached summaries for a meeting
+ */
+export const invalidateAllMeetingSummaries = async (meetingId) => {
+  return await SummaryCacheService.invalidateAll(meetingId);
+};
+
+/**
+ * Get cache statistics
+ */
+export const getSummaryCacheStats = async () => {
+  return await SummaryCacheService.getStats();
+};
+
+// ============================================================================
+// ORIGINAL FUNCTIONS (Keep all existing code below)
+// ============================================================================
+
 /**
  * Generates a MoM and reports how it was produced.
  *
@@ -489,20 +626,7 @@ export const generateMoMDetailed = async (
  * Prefer `generateMoMDetailed` in new code — it also returns the provenance
  * needed to identify (and later reprocess) degraded meetings.
  */
-export const generateMoMWithAI = async (
-  textToSummarize,
-  date,
-  title,
-  customInstructions = null,
-) => {
-  const { mom } = await generateMoMDetailed(
-    textToSummarize,
-    date,
-    title,
-    customInstructions,
-  );
-  return mom;
-};
+// This is now defined above with caching support
 
 /**
  * AI-powered contradiction classification for two candidate-conflicting
