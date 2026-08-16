@@ -17,7 +17,7 @@ const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
 const bufferToBase64 = (buffer) => {
-  const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;
+  const bytes = new Uint8Array(buffer);
   let binary = "";
   bytes.forEach((b) => {
     binary += String.fromCharCode(b);

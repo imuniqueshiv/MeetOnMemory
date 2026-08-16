@@ -10,7 +10,7 @@ const MeetingInformationForm = ({
     <>
       {/* Meeting Type */}
       <div className="mb-6">
-        <label className="block mb-3 font-semibold text-gray-700">
+        <label className="block mb-3 font-semibold text-gray-700 dark:text-gray-300">
           Meeting Type
         </label>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -23,8 +23,8 @@ const MeetingInformationForm = ({
               }
               className={`px-4 py-2 rounded-lg border-2 transition capitalize ${
                 scheduleData.meetingType === type
-                  ? "border-blue-600 bg-blue-50 text-blue-700"
-                  : "border-gray-200 hover:border-gray-300"
+                  ? "border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-600"
+                  : "border-gray-200 hover:border-gray-300 dark:border-slate-600 dark:hover:border-slate-500 dark:text-gray-300"
               }`}
             >
               {type}
@@ -35,7 +35,7 @@ const MeetingInformationForm = ({
 
       {/* Title & Description */}
       <div className="mb-6">
-        <label className="block mb-2 font-semibold text-gray-700">
+        <label className="block mb-2 font-semibold text-gray-700 dark:text-gray-300">
           Meeting Title *
         </label>
         <input
@@ -44,13 +44,13 @@ const MeetingInformationForm = ({
           value={scheduleData.title}
           onChange={handleScheduleChange}
           placeholder="e.g., Q4 Board Meeting, Policy Review"
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
+          className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
           required
         />
       </div>
 
       <div className="mb-6">
-        <label className="block mb-2 font-semibold text-gray-700">
+        <label className="block mb-2 font-semibold text-gray-700 dark:text-gray-300">
           Description & Objective
         </label>
         <textarea
@@ -59,14 +59,14 @@ const MeetingInformationForm = ({
           onChange={handleScheduleChange}
           placeholder="Brief overview and expected outcomes..."
           rows="3"
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
+          className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
         ></textarea>
       </div>
 
       {/* Date & Time */}
       <div className="grid md:grid-cols-3 gap-4 mb-6">
         <div>
-          <label className="block mb-2 font-semibold text-gray-700">
+          <label className="block mb-2 font-semibold text-gray-700 dark:text-gray-300">
             Date *
           </label>
           <input
@@ -74,12 +74,12 @@ const MeetingInformationForm = ({
             name="date"
             value={scheduleData.date}
             onChange={handleScheduleChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
+            className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
             required
           />
         </div>
         <div>
-          <label className="block mb-2 font-semibold text-gray-700">
+          <label className="block mb-2 font-semibold text-gray-700 dark:text-gray-300">
             Time *
           </label>
           <input
@@ -87,12 +87,12 @@ const MeetingInformationForm = ({
             name="time"
             value={scheduleData.time}
             onChange={handleScheduleChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
+            className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
             required
           />
         </div>
         <div>
-          <label className="block mb-2 font-semibold text-gray-700">
+          <label className="block mb-2 font-semibold text-gray-700 dark:text-gray-300">
             Duration (min)
           </label>
           <input
@@ -101,7 +101,7 @@ const MeetingInformationForm = ({
             value={scheduleData.duration}
             onChange={handleScheduleChange}
             placeholder="60"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
+            className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
           />
         </div>
       </div>
@@ -109,7 +109,7 @@ const MeetingInformationForm = ({
       {/* Location */}
       <div className="grid md:grid-cols-2 gap-4 mb-6">
         <div>
-          <label className="block mb-2 font-semibold text-gray-700">
+          <label className="block mb-2 font-semibold text-gray-700 dark:text-gray-300">
             Location/Platform
           </label>
           <input
@@ -118,11 +118,11 @@ const MeetingInformationForm = ({
             value={scheduleData.location}
             onChange={handleScheduleChange}
             placeholder="e.g., Zoom, Conference Room A"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
+            className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
           />
         </div>
         <div>
-          <label className="block mb-2 font-semibold text-gray-700">
+          <label className="block mb-2 font-semibold text-gray-700 dark:text-gray-300">
             Venue Details
           </label>
           <input
@@ -131,7 +131,7 @@ const MeetingInformationForm = ({
             value={scheduleData.venue}
             onChange={handleScheduleChange}
             placeholder="Address or meeting link"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
+            className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
           />
         </div>
       </div>
@@ -144,7 +144,7 @@ const MeetingInformationForm = ({
       />
 
       {/* Sync to Calendar */}
-      <div className="mb-6 flex items-center gap-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+      <div className="mb-6 flex items-center gap-3 bg-blue-50/50 dark:bg-slate-700/50 p-4 rounded-xl border border-blue-100 dark:border-slate-600">
         <input
           type="checkbox"
           id="syncToCalendar"
@@ -160,7 +160,7 @@ const MeetingInformationForm = ({
         />
         <label
           htmlFor="syncToCalendar"
-          className="text-sm font-medium text-slate-800 cursor-pointer"
+          className="text-sm font-medium text-slate-800 dark:text-slate-200 cursor-pointer"
         >
           Sync to my connected calendars (Google/Outlook)
         </label>

@@ -43,12 +43,14 @@ const ScheduleMeeting = ({ hookProps, loadingDuplicate = false }) => {
   } = hookProps;
 
   return (
-    <div className="bg-white shadow-lg rounded-2xl p-8">
+    <div className="bg-white dark:bg-slate-800 shadow-lg rounded-2xl p-8">
       <div className="flex items-center gap-3 mb-6">
-        <Calendar className="text-blue-600" size={28} />
+        <Calendar className="text-blue-600 dark:text-blue-400" size={28} />
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Schedule Meeting</h2>
-          <p className="text-sm text-gray-600">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Schedule Meeting
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-slate-400">
             Create and manage meeting schedules with automatic calendar
             integration
           </p>
@@ -57,7 +59,7 @@ const ScheduleMeeting = ({ hookProps, loadingDuplicate = false }) => {
 
       {loadingDuplicate && (
         <div
-          className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800"
+          className="mb-6 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/30 px-4 py-3 text-sm text-blue-800 dark:text-blue-200"
           role="status"
         >
           Loading reusable meeting details...
@@ -87,14 +89,14 @@ const ScheduleMeeting = ({ hookProps, loadingDuplicate = false }) => {
         />
 
         {templates && templates.length > 0 && (
-          <div className="mb-6 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-            <label className="flex items-center gap-2 text-sm font-semibold text-blue-900 mb-2">
+          <div className="mb-6 bg-blue-50/50 dark:bg-slate-700/50 p-4 rounded-xl border border-blue-100 dark:border-slate-600">
+            <label className="flex items-center gap-2 text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">
               <FileText size={16} /> Load Meeting Template
             </label>
             <select
               value={selectedTemplateId}
               onChange={handleTemplateSelect}
-              className="w-full px-4 py-2 bg-white border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none text-sm text-gray-700"
+              className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-blue-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none text-sm text-gray-700 dark:text-white"
             >
               <option value="">
                 -- Select a template to populate agenda --
@@ -109,14 +111,14 @@ const ScheduleMeeting = ({ hookProps, loadingDuplicate = false }) => {
         )}
 
         {aiSummaryTemplates && aiSummaryTemplates.length > 0 && (
-          <div className="mb-6 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-            <label className="flex items-center gap-2 text-sm font-semibold text-indigo-900 mb-2">
+          <div className="mb-6 bg-indigo-50/50 dark:bg-slate-700/50 p-4 rounded-xl border border-indigo-100 dark:border-slate-600">
+            <label className="flex items-center gap-2 text-sm font-semibold text-indigo-900 dark:text-indigo-300 mb-2">
               <FileText size={16} /> AI Summary Instructions
             </label>
             <select
               value={selectedAiSummaryTemplateId || ""}
               onChange={(e) => setSelectedAiSummaryTemplateId(e.target.value)}
-              className="w-full px-4 py-2 bg-white border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none text-sm text-gray-700"
+              className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-indigo-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none text-sm text-gray-700 dark:text-white"
             >
               <option value="">-- Standard Summary Format --</option>
               {aiSummaryTemplates.map((t) => (
@@ -125,7 +127,7 @@ const ScheduleMeeting = ({ hookProps, loadingDuplicate = false }) => {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-indigo-700 mt-2">
+            <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-2">
               Custom instructions allow you to dictate exactly how the AI will
               write the MoM (e.g. Sales BANT, Sprint Retro).
             </p>

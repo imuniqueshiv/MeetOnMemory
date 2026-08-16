@@ -94,6 +94,10 @@ describe("ClerkSessionSync Auth & Bootstrap Requests", () => {
       .mockRejectedValueOnce(new Error("Sync failed"))
       .mockResolvedValue({ data: { success: true } });
 
+    contextValue.initializeAuth
+      .mockRejectedValueOnce(new Error("Mongo bootstrap failed"))
+      .mockResolvedValue({ name: "Test User" });
+
     render(
       <AppContent.Provider value={contextValue}>
         <ClerkSessionSync />

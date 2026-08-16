@@ -16,14 +16,14 @@ const LiveMeeting = ({ hookProps }) => {
   } = hookProps;
 
   return (
-    <div className="bg-white shadow-lg rounded-2xl p-8">
+    <div className="bg-white dark:bg-slate-800 shadow-lg rounded-2xl p-8">
       <div className="flex items-center gap-3 mb-6">
         <Video className="text-indigo-600" size={28} />
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
             Start Live Meeting
           </h2>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-slate-400">
             Add participants and start a live meeting with optional AI
             transcription
           </p>

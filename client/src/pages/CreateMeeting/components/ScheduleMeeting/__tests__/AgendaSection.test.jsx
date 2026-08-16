@@ -2,6 +2,10 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import AgendaSection from "../AgendaSection";
 
+vi.mock("../../../../../components/meetings/ParkingLotImportModal", () => ({
+  default: () => <div data-testid="mock-parking-lot-modal" />,
+}));
+
 const items = [
   { id: "a", text: "Review action items", position: 0 },
   { id: "b", text: "Discuss blockers", position: 1 },

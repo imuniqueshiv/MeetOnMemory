@@ -117,6 +117,7 @@ describe("RecapScheduleDashboard Retry Feedback (#1524)", () => {
         name: /retry delivery for weekly sync/i,
       }),
     );
+    fireEvent.click(screen.getByRole("button", { name: "Retry Delivery" }));
     await waitFor(() => {
       expect(recapScheduleApi.retryDelivery).toHaveBeenCalledWith("delivery-1");
       expect(screen.getByRole("alert")).toHaveTextContent(
@@ -148,6 +149,7 @@ describe("RecapScheduleDashboard Retry Feedback (#1524)", () => {
         name: /retry delivery for planning review/i,
       }),
     );
+    fireEvent.click(screen.getByRole("button", { name: "Retry Delivery" }));
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(
         "We couldn't enqueue the retry. Please try again.",
@@ -185,6 +187,7 @@ describe("RecapScheduleDashboard Retry Feedback (#1524)", () => {
       name: /retry delivery for standup/i,
     });
     fireEvent.click(retryButton);
+    fireEvent.click(screen.getByRole("button", { name: "Retry Delivery" }));
     await waitFor(() => {
       expect(recapScheduleApi.retryDelivery).toHaveBeenCalledTimes(1);
       expect(retryButton).toBeDisabled();

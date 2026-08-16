@@ -1,6 +1,7 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import TemplateLibrary from "../TemplateLibrary.jsx";
 import {
   browseTemplates,
@@ -8,7 +9,7 @@ import {
   rateTemplate,
 } from "../../services/templateLibraryApi";
 
-vi.mock("../components/Navbar.jsx", () => ({
+vi.mock("../../components/Navbar.jsx", () => ({
   default: () => <nav>Navbar</nav>,
 }));
 
@@ -60,7 +61,11 @@ describe("TemplateLibrary duplicate-submission protection (#1525)", () => {
         }),
     );
 
-    render(<TemplateLibrary />);
+    render(
+      <MemoryRouter>
+        <TemplateLibrary />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(screen.getByText("Weekly Sync")).toBeInTheDocument();
@@ -94,7 +99,11 @@ describe("TemplateLibrary duplicate-submission protection (#1525)", () => {
         }),
     );
 
-    render(<TemplateLibrary />);
+    render(
+      <MemoryRouter>
+        <TemplateLibrary />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(screen.getByText("Weekly Sync")).toBeInTheDocument();
@@ -123,7 +132,11 @@ describe("TemplateLibrary duplicate-submission protection (#1525)", () => {
         }),
     );
 
-    render(<TemplateLibrary />);
+    render(
+      <MemoryRouter>
+        <TemplateLibrary />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(screen.getByText("Weekly Sync")).toBeInTheDocument();
@@ -159,7 +172,11 @@ describe("TemplateLibrary duplicate-submission protection (#1525)", () => {
         }),
     );
 
-    render(<TemplateLibrary />);
+    render(
+      <MemoryRouter>
+        <TemplateLibrary />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(screen.getByText("Weekly Sync")).toBeInTheDocument();

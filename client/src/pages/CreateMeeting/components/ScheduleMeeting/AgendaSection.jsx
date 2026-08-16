@@ -61,7 +61,7 @@ const AgendaSection = ({
             e.key === "Enter" && (e.preventDefault(), addAgendaItem())
           }
           placeholder="Add agenda item..."
-          className="flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
+          className="flex-grow px-4 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
         />
         <button
           type="button"
@@ -99,10 +99,10 @@ const AgendaSection = ({
                 setDraggedIndex(null);
               }}
               onDragEnd={() => setDraggedIndex(null)}
-              className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-transparent focus-within:border-blue-300"
+              className="flex items-center gap-2 bg-gray-50 dark:bg-slate-700/50 px-3 py-2 rounded-lg border border-transparent dark:border-transparent focus-within:border-blue-300 dark:focus-within:border-blue-500"
             >
               <span
-                className="text-gray-400 cursor-grab"
+                className="text-gray-400 dark:text-slate-500 cursor-grab"
                 aria-hidden="true"
                 title="Drag to reorder"
               >
@@ -110,11 +110,11 @@ const AgendaSection = ({
               </span>
 
               <div className="flex-1 min-w-0 pr-2">
-                <span className="text-sm font-medium block truncate">
+                <span className="text-sm font-medium block truncate dark:text-white">
                   {index + 1}. {item.text || item.title}
                 </span>
                 {item.description && (
-                  <span className="text-xs text-gray-500 block truncate">
+                  <span className="text-xs text-gray-500 dark:text-slate-400 block truncate">
                     {item.description}
                   </span>
                 )}
@@ -130,7 +130,7 @@ const AgendaSection = ({
                   type="button"
                   onClick={() => moveItem(index, index - 1)}
                   disabled={index === 0}
-                  className="p-1.5 rounded text-gray-600 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="p-1.5 rounded text-gray-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
                   aria-label={`Move ${item.text || item.title} up`}
                 >
                   <ArrowUp size={17} />
@@ -139,7 +139,7 @@ const AgendaSection = ({
                   type="button"
                   onClick={() => moveItem(index, index + 1)}
                   disabled={index === agendaItems.length - 1}
-                  className="p-1.5 rounded text-gray-600 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="p-1.5 rounded text-gray-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
                   aria-label={`Move ${item.text || item.title} down`}
                 >
                   <ArrowDown size={17} />
@@ -147,7 +147,7 @@ const AgendaSection = ({
                 <button
                   type="button"
                   onClick={() => removeAgendaItem(item.id || item._id)}
-                  className="p-1.5 rounded text-red-600 hover:bg-red-50"
+                  className="p-1.5 rounded text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
                   aria-label={`Remove ${item.text || item.title}`}
                 >
                   <X size={18} />
