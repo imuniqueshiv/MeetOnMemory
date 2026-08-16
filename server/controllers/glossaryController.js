@@ -114,6 +114,9 @@ const sendAppError = (res, error) => {
 /**
  * Get all glossary terms for an organization
  */
+/**
+ * Get all glossary terms for an organization
+ */
 export const getTerms = async (req, res) => {
   try {
     const orgId = resolveOrgId(req);
@@ -121,7 +124,7 @@ export const getTerms = async (req, res) => {
       return res.status(400).json({ message: "Organization ID is missing" });
     }
 
-    const { status, search } = req.query;
+    const { status, search, page: pageQuery, limit: limitQuery } = req.query;
 
     const query = { organization: orgId };
 
@@ -143,14 +146,40 @@ export const getTerms = async (req, res) => {
       query.$text = { $search: search };
     }
 
-    const terms = await GlossaryTerm.find(query).sort({ term: 1 });
-    res.status(200).json(terms);
+    // --- Pagination Logic ---
+    let page = parseInt(pageQuery, 10);
+    let limit = parseInt(limitQuery, 10);
+
+    // Apply safe defaults for missing or invalid parameters
+    if (isNaN(page) || page < 1) page = 1;
+    if (isNaN(limit) || limit < 1) limit = 20;
+
+    // Enforce a strict upper bound to prevent heavy DB hits
+    const MAX_LIMIT = 100;
+    if (limit > MAX_LIMIT) limit = MAX_LIMIT;
+
+    const skip = (page - 1) * limit;
+
+    // Fetch records and count concurrently
+    const [terms, total] = await Promise.all([
+      GlossaryTerm.find(query).sort({ term: 1 }).skip(skip).limit(limit).exec(),
+      GlossaryTerm.countDocuments(query).exec()
+    ]);
+
+    res.status(200).json({
+      data: terms,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     console.error("Error fetching glossary terms:", error);
     res.status(500).json({ message: "Server error fetching glossary terms" });
   }
 };
-
 /**
  * Create a new glossary term
  */
