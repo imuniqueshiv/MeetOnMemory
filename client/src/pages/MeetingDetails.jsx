@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { meetingApi } from "../services";
+import Navbar from "../components/Navbar.jsx";
 import MeetingHeader from "../components/meeting-details/MeetingHeader";
 import MeetingSummary from "../components/meeting-details/MeetingSummary";
 import MeetingCollaborativeNotes from "../components/meeting-details/MeetingCollaborativeNotes";
@@ -59,44 +60,58 @@ const MeetingDetails = () => {
           if (bData && bData.status) {
             setBriefingStatus(bData.status);
           }
-        } catch (bErr) {
-          // It's ok if it doesn't exist
-          console.warn("Could not fetch briefing", bErr);
-          setBriefingStatus("none");
+        } catch (_bErr) {
+          // ignore briefing fetch error
         }
       } catch (err) {
         console.error("Error fetching meeting details:", err);
         setError(
           err.response?.data?.message || "Failed to fetch meeting details",
         );
+        toast.error("Failed to load meeting details");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchMeetingDetails();
+    if (id) {
+      fetchMeetingDetails();
+    }
   }, [id]);
 
-  const handleDelete = async (meetingId) => {
+  const handleUpdateNotes = async (newNotes) => {
     try {
-      const { data } = await meetingApi.deleteMeeting(meetingId);
+      const { data } = await meetingApi.updateMeetingNotes(id, newNotes);
       if (data.success) {
-        toast.success("Meeting deleted successfully");
-        navigate("/summaries");
+        toast.success("Notes updated successfully");
+        setMeeting({ ...meeting, notes: newNotes });
       } else {
-        toast.error(data.message || "Failed to delete meeting");
+        toast.error(data.message || "Failed to update notes");
       }
     } catch (err) {
-      console.error("Error deleting meeting:", err);
-      toast.error(err.response?.data?.message || "Failed to delete meeting");
+      console.error("Error updating notes:", err);
+      toast.error(err.response?.data?.message || "Failed to update notes");
     }
   };
 
-  const handleRename = async (meetingId, newTitle) => {
+  const handleUpdateSummary = async (newSummary) => {
     try {
-      const { data } = await meetingApi.updateMeeting(meetingId, {
-        title: newTitle,
-      });
+      const { data } = await meetingApi.updateMeetingSummary(id, newSummary);
+      if (data.success) {
+        toast.success("Summary updated successfully");
+        setMeeting({ ...meeting, summary: newSummary });
+      } else {
+        toast.error(data.message || "Failed to update summary");
+      }
+    } catch (err) {
+      console.error("Error updating summary:", err);
+      toast.error(err.response?.data?.message || "Failed to update summary");
+    }
+  };
+
+  const handleRename = async (newTitle) => {
+    try {
+      const { data } = await meetingApi.updateMeeting(id, { title: newTitle });
       if (data.success) {
         toast.success("Meeting renamed successfully");
         setMeeting({ ...meeting, title: newTitle });
@@ -111,8 +126,9 @@ const MeetingDetails = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-        <div className="max-w-6xl mx-auto">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <Navbar />
+        <div className="max-w-6xl mx-auto p-6 pt-24">
           <div className="animate-pulse space-y-6">
             <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
             <div className="h-48 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
@@ -126,8 +142,9 @@ const MeetingDetails = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-        <div className="max-w-6xl mx-auto">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <Navbar />
+        <div className="max-w-6xl mx-auto p-6 pt-24">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="text-center py-12">
               <svg
@@ -162,8 +179,9 @@ const MeetingDetails = () => {
 
   if (!meeting) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-        <div className="max-w-6xl mx-auto">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <Navbar />
+        <div className="max-w-6xl mx-auto p-6 pt-24">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="text-center py-12">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
@@ -186,8 +204,9 @@ const MeetingDetails = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <Navbar />
+      <div className="max-w-6xl mx-auto p-6 pt-24">
         <div className="mb-4 flex justify-end">
           <button
             onClick={() => setIsStoryViewerOpen(true)}
@@ -202,63 +221,149 @@ const MeetingDetails = () => {
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeWidth="2"
+                strokeWidth={2}
                 d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-              ></path>
+              />
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeWidth="2"
+                strokeWidth={2}
                 d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              ></path>
+              />
             </svg>
-            Play Recap Story
+            <span>Watch Recap Story</span>
           </button>
         </div>
 
-        {meeting.date && new Date(meeting.date) > new Date() && (
-          <BriefingBanner
-            meetingId={meeting._id}
-            briefingStatus={briefingStatus}
-            onRegenerate={() => setBriefingStatus("pending")}
-          />
-        )}
+        {/* Duplicate Detection Warning Panel */}
+        <div className="mb-6">
+          <DuplicateDetectionPanel meetingId={id} />
+        </div>
 
-        <DuplicateDetectionPanel meetingId={meeting._id} />
-        <MeetingFollowUpBanner meeting={meeting} />
+        {/* Executive Briefing Banner */}
+        <div className="mb-6">
+          <BriefingBanner
+            meetingId={id}
+            initialStatus={briefingStatus}
+            onBriefingReady={() => setBriefingStatus("ready")}
+          />
+        </div>
+
+        {/* Smart Follow-Up Banner */}
+        <div className="mb-6">
+          <MeetingFollowUpBanner
+            meetingId={id}
+            structuredMoM={meeting.structuredMoM}
+          />
+        </div>
+
+        {/* Meeting Header with Quick Actions */}
         <MeetingHeader
           meeting={meeting}
+          onRename={handleRename}
           onShare={() => setShareModalOpen(true)}
           onPresent={() => setIsPresentModeOpen(true)}
         />
-        <MeetingSummary meeting={meeting} />
-        <MeetingCollaborativeNotes meeting={meeting} />
 
-        <div className="mt-6 mb-6">
-          <MeetingTimeline meetingId={meeting._id} meeting={meeting} />
-        </div>
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+          {/* Left Column - 2 cols on large screens */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Structured Summary */}
+            <MeetingSummary
+              summary={meeting.summary}
+              structuredMoM={meeting.structuredMoM}
+              onUpdateSummary={handleUpdateSummary}
+            />
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mt-6 mb-6 overflow-hidden h-[500px]">
-          <KeyMomentsPanel meetingId={meeting._id} />
-        </div>
+            {/* Preparation Checklist */}
+            <PrepChecklist meetingId={id} />
 
-        <MeetingTranscript meeting={meeting} />
-        <TranscriptAnnotations meeting={meeting} />
+            {/* Key Moments */}
+            <KeyMomentsPanel meetingId={id} />
 
-        <div className="mt-6 mb-6">
-          <SentimentTimeline meetingId={meeting._id} />
-        </div>
+            {/* Meeting Goals */}
+            <MeetingGoalsPanel meetingId={id} />
 
-        {/* Speaking Time Analytics Section */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mt-6 mb-6 p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2
-              className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2 cursor-pointer"
-              onClick={() => setIsAnalyticsExpanded(!isAnalyticsExpanded)}
-            >
-              <button className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
+            {/* Meeting Timeline */}
+            <MeetingTimeline
+              meeting={meeting}
+              onTimeSelect={(seconds) => {
+                const el = document.getElementById("meeting-transcript");
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth" });
+                }
+              }}
+            />
+
+            {/* Live/Post-Meeting Collaborative Notes */}
+            <MeetingCollaborativeNotes
+              meetingId={id}
+              initialNotes={meeting.notes}
+              onUpdateNotes={handleUpdateNotes}
+            />
+
+            {/* Full Transcript */}
+            <MeetingTranscript
+              meetingId={id}
+              transcript={meeting.transcript}
+              language={meeting.language}
+            />
+
+            {/* In-Meeting Live Annotations */}
+            <TranscriptAnnotations
+              meetingId={id}
+              currentUser={currentUser}
+              userRole={currentUser?.publicMetadata?.role || "member"}
+            />
+          </div>
+
+          {/* Right Column - 1 col on large screens */}
+          <div className="space-y-6">
+            {/* Metadata Card */}
+            <MeetingMetadata meeting={meeting} />
+
+            {/* Quick Actions Panel */}
+            <MeetingActions meeting={meeting} />
+
+            {/* Participants Panel */}
+            <MeetingParticipants
+              participants={meeting.participants}
+              meetingId={id}
+            />
+
+            {/* Agenda Topics */}
+            <MeetingAgenda
+              agenda={meeting.agenda}
+              meetingId={id}
+              meetingStatus={meeting.status}
+            />
+
+            {/* RSVP Tracking Panel */}
+            <RsvpPanel
+              meetingId={id}
+              meetingDate={meeting.date}
+              startTime={meeting.time}
+            />
+
+            {/* Carry-Forward Config */}
+            <CarryForwardConfig
+              meetingSeriesId={meeting.meetingSeriesId || meeting._id}
+            />
+
+            {/* Analytics Accordion / Container */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+              <button
+                onClick={() => setIsAnalyticsExpanded(!isAnalyticsExpanded)}
+                className="w-full flex items-center justify-between p-4 bg-gray-50/50 dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-gray-800 dark:text-gray-200 text-sm">
+                    Advanced Meeting Analytics
+                  </span>
+                </div>
                 <svg
-                  className={`w-5 h-5 transform transition-transform ${isAnalyticsExpanded ? "rotate-180" : ""}`}
+                  className={`w-4 h-4 text-gray-500 transform transition-transform ${isAnalyticsExpanded ? "rotate-180" : ""}`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -271,72 +376,39 @@ const MeetingDetails = () => {
                   />
                 </svg>
               </button>
-              Speaking Time Analytics
-            </h2>
-            <button
-              onClick={() => navigate("/speaking-time-trends")}
-              className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-            >
-              View My Trends →
-            </button>
+              {isAnalyticsExpanded && (
+                <div className="p-4 space-y-6 border-t border-gray-100 dark:border-gray-700">
+                  <SentimentTimeline meetingId={id} />
+                  <SpeakingTimeBreakdown meetingId={id} />
+                </div>
+              )}
+            </div>
           </div>
-          {isAnalyticsExpanded && (
-            <SpeakingTimeBreakdown meetingId={meeting._id} />
-          )}
         </div>
 
-        <MeetingParticipants meeting={meeting} />
-        <RsvpPanel
-          meetingId={meeting._id}
-          isOrganizer={
-            currentUser?.publicMetadata?.dbUserId === meeting.uploadedBy
-          }
-          participants={meeting.participants}
+        {/* Share Modal */}
+        <ShareModal
+          isOpen={shareModalOpen}
+          onClose={() => setShareModalOpen(false)}
+          resourceId={id}
+          resourceType="Meeting"
         />
-        <PrepChecklist meeting={meeting} currentUser={currentUser} />
-        <MeetingGoalsPanel meeting={meeting} currentUser={currentUser} />
 
-        {meeting.series && (
-          <CarryForwardConfig
-            seriesId={meeting.series._id || meeting.series}
-            currentMeetingId={meeting._id}
-            onApplySuccess={() => {
-              // Reload meeting data to reflect new agenda items
-              window.location.reload();
-            }}
+        {/* Present Mode Modal */}
+        {isPresentModeOpen && (
+          <PresentMode
+            meeting={meeting}
+            onClose={() => setIsPresentModeOpen(false)}
           />
         )}
 
-        <MeetingAgenda meeting={meeting} />
-        <MeetingMetadata meeting={meeting} />
-        <MeetingActions
+        {/* Recap Story Viewer */}
+        <RecapStoryViewer
+          isOpen={isStoryViewerOpen}
+          onClose={() => setIsStoryViewerOpen(false)}
           meeting={meeting}
-          onDelete={handleDelete}
-          onRename={handleRename}
         />
       </div>
-
-      <ShareModal
-        isOpen={shareModalOpen}
-        onClose={() => setShareModalOpen(false)}
-        resourceId={meeting._id}
-        resourceType="Meeting"
-        title={meeting.title}
-      />
-
-      {isPresentModeOpen && (
-        <PresentMode
-          meeting={meeting}
-          onClose={() => setIsPresentModeOpen(false)}
-        />
-      )}
-
-      {isStoryViewerOpen && (
-        <RecapStoryViewer
-          meetingId={meeting._id}
-          onClose={() => setIsStoryViewerOpen(false)}
-        />
-      )}
     </div>
   );
 };
