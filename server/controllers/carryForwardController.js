@@ -1,68 +1,111 @@
-import carryForwardService from "../services/carryForwardService.js";
+import {
+  getCarryForwardConfig,
+  updateCarryForwardConfig,
+  generateCarryForwardPreview,
+  applyCarryForwardToMeeting,
+} from '../services/carryForwardService.js'
 
+/**
+ * Controller to fetch carry-forward config for a series.
+ * Enforces organization ownership of series and ignores any client-supplied org ID.
+ */
 export const getConfig = async (req, res) => {
   try {
-    const { seriesId } = req.params;
-    const organizationId = req.user.organization || null;
-    const config = await carryForwardService.getConfig(
-      seriesId,
-      organizationId,
-    );
-    res.status(200).json({ success: true, config });
-  } catch (error) {
-    console.error("Error getting carry forward config:", error);
-    res.status(500).json({ success: false, message: "Internal server error" });
-  }
-};
+    const { seriesId } = req.params
+    const userOrgId = req.user?.organization
 
+    const config = await getCarryForwardConfig(seriesId, userOrgId, req.user?._id)
+
+    return res.status(200).json({
+      success: true,
+      config,
+    })
+  } catch (error) {
+    const statusCode = error.statusCode || 500
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Server error fetching carry-forward configuration',
+    })
+  }
+}
+
+/**
+ * Controller to update carry-forward config for a series.
+ * Strictly uses req.user.organization to prevent cross-tenant parameter tampering.
+ */
 export const updateConfig = async (req, res) => {
   try {
-    const { seriesId } = req.params;
-    const { carryForwardRules } = req.body;
-    const config = await carryForwardService.updateConfig(
-      seriesId,
-      carryForwardRules,
-    );
-    res.status(200).json({ success: true, config });
-  } catch (error) {
-    console.error("Error updating carry forward config:", error);
-    res.status(500).json({ success: false, message: "Internal server error" });
-  }
-};
+    const { seriesId } = req.params
+    const userOrgId = req.user?.organization
 
+    const config = await updateCarryForwardConfig(seriesId, userOrgId, req.user?._id, req.body)
+
+    return res.status(200).json({
+      success: true,
+      message: 'Carry-forward configuration updated successfully',
+      config,
+    })
+  } catch (error) {
+    const statusCode = error.statusCode || 500
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Server error updating carry-forward configuration',
+    })
+  }
+}
+
+/**
+ * Controller to generate carry-forward preview for a series.
+ */
 export const getPreview = async (req, res) => {
   try {
-    const { seriesId } = req.params;
-    const preview = await carryForwardService.getCarryForwardPreview(seriesId);
-    res.status(200).json({ success: true, preview });
-  } catch (error) {
-    console.error("Error generating carry forward preview:", error);
-    res.status(500).json({ success: false, message: "Internal server error" });
-  }
-};
+    const { seriesId } = req.params
+    const { targetMeetingId } = req.query
+    const userOrgId = req.user?.organization
 
+    const preview = await generateCarryForwardPreview(seriesId, userOrgId, targetMeetingId)
+
+    return res.status(200).json({
+      success: true,
+      preview,
+    })
+  } catch (error) {
+    const statusCode = error.statusCode || 500
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Server error generating carry-forward preview',
+    })
+  }
+}
+
+/**
+ * Controller to apply carry-forward items to a target meeting in a series.
+ */
 export const applyCarryForward = async (req, res) => {
   try {
-    const { seriesId } = req.params;
-    const { currentMeetingId } = req.body;
+    const { seriesId } = req.params
+    const { targetMeetingId, items } = req.body
+    const userOrgId = req.user?.organization
 
-    if (!currentMeetingId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "currentMeetingId is required" });
+    if (!targetMeetingId) {
+      return res.status(400).json({
+        success: false,
+        message: 'targetMeetingId is required in body',
+      })
     }
 
-    const result = await carryForwardService.applyCarryForward(
-      seriesId,
-      currentMeetingId,
-    );
-    if (!result.success) {
-      return res.status(400).json(result);
-    }
+    const result = await applyCarryForwardToMeeting(seriesId, targetMeetingId, userOrgId, items)
 
-    res.status(200).json(result);
+    return res.status(200).json({
+      success: true,
+      message: 'Carry-forward items applied successfully',
+      result,
+    })
   } catch (error) {
-    console.error("Error applying carry forward:", error);
-    res.status(500).json({ success: false, message: "Internal server error" });
+    const statusCode = error.statusCode || 500
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Server error applying carry-forward items',
+    })
   }
-};
+}

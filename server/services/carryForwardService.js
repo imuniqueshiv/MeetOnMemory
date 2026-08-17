@@ -1,140 +1,240 @@
-import CarryForwardConfig from "../models/carryForwardConfigModel.js";
-import Meeting from "../models/meetingModel.js";
-import ActionItem from "../models/actionItemModel.js";
-import { normalizeAgendaItems } from "../utils/agendaOrdering.js";
+import CarryForwardConfig from '../models/carryForwardConfigModel.js'
+import MeetingSeries from '../models/meetingSeriesModel.js'
+import Meeting from '../models/meetingModel.js'
 
-class CarryForwardService {
-  async getConfig(seriesId, organizationId = null) {
-    let config = await CarryForwardConfig.findOne({ seriesId });
-    if (!config) {
-      config = new CarryForwardConfig({
-        seriesId,
-        organization: organizationId,
-        carryForwardRules: {
-          includeUnfinishedAgenda: true,
-          includeOpenActionItems: true,
-          maxCarriedItems: 10,
-        },
-      });
-      await config.save();
-    }
-    return config;
+/**
+ * Verifies that the meeting series exists and belongs to the authenticated user's organization.
+ * Fails closed with an error object if non-existent or unauthorized.
+ */
+export const verifySeriesOwnership = async (seriesId, userOrganizationId) => {
+  if (!seriesId) {
+    const error = new Error('Series ID is required')
+    error.statusCode = 400
+    throw error
   }
 
-  async updateConfig(seriesId, rules) {
-    const config = await CarryForwardConfig.findOneAndUpdate(
-      { seriesId },
-      { $set: { carryForwardRules: rules } },
-      { new: true, upsert: true },
-    );
-    return config;
+  if (!userOrganizationId) {
+    const error = new Error('Forbidden: User does not belong to an organization')
+    error.statusCode = 403
+    throw error
   }
 
-  async getCarryForwardPreview(seriesId) {
-    const config = await this.getConfig(seriesId);
+  const series = await MeetingSeries.findById(seriesId)
 
-    // Find the most recent completed meeting in the series
-    const pastMeeting = await Meeting.findOne({
-      series: seriesId,
-      status: "completed",
-    }).sort({ seriesOccurrence: -1 });
+  if (!series) {
+    const error = new Error('Meeting series not found')
+    error.statusCode = 404
+    throw error
+  }
 
-    if (!pastMeeting) {
-      return {
-        agendaItems: [],
-        actionItems: [],
-        pastMeetingId: null,
-      };
+  if (!series.organization || series.organization.toString() !== userOrganizationId.toString()) {
+    const error = new Error('Forbidden: Access denied to foreign meeting series')
+    error.statusCode = 403
+    throw error
+  }
+
+  return series
+}
+
+/**
+ * Gets or creates default carry-forward configuration for a series after verifying organization ownership.
+ */
+export const getCarryForwardConfig = async (seriesId, userOrgId, userId) => {
+  const series = await verifySeriesOwnership(seriesId, userOrgId)
+
+  let config = await CarryForwardConfig.findOne({
+    series: series._id,
+    organization: userOrgId,
+  })
+
+  if (!config) {
+    config = await CarryForwardConfig.create({
+      series: series._id,
+      organization: userOrgId,
+      createdBy: userId,
+      enabled: true,
+      carryUnfinishedActionItems: true,
+      carrySkippedAgendaItems: true,
+      carryOpenTopics: false,
+      maxItemsToCarry: 20,
+    })
+  }
+
+  return config
+}
+
+/**
+ * Updates carry-forward configuration strictly scoped to user's organization.
+ */
+export const updateCarryForwardConfig = async (seriesId, userOrgId, userId, updateData) => {
+  const series = await verifySeriesOwnership(seriesId, userOrgId)
+
+  const allowedUpdates = {
+    enabled: updateData.enabled,
+    carryUnfinishedActionItems: updateData.carryUnfinishedActionItems,
+    carrySkippedAgendaItems: updateData.carrySkippedAgendaItems,
+    carryOpenTopics: updateData.carryOpenTopics,
+    maxItemsToCarry: updateData.maxItemsToCarry,
+    autoApplyOnCreate: updateData.autoApplyOnCreate,
+    updatedBy: userId,
+  }
+
+  // Remove undefined fields
+  Object.keys(allowedUpdates).forEach(
+    (key) => allowedUpdates[key] === undefined && delete allowedUpdates[key],
+  )
+
+  const config = await CarryForwardConfig.findOneAndUpdate(
+    { series: series._id, organization: userOrgId },
+    { $set: allowedUpdates },
+    { new: true, upsert: true, runValidators: true },
+  )
+
+  return config
+}
+
+/**
+ * Generates a preview of carry-forward items from previous meetings in a series for a target meeting.
+ */
+export const generateCarryForwardPreview = async (seriesId, userOrgId, targetMeetingId = null) => {
+  const series = await verifySeriesOwnership(seriesId, userOrgId)
+
+  const config = await getCarryForwardConfig(seriesId, userOrgId)
+
+  if (!config.enabled) {
+    return {
+      enabled: false,
+      seriesId: series._id,
+      previewItems: [],
+      summary: 'Carry-forward is currently disabled for this meeting series.',
+    }
+  }
+
+  // Find previous meetings in the same series & organization
+  const query = {
+    series: series._id,
+    organization: userOrgId,
+  }
+
+  if (targetMeetingId) {
+    const targetMeeting = await Meeting.findOne({
+      _id: targetMeetingId,
+      organization: userOrgId,
+      series: series._id,
+    })
+
+    if (!targetMeeting) {
+      const error = new Error('Target meeting not found or does not belong to series')
+      error.statusCode = 404
+      throw error
     }
 
-    let carriedAgenda = [];
-    let carriedActionItems = [];
-    const maxItems = config.carryForwardRules.maxCarriedItems || 10;
+    query.date = { $lt: targetMeeting.date }
+  }
 
+  const previousMeetings = await Meeting.find(query).sort({ date: -1 }).limit(5)
+
+  const previewItems = []
+
+  for (const meeting of previousMeetings) {
+    // Extract unfinished agenda items if configured
+    if (config.carrySkippedAgendaItems && Array.isArray(meeting.agendaItems)) {
+      meeting.agendaItems.forEach((item) => {
+        if (item.status === 'skipped' || item.status === 'pending') {
+          previewItems.push({
+            type: 'agenda_item',
+            sourceMeetingId: meeting._id,
+            sourceMeetingTitle: meeting.title,
+            sourceMeetingDate: meeting.date,
+            text: item.text,
+            description: item.description || '',
+            status: item.status,
+          })
+        }
+      })
+    }
+
+    // Extract unfinished action items from structuredMoM if present
     if (
-      config.carryForwardRules.includeUnfinishedAgenda &&
-      pastMeeting.agendaItems
+      config.carryUnfinishedActionItems &&
+      meeting.structuredMoM &&
+      Array.isArray(meeting.structuredMoM.action_items)
     ) {
-      carriedAgenda = pastMeeting.agendaItems
-        .filter((item) => item.status === "pending" || item.status === "active")
-        .map((item) => ({
-          text: item.text,
-          description: item.description,
-          duration: item.duration,
-          status: "pending",
-        }));
+      meeting.structuredMoM.action_items.forEach((actionItem) => {
+        if (actionItem.status !== 'completed' && actionItem.status !== 'done') {
+          previewItems.push({
+            type: 'action_item',
+            sourceMeetingId: meeting._id,
+            sourceMeetingTitle: meeting.title,
+            sourceMeetingDate: meeting.date,
+            text: actionItem.task || actionItem.text || actionItem.description,
+            assignee: actionItem.assignee || '',
+            dueDate: actionItem.dueDate || null,
+            status: actionItem.status || 'pending',
+          })
+        }
+      })
     }
-
-    if (config.carryForwardRules.includeOpenActionItems) {
-      const openActions = await ActionItem.find({
-        sourceMeetingId: pastMeeting._id,
-        status: { $in: ["open", "in-progress"] },
-      });
-
-      carriedActionItems = openActions.map((action) => ({
-        text: `Review Action Item: ${action.text}`,
-        description: `Owner: ${action.owner}`,
-        duration: 5, // Default 5 mins for action item review
-        status: "pending",
-      }));
-    }
-
-    const totalItems = [...carriedAgenda, ...carriedActionItems];
-    const limitedItems = totalItems.slice(0, maxItems);
-
-    const resultingAgenda = limitedItems.filter((item) =>
-      carriedAgenda.includes(item),
-    );
-    const resultingActionItems = limitedItems.filter((item) =>
-      carriedActionItems.includes(item),
-    );
-
-    return {
-      agendaItems: resultingAgenda,
-      actionItems: resultingActionItems,
-      pastMeetingId: pastMeeting._id,
-    };
   }
 
-  async applyCarryForward(seriesId, currentMeetingId) {
-    const preview = await this.getCarryForwardPreview(seriesId);
+  const limitedPreviewItems = previewItems.slice(0, config.maxItemsToCarry)
 
-    if (preview.agendaItems.length === 0 && preview.actionItems.length === 0) {
-      return { success: false, message: "No items to carry forward." };
-    }
-
-    const currentMeeting = await Meeting.findById(currentMeetingId);
-    if (!currentMeeting) {
-      throw new Error("Meeting not found");
-    }
-
-    // Combine preview items to prepend to current agenda
-    const itemsToPrepend = [...preview.agendaItems, ...preview.actionItems];
-
-    // Create new agenda item objects
-    const newAgendaItems = itemsToPrepend.map((item) => ({
-      text: item.text,
-      description: item.description,
-      duration: item.duration,
-      status: "pending",
-      actualDuration: 0,
-    }));
-
-    // Prepend to existing agenda
-    const currentAgenda = currentMeeting.agendaItems || [];
-    currentMeeting.agendaItems = normalizeAgendaItems([
-      ...newAgendaItems,
-      ...currentAgenda,
-    ]);
-
-    await currentMeeting.save();
-
-    return {
-      success: true,
-      message: `Carried forward ${itemsToPrepend.length} items.`,
-      appliedItems: itemsToPrepend.length,
-    };
+  return {
+    enabled: true,
+    seriesId: series._id,
+    seriesTitle: series.title,
+    organizationId: userOrgId,
+    previewItems: limitedPreviewItems,
+    totalCount: limitedPreviewItems.length,
   }
 }
 
-export default new CarryForwardService();
+/**
+ * Applies carry-forward items to a specific meeting in the series after verifying series ownership.
+ */
+export const applyCarryForwardToMeeting = async (
+  seriesId,
+  targetMeetingId,
+  userOrgId,
+  customItems = null,
+) => {
+  const series = await verifySeriesOwnership(seriesId, userOrgId)
+
+  const targetMeeting = await Meeting.findOne({
+    _id: targetMeetingId,
+    series: series._id,
+    organization: userOrgId,
+  })
+
+  if (!targetMeeting) {
+    const error = new Error(
+      'Target meeting not found or does not belong to this series/organization',
+    )
+    error.statusCode = 404
+    throw error
+  }
+
+  let itemsToApply = customItems
+
+  if (!itemsToApply) {
+    const previewResult = await generateCarryForwardPreview(seriesId, userOrgId, targetMeetingId)
+    itemsToApply = previewResult.previewItems
+  }
+
+  const newAgendaItems = itemsToApply.map((item) => ({
+    text: `[Carry-Forward] ${item.text}`,
+    description: `Carried forward from ${item.sourceMeetingTitle || 'previous meeting'}. ${item.description || ''}`,
+    duration: item.duration || 10,
+    status: 'pending',
+  }))
+
+  targetMeeting.agendaItems.push(...newAgendaItems)
+  await targetMeeting.save()
+
+  return {
+    success: true,
+    targetMeetingId: targetMeeting._id,
+    appliedCount: newAgendaItems.length,
+    updatedAgendaItems: targetMeeting.agendaItems,
+  }
+}

@@ -1,40 +1,28 @@
-import express from "express";
-import userAuth from "../middleware/userAuth.js";
-import { requireOrgMembership, requirePermission } from "../middleware/rbac.js";
+import express from 'express'
+import userAuth from '../middleware/userAuth.js'
+import { requireOrgMembership, requirePermission } from '../middleware/rbac.js'
 import {
   getConfig,
   updateConfig,
   getPreview,
   applyCarryForward,
-} from "../controllers/carryForwardController.js";
+} from '../controllers/carryForwardController.js'
 
-const router = express.Router();
+const router = express.Router()
 
-router.use(userAuth);
-router.use(requireOrgMembership);
+// Enforce baseline authentication and organization membership across all carry-forward endpoints
+router.use(userAuth)
+router.use(requireOrgMembership)
 
-router.get(
-  "/:seriesId/carry-forward/config",
-  requirePermission("meetings", "view"),
-  getConfig,
-);
+// Configuration routes
+router.get('/series/:seriesId/config', requirePermission('meetings', 'read'), getConfig)
 
-router.put(
-  "/:seriesId/carry-forward/config",
-  requirePermission("meetings", "edit"),
-  updateConfig,
-);
+router.put('/series/:seriesId/config', requirePermission('meetings', 'edit'), updateConfig)
 
-router.get(
-  "/:seriesId/carry-forward/preview",
-  requirePermission("meetings", "view"),
-  getPreview,
-);
+// Preview route
+router.get('/series/:seriesId/preview', requirePermission('meetings', 'read'), getPreview)
 
-router.post(
-  "/:seriesId/carry-forward/apply",
-  requirePermission("meetings", "edit"),
-  applyCarryForward,
-);
+// Apply route
+router.post('/series/:seriesId/apply', requirePermission('meetings', 'edit'), applyCarryForward)
 
-export default router;
+export default router
