@@ -33,12 +33,11 @@ jest.unstable_mockModule('../models/meetingModel.js', () => ({
 const {
   verifySeriesOwnership,
   getCarryForwardConfig,
-  updateCarryForwardConfig,
   generateCarryForwardPreview,
   applyCarryForwardToMeeting,
 } = await import('../services/carryForwardService.js')
 
-const { getConfig, updateConfig, getPreview, applyCarryForward } =
+const { getConfig, getPreview, applyCarryForward } =
   await import('../controllers/carryForwardController.js')
 
 describe('Carry-Forward Cross-Tenant Ownership & Authorization Security Suite (#1666)', () => {
