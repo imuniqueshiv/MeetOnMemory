@@ -1,3 +1,4 @@
+import mongoose from 'mongoose'
 import CarryForwardConfig from '../models/carryForwardConfigModel.js'
 import MeetingSeries from '../models/meetingSeriesModel.js'
 import Meeting from '../models/meetingModel.js'
@@ -7,15 +8,13 @@ import Meeting from '../models/meetingModel.js'
  * Fails closed with an error object if non-existent or unauthorized.
  */
 export const verifySeriesOwnership = async (seriesId, userOrganizationId) => {
-  if (!seriesId) {
-    const error = new Error('Series ID is required')
+  if (
+    !seriesId ||
+    !mongoose.Types.ObjectId.isValid(seriesId) ||
+    !mongoose.Types.ObjectId.isValid(userOrganizationId)
+  ) {
+    const error = new Error('Invalid Meeting Series ID or Organization ID')
     error.statusCode = 400
-    throw error
-  }
-
-  if (!userOrganizationId) {
-    const error = new Error('Forbidden: User does not belong to an organization')
-    error.statusCode = 403
     throw error
   }
 
@@ -39,7 +38,7 @@ export const verifySeriesOwnership = async (seriesId, userOrganizationId) => {
 /**
  * Gets or creates default carry-forward configuration for a series after verifying organization ownership.
  */
-export const getCarryForwardConfig = async (seriesId, userOrgId, userId) => {
+export const getCarryForwardConfig = async (seriesId, userOrgId, userId = null) => {
   const series = await verifySeriesOwnership(seriesId, userOrgId)
 
   let config = await CarryForwardConfig.findOne({
@@ -51,7 +50,7 @@ export const getCarryForwardConfig = async (seriesId, userOrgId, userId) => {
     config = await CarryForwardConfig.create({
       series: series._id,
       organization: userOrgId,
-      createdBy: userId,
+      createdBy: userId || new mongoose.Types.ObjectId(),
       enabled: true,
       carryUnfinishedActionItems: true,
       carrySkippedAgendaItems: true,
@@ -86,7 +85,7 @@ export const updateCarryForwardConfig = async (seriesId, userOrgId, userId, upda
 
   const config = await CarryForwardConfig.findOneAndUpdate(
     { series: series._id, organization: userOrgId },
-    { $set: allowedUpdates },
+    { $set: allowedUpdates, $setOnInsert: { createdBy: userId || new mongoose.Types.ObjectId() } },
     { new: true, upsert: true, runValidators: true },
   )
 
@@ -96,10 +95,15 @@ export const updateCarryForwardConfig = async (seriesId, userOrgId, userId, upda
 /**
  * Generates a preview of carry-forward items from previous meetings in a series for a target meeting.
  */
-export const generateCarryForwardPreview = async (seriesId, userOrgId, targetMeetingId = null) => {
+export const generateCarryForwardPreview = async (
+  seriesId,
+  userOrgId,
+  targetMeetingId = null,
+  userId = null,
+) => {
   const series = await verifySeriesOwnership(seriesId, userOrgId)
 
-  const config = await getCarryForwardConfig(seriesId, userOrgId)
+  const config = await getCarryForwardConfig(seriesId, userOrgId, userId)
 
   if (!config.enabled) {
     return {
@@ -197,6 +201,7 @@ export const applyCarryForwardToMeeting = async (
   targetMeetingId,
   userOrgId,
   customItems = null,
+  userId = null,
 ) => {
   const series = await verifySeriesOwnership(seriesId, userOrgId)
 
@@ -216,12 +221,20 @@ export const applyCarryForwardToMeeting = async (
 
   let itemsToApply = customItems
 
-  if (!itemsToApply) {
-    const previewResult = await generateCarryForwardPreview(seriesId, userOrgId, targetMeetingId)
+  if (!itemsToApply || !Array.isArray(itemsToApply)) {
+    const previewResult = await generateCarryForwardPreview(
+      seriesId,
+      userOrgId,
+      targetMeetingId,
+      userId,
+    )
     itemsToApply = previewResult.previewItems
   }
 
-  const newAgendaItems = itemsToApply.map((item) => ({
+  const config = await getCarryForwardConfig(seriesId, userOrgId, userId)
+  const safeItems = itemsToApply.slice(0, config.maxItemsToCarry)
+
+  const newAgendaItems = safeItems.map((item) => ({
     text: `[Carry-Forward] ${item.text}`,
     description: `Carried forward from ${item.sourceMeetingTitle || 'previous meeting'}. ${item.description || ''}`,
     duration: item.duration || 10,

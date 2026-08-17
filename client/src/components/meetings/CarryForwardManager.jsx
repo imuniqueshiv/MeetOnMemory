@@ -61,6 +61,7 @@ export default function CarryForwardManager({ seriesId, targetMeetingId }) {
 
   const handleToggleConfig = async (field, value) => {
     if (!config) return
+    const prevConfig = { ...config }
     const updatedConfig = { ...config, [field]: value }
     setConfig(updatedConfig)
     setError(null)
@@ -71,8 +72,12 @@ export default function CarryForwardManager({ seriesId, targetMeetingId }) {
         setConfig(res.data.config)
         setSuccessMsg('Configuration saved successfully.')
         setTimeout(() => setSuccessMsg(null), 3000)
+      } else {
+        setConfig(prevConfig)
+        setError(res.data.message || 'Failed to update configuration.')
       }
     } catch (err) {
+      setConfig(prevConfig)
       const message = err.response?.data?.message || 'Failed to update configuration.'
       setError(message)
     }
@@ -85,6 +90,7 @@ export default function CarryForwardManager({ seriesId, targetMeetingId }) {
     }
     setApplying(true)
     setError(null)
+    setSuccessMsg(null)
 
     try {
       const res = await axios.post(`/api/carry-forward/series/${seriesId}/apply`, {
@@ -94,7 +100,10 @@ export default function CarryForwardManager({ seriesId, targetMeetingId }) {
 
       if (res.data.success) {
         setSuccessMsg(`Successfully carried forward ${res.data.result?.appliedCount || 0} items!`)
+        setTimeout(() => setSuccessMsg(null), 4000)
         fetchConfigAndPreview()
+      } else {
+        setError(res.data.message || 'Failed to apply carry-forward items.')
       }
     } catch (err) {
       const message = err.response?.data?.message || 'Failed to apply carry-forward items.'

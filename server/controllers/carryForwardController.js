@@ -63,7 +63,12 @@ export const getPreview = async (req, res) => {
     const { targetMeetingId } = req.query
     const userOrgId = req.user?.organization
 
-    const preview = await generateCarryForwardPreview(seriesId, userOrgId, targetMeetingId)
+    const preview = await generateCarryForwardPreview(
+      seriesId,
+      userOrgId,
+      targetMeetingId,
+      req.user?._id,
+    )
 
     return res.status(200).json({
       success: true,
@@ -94,7 +99,13 @@ export const applyCarryForward = async (req, res) => {
       })
     }
 
-    const result = await applyCarryForwardToMeeting(seriesId, targetMeetingId, userOrgId, items)
+    const result = await applyCarryForwardToMeeting(
+      seriesId,
+      targetMeetingId,
+      userOrgId,
+      items,
+      req.user?._id,
+    )
 
     return res.status(200).json({
       success: true,
