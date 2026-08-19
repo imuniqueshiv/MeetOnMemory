@@ -16,6 +16,7 @@ import fs from "fs";
 import path from "path";
 import { z } from "zod";
 import Meeting from "../models/meetingModel.js"; // eslint-disable-line no-unused-vars
+import Bookmark from "../models/bookmarkModel.js";
 import * as MeetingService from "../services/MeetingService.js";
 import * as MeetingInviteService from "../services/MeetingInviteService.js";
 import { ValidationError, UnauthorizedError } from "../utils/errors.js";
@@ -745,5 +746,105 @@ export const getMeetingClip = async (req, res) => {
     res
       .status(500)
       .json({ success: false, message: "Server error fetching clip" });
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────
+   BOOKMARK MEETING
+   ───────────────────────────────────────────────────────────── */
+export const bookmarkMeeting = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const { id: meetingId } = req.params;
+
+    const existingBookmark = await Bookmark.findOne({
+      user: userId,
+      meeting: meetingId,
+    });
+
+    if (existingBookmark) {
+      return sendSuccess(
+        res,
+        { bookmarked: true, bookmark: existingBookmark },
+        "Meeting is already bookmarked",
+      );
+    }
+
+    const bookmark = await Bookmark.create({
+      user: userId,
+      meeting: meetingId,
+    });
+
+    return sendSuccess(
+      res,
+      { bookmarked: true, bookmark },
+      "Meeting bookmarked successfully",
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────
+   REMOVE BOOKMARK
+   ───────────────────────────────────────────────────────────── */
+export const removeBookmark = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const { id: meetingId } = req.params;
+
+    await Bookmark.findOneAndDelete({
+      user: userId,
+      meeting: meetingId,
+    });
+
+    return sendSuccess(
+      res,
+      { bookmarked: false },
+      "Meeting bookmark removed successfully",
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────
+   GET BOOKMARK STATUS
+   ───────────────────────────────────────────────────────────── */
+export const getBookmarkStatus = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const { id: meetingId } = req.params;
+
+    const bookmark = await Bookmark.findOne({
+      user: userId,
+      meeting: meetingId,
+    });
+
+    return sendSuccess(res, {
+      bookmarked: !!bookmark,
+      bookmark,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────
+   GET USER BOOKMARKED MEETINGS
+   ───────────────────────────────────────────────────────────── */
+export const getBookmarkedMeetings = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+
+    const bookmarks = await Bookmark.find({ user: userId })
+      .populate("meeting")
+      .sort({ createdAt: -1 });
+
+    return sendSuccess(res, {
+      bookmarks,
+    });
+  } catch (err) {
+    next(err);
   }
 };

@@ -33,10 +33,16 @@ import {
   notifyLiveMeeting, // NEW: Notify participants of a live meeting
   handleMeetingClipOperation,
   getMeetingClip,
-  getMeetingInvite,
+    getMeetingInvite,
   regenerateMeetingInvite,
   updateMeetingInvite,
   resolveMeetingInvite,
+
+  // Bookmark / Favorites
+  bookmarkMeeting,
+  removeBookmark,
+  getBookmarkStatus,
+  getBookmarkedMeetings,
 } from "../controllers/meetingController.js";
 import {
   resendDigest,
@@ -292,6 +298,46 @@ router.delete(
   requireAdminOrOwner,
   requireOrgMembership,
   permanentlyDeleteMeeting,
+);
+
+// ========== BOOKMARK / FAVORITES ==========
+
+// Get all bookmarked meetings
+router.get(
+  "/bookmarked",
+  userAuth,
+  requireOrgMembership,
+  requirePermission("meetings", "view"),
+  getBookmarkedMeetings,
+);
+
+// Get bookmark status for a meeting
+router.get(
+  "/:id/bookmark",
+  userAuth,
+  requireOrgAccess(Meeting),
+  requirePermission("meetings", "view"),
+  getBookmarkStatus,
+);
+
+// Bookmark a meeting
+router.post(
+  "/:id/bookmark",
+  userAuth,
+  writeLimiter,
+  requireOrgAccess(Meeting),
+  requirePermission("meetings", "view"),
+  bookmarkMeeting,
+);
+
+// Remove bookmark
+router.delete(
+  "/:id/bookmark",
+  userAuth,
+  writeLimiter,
+  requireOrgAccess(Meeting),
+  requirePermission("meetings", "view"),
+  removeBookmark,
 );
 
 // ✅ Get Single Meeting Details (for Meeting Details Page)
