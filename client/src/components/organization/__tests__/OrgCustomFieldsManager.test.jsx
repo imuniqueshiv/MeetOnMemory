@@ -2,9 +2,9 @@ import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import OrgCustomFieldsManager from '../OrgCustomFieldsManager'
-import { customFieldApi } from '../../api/customFieldApi'
+import { customFieldApi } from '../../../api/customFieldApi'
 
-vi.mock('../../api/customFieldApi', () => ({
+vi.mock('../../../api/customFieldApi', () => ({
   customFieldApi: {
     getDefinitions: vi.fn(),
     createDefinition: vi.fn(),
