@@ -77,6 +77,7 @@ import FollowUpDashboard from "../pages/FollowUpDashboard.jsx";
 import EscalationDashboard from "../pages/EscalationDashboard.jsx";
 import Glossary from "../pages/Glossary.jsx";
 import StandupReports from "../pages/StandupReports.jsx";
+import OrganizationSentimentTrends from "../pages/OrganizationSentimentTrends.jsx";
 
 const ProtectedRoutes = (
   <React.Fragment>
@@ -680,6 +681,14 @@ const ProtectedRoutes = (
       element={
         <ProtectedRoute resource="reports" action="view">
           <StandupReports />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/sentiment-trends"
+      element={
+        <ProtectedRoute resource="reports" action="view">
+          <OrganizationSentimentTrends />
         </ProtectedRoute>
       }
     />
