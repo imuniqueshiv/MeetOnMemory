@@ -38,6 +38,7 @@ import FollowUpThreads from "../components/meeting-details/FollowUpThreads";
 import PollSection from "../components/meeting-details/PollSection";
 import FeedbackForm from "../components/meeting-details/FeedbackForm";
 import MeetingRisksPanel from "../components/meetings/MeetingRisksPanel";
+import MeetingNudgesTab from "../components/meetings/MeetingNudgesTab";
 import { Award } from "lucide-react";
 
 const MeetingDetails = () => {
@@ -472,6 +473,15 @@ const MeetingDetails = () => {
 
           <div className="mt-6 mb-6">
             <MeetingRisksPanel meetingId={meeting._id} />
+          </div>
+
+          <div className="mt-6 mb-6">
+            <MeetingNudgesTab
+              meetingId={meeting._id}
+              isOrganizer={
+                currentUser?.publicMetadata?.dbUserId === meeting.uploadedBy
+              }
+            />
           </div>
 
           <AgendaBuilder
