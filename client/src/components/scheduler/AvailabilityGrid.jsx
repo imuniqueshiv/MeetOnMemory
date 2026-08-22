@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useCallback, useEffect } from "react";
-import { format, parseISO, isWithinInterval, addMinutes, differenceInMinutes } from "date-fns";
+import React, { useMemo, useCallback } from "react";
+import { format, differenceInMinutes } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
-import { Clock, Users, AlertCircle, RefreshCw, Zap, Calendar, ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { Clock, Users, AlertCircle, RefreshCw, Zap, Calendar, Info } from "lucide-react";
 
 /**
  * @desc Visual grid displaying ranked time slot proposals.
@@ -9,10 +9,10 @@ import { Clock, Users, AlertCircle, RefreshCw, Zap, Calendar, ChevronLeft, Chevr
  * Production-hardened with timezone support, detailed conflict visualization,
  * error states, and calendar integration.
  */
-const AvailabilityGrid = ({ 
-  proposals = [], 
-  onConfirm, 
-  onHandoff, 
+const AvailabilityGrid = ({
+  proposals = [],
+  onConfirm,
+  onHandoff,
   isLoading = false,
   participants = [],
   timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -26,12 +26,12 @@ const AvailabilityGrid = ({
   showDetailedConflicts = true
 }) => {
   // State management
-  const [selectedSlot, setSelectedSlot] = useState(null);
-  const [hoveredSlot, setHoveredSlot] = useState(null);
-  const [currentView, setCurrentView] = useState('list'); // 'list' | 'grid'
-  const [expandedConflicts, setExpandedConflicts] = useState({});
-  const [error, setError] = useState(null);
-  const [retryCount, setRetryCount] = useState(0);
+  const [selectedSlot, setSelectedSlot] = React.useState(null);
+  const [hoveredSlot, setHoveredSlot] = React.useState(null);
+  const [currentView, setCurrentView] = React.useState('list'); // 'list' | 'grid'
+  const [expandedConflicts, setExpandedConflicts] = React.useState({});
+  const [error, setError] = React.useState(null);
+  const [retryCount, setRetryCount] = React.useState(0);
 
   // Validate and normalize proposals
   const safeProposals = useMemo(() => {
@@ -291,7 +291,7 @@ const AvailabilityGrid = ({
             <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-24"></div>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {[1, 2, 3, 4].map(i => (
+            {[1, 2, 3, 4].map((i) => (
               <div key={i} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div>
@@ -325,7 +325,7 @@ const AvailabilityGrid = ({
             No Optimal Slots Found
           </h3>
           <p className="text-gray-600 dark:text-gray-400">
-            We couldn't find any optimal meeting times based on everyone's availability.
+            We couldn&apos;t find any optimal meeting times based on everyone&apos;s availability.
           </p>
           <div className="mt-4 space-y-2">
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -466,14 +466,14 @@ const AvailabilityGrid = ({
   // Render list view
   const renderListView = () => (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      {processedProposals.map((slot, index) => {
+      {processedProposals.map((slot) => {
         const colors = getScoreColor(slot.score);
         const isBestSlot = bestSlot && slot.id === bestSlot.id;
         const isSelected = selectedSlot && slot.id === selectedSlot.id;
 
         return (
           <div
-            key={slot.id || index}
+            key={slot.id}
             className={`rounded-lg border p-4 transition-all ${
               isBestSlot ? 'border-green-400 dark:border-green-600 bg-green-50/50 dark:bg-green-900/10' :
               isSelected ? 'border-blue-400 dark:border-blue-600 bg-blue-50/50 dark:bg-blue-900/10' :
@@ -562,13 +562,13 @@ const AvailabilityGrid = ({
     <div className="overflow-x-auto">
       <div className="min-w-[600px]">
         <div className="grid grid-cols-4 gap-2">
-          {processedProposals.map((slot, index) => {
+          {processedProposals.map((slot) => {
             const colors = getScoreColor(slot.score);
             const isBestSlot = bestSlot && slot.id === bestSlot.id;
             
             return (
               <div
-                key={slot.id || index}
+                key={slot.id}
                 className={`rounded-lg border p-3 text-center cursor-pointer transition-all hover:shadow-md ${
                   isBestSlot ? 'border-green-400 dark:border-green-600 bg-green-50/50 dark:bg-green-900/10' :
                   'border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800'
