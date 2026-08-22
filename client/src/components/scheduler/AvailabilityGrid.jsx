@@ -26,7 +26,6 @@ const AvailabilityGrid = ({
   timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
   meetingDuration = 30,
   onSlotSelect,
-  isSchedulerWizard = false,
   onTimeChange,
   isConnected = true,
   onConnectCalendar,
@@ -35,7 +34,6 @@ const AvailabilityGrid = ({
 }) => {
   // State management
   const [selectedSlot, setSelectedSlot] = React.useState(null);
-  const [hoveredSlot, setHoveredSlot] = React.useState(null);
   const [currentView, setCurrentView] = React.useState("list");
   const [expandedConflicts, setExpandedConflicts] = React.useState({});
   const [error, setError] = React.useState(null);
@@ -531,8 +529,6 @@ const AvailabilityGrid = ({
                 ? "border-blue-400 dark:border-blue-600 bg-blue-50/50 dark:bg-blue-900/10"
                 : "border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800"
             } ${className}`}
-            onMouseEnter={() => setHoveredSlot(slot)}
-            onMouseLeave={() => setHoveredSlot(null)}
           >
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
