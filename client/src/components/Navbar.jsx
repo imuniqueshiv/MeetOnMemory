@@ -1,25 +1,19 @@
-import React, {
-  useState,
-  useContext,
-  useEffect,
-  useRef,
-  useCallback,
-} from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import AppContent from "../context/AppContent";
-import { useRBAC } from "../hooks/useRBAC.js";
-import useTheme from "../context/useTheme.jsx";
-import usePreferences from "../context/usePreferences.jsx";
-import { formatDateWithPreference } from "../utils/dateFormat.js";
-import { toast } from "react-toastify";
-import { notificationApi, authApi, organizationApi } from "../services";
-import { validateRedirect } from "../utils/validateRedirect.js";
-import { io } from "socket.io-client";
-import { createClerkSocketOptions } from "../services/apiClient.js";
-import LanguageSwitcher from "./LanguageSwitcher.jsx";
-import BrandLogo from "./branding/BrandLogo.jsx";
-import { useUser } from "@clerk/clerk-react";
+import React, { useState, useContext, useEffect, useRef, useCallback } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import AppContent from '../context/AppContent'
+import { useRBAC } from '../hooks/useRBAC.js'
+import useTheme from '../context/useTheme.jsx'
+import usePreferences from '../context/usePreferences.jsx'
+import { formatDateWithPreference } from '../utils/dateFormat.js'
+import { toast } from 'react-toastify'
+import { notificationApi, authApi, organizationApi } from '../services'
+import { validateRedirect } from '../utils/validateRedirect.js'
+import { io } from 'socket.io-client'
+import { createClerkSocketOptions } from '../services/apiClient.js'
+import LanguageSwitcher from './LanguageSwitcher.jsx'
+import BrandLogo from './branding/BrandLogo.jsx'
+import { useUser } from '@clerk/clerk-react'
 import {
   Menu,
   X,
@@ -52,152 +46,144 @@ import {
   Clock,
   AlertTriangle,
   BookOpen,
-} from "lucide-react";
+} from 'lucide-react'
 
-const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
 const isPlaceholderClerkEmail = (email) => {
-  if (!email || typeof email !== "string") return true;
-  return (
-    email.endsWith("@clerk.placeholder") ||
-    /^user_[A-Za-z0-9]+(@|$)/.test(email)
-  );
-};
+  if (!email || typeof email !== 'string') return true
+  return email.endsWith('@clerk.placeholder') || /^user_[A-Za-z0-9]+(@|$)/.test(email)
+}
 
 /** Shows Mongo email, falling back to Clerk primary email when Mongo still has a provision placeholder. */
 const UserEmailText = ({ email, className }) => {
   if (!clerkPubKey || clerkPubKey.trim().length === 0) {
-    return <p className={className}>{email || "user@example.com"}</p>;
+    return <p className={className}>{email || 'user@example.com'}</p>
   }
-  return <ClerkUserEmailText email={email} className={className} />;
-};
+  return <ClerkUserEmailText email={email} className={className} />
+}
 
 const ClerkUserEmailText = ({ email, className }) => {
-  const { user } = useUser();
+  const { user } = useUser()
   const clerkEmail =
-    user?.primaryEmailAddress?.emailAddress ||
-    user?.emailAddresses?.[0]?.emailAddress ||
-    null;
+    user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || null
   const display = !isPlaceholderClerkEmail(email)
     ? email
-    : clerkEmail || email || "user@example.com";
+    : clerkEmail || email || 'user@example.com'
 
   return (
     <p className={className} title={display}>
       {display}
     </p>
-  );
-};
+  )
+}
 
 const NAV_LINK_KEYS = [
-  { labelKey: "navbar.features", href: "#features" },
-  { labelKey: "navbar.howItWorks", href: "#how-it-works" },
-  { labelKey: "navbar.about", href: "#about" },
-  { labelKey: "navbar.faq", href: "#faq" },
-];
+  { labelKey: 'navbar.features', href: '#features' },
+  { labelKey: 'navbar.howItWorks', href: '#how-it-works' },
+  { labelKey: 'navbar.about', href: '#about' },
+  { labelKey: 'navbar.faq', href: '#faq' },
+]
 
 const Navbar = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { t } = useTranslation();
-  const { backendUrl, userData, setUserData, setIsLoggedin } =
-    useContext(AppContent);
-  const { hasPermission } = useRBAC();
-  const { theme, toggleTheme, mounted } = useTheme();
-  const { dateFormat } = usePreferences();
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { t } = useTranslation()
+  const { backendUrl, userData, setUserData, setIsLoggedin } = useContext(AppContent)
+  const { hasPermission } = useRBAC()
+  const { theme, toggleTheme, mounted } = useTheme()
+  const { dateFormat } = usePreferences()
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [mobileNotifOpen, setMobileNotifOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const [imgFailed, setImgFailed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [mobileNotifOpen, setMobileNotifOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const [imgFailed, setImgFailed] = useState(false)
 
-  const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
-  const [userOrgs, setUserOrgs] = useState([]);
-  const [switchingOrg, setSwitchingOrg] = useState(false);
+  const [orgDropdownOpen, setOrgDropdownOpen] = useState(false)
+  const [userOrgs, setUserOrgs] = useState([])
+  const [switchingOrg, setSwitchingOrg] = useState(false)
 
   const fetchUserOrgs = useCallback(async () => {
     try {
-      const { data } = await organizationApi.getUserOrganizations();
+      const { data } = await organizationApi.getUserOrganizations()
       if (data.success) {
-        setUserOrgs(data.organizations);
+        setUserOrgs(data.organizations)
       }
     } catch (err) {
-      console.error("Error fetching user orgs:", err);
+      console.error('Error fetching user orgs:', err)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
     if (userData) {
-      fetchUserOrgs();
+      fetchUserOrgs()
     }
-  }, [userData, fetchUserOrgs]);
+  }, [userData, fetchUserOrgs])
 
   const handleSwitchOrg = async (orgId) => {
-    if (switchingOrg) return;
-    setSwitchingOrg(true);
+    if (switchingOrg) return
+    setSwitchingOrg(true)
     try {
       const { data } = await organizationApi.selectOrganization({
         organizationId: orgId,
-      });
+      })
       if (data.success) {
-        toast.success(data.message || "Organization switched successfully");
-        setUserData(data.userData);
-        navigate("/dashboard");
-        window.location.reload();
+        toast.success(data.message || 'Organization switched successfully')
+        setUserData(data.userData)
+        navigate('/dashboard')
+        window.location.reload()
       } else {
-        toast.error(data.message || "Failed to switch organization");
+        toast.error(data.message || 'Failed to switch organization')
       }
     } catch (err) {
-      console.error("Error switching organization:", err);
-      toast.error(
-        err.response?.data?.message || "Failed to switch organization",
-      );
+      console.error('Error switching organization:', err)
+      toast.error(err.response?.data?.message || 'Failed to switch organization')
     } finally {
-      setSwitchingOrg(false);
+      setSwitchingOrg(false)
     }
-  };
+  }
 
   useEffect(() => {
-    setImgFailed(false);
-  }, [userData?.profilePic]);
+    setImgFailed(false)
+  }, [userData?.profilePic])
 
   // Fetch unread count from backend
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [notifications, setNotifications] = useState([])
 
   const formatTimeAgo = useCallback(
     (dateString) => {
-      const date = new Date(dateString);
-      const now = new Date();
-      const seconds = Math.floor((now - date) / 1000);
+      const date = new Date(dateString)
+      const now = new Date()
+      const seconds = Math.floor((now - date) / 1000)
 
-      if (seconds < 60) return "Just now";
-      if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-      if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-      if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-      return formatDateWithPreference(date, dateFormat);
+      if (seconds < 60) return 'Just now'
+      if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+      if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+      if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
+      return formatDateWithPreference(date, dateFormat)
     },
     [dateFormat],
-  );
+  )
 
   useEffect(() => {
     if (userData && backendUrl) {
       const fetchUnreadCount = async () => {
         try {
-          const { data } = await notificationApi.getUnreadCount();
+          const { data } = await notificationApi.getUnreadCount()
           if (data.success) {
-            setUnreadCount(data.unreadCount);
+            setUnreadCount(data.unreadCount)
           }
         } catch (err) {
-          console.error("Error fetching unread count:", err);
+          console.error('Error fetching unread count:', err)
         }
-      };
+      }
 
       const fetchRecentNotifications = async () => {
         try {
-          const { data } = await notificationApi.getNotifications({ limit: 5 });
+          const { data } = await notificationApi.getNotifications({ limit: 5 })
           if (data.success) {
             setNotifications(
               data.notifications.map((n) => ({
@@ -208,357 +194,340 @@ const Navbar = () => {
                 time: formatTimeAgo(n.createdAt),
                 unread: !n.isRead,
               })),
-            );
+            )
           }
         } catch (err) {
-          console.error("Error fetching notifications:", err);
+          console.error('Error fetching notifications:', err)
         }
-      };
+      }
 
-      fetchUnreadCount();
-      fetchRecentNotifications();
+      fetchUnreadCount()
+      fetchRecentNotifications()
     }
-  }, [userData, backendUrl, formatTimeAgo]);
+  }, [userData, backendUrl, formatTimeAgo])
 
   // Real-time notifications via Socket.IO
   useEffect(() => {
-    if (!userData || !backendUrl) return;
+    if (!userData || !backendUrl) return
 
-    let socket;
-    let cancelled = false;
+    let socket
+    let cancelled = false
 
-    (async () => {
-      const opts = await createClerkSocketOptions();
-      if (cancelled) return;
-      socket = io(backendUrl, opts);
+    ;(async () => {
+      const opts = await createClerkSocketOptions()
+      if (cancelled) return
+      socket = io(backendUrl, opts)
 
-      socket.on("connect", () => {
-        console.log(
-          "🟢 Real-time notifications connected. Socket ID:",
-          socket.id,
-        );
-      });
+      socket.on('connect', () => {
+        console.log('🟢 Real-time notifications connected. Socket ID:', socket.id)
+      })
 
-      socket.on("connect_error", (err) => {
-        console.error("🔴 Real-time notifications connect_error:", err.message);
-      });
+      socket.on('connect_error', (err) => {
+        console.error('🔴 Real-time notifications connect_error:', err.message)
+      })
 
-      socket.on("notification:new", (newNotif) => {
-        setUnreadCount((prev) => prev + 1);
+      socket.on('notification:new', (newNotif) => {
+        setUnreadCount((prev) => prev + 1)
         setNotifications((prev) => {
           const formattedNotif = {
             id: newNotif._id || newNotif.id,
             title: newNotif.title,
             description: newNotif.description,
             actionUrl: newNotif.actionUrl || newNotif.data?.url || newNotif.url,
-            time: "Just now",
+            time: 'Just now',
             unread: true,
-          };
+          }
           // Keep only top 5 recent notifications
-          return [formattedNotif, ...prev].slice(0, 5);
-        });
-        toast.info(`🔔 ${newNotif.title}`);
-      });
-    })();
+          return [formattedNotif, ...prev].slice(0, 5)
+        })
+        toast.info(`🔔 ${newNotif.title}`)
+      })
+    })()
 
     return () => {
-      cancelled = true;
-      socket?.disconnect();
-    };
-  }, [userData, backendUrl]);
+      cancelled = true
+      socket?.disconnect()
+    }
+  }, [userData, backendUrl])
 
   const handleNotificationClick = async (notif) => {
-    setNotificationsOpen(false);
+    setNotificationsOpen(false)
     if (notif.unread && notif.id) {
       try {
-        await notificationApi.markAsRead(notif.id);
+        await notificationApi.markAsRead(notif.id)
         setNotifications((prev) =>
           prev.map((n) => (n.id === notif.id ? { ...n, unread: false } : n)),
-        );
-        setUnreadCount((prev) => Math.max(0, prev - 1));
+        )
+        setUnreadCount((prev) => Math.max(0, prev - 1))
       } catch (err) {
-        console.error("Failed to mark notification as read:", err);
+        console.error('Failed to mark notification as read:', err)
       }
     }
-    const destination = validateRedirect(notif.actionUrl, "/notifications");
-    navigate(destination);
-  };
+    const destination = validateRedirect(notif.actionUrl, '/notifications')
+    navigate(destination)
+  }
 
-  const menuRef = useRef();
-  const mobileMenuRef = useRef();
-  const notificationsRef = useRef();
-  const orgDropdownRef = useRef();
+  const menuRef = useRef()
+  const mobileMenuRef = useRef()
+  const notificationsRef = useRef()
+  const orgDropdownRef = useRef()
 
   // Detect scroll for navbar style
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+    const onScroll = () => setScrolled(window.scrollY > 12)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   // Close dropdowns on outside click
   useEffect(() => {
     const listener = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setMenuOpen(false);
+        setMenuOpen(false)
       }
-      if (
-        notificationsRef.current &&
-        !notificationsRef.current.contains(e.target)
-      ) {
-        setNotificationsOpen(false);
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target)) {
+        setNotificationsOpen(false)
       }
-      if (
-        orgDropdownRef.current &&
-        !orgDropdownRef.current.contains(e.target)
-      ) {
-        setOrgDropdownOpen(false);
+      if (orgDropdownRef.current && !orgDropdownRef.current.contains(e.target)) {
+        setOrgDropdownOpen(false)
       }
       if (
         mobileMenuRef.current &&
         !mobileMenuRef.current.contains(e.target) &&
-        !e.target.closest("button[aria-expanded]")
+        !e.target.closest('button[aria-expanded]')
       ) {
-        setMobileOpen(false);
+        setMobileOpen(false)
       }
-    };
-    document.addEventListener("mousedown", listener);
-    return () => document.removeEventListener("mousedown", listener);
-  }, []);
+    }
+    document.addEventListener('mousedown', listener)
+    return () => document.removeEventListener('mousedown', listener)
+  }, [])
 
   // Close menus on resize / route change
   useEffect(() => {
     const onResize = () => {
       if (window.innerWidth >= 768) {
-        setMobileOpen(false);
-        setMobileNotifOpen(false);
+        setMobileOpen(false)
+        setMobileNotifOpen(false)
       }
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   // Close menus on Escape key
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === "Escape") {
-        setMenuOpen(false);
-        setNotificationsOpen(false);
-        setOrgDropdownOpen(false);
-        setMobileOpen(false);
+      if (e.key === 'Escape') {
+        setMenuOpen(false)
+        setNotificationsOpen(false)
+        setOrgDropdownOpen(false)
+        setMobileOpen(false)
       }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, []);
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   const handleLogout = async () => {
     try {
-      await authApi.logout();
+      await authApi.logout()
     } catch (err) {
-      console.warn(
-        "Backend logout cookie clearance skipped locally:",
-        err.message,
-      );
+      console.warn('Backend logout cookie clearance skipped locally:', err.message)
     } finally {
-      setUserData(null);
-      localStorage.removeItem("userData");
-      setIsLoggedin(false);
+      setUserData(null)
+      localStorage.removeItem('userData')
+      setIsLoggedin(false)
       if (clerkPubKey && clerkPubKey.trim().length > 0) {
-        window.dispatchEvent(
-          new CustomEvent("meetonmemory:request-clerk-signout"),
-        );
+        window.dispatchEvent(new CustomEvent('meetonmemory:request-clerk-signout'))
       }
-      toast.success("Logged out successfully");
+      toast.success('Logged out successfully')
 
-      navigate("/");
+      navigate('/')
     }
-  };
+  }
 
   const handleNavLinkClick = (href) => {
-    setMobileOpen(false);
-    if (href.startsWith("#")) {
-      if (location.pathname !== "/") {
-        navigate("/" + href);
+    setMobileOpen(false)
+    if (href.startsWith('#')) {
+      if (location.pathname !== '/') {
+        navigate('/' + href)
       } else {
-        const el = document.querySelector(href);
+        const el = document.querySelector(href)
         if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "start" });
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' })
         }
       }
     } else {
-      navigate(href);
+      navigate(href)
     }
-  };
+  }
 
   const isTabActive = (tabPath) => {
-    const currentPath = location.pathname;
-    if (tabPath === "/dashboard") {
-      return currentPath === "/dashboard";
+    const currentPath = location.pathname
+    if (tabPath === '/dashboard') {
+      return currentPath === '/dashboard'
     }
-    if (tabPath === "/meetings") {
+    if (tabPath === '/meetings') {
       return (
-        currentPath.startsWith("/meetings") ||
-        currentPath === "/create-meeting" ||
-        currentPath === "/upload-meeting" ||
-        currentPath === "/summaries" ||
-        currentPath === "/reports" ||
-        currentPath === "/policies"
-      );
+        currentPath.startsWith('/meetings') ||
+        currentPath === '/create-meeting' ||
+        currentPath === '/upload-meeting' ||
+        currentPath === '/summaries' ||
+        currentPath === '/reports' ||
+        currentPath === '/policies'
+      )
     }
-    if (tabPath === "/meeting-series") {
-      return currentPath.startsWith("/meeting-series");
+    if (tabPath === '/meeting-series') {
+      return currentPath.startsWith('/meeting-series')
     }
-    if (tabPath === "/organizations") {
+    if (tabPath === '/organizations') {
       return (
-        currentPath === "/organizations" ||
-        currentPath === "/create-organization" ||
-        currentPath === "/join-organization"
-      );
+        currentPath === '/organizations' ||
+        currentPath === '/create-organization' ||
+        currentPath === '/join-organization' ||
+        currentPath === '/parking-lot'
+      )
     }
-    return currentPath === tabPath;
-  };
+    return currentPath === tabPath
+  }
 
   const primaryLinks = [
     {
-      label: t("navbar.dashboard"),
-      href: "/dashboard",
+      label: t('navbar.dashboard'),
+      href: '/dashboard',
       icon: LayoutDashboard,
       permission: null,
     },
     {
-      label: t("navbar.meetings"),
-      href: "/meetings",
+      label: t('navbar.meetings'),
+      href: '/meetings',
       icon: Calendar,
-      permission: { resource: "meetings", action: "view" },
+      permission: { resource: 'meetings', action: 'view' },
     },
     {
-      label: "Meeting Series",
-      href: "/meeting-series",
+      label: 'Meeting Series',
+      href: '/meeting-series',
       icon: CalendarDays,
-      permission: { resource: "meetings", action: "view" },
+      permission: { resource: 'meetings', action: 'view' },
     },
     {
-      label: t("navbar.tasks"),
-      href: "/tasks",
+      label: t('navbar.tasks'),
+      href: '/tasks',
       icon: CheckSquare,
-      permission: { resource: "tasks", action: "view" },
+      permission: { resource: 'tasks', action: 'view' },
     },
     {
-      label: t("navbar.organizations"),
-      href: "/organizations",
+      label: t('navbar.organizations'),
+      href: '/organizations',
       icon: Building2,
-      permission: { resource: "organizations", action: "view" },
+      permission: { resource: 'organizations', action: 'view' },
     },
     {
-      label: "Focus Time",
-      href: "/focus-time",
+      label: 'Focus Time',
+      href: '/focus-time',
       icon: Clock,
       permission: null,
     },
   ].filter(
-    (link) =>
-      !link.permission ||
-      hasPermission(link.permission.resource, link.permission.action),
-  );
+    (link) => !link.permission || hasPermission(link.permission.resource, link.permission.action),
+  )
 
   const secondaryLinks = [
     {
-      label: "Glossary",
-      href: "/glossary",
+      label: 'Glossary',
+      href: '/glossary',
       icon: BookOpen,
-      permission: { resource: "knowledge", action: "view" },
+      permission: { resource: 'knowledge', action: 'view' },
     },
     {
-      label: "Conflict Resolution",
-      href: "/knowledge/conflicts",
+      label: 'Conflict Resolution',
+      href: '/knowledge/conflicts',
       icon: ScanSearch,
-      permission: { resource: "knowledge", action: "view" },
+      permission: { resource: 'knowledge', action: 'view' },
     },
     {
-      label: "Memory Lifecycle",
-      href: "/knowledge/lifecycle",
+      label: 'Memory Lifecycle',
+      href: '/knowledge/lifecycle',
       icon: History,
-      permission: { resource: "knowledge", action: "view" },
+      permission: { resource: 'knowledge', action: 'view' },
     },
     {
-      label: "Knowledge Archive",
-      href: "/knowledge/archive",
+      label: 'Knowledge Archive',
+      href: '/knowledge/archive',
       icon: Archive,
-      permission: { resource: "knowledge", action: "view" },
+      permission: { resource: 'knowledge', action: 'view' },
     },
     {
-      label: "Knowledge Graph",
-      href: "/knowledge/graph",
+      label: 'Knowledge Graph',
+      href: '/knowledge/graph',
       icon: Network,
-      permission: { resource: "knowledge", action: "view" },
+      permission: { resource: 'knowledge', action: 'view' },
     },
     {
-      label: "Meeting Templates",
-      href: "/meeting-templates",
+      label: 'Meeting Templates',
+      href: '/meeting-templates',
       icon: GitMerge,
-      permission: { resource: "meetings", action: "view" },
+      permission: { resource: 'meetings', action: 'view' },
     },
     {
-      label: t("navbar.compliance"),
-      href: "/policy-compliance",
+      label: t('navbar.compliance'),
+      href: '/policy-compliance',
       icon: ShieldAlert,
-      permission: { resource: "policies", action: "view" },
+      permission: { resource: 'policies', action: 'view' },
     },
     {
-      label: "SLA Compliance",
-      href: "/sla-compliance",
+      label: 'SLA Compliance',
+      href: '/sla-compliance',
       icon: ShieldAlert,
-      permission: { resource: "reports", action: "view" },
+      permission: { resource: 'reports', action: 'view' },
     },
     {
-      label: t("navbar.calendar"),
-      href: "/calendar",
+      label: t('navbar.calendar'),
+      href: '/calendar',
       icon: CalendarDays,
-      permission: { resource: "calendar", action: "view" },
+      permission: { resource: 'calendar', action: 'view' },
     },
     {
-      label: "My Delegations",
-      href: "/delegations",
+      label: 'My Delegations',
+      href: '/delegations',
       icon: Users,
     },
     {
-      label: "Escalations",
-      href: "/escalations",
+      label: 'Escalations',
+      href: '/escalations',
       icon: AlertTriangle,
     },
     {
-      label: "Workload Balance",
-      href: "/workload",
+      label: 'Workload Balance',
+      href: '/workload',
       icon: Activity,
-      permission: { resource: "tasks", action: "view" },
+      permission: { resource: 'tasks', action: 'view' },
     },
     {
-      label: t("navbar.teamMembers"),
-      href: "/team-members",
+      label: t('navbar.teamMembers'),
+      href: '/team-members',
       icon: Users,
-      permission: { resource: "team_members", action: "view" },
+      permission: { resource: 'team_members', action: 'view' },
     },
     {
-      label: "Developer Docs",
-      href: "/docs",
+      label: 'Developer Docs',
+      href: '/docs',
       icon: Code2,
     },
   ].filter(
-    (link) =>
-      !link.permission ||
-      hasPermission(link.permission.resource, link.permission.action),
-  );
+    (link) => !link.permission || hasPermission(link.permission.resource, link.permission.action),
+  )
 
   // Retain all allowed links for the mobile drawer navigation
-  const appLinks = [...primaryLinks, ...secondaryLinks];
+  const appLinks = [...primaryLinks, ...secondaryLinks]
 
   return (
     <header
       className={`fixed top-0 left-0 w-full z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-white/95 dark:bg-gray-900/95 backdrop-blur-md shadow-md border-b border-gray-100/80 dark:border-gray-800/80"
-          : "bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-transparent"
+          ? 'bg-white/95 dark:bg-gray-900/95 backdrop-blur-md shadow-md border-b border-gray-100/80 dark:border-gray-800/80'
+          : 'bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-transparent'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10">
@@ -566,11 +535,11 @@ const Navbar = () => {
           {/* Logo */}
           <div
             className="flex items-center gap-1.5 sm:gap-3 cursor-pointer group focus-visible:outline-none shrink-0 min-w-0"
-            onClick={() => navigate("/")}
+            onClick={() => navigate('/')}
             role="link"
             aria-label="MeetOnMemory Home"
             tabIndex={0}
-            onKeyDown={(e) => e.key === "Enter" && navigate("/")}
+            onKeyDown={(e) => e.key === 'Enter' && navigate('/')}
           >
             <div className="flex items-center justify-center shrink-0">
               <BrandLogo
@@ -594,30 +563,27 @@ const Navbar = () => {
               aria-label="Application navigation"
             >
               {primaryLinks.map((link) => {
-                const active = isTabActive(link.href);
+                const active = isTabActive(link.href)
                 return (
                   <button
                     key={link.href}
                     type="button"
                     onClick={() => navigate(link.href)}
-                    aria-current={active ? "page" : undefined}
+                    aria-current={active ? 'page' : undefined}
                     className={`flex items-center px-3 lg:px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-900 cursor-pointer ${
                       active
-                        ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-xs border border-gray-100/50 dark:border-gray-600/50"
-                        : "text-gray-600 dark:text-gray-300 border border-transparent hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100/60 dark:hover:bg-gray-700/60"
+                        ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-xs border border-gray-100/50 dark:border-gray-600/50'
+                        : 'text-gray-600 dark:text-gray-300 border border-transparent hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100/60 dark:hover:bg-gray-700/60'
                     }`}
                   >
                     <span>{link.label}</span>
                   </button>
-                );
+                )
               })}
             </nav>
           ) : (
             /* Logged Out Desktop Marketing Nav */
-            <nav
-              className="hidden md:flex items-center gap-1.5"
-              aria-label="Marketing navigation"
-            >
+            <nav className="hidden md:flex items-center gap-1.5" aria-label="Marketing navigation">
               {NAV_LINK_KEYS.map((link) => (
                 <button
                   key={link.href}
@@ -641,13 +607,13 @@ const Navbar = () => {
               className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
               aria-label={
                 mounted
-                  ? theme === "light"
-                    ? t("navbar.switchToDark")
-                    : t("navbar.switchToLight")
-                  : t("navbar.toggleTheme")
+                  ? theme === 'light'
+                    ? t('navbar.switchToDark')
+                    : t('navbar.switchToLight')
+                  : t('navbar.toggleTheme')
               }
             >
-              {mounted && theme === "light" ? (
+              {mounted && theme === 'light' ? (
                 <Moon className="w-5 h-5" />
               ) : (
                 <Sun className="w-5 h-5" />
@@ -678,21 +644,19 @@ const Navbar = () => {
                     </div>
                     <div className="text-left max-w-[130px] truncate">
                       <p className="text-xs font-bold text-gray-800 dark:text-gray-100 truncate">
-                        {userData.organization?.name || "Select Org"}
+                        {userData.organization?.name || 'Select Org'}
                       </p>
                       <div className="flex items-center gap-1">
                         <p
                           className={`text-[9px] uppercase tracking-wider font-semibold ${
-                            userData.role === "viewer" ||
-                            userData.role === "guest"
-                              ? "text-amber-600 dark:text-amber-400 font-bold"
-                              : "text-gray-400 dark:text-gray-500"
+                            userData.role === 'viewer' || userData.role === 'guest'
+                              ? 'text-amber-600 dark:text-amber-400 font-bold'
+                              : 'text-gray-400 dark:text-gray-500'
                           }`}
                         >
-                          {userData.role || "Member"}
+                          {userData.role || 'Member'}
                         </p>
-                        {(userData.role === "viewer" ||
-                          userData.role === "guest") && (
+                        {(userData.role === 'viewer' || userData.role === 'guest') && (
                           <span className="text-[8px] bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-bold px-1 rounded">
                             READ-ONLY
                           </span>
@@ -701,7 +665,7 @@ const Navbar = () => {
                     </div>
                     <ChevronDown
                       className={`w-3.5 h-3.5 text-gray-500 transition-transform duration-200 shrink-0 ${
-                        orgDropdownOpen ? "rotate-180" : ""
+                        orgDropdownOpen ? 'rotate-180' : ''
                       }`}
                     />
                   </button>
@@ -717,19 +681,18 @@ const Navbar = () => {
                       <div className="p-1.5 max-h-56 overflow-y-auto divide-y divide-gray-50 dark:divide-gray-700">
                         {userOrgs.length > 0 ? (
                           userOrgs.map((org) => {
-                            const isCurrent =
-                              org._id === userData.organization?._id;
+                            const isCurrent = org._id === userData.organization?._id
                             return (
                               <button
                                 key={org._id}
                                 onClick={() => {
-                                  setOrgDropdownOpen(false);
-                                  if (!isCurrent) handleSwitchOrg(org._id);
+                                  setOrgDropdownOpen(false)
+                                  if (!isCurrent) handleSwitchOrg(org._id)
                                 }}
                                 className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-all text-left cursor-pointer ${
                                   isCurrent
-                                    ? "bg-blue-50/75 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold"
-                                    : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-100"
+                                    ? 'bg-blue-50/75 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold'
+                                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-100'
                                 }`}
                                 disabled={switchingOrg}
                               >
@@ -746,11 +709,9 @@ const Navbar = () => {
                                     )}
                                   </div>
                                   <div className="truncate">
-                                    <p className="text-xs truncate">
-                                      {org.name}
-                                    </p>
+                                    <p className="text-xs truncate">{org.name}</p>
                                     <p className="text-[9px] text-gray-400 dark:text-gray-500 uppercase tracking-wider capitalize font-semibold">
-                                      {org.role || "Member"}
+                                      {org.role || 'Member'}
                                     </p>
                                   </div>
                                 </div>
@@ -758,7 +719,7 @@ const Navbar = () => {
                                   <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                                 )}
                               </button>
-                            );
+                            )
                           })
                         ) : (
                           <div className="py-4 text-center text-gray-400 dark:text-gray-500 text-xs">
@@ -770,8 +731,8 @@ const Navbar = () => {
                       <div className="p-1.5 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
                         <button
                           onClick={() => {
-                            setOrgDropdownOpen(false);
-                            navigate("/organization/settings");
+                            setOrgDropdownOpen(false)
+                            navigate('/organization/settings')
                           }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"
                         >
@@ -780,8 +741,8 @@ const Navbar = () => {
                         </button>
                         <button
                           onClick={() => {
-                            setOrgDropdownOpen(false);
-                            navigate("/create-organization");
+                            setOrgDropdownOpen(false)
+                            navigate('/create-organization')
                           }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"
                         >
@@ -790,8 +751,8 @@ const Navbar = () => {
                         </button>
                         <button
                           onClick={() => {
-                            setOrgDropdownOpen(false);
-                            navigate("/browse-organizations");
+                            setOrgDropdownOpen(false)
+                            navigate('/browse-organizations')
                           }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"
                         >
@@ -804,16 +765,13 @@ const Navbar = () => {
                 </div>
 
                 {/* Desktop Notification Area */}
-                <div
-                  className="relative hidden sm:block"
-                  ref={notificationsRef}
-                >
+                <div className="relative hidden sm:block" ref={notificationsRef}>
                   <button
                     onClick={() => setNotificationsOpen((s) => !s)}
                     className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer ${
                       notificationsOpen
-                        ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                        : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                     aria-expanded={notificationsOpen}
                     aria-haspopup="true"
@@ -832,16 +790,16 @@ const Navbar = () => {
                     <div className="absolute right-0 mt-3 w-80 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl shadow-xl overflow-hidden z-50">
                       <div className="px-4 py-3.5 bg-gray-50/80 dark:bg-gray-700/50 border-b border-gray-100 dark:border-gray-600 flex items-center justify-between">
                         <span className="font-bold text-gray-800 dark:text-gray-100 text-sm">
-                          {t("navbar.notifications")}
+                          {t('navbar.notifications')}
                         </span>
                         <button
                           onClick={() => {
-                            setNotificationsOpen(false);
-                            navigate("/notifications");
+                            setNotificationsOpen(false)
+                            navigate('/notifications')
                           }}
                           className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors cursor-pointer"
                         >
-                          {t("navbar.viewAll")}
+                          {t('navbar.viewAll')}
                         </button>
                       </div>
                       <div className="max-h-64 overflow-y-auto divide-y divide-gray-50 dark:divide-gray-700">
@@ -852,9 +810,7 @@ const Navbar = () => {
                               type="button"
                               onClick={() => handleNotificationClick(notif)}
                               className={`w-full p-3.5 hover:bg-blue-50/20 dark:hover:bg-blue-900/20 transition-colors text-left block cursor-pointer ${
-                                notif.unread
-                                  ? "bg-blue-50/5 dark:bg-blue-900/10"
-                                  : ""
+                                notif.unread ? 'bg-blue-50/5 dark:bg-blue-900/10' : ''
                               }`}
                             >
                               <div className="flex justify-between items-start gap-2 mb-1">
@@ -875,7 +831,7 @@ const Navbar = () => {
                           ))
                         ) : (
                           <div className="py-8 text-center text-gray-400 dark:text-gray-500 text-xs">
-                            {t("navbar.noNotifications")}
+                            {t('navbar.noNotifications')}
                           </div>
                         )}
                       </div>
@@ -894,9 +850,7 @@ const Navbar = () => {
                   >
                     <div className="relative w-8 h-8 rounded-lg overflow-hidden shrink-0">
                       <div className="absolute inset-0 bg-linear-to-br from-blue-600 to-violet-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
-                        {userData?.name
-                          ? userData.name.charAt(0).toUpperCase()
-                          : "U"}
+                        {userData?.name ? userData.name.charAt(0).toUpperCase() : 'U'}
                       </div>
                       {userData?.profilePic && !imgFailed && (
                         <img
@@ -909,7 +863,7 @@ const Navbar = () => {
                     </div>
                     <ChevronDown
                       className={`w-3.5 h-3.5 text-gray-500 transition-transform duration-200 ${
-                        menuOpen ? "rotate-180" : ""
+                        menuOpen ? 'rotate-180' : ''
                       }`}
                     />
                   </button>
@@ -919,10 +873,10 @@ const Navbar = () => {
                     <div className="absolute right-0 mt-3 w-60 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl shadow-xl overflow-hidden z-50">
                       <div className="px-4 py-3.5 bg-gray-50/80 dark:bg-gray-700/50 border-b border-gray-100 dark:border-gray-600">
                         <p className="text-[9px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider">
-                          {t("navbar.signedInAs")}
+                          {t('navbar.signedInAs')}
                         </p>
                         <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
-                          {userData?.name || "User"}
+                          {userData?.name || 'User'}
                         </p>
                         <UserEmailText
                           email={userData?.email}
@@ -931,17 +885,15 @@ const Navbar = () => {
                         <div className="mt-2.5 flex flex-wrap gap-1.5 items-center">
                           <span
                             className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                              userData?.role === "viewer" ||
-                              userData?.role === "guest"
-                                ? "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
-                                : "text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-600"
+                              userData?.role === 'viewer' || userData?.role === 'guest'
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
+                                : 'text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-600'
                             }`}
                           >
-                            {userData?.role || "Member"}{" "}
-                            {userData?.role === "viewer" ||
-                            userData?.role === "guest"
-                              ? "(Read-Only)"
-                              : ""}
+                            {userData?.role || 'Member'}{' '}
+                            {userData?.role === 'viewer' || userData?.role === 'guest'
+                              ? '(Read-Only)'
+                              : ''}
                           </span>
                           {userData?.organization?.name && (
                             <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full truncate max-w-[120px] uppercase">
@@ -954,52 +906,51 @@ const Navbar = () => {
                       <div className="p-1">
                         <button
                           onClick={() => {
-                            setMenuOpen(false);
-                            navigate("/dashboard");
+                            setMenuOpen(false)
+                            navigate('/dashboard')
                           }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"
                           role="menuitem"
                         >
                           <LayoutDashboard className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                          {t("navbar.dashboard")}
+                          {t('navbar.dashboard')}
                         </button>
 
                         <button
                           onClick={() => {
-                            setMenuOpen(false);
-                            navigate("/profile");
+                            setMenuOpen(false)
+                            navigate('/profile')
                           }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"
                           role="menuitem"
                         >
                           <User className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                          {t("navbar.myProfile")}
+                          {t('navbar.myProfile')}
                         </button>
 
                         <button
                           onClick={() => {
-                            setMenuOpen(false);
-                            navigate("/settings");
+                            setMenuOpen(false)
+                            navigate('/settings')
                           }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"
                           role="menuitem"
                         >
                           <Settings className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                          {t("navbar.settings")}
+                          {t('navbar.settings')}
                         </button>
                       </div>
 
-                      {(secondaryLinks.length > 0 ||
-                        hasPermission("admin_panel", "view")) && (
+                      {(secondaryLinks.length > 0 || hasPermission('admin_panel', 'view')) && (
                         <div className="border-t border-gray-100 dark:border-gray-700 p-1">
                           {secondaryLinks.map((link) => {
-                            const LinkIcon = link.icon;
+                            const LinkIcon = link.icon
                             return (
                               <button
                                 key={link.href}
                                 onClick={() => {
-                                  setMenuOpen(false);
-                                  navigate(link.href);
+                                  setMenuOpen(false)
+                                  navigate(link.href)
                                 }}
                                 className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"
                                 role="menuitem"
@@ -1007,20 +958,20 @@ const Navbar = () => {
                                 <LinkIcon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
                                 {link.label}
                               </button>
-                            );
+                            )
                           })}
 
-                          {hasPermission("admin_panel", "view") && (
+                          {hasPermission('admin_panel', 'view') && (
                             <button
                               onClick={() => {
-                                setMenuOpen(false);
-                                navigate("/admin-panel");
+                                setMenuOpen(false)
+                                navigate('/admin-panel')
                               }}
                               className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"
                               role="menuitem"
                             >
                               <Sparkles className="w-3.5 h-3.5 text-yellow-500" />
-                              {t("navbar.adminPanel")}
+                              {t('navbar.adminPanel')}
                             </button>
                           )}
                         </div>
@@ -1029,14 +980,14 @@ const Navbar = () => {
                       <div className="border-t border-gray-100 dark:border-gray-600 p-1">
                         <button
                           onClick={() => {
-                            setMenuOpen(false);
-                            handleLogout();
+                            setMenuOpen(false)
+                            handleLogout()
                           }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition-colors text-left cursor-pointer"
                           role="menuitem"
                         >
                           <LogOut className="w-3.5 h-3.5 text-red-500 dark:text-red-400" />
-                          {t("navbar.logout")}
+                          {t('navbar.logout')}
                         </button>
                       </div>
                     </div>
@@ -1045,11 +996,11 @@ const Navbar = () => {
               </>
             ) : (
               <button
-                onClick={() => navigate("/login")}
+                onClick={() => navigate('/login')}
                 className="px-5 py-2.5 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 text-white text-sm font-bold shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/35 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 cursor-pointer"
                 aria-label="Login to MeetOnMemory"
               >
-                {t("navbar.login")}
+                {t('navbar.login')}
               </button>
             )}
 
@@ -1058,15 +1009,9 @@ const Navbar = () => {
               className="md:hidden w-10 h-10 rounded-xl flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer"
               onClick={() => setMobileOpen((s) => !s)}
               aria-expanded={mobileOpen}
-              aria-label={
-                mobileOpen ? t("navbar.closeMenu") : t("navbar.openMenu")
-              }
+              aria-label={mobileOpen ? t('navbar.closeMenu') : t('navbar.openMenu')}
             >
-              {mobileOpen ? (
-                <X className="w-5 h-5" />
-              ) : (
-                <Menu className="w-5 h-5" />
-              )}
+              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
@@ -1076,11 +1021,11 @@ const Navbar = () => {
       <div
         ref={mobileMenuRef}
         className={`md:hidden transition-all duration-300 ease-in-out bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 shadow-lg ${
-          mobileOpen ? "opacity-100 visible" : "opacity-0 invisible max-h-0"
+          mobileOpen ? 'opacity-100 visible' : 'opacity-0 invisible max-h-0'
         }`}
         style={{
-          maxHeight: mobileOpen ? "calc(100vh - 4rem)" : "0",
-          height: mobileOpen ? "calc(100vh - 4rem)" : "0",
+          maxHeight: mobileOpen ? 'calc(100vh - 4rem)' : '0',
+          height: mobileOpen ? 'calc(100vh - 4rem)' : '0',
         }}
         aria-hidden={!mobileOpen}
         role="navigation"
@@ -1098,9 +1043,7 @@ const Navbar = () => {
                 <div className="px-3.5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100/60 dark:border-gray-700 flex items-center gap-3 rounded-2xl mb-2 sticky top-0 z-10 backdrop-blur-sm bg-opacity-95">
                   <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0">
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-violet-600 text-white flex items-center justify-center font-bold text-base shadow-xs">
-                      {userData?.name
-                        ? userData.name.charAt(0).toUpperCase()
-                        : "U"}
+                      {userData?.name ? userData.name.charAt(0).toUpperCase() : 'U'}
                     </div>
                     {userData?.profilePic && !imgFailed && (
                       <img
@@ -1113,7 +1056,7 @@ const Navbar = () => {
                   </div>
                   <div className="overflow-hidden min-w-0 flex-1">
                     <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
-                      {userData?.name || "User"}
+                      {userData?.name || 'User'}
                     </p>
                     <UserEmailText
                       email={userData?.email}
@@ -1139,21 +1082,19 @@ const Navbar = () => {
                       </div>
                       <div className="truncate min-w-0">
                         <p className="text-xs font-bold text-gray-800 dark:text-gray-100 truncate">
-                          {userData.organization?.name || "Select Org"}
+                          {userData.organization?.name || 'Select Org'}
                         </p>
                         <div className="flex items-center gap-1">
                           <p
                             className={`text-[9px] uppercase tracking-wider font-semibold ${
-                              userData.role === "viewer" ||
-                              userData.role === "guest"
-                                ? "text-amber-600 dark:text-amber-400 font-bold"
-                                : "text-gray-400 dark:text-gray-500"
+                              userData.role === 'viewer' || userData.role === 'guest'
+                                ? 'text-amber-600 dark:text-amber-400 font-bold'
+                                : 'text-gray-400 dark:text-gray-500'
                             }`}
                           >
-                            Current: {userData.role || "Member"}
+                            Current: {userData.role || 'Member'}
                           </p>
-                          {(userData.role === "viewer" ||
-                            userData.role === "guest") && (
+                          {(userData.role === 'viewer' || userData.role === 'guest') && (
                             <span className="text-[8px] bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-bold px-1 rounded">
                               READ-ONLY
                             </span>
@@ -1165,30 +1106,27 @@ const Navbar = () => {
                   <div className="space-y-1 max-h-32 overflow-y-auto mb-2 custom-scrollbar">
                     {userOrgs.length > 0 ? (
                       userOrgs.map((org) => {
-                        const isCurrent =
-                          org._id === userData.organization?._id;
+                        const isCurrent = org._id === userData.organization?._id
                         return (
                           <button
                             key={org._id}
                             onClick={() => {
-                              setMobileOpen(false);
-                              if (!isCurrent) handleSwitchOrg(org._id);
+                              setMobileOpen(false)
+                              if (!isCurrent) handleSwitchOrg(org._id)
                             }}
                             className={`w-full flex items-center justify-between gap-3 px-2 py-1.5 rounded-lg text-left text-xs cursor-pointer transition-colors ${
                               isCurrent
-                                ? "bg-blue-50/75 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold"
-                                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
+                                ? 'bg-blue-50/75 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold'
+                                : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100/50 dark:hover:bg-gray-700/50'
                             }`}
                             disabled={switchingOrg}
                           >
                             <span className="truncate min-w-0 flex-1">
-                              {org.name} ({org.role || "Member"})
+                              {org.name} ({org.role || 'Member'})
                             </span>
-                            {isCurrent && (
-                              <Check className="w-3.5 h-3.5 shrink-0 text-blue-600" />
-                            )}
+                            {isCurrent && <Check className="w-3.5 h-3.5 shrink-0 text-blue-600" />}
                           </button>
-                        );
+                        )
                       })
                     ) : (
                       <div className="py-2 text-center text-gray-400 dark:text-gray-500 text-xs">
@@ -1199,8 +1137,8 @@ const Navbar = () => {
                   <div className="flex gap-2 pt-1">
                     <button
                       onClick={() => {
-                        setMobileOpen(false);
-                        navigate("/create-organization");
+                        setMobileOpen(false)
+                        navigate('/create-organization')
                       }}
                       className="flex-1 flex items-center justify-center gap-1 py-2 bg-white dark:bg-gray-700 hover:bg-gray-50 border border-gray-200/60 dark:border-gray-600 rounded-lg text-[11px] font-bold text-gray-700 dark:text-gray-200 cursor-pointer transition-colors"
                     >
@@ -1209,8 +1147,8 @@ const Navbar = () => {
                     </button>
                     <button
                       onClick={() => {
-                        setMobileOpen(false);
-                        navigate("/browse-organizations");
+                        setMobileOpen(false)
+                        navigate('/browse-organizations')
                       }}
                       className="flex-1 flex items-center justify-center gap-1 py-2 bg-white dark:bg-gray-700 hover:bg-gray-50 border border-gray-200/60 dark:border-gray-600 rounded-lg text-[11px] font-bold text-gray-700 dark:text-gray-200 cursor-pointer transition-colors"
                     >
@@ -1223,33 +1161,33 @@ const Navbar = () => {
                 {/* Main Navigation Links */}
                 <div className="space-y-1 py-2">
                   {appLinks.map((link) => {
-                    const Icon = link.icon;
-                    const active = isTabActive(link.href);
+                    const Icon = link.icon
+                    const active = isTabActive(link.href)
                     return (
                       <button
                         key={link.href}
                         type="button"
                         onClick={() => {
-                          setMobileOpen(false);
-                          navigate(link.href);
+                          setMobileOpen(false)
+                          navigate(link.href)
                         }}
-                        aria-current={active ? "page" : undefined}
+                        aria-current={active ? 'page' : undefined}
                         className={`w-full flex items-center gap-3 px-4 py-3.5 text-sm font-semibold rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer ${
                           active
-                            ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                            : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+                            ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                            : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'
                         }`}
                       >
                         <Icon
                           className={`w-5 h-5 shrink-0 ${
                             active
-                              ? "text-blue-600 dark:text-blue-400"
-                              : "text-gray-400 dark:text-gray-500"
+                              ? 'text-blue-600 dark:text-blue-400'
+                              : 'text-gray-400 dark:text-gray-500'
                           }`}
                         />
                         <span>{link.label}</span>
                       </button>
-                    );
+                    )
                   })}
                 </div>
 
@@ -1258,64 +1196,64 @@ const Navbar = () => {
 
                 <button
                   onClick={() => {
-                    setMobileOpen(false);
-                    navigate("/notifications");
+                    setMobileOpen(false)
+                    navigate('/notifications')
                   }}
                   className={`w-full flex items-center justify-between px-4 py-3.5 text-sm font-semibold rounded-xl transition-all cursor-pointer ${
                     mobileNotifOpen
-                      ? "bg-blue-50/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                      : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+                      ? 'bg-blue-50/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                      : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <Bell
                       className={`w-5 h-5 shrink-0 ${
                         mobileNotifOpen
-                          ? "text-blue-600 dark:text-blue-400"
-                          : "text-gray-400 dark:text-gray-500"
+                          ? 'text-blue-600 dark:text-blue-400'
+                          : 'text-gray-400 dark:text-gray-500'
                       }`}
                     />
-                    <span>{t("navbar.notifications")}</span>
+                    <span>{t('navbar.notifications')}</span>
                   </div>
                   {unreadCount > 0 && (
                     <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0">
-                      {unreadCount} {t("navbar.new")}
+                      {unreadCount} {t('navbar.new')}
                     </span>
                   )}
                 </button>
 
                 <button
                   onClick={() => {
-                    setMobileOpen(false);
-                    navigate("/profile");
+                    setMobileOpen(false)
+                    navigate('/profile')
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all cursor-pointer"
                 >
                   <User className="w-5 h-5 shrink-0 text-gray-400 dark:text-gray-500" />
-                  <span>{t("navbar.myProfile")}</span>
+                  <span>{t('navbar.myProfile')}</span>
                 </button>
 
                 <button
                   onClick={() => {
-                    setMobileOpen(false);
-                    navigate("/settings");
+                    setMobileOpen(false)
+                    navigate('/settings')
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all cursor-pointer"
                 >
                   <Settings className="w-5 h-5 shrink-0 text-gray-400 dark:text-gray-500" />
-                  <span>{t("navbar.settings")}</span>
+                  <span>{t('navbar.settings')}</span>
                 </button>
 
-                {hasPermission("admin_panel", "view") && (
+                {hasPermission('admin_panel', 'view') && (
                   <button
                     onClick={() => {
-                      setMobileOpen(false);
-                      navigate("/admin-panel");
+                      setMobileOpen(false)
+                      navigate('/admin-panel')
                     }}
                     className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all cursor-pointer"
                   >
                     <Sparkles className="w-5 h-5 shrink-0 text-yellow-500" />
-                    <span>{t("navbar.adminPanel")}</span>
+                    <span>{t('navbar.adminPanel')}</span>
                   </button>
                 )}
 
@@ -1326,7 +1264,7 @@ const Navbar = () => {
                     className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition-all cursor-pointer"
                   >
                     <LogOut className="w-5 h-5 shrink-0 text-red-500 dark:text-red-400" />
-                    <span>{t("navbar.logout")}</span>
+                    <span>{t('navbar.logout')}</span>
                   </button>
                 </div>
               </>
@@ -1346,12 +1284,12 @@ const Navbar = () => {
                 </div>
                 <button
                   onClick={() => {
-                    setMobileOpen(false);
-                    navigate("/signup");
+                    setMobileOpen(false)
+                    navigate('/signup')
                   }}
                   className="mt-3 w-full px-4 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-bold shadow-md shadow-blue-500/20 hover:shadow-lg transition-all duration-200 text-center cursor-pointer"
                 >
-                  {t("navbar.getStarted")}
+                  {t('navbar.getStarted')}
                 </button>
               </>
             )}
@@ -1359,7 +1297,7 @@ const Navbar = () => {
         </div>
       </div>
     </header>
-  );
-};
+  )
+}
 
-export default Navbar;
+export default Navbar

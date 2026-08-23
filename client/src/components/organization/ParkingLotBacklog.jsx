@@ -1,65 +1,82 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { parkingLotApi } from "../../services";
-import { Lightbulb, Trash2, CalendarClock } from "lucide-react";
-import { toast } from "react-toastify";
+import React, { useEffect, useState, useCallback, useContext } from 'react'
+import { Link } from 'react-router-dom'
+import AppContent from '../../context/AppContent.js'
+import { parkingLotApi } from '../../services'
+import { Lightbulb, Trash2, ExternalLink } from 'lucide-react'
+import { toast } from 'react-toastify'
 
 const ParkingLotBacklog = ({ organizationId }) => {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { userData } = useContext(AppContent)
+  const effectiveOrgId = organizationId || userData?.organization?._id || userData?.organization
+
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
 
   const fetchItems = useCallback(async () => {
+    if (!effectiveOrgId) {
+      setLoading(false)
+      return
+    }
     try {
-      setLoading(true);
-      const { data } = await parkingLotApi.getOrganizationParkingLot(
-        organizationId,
-        { status: "pending" },
-      );
+      setLoading(true)
+      const { data } = await parkingLotApi.getOrganizationParkingLot(effectiveOrgId, {
+        status: 'pending',
+      })
       if (data.success) {
-        setItems(data.data.items || []);
+        setItems(data.data.items || [])
       }
     } catch (error) {
-      console.error("Failed to fetch parking lot items", error);
+      console.error('Failed to fetch parking lot items', error)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, [organizationId]);
+  }, [effectiveOrgId])
 
   useEffect(() => {
-    if (organizationId) {
-      fetchItems();
+    if (effectiveOrgId) {
+      fetchItems()
     }
-  }, [organizationId, fetchItems]);
+  }, [effectiveOrgId, fetchItems])
 
   const handleDiscard = async (id) => {
     try {
       const { data } = await parkingLotApi.updateTopicStatus(id, {
-        status: "discarded",
-      });
+        status: 'discarded',
+      })
       if (data.success) {
-        toast.success("Item discarded.");
-        fetchItems();
+        toast.success('Item discarded.')
+        fetchItems()
       }
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to discard item.");
+      console.error(err)
+      toast.error('Failed to discard item.')
     }
-  };
+  }
 
   if (loading) {
     return (
       <div className="p-4 border rounded-xl bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
         Loading parking lot...
       </div>
-    );
+    )
   }
 
   return (
     <div className="p-4 border rounded-xl bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-      <div className="flex items-center gap-2 mb-4">
-        <Lightbulb className="text-yellow-500" size={20} />
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Parking Lot Backlog
-        </h3>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Lightbulb className="text-yellow-500" size={20} />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Parking Lot Backlog
+          </h3>
+        </div>
+        <Link
+          to="/parking-lot"
+          className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium"
+        >
+          <span>View All</span>
+          <ExternalLink size={12} />
+        </Link>
       </div>
 
       {items.length === 0 ? (
@@ -73,17 +90,15 @@ const ParkingLotBacklog = ({ organizationId }) => {
               key={item._id}
               className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-700 flex flex-col gap-2"
             >
-              <p className="text-sm text-gray-800 dark:text-gray-200 font-medium">
-                {item.topic}
-              </p>
+              <p className="text-sm text-gray-800 dark:text-gray-200 font-medium">{item.topic}</p>
               <div className="flex items-center justify-between mt-1">
                 <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                   <span className="truncate max-w-[120px]">
-                    Added by: {item.submittedBy?.name || "Unknown"}
+                    Added by: {item.submittedBy?.name || 'Unknown'}
                   </span>
                   <span>•</span>
                   <span className="truncate max-w-[120px]">
-                    From: {item.sourceMeetingId?.title || "Meeting"}
+                    From: {item.sourceMeetingId?.title || 'Meeting'}
                   </span>
                 </div>
                 <button
@@ -99,7 +114,7 @@ const ParkingLotBacklog = ({ organizationId }) => {
         </div>
       )}
     </div>
-  );
-};
+  )
+}
 
-export default ParkingLotBacklog;
+export default ParkingLotBacklog
