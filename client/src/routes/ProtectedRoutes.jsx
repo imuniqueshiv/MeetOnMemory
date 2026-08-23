@@ -70,6 +70,9 @@ import Leaderboard from "../pages/Leaderboard.jsx";
 import Badges from "../pages/Badges.jsx";
 import ParticipantEngagement from "../pages/ParticipantEngagement.jsx";
 import ActionItemAnalytics from "../pages/ActionItemAnalytics.jsx";
+import MemoryAnalyticsDashboard from "../pages/MemoryAnalyticsDashboard.jsx";
+import OkrDashboard from "../pages/OkrDashboard.jsx";
+import DecisionMatrixDashboard from "../pages/DecisionMatrixDashboard.jsx";
 import ActionItemsDashboard from "../pages/ActionItemsDashboard.jsx";
 import WorkloadDashboard from "../pages/WorkloadDashboard.jsx";
 import MyDelegations from "../pages/MyDelegations.jsx";
@@ -305,6 +308,23 @@ const ProtectedRoutes = (
       element={
         <ProtectedRoute resource="organizations" action="view">
           <DataRetentionSettings />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/okr/dashboard"
+      element={
+        <ProtectedRoute>
+          <OkrDashboard />
+        </ProtectedRoute>
+      }
+    />
+
+    <Route
+      path="/decisions/dashboard"
+      element={
+        <ProtectedRoute>
+          <DecisionMatrixDashboard />
         </ProtectedRoute>
       }
     />
