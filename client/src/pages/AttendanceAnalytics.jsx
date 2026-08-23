@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { format, subDays, eachDayOfInterval, parseISO } from "date-fns";
+import React, { useState, useEffect } from 'react'
+import { format, subDays, eachDayOfInterval, parseISO } from 'date-fns'
 import {
   LineChart,
   Line,
@@ -12,134 +12,160 @@ import {
   PieChart,
   Pie,
   Cell,
-} from "recharts";
+} from 'recharts'
 import {
   getAttendanceStats,
   getAttendanceHeatmap,
   getAttendanceTrends,
   getMeetingTypeBreakdown,
-} from "../services/attendanceApi";
-import { Calendar, Users, BarChart2, Filter } from "lucide-react";
-import useTheme from "../context/useTheme.jsx";
+  exportAttendanceCSV,
+} from '../services/attendanceApi'
+import { Calendar, Users, BarChart2, Filter, Download, Loader2 } from 'lucide-react'
+import Navbar from '../components/Navbar.jsx'
+import useTheme from '../context/useTheme.jsx'
+import { toast } from 'react-toastify'
 
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8']
 
 const cardClass =
-  "bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700";
+  'bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700'
 
 const inputClass =
-  "border border-gray-300 dark:border-gray-600 rounded p-1 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500";
+  'border border-gray-300 dark:border-gray-600 rounded p-1 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500'
 
 const AttendanceAnalytics = () => {
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
 
   const chartTheme = {
-    grid: isDark ? "#374151" : "#e5e7eb",
-    tick: isDark ? "#9ca3af" : "#6b7280",
-    legend: isDark ? "#d1d5db" : "#374151",
+    grid: isDark ? '#374151' : '#e5e7eb',
+    tick: isDark ? '#9ca3af' : '#6b7280',
+    legend: isDark ? '#d1d5db' : '#374151',
     tooltip: {
-      backgroundColor: isDark ? "#1f2937" : "#ffffff",
-      borderColor: isDark ? "#374151" : "#e5e7eb",
-      color: isDark ? "#f3f4f6" : "#111827",
+      backgroundColor: isDark ? '#1f2937' : '#ffffff',
+      borderColor: isDark ? '#374151' : '#e5e7eb',
+      color: isDark ? '#f3f4f6' : '#111827',
     },
-  };
+  }
 
   const [dateRange, setDateRange] = useState({
-    startDate: format(subDays(new Date(), 30), "yyyy-MM-dd"),
-    endDate: format(new Date(), "yyyy-MM-dd"),
-  });
-  const [granularity, setGranularity] = useState("daily");
-  const [dateError, setDateError] = useState("");
+    startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+    endDate: format(new Date(), 'yyyy-MM-dd'),
+  })
+  const [granularity, setGranularity] = useState('daily')
+  const [dateError, setDateError] = useState('')
 
-  const [stats, setStats] = useState([]);
-  const [totalOrgMeetings, setTotalOrgMeetings] = useState(0);
-  const [heatmapData, setHeatmapData] = useState([]);
-  const [trendsData, setTrendsData] = useState([]);
-  const [typeBreakdown, setTypeBreakdown] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState([])
+  const [totalOrgMeetings, setTotalOrgMeetings] = useState(0)
+  const [heatmapData, setHeatmapData] = useState([])
+  const [trendsData, setTrendsData] = useState([])
+  const [typeBreakdown, setTypeBreakdown] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     // Validate date range ordering (#1367)
-    if (
-      dateRange.startDate &&
-      dateRange.endDate &&
-      dateRange.startDate > dateRange.endDate
-    ) {
-      setDateError("Start date cannot be after end date");
-      setLoading(false);
-      return;
+    if (dateRange.startDate && dateRange.endDate && dateRange.startDate > dateRange.endDate) {
+      setDateError('Start date cannot be after end date')
+      setLoading(false)
+      return
     }
-    setDateError("");
+    setDateError('')
 
     const fetchData = async () => {
-      setLoading(true);
+      setLoading(true)
       try {
         const params = {
           startDate: dateRange.startDate,
           endDate: dateRange.endDate,
-        };
+        }
 
         const [statsRes, heatmapRes, trendsRes, typesRes] = await Promise.all([
           getAttendanceStats(params),
           getAttendanceHeatmap(params),
           getAttendanceTrends({ ...params, granularity }),
           getMeetingTypeBreakdown(params),
-        ]);
+        ])
 
         // Sort stats by attendance count
-        const sortedStats = (statsRes.stats || []).sort(
-          (a, b) => b.attended - a.attended,
-        );
-        setStats(sortedStats);
-        setTotalOrgMeetings(statsRes.totalMeetings || 0);
-        setHeatmapData(heatmapRes || []);
-        setTrendsData(trendsRes || []);
-        setTypeBreakdown(typesRes || []);
+        const sortedStats = (statsRes.stats || []).sort((a, b) => b.attended - a.attended)
+        setStats(sortedStats)
+        setTotalOrgMeetings(statsRes.totalMeetings || 0)
+        setHeatmapData(heatmapRes || [])
+        setTrendsData(trendsRes || [])
+        setTypeBreakdown(typesRes || [])
       } catch (error) {
-        console.error("Failed to fetch analytics:", error);
+        console.error('Failed to fetch analytics:', error)
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
+    }
 
-    fetchData();
-  }, [dateRange, granularity]);
+    fetchData()
+  }, [dateRange, granularity])
 
   const handleDateChange = (e) => {
-    setDateRange({ ...dateRange, [e.target.name]: e.target.value });
-  };
+    setDateRange({ ...dateRange, [e.target.name]: e.target.value })
+  }
+
+  const handleExportCSV = async () => {
+    setExporting(true)
+    try {
+      const params = {
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+      }
+      const blob = await exportAttendanceCSV(params)
+      const url = window.URL.createObjectURL(new Blob([blob]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute(
+        'download',
+        `attendance_analytics_${dateRange.startDate}_to_${dateRange.endDate}.csv`,
+      )
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      toast.success('Attendance report downloaded successfully')
+    } catch (err) {
+      console.error('Failed to export attendance CSV:', err)
+      toast.error('Failed to download CSV report')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const renderHeatmap = () => {
-    if (!dateRange.startDate || !dateRange.endDate) return null;
-    const start = parseISO(dateRange.startDate);
-    const end = parseISO(dateRange.endDate);
+    if (!dateRange.startDate || !dateRange.endDate) return null
+    const start = parseISO(dateRange.startDate)
+    const end = parseISO(dateRange.endDate)
 
     // Fill days
-    const days = eachDayOfInterval({ start, end });
+    const days = eachDayOfInterval({ start, end })
 
     const getColor = (count) => {
       if (isDark) {
-        if (!count || count === 0) return "#21262d";
-        if (count === 1) return "#0e4429";
-        if (count === 2) return "#006d32";
-        if (count === 3) return "#26a641";
-        return "#39d353";
+        if (!count || count === 0) return '#21262d'
+        if (count === 1) return '#0e4429'
+        if (count === 2) return '#006d32'
+        if (count === 3) return '#26a641'
+        return '#39d353'
       }
-      if (!count || count === 0) return "#ebedf0";
-      if (count === 1) return "#c6e48b";
-      if (count === 2) return "#7bc96f";
-      if (count === 3) return "#239a3b";
-      return "#196127";
-    };
+      if (!count || count === 0) return '#ebedf0'
+      if (count === 1) return '#c6e48b'
+      if (count === 2) return '#7bc96f'
+      if (count === 3) return '#239a3b'
+      return '#196127'
+    }
 
     return (
       <div className="heatmap-container overflow-x-auto pb-4">
-        <div className="flex gap-1" style={{ minWidth: "max-content" }}>
+        <div className="flex gap-1" style={{ minWidth: 'max-content' }}>
           {days.map((day, i) => {
-            const dateStr = format(day, "yyyy-MM-dd");
-            const dataPoint = heatmapData.find((d) => d.date === dateStr);
-            const count = dataPoint ? dataPoint.count : 0;
+            const dateStr = format(day, 'yyyy-MM-dd')
+            const dataPoint = heatmapData.find((d) => d.date === dateStr)
+            const count = dataPoint ? dataPoint.count : 0
             return (
               <div
                 key={i}
@@ -147,20 +173,21 @@ const AttendanceAnalytics = () => {
                 style={{ backgroundColor: getColor(count) }}
                 title={`${dateStr}: ${count} meetings`}
               />
-            );
+            )
           })}
         </div>
         <div className="flex text-xs text-gray-500 dark:text-gray-400 mt-2 justify-between">
-          <span>{format(start, "MMM d")}</span>
-          <span>{format(end, "MMM d")}</span>
+          <span>{format(start, 'MMM d')}</span>
+          <span>{format(end, 'MMM d')}</span>
         </div>
       </div>
-    );
-  };
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <Navbar />
+      <div className="pt-20 p-6 max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
             <BarChart2 className="w-8 h-8 text-blue-600 dark:text-blue-400" />
@@ -170,9 +197,7 @@ const AttendanceAnalytics = () => {
           <div className={`flex flex-wrap items-center gap-4 ${cardClass} p-3`}>
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Filter:
-              </span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter:</span>
             </div>
             <input
               type="date"
@@ -198,6 +223,19 @@ const AttendanceAnalytics = () => {
               <option value="weekly">Weekly</option>
               <option value="monthly">Monthly</option>
             </select>
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              disabled={exporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-md transition-colors"
+            >
+              {exporting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              Export CSV
+            </button>
           </div>
         </div>
 
@@ -238,10 +276,7 @@ const AttendanceAnalytics = () => {
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={trendsData}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke={chartTheme.grid}
-                      />
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                       <XAxis
                         dataKey="dateLabel"
                         tick={{ fill: chartTheme.tick, fontSize: 12 }}
@@ -262,7 +297,7 @@ const AttendanceAnalytics = () => {
                         contentStyle={{
                           backgroundColor: chartTheme.tooltip.backgroundColor,
                           borderColor: chartTheme.tooltip.borderColor,
-                          borderRadius: "0.5rem",
+                          borderRadius: '0.5rem',
                           color: chartTheme.tooltip.color,
                         }}
                       />
@@ -306,44 +341,34 @@ const AttendanceAnalytics = () => {
                         fill="#8884d8"
                         dataKey="value"
                         labelLine={{ stroke: chartTheme.tick }}
-                        label={({
-                          cx,
-                          cy,
-                          midAngle,
-                          outerRadius,
-                          name,
-                          percent,
-                        }) => {
-                          const RADIAN = Math.PI / 180;
-                          const radius = outerRadius + 18;
-                          const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                          const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                        label={({ cx, cy, midAngle, outerRadius, name, percent }) => {
+                          const RADIAN = Math.PI / 180
+                          const radius = outerRadius + 18
+                          const x = cx + radius * Math.cos(-midAngle * RADIAN)
+                          const y = cy + radius * Math.sin(-midAngle * RADIAN)
                           return (
                             <text
                               x={x}
                               y={y}
                               fill={chartTheme.tick}
-                              textAnchor={x > cx ? "start" : "end"}
+                              textAnchor={x > cx ? 'start' : 'end'}
                               dominantBaseline="central"
                               fontSize={12}
                             >
                               {`${name} ${(percent * 100).toFixed(0)}%`}
                             </text>
-                          );
+                          )
                         }}
                       >
                         {typeBreakdown.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={COLORS[index % COLORS.length]}
-                          />
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
                       <Tooltip
                         contentStyle={{
                           backgroundColor: chartTheme.tooltip.backgroundColor,
                           borderColor: chartTheme.tooltip.borderColor,
-                          borderRadius: "0.5rem",
+                          borderRadius: '0.5rem',
                           color: chartTheme.tooltip.color,
                         }}
                       />
@@ -371,12 +396,8 @@ const AttendanceAnalytics = () => {
                     <tr className="bg-gray-50 dark:bg-gray-900/50 text-gray-600 dark:text-gray-300 text-sm">
                       <th className="p-4 font-semibold">Rank</th>
                       <th className="p-4 font-semibold">Member</th>
-                      <th className="p-4 font-semibold text-right">
-                        Meetings Attended
-                      </th>
-                      <th className="p-4 font-semibold text-right">
-                        Attendance Rate
-                      </th>
+                      <th className="p-4 font-semibold text-right">Meetings Attended</th>
+                      <th className="p-4 font-semibold text-right">Attendance Rate</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -403,10 +424,10 @@ const AttendanceAnalytics = () => {
                           <span
                             className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
                               member.attendanceRate >= 80
-                                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                                 : member.attendanceRate >= 40
-                                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300"
-                                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                                  ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+                                  : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
                             }`}
                           >
                             {member.attendanceRate.toFixed(1)}%
@@ -432,7 +453,7 @@ const AttendanceAnalytics = () => {
         )}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default AttendanceAnalytics;
+export default AttendanceAnalytics

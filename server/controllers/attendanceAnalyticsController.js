@@ -1,4 +1,4 @@
-import Meeting from "../models/meetingModel.js";
+import Meeting from '../models/meetingModel.js'
 
 /**
  * @desc    Get member attendance statistics (rates, sparklines)
@@ -7,52 +7,51 @@ import Meeting from "../models/meetingModel.js";
  */
 export const getMemberAttendanceStats = async (req, res) => {
   try {
-    const orgId = req.user.organization;
-    const { startDate, endDate } = req.query;
+    const orgId = req.user.organization
+    const { startDate, endDate } = req.query
 
-    const matchQuery = { organization: orgId };
+    const matchQuery = { organization: orgId }
     if (startDate && endDate) {
-      matchQuery.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+      matchQuery.date = { $gte: new Date(startDate), $lte: new Date(endDate) }
     }
 
     const [totalMeetings, memberAgg] = await Promise.all([
       Meeting.countDocuments(matchQuery),
       Meeting.aggregate([
         { $match: matchQuery },
-        { $unwind: "$participants" },
+        { $unwind: '$participants' },
         {
           $group: {
             _id: {
-              $ifNull: ["$participants.email", "$participants.name"],
+              $ifNull: ['$participants.email', '$participants.name'],
             },
-            name: { $first: "$participants.name" },
-            email: { $first: "$participants.email" },
+            name: { $first: '$participants.name' },
+            email: { $first: '$participants.email' },
             attended: { $sum: 1 },
             datesAttended: {
               $addToSet: {
-                $dateToString: { format: "%Y-%m-%d", date: "$date" },
+                $dateToString: { format: '%Y-%m-%d', date: '$date' },
               },
             },
           },
         },
       ]),
-    ]);
+    ])
 
     const statsArray = memberAgg.map((member) => ({
       name: member.name,
       email: member.email,
       attended: member.attended,
-      attendanceRate:
-        totalMeetings > 0 ? (member.attended / totalMeetings) * 100 : 0,
+      attendanceRate: totalMeetings > 0 ? (member.attended / totalMeetings) * 100 : 0,
       sparkline: Array.from(member.datesAttended),
-    }));
+    }))
 
-    res.status(200).json({ stats: statsArray, totalMeetings });
+    res.status(200).json({ stats: statsArray, totalMeetings })
   } catch (error) {
-    console.error("Error fetching member attendance stats:", error);
-    res.status(500).json({ message: "Server error fetching attendance stats" });
+    console.error('Error fetching member attendance stats:', error)
+    res.status(500).json({ message: 'Server error fetching attendance stats' })
   }
-};
+}
 
 /**
  * @desc    Get daily attendance counts for heatmap
@@ -61,19 +60,19 @@ export const getMemberAttendanceStats = async (req, res) => {
  */
 export const getAttendanceHeatmap = async (req, res) => {
   try {
-    const orgId = req.user.organization;
-    const { startDate, endDate } = req.query;
+    const orgId = req.user.organization
+    const { startDate, endDate } = req.query
 
-    const matchQuery = { organization: orgId };
+    const matchQuery = { organization: orgId }
     if (startDate && endDate) {
-      matchQuery.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+      matchQuery.date = { $gte: new Date(startDate), $lte: new Date(endDate) }
     }
 
     const formattedData = await Meeting.aggregate([
       { $match: matchQuery },
       {
         $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$date" } },
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
           count: { $sum: 1 },
         },
       },
@@ -81,20 +80,18 @@ export const getAttendanceHeatmap = async (req, res) => {
       {
         $project: {
           _id: 0,
-          date: "$_id",
+          date: '$_id',
           count: 1,
         },
       },
-    ]);
+    ])
 
-    res.status(200).json(formattedData);
+    res.status(200).json(formattedData)
   } catch (error) {
-    console.error("Error fetching attendance heatmap:", error);
-    res
-      .status(500)
-      .json({ message: "Server error fetching attendance heatmap" });
+    console.error('Error fetching attendance heatmap:', error)
+    res.status(500).json({ message: 'Server error fetching attendance heatmap' })
   }
-};
+}
 
 /**
  * @desc    Get attendance trends over time (granularity)
@@ -103,30 +100,30 @@ export const getAttendanceHeatmap = async (req, res) => {
  */
 export const getAttendanceTrends = async (req, res) => {
   try {
-    const orgId = req.user.organization;
-    const { startDate, endDate, granularity = "daily" } = req.query;
+    const orgId = req.user.organization
+    const { startDate, endDate, granularity = 'daily' } = req.query
 
-    const matchQuery = { organization: orgId };
+    const matchQuery = { organization: orgId }
     if (startDate && endDate) {
-      matchQuery.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+      matchQuery.date = { $gte: new Date(startDate), $lte: new Date(endDate) }
     }
 
-    let dateGroupExpression;
-    if (granularity === "weekly") {
+    let dateGroupExpression
+    if (granularity === 'weekly') {
       dateGroupExpression = {
         $concat: [
-          { $dateToString: { format: "%G-W", date: "$date" } },
-          { $dateToString: { format: "%V", date: "$date" } },
+          { $dateToString: { format: '%G-W', date: '$date' } },
+          { $dateToString: { format: '%V', date: '$date' } },
         ],
-      };
-    } else if (granularity === "monthly") {
+      }
+    } else if (granularity === 'monthly') {
       dateGroupExpression = {
-        $dateToString: { format: "%Y-%m", date: "$date" },
-      };
+        $dateToString: { format: '%Y-%m', date: '$date' },
+      }
     } else {
       dateGroupExpression = {
-        $dateToString: { format: "%Y-%m-%d", date: "$date" },
-      };
+        $dateToString: { format: '%Y-%m-%d', date: '$date' },
+      }
     }
 
     const trends = await Meeting.aggregate([
@@ -136,7 +133,7 @@ export const getAttendanceTrends = async (req, res) => {
           _id: dateGroupExpression,
           meetings: { $sum: 1 },
           totalParticipants: {
-            $sum: { $size: { $ifNull: ["$participants", []] } },
+            $sum: { $size: { $ifNull: ['$participants', []] } },
           },
         },
       },
@@ -144,28 +141,22 @@ export const getAttendanceTrends = async (req, res) => {
       {
         $project: {
           _id: 0,
-          dateLabel: "$_id",
+          dateLabel: '$_id',
           meetings: 1,
           totalParticipants: 1,
           avgParticipants: {
-            $cond: [
-              { $gt: ["$meetings", 0] },
-              { $divide: ["$totalParticipants", "$meetings"] },
-              0,
-            ],
+            $cond: [{ $gt: ['$meetings', 0] }, { $divide: ['$totalParticipants', '$meetings'] }, 0],
           },
         },
       },
-    ]);
+    ])
 
-    res.status(200).json(trends);
+    res.status(200).json(trends)
   } catch (error) {
-    console.error("Error fetching attendance trends:", error);
-    res
-      .status(500)
-      .json({ message: "Server error fetching attendance trends" });
+    console.error('Error fetching attendance trends:', error)
+    res.status(500).json({ message: 'Server error fetching attendance trends' })
   }
-};
+}
 
 /**
  * @desc    Get meeting type breakdown
@@ -174,34 +165,94 @@ export const getAttendanceTrends = async (req, res) => {
  */
 export const getMeetingTypeBreakdown = async (req, res) => {
   try {
-    const orgId = req.user.organization;
-    const { startDate, endDate } = req.query;
+    const orgId = req.user.organization
+    const { startDate, endDate } = req.query
 
-    const matchQuery = { organization: orgId };
+    const matchQuery = { organization: orgId }
     if (startDate && endDate) {
-      matchQuery.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+      matchQuery.date = { $gte: new Date(startDate), $lte: new Date(endDate) }
     }
 
     const breakdown = await Meeting.aggregate([
       { $match: matchQuery },
       {
         $group: {
-          _id: { $ifNull: ["$meetingType", "uncategorized"] },
+          _id: { $ifNull: ['$meetingType', 'uncategorized'] },
           value: { $sum: 1 },
         },
       },
       {
         $project: {
           _id: 0,
-          name: "$_id",
+          name: '$_id',
           value: 1,
         },
       },
-    ]);
+    ])
 
-    res.status(200).json(breakdown);
+    res.status(200).json(breakdown)
   } catch (error) {
-    console.error("Error fetching meeting types:", error);
-    res.status(500).json({ message: "Server error fetching meeting types" });
+    console.error('Error fetching meeting types:', error)
+    res.status(500).json({ message: 'Server error fetching meeting types' })
   }
-};
+}
+
+/**
+ * @desc    Export attendance analytics CSV (member rates & trends)
+ * @route   GET /api/attendance-analytics/export
+ * @access  Private
+ */
+export const exportAttendanceAnalytics = async (req, res) => {
+  try {
+    const orgId = req.user.organization
+    const { startDate, endDate } = req.query
+
+    const matchQuery = { organization: orgId }
+    if (startDate && endDate) {
+      matchQuery.date = { $gte: new Date(startDate), $lte: new Date(endDate) }
+    }
+
+    const [totalMeetings, memberAgg] = await Promise.all([
+      Meeting.countDocuments(matchQuery),
+      Meeting.aggregate([
+        { $match: matchQuery },
+        { $unwind: '$participants' },
+        {
+          $group: {
+            _id: {
+              $ifNull: ['$participants.email', '$participants.name'],
+            },
+            name: { $first: '$participants.name' },
+            email: { $first: '$participants.email' },
+            attended: { $sum: 1 },
+          },
+        },
+        { $sort: { attended: -1 } },
+      ]),
+    ])
+
+    const csvHeaders =
+      'Rank,Member Name,Member Email,Meetings Attended,Total Meetings in Period,Attendance Rate (%)\n'
+    const csvRows = memberAgg
+      .map((member, index) => {
+        const rate =
+          totalMeetings > 0 ? ((member.attended / totalMeetings) * 100).toFixed(1) : '0.0'
+        const name = (member.name || 'Unknown').replace(/"/g, '""')
+        const email = (member.email || 'N/A').replace(/"/g, '""')
+        return `${index + 1},"${name}","${email}",${member.attended},${totalMeetings},${rate}`
+      })
+      .join('\n')
+
+    const csvContent = csvHeaders + csvRows
+
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=attendance_analytics_${Date.now()}.csv`,
+    )
+    res.status(200).send(csvContent)
+  } catch (error) {
+    console.error('Error exporting attendance CSV:', error)
+    res.status(500).json({ message: 'Server error exporting attendance CSV' })
+  }
+}
