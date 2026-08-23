@@ -21,6 +21,7 @@ import ShareModal from "../components/shared-links/ShareModal";
 import MeetingFollowUpBanner from "../components/meeting-details/MeetingFollowUpBanner";
 import PresentMode from "../components/meeting-details/PresentMode";
 import PrepChecklist from "../components/meetings/PrepChecklist";
+import DelegationPanel from "../components/meetings/DelegationPanel.jsx";
 import SpeakingTimeBreakdown from "../components/meetings/SpeakingTimeBreakdown";
 import CarryForwardConfig from "../components/meetings/CarryForwardConfig";
 import RoleRotationConfig from "../components/meetings/RoleRotationConfig";
@@ -437,6 +438,10 @@ const MeetingDetails = () => {
             isOrganizer={
               currentUser?.publicMetadata?.dbUserId === meeting.uploadedBy
             }
+            participants={meeting.participants}
+          />
+          <DelegationPanel
+            meetingId={meeting._id}
             participants={meeting.participants}
           />
           <PrepChecklist meeting={meeting} currentUser={currentUser} />

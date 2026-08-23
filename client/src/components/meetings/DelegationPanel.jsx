@@ -126,7 +126,11 @@ const DelegationPanel = ({ meetingId, participants }) => {
 
   if (delegation) {
     return (
-      <div className="p-4 border border-blue-200 rounded-lg bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800 mb-6">
+      <div
+        role="region"
+        aria-label="Active Meeting Delegation"
+        className="p-4 border border-blue-200 rounded-lg bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800 mb-6"
+      >
         <div className="flex items-start justify-between">
           <div>
             <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-2">
@@ -169,7 +173,11 @@ const DelegationPanel = ({ meetingId, participants }) => {
   }
 
   return (
-    <div className="p-4 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 mb-6 shadow-sm">
+    <div
+      role="region"
+      aria-label="Delegate Attendance Panel"
+      className="p-4 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 mb-6 shadow-sm"
+    >
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
         <User className="w-5 h-5 text-gray-500" />
         Delegate Attendance
