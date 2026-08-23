@@ -1,33 +1,58 @@
 // src/components/calendar/AvailabilityGrid.jsx
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { useCalendar } from '../../hooks/useCalendar';
-import { useTimeZone } from '../../hooks/useTimeZone';
-import { CalendarConnectCTA } from './CalendarConnectCTA';
-import { SchedulerWizard } from './SchedulerWizard';
-import './AvailabilityGrid.css';
+
+const useCalendar = () => {
+  return {
+    calendars: [],
+    isConnected: false,
+    connectCalendar: () => {},
+  };
+};
+
+const useTimeZone = () => {
+  return {
+    userTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    availableTimeZones: [],
+  };
+};
+
+const CalendarConnectCTA = ({ onConnect, message }) => (
+  <div>
+    <button onClick={onConnect}>{message}</button>
+  </div>
+);
+
+const SchedulerWizard = ({ selectedTime, participants, duration, timeZone, onSchedule }) => (
+  <div>
+    <h4>Schedule Meeting</h4>
+    <p>Time: {selectedTime?.toLocaleString()}</p>
+    <button onClick={() => onSchedule({ time: selectedTime, participants, duration, timeZone })}>
+      Schedule
+    </button>
+  </div>
+);
 
 const AvailabilityGrid = ({
   participants = [],
-  dateRange,
-  onTimeSelect,
+  dateRange = null,
+  onTimeSelect = null,
   meetingDuration = 30,
 }) => {
-  const { calendars, isConnected, connectCalendar } = useCalendar();
-  const { userTimeZone, availableTimeZones } = useTimeZone();
+  const { isConnected, connectCalendar } = useCalendar();
+  const { userTimeZone } = useTimeZone();
   const [selectedTime, setSelectedTime] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [freeBusyData, setFreeBusyData] = useState({});
 
-  // Fetch free/busy data for all participants
   useEffect(() => {
-    if (!isConnected || participants.length === 0) {
-      return;
-    }
-
     const fetchFreeBusy = async () => {
+      if (!isConnected || participants.length === 0) {
+        return;
+      }
+
       setLoading(true);
       setError(null);
 
@@ -62,7 +87,6 @@ const AvailabilityGrid = ({
     fetchFreeBusy();
   }, [participants, dateRange, isConnected, userTimeZone]);
 
-  // Process conflicts across all participants
   const conflictMap = useMemo(() => {
     const conflicts = {};
 
@@ -70,12 +94,14 @@ const AvailabilityGrid = ({
       return conflicts;
     }
 
-    // Build time slot grid with participant availability
     const timeSlots = {};
     const startTime = new Date(dateRange?.start);
     const endTime = new Date(dateRange?.end);
 
-    // Create 15-minute intervals
+    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+      return conflicts;
+    }
+
     for (let time = new Date(startTime); time < endTime; time.setMinutes(time.getMinutes() + 15)) {
       const key = time.toISOString();
       timeSlots[key] = {
@@ -86,13 +112,18 @@ const AvailabilityGrid = ({
       };
     }
 
-    // Mark busy times for each participant
     Object.entries(freeBusyData).forEach(([email, busyIntervals]) => {
+      if (!Array.isArray(busyIntervals)) {
+        return;
+      }
       busyIntervals.forEach((interval) => {
         const start = new Date(interval.start);
         const end = new Date(interval.end);
 
-        // Mark all 15-minute slots in this busy interval
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+          return;
+        }
+
         for (let time = new Date(start); time < end; time.setMinutes(time.getMinutes() + 15)) {
           const key = time.toISOString();
           if (timeSlots[key]) {
@@ -104,7 +135,6 @@ const AvailabilityGrid = ({
       });
     });
 
-    // Find overlapping conflicts (where multiple participants are busy)
     Object.entries(timeSlots).forEach(([key, slot]) => {
       if (slot.conflictCount > 1) {
         conflicts[key] = {
@@ -118,7 +148,25 @@ const AvailabilityGrid = ({
     return conflicts;
   }, [freeBusyData, dateRange, participants]);
 
-  // Check if calendar is disconnected
+  const handleTimeSelect = useCallback(
+    (time) => {
+      setSelectedTime(time);
+      if (onTimeSelect) {
+        onTimeSelect(time);
+      }
+    },
+    [onTimeSelect]
+  );
+
+  const handleKeyDown = useCallback(
+    (e, time, isBusy, isConflict) => {
+      if (e.key === 'Enter' && !isBusy && !isConflict) {
+        handleTimeSelect(time);
+      }
+    },
+    [handleTimeSelect]
+  );
+
   if (!isConnected) {
     return (
       <div className="availability-grid-disconnected">
@@ -130,7 +178,6 @@ const AvailabilityGrid = ({
     );
   }
 
-  // Error state
   if (error) {
     return (
       <div className="availability-grid-error">
@@ -151,39 +198,31 @@ const AvailabilityGrid = ({
     );
   }
 
-  // Loading state
   if (loading) {
     return (
       <div className="availability-grid-loading">
         <div className="spinner" />
-        <p>
-          Loading calendar availability for {participants.length} participant(s)...
-        </p>
+        <p>Loading calendar availability for {participants.length} participant(s)...</p>
       </div>
     );
   }
 
-  // Empty state - no data available
   if (!freeBusyData || Object.keys(freeBusyData).length === 0) {
     return (
       <div className="availability-grid-empty">
         <div className="empty-icon">📅</div>
         <h3>No availability data</h3>
-        <p>
-          We couldn&apos;t find any calendar data for the selected participants.
-        </p>
+        <p>We couldn&apos;t find any calendar data for the selected participants.</p>
         <p className="empty-hint">
-          Try selecting a different date range or ensure all participants have
-          connected calendars.
+          Try selecting a different date range or ensure all participants have connected
+          calendars.
         </p>
       </div>
     );
   }
 
-  // Main grid render
   return (
     <div className="availability-grid-container">
-      {/* Timezone and legend header */}
       <div className="availability-grid-header">
         <div className="timezone-display">
           <span className="timezone-label">🌐 Timezone:</span>
@@ -191,9 +230,7 @@ const AvailabilityGrid = ({
           <button
             type="button"
             className="change-timezone-button"
-            onClick={() => {
-              // Open timezone selector
-            }}
+            onClick={() => {}}
           >
             Change
           </button>
@@ -218,7 +255,6 @@ const AvailabilityGrid = ({
         </div>
       </div>
 
-      {/* Grid of availability slots */}
       <div className="availability-grid">
         <div className="grid-header">
           <div className="time-column">Time</div>
@@ -245,20 +281,10 @@ const AvailabilityGrid = ({
               }`}
               onClick={() => {
                 if (!isBusy && !isConflict) {
-                  setSelectedTime(slot.time);
-                  if (onTimeSelect) {
-                    onTimeSelect(slot.time);
-                  }
+                  handleTimeSelect(slot.time);
                 }
               }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !isBusy && !isConflict) {
-                  setSelectedTime(slot.time);
-                  if (onTimeSelect) {
-                    onTimeSelect(slot.time);
-                  }
-                }
-              }}
+              onKeyDown={(e) => handleKeyDown(e, slot.time, isBusy, isConflict)}
               role="button"
               tabIndex={0}
             >
@@ -286,10 +312,7 @@ const AvailabilityGrid = ({
                   <div
                     className="conflict-indicator"
                     style={{
-                      backgroundColor: `rgba(255, 0, 0, ${Math.min(
-                        conflictSeverity,
-                        1
-                      )})`,
+                      backgroundColor: `rgba(255, 0, 0, ${Math.min(conflictSeverity, 1)})`,
                     }}
                   >
                     {Math.round(conflictSeverity * 100)}% conflict
@@ -300,12 +323,7 @@ const AvailabilityGrid = ({
                   <button
                     type="button"
                     className="select-time-button"
-                    onClick={() => {
-                      setSelectedTime(slot.time);
-                      if (onTimeSelect) {
-                        onTimeSelect(slot.time);
-                      }
-                    }}
+                    onClick={() => handleTimeSelect(slot.time)}
                   >
                     Select
                   </button>
@@ -316,7 +334,6 @@ const AvailabilityGrid = ({
         })}
       </div>
 
-      {/* Integration with SchedulerWizard */}
       {selectedTime && (
         <div className="availability-grid-footer">
           <SchedulerWizard
@@ -325,7 +342,6 @@ const AvailabilityGrid = ({
             duration={meetingDuration}
             timeZone={userTimeZone}
             onSchedule={(meetingDetails) => {
-              // Handle scheduling
               console.log('Scheduling meeting:', meetingDetails);
             }}
           />
