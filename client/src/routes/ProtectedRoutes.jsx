@@ -85,6 +85,7 @@ import StandupReports from "../pages/StandupReports.jsx";
 import SlaCompliance from "../pages/SlaCompliance.jsx";
 import TeamAvailability from "../pages/TeamAvailability.jsx";
 import ActionItemTemplates from "../pages/ActionItemTemplates.jsx";
+import MemoryAnalyticsDashboard from "../pages/MemoryAnalyticsDashboard.jsx";
 
 const ProtectedRoutes = (
   <React.Fragment>
@@ -765,6 +766,15 @@ const ProtectedRoutes = (
           forbiddenFallback={<AccessDenied />}
         >
           <AdminPanel />
+        </ProtectedRoute>
+      }
+    />
+
+    <Route
+      path="/analytics/dashboard"
+      element={
+        <ProtectedRoute>
+          <MemoryAnalyticsDashboard />
         </ProtectedRoute>
       }
     />
