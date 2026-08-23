@@ -69,8 +69,9 @@ import SpeakingTimeCompare from "../pages/SpeakingTimeCompare.jsx";
 import Leaderboard from "../pages/Leaderboard.jsx";
 import Badges from "../pages/Badges.jsx";
 import ParticipantEngagement from "../pages/ParticipantEngagement.jsx";
-import ActionItemAnalytics from "../pages/ActionItemAnalytics.jsx";
-import ActionItemsDashboard from "../pages/ActionItemsDashboard.jsx";
+import ActionItemTemplates from "../pages/ActionItemTemplates.jsx";
+import MemoryAnalyticsDashboard from "../pages/MemoryAnalyticsDashboard.jsx";
+import OkrDashboard from "../pages/OkrDashboard.jsx";
 import WorkloadDashboard from "../pages/WorkloadDashboard.jsx";
 import MyDelegations from "../pages/MyDelegations.jsx";
 import MeetingPatterns from "../pages/MeetingPatterns.jsx";
@@ -305,6 +306,23 @@ const ProtectedRoutes = (
       element={
         <ProtectedRoute resource="organizations" action="view">
           <DataRetentionSettings />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/analytics/dashboard"
+      element={
+        <ProtectedRoute>
+          <MemoryAnalyticsDashboard />
+        </ProtectedRoute>
+      }
+    />
+
+    <Route
+      path="/okr/dashboard"
+      element={
+        <ProtectedRoute>
+          <OkrDashboard />
         </ProtectedRoute>
       }
     />
