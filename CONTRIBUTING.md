@@ -575,6 +575,40 @@ Open a Discussion, open an Issue, or join Discord: https://discord.gg/c29cwdVMG
 
 ---
 
+## 📋 Docs-vs-Routes Checklist
+
+When you add, rename, remove, or re-scope a **route**, **RBAC permission**, or **auth flow**, update the related documentation in the same PR so HelpCenter FAQs, README, and CONTRIBUTING stay accurate.
+
+### Quick checklist
+
+| Area                  | What to verify                                                                                                                  | Files to check                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| **Auth flow**         | Password reset, sign-in, sign-up, MFA, and OAuth instructions describe the **Clerk** flow — not a local/auth-stack flow         | `HelpCenter.jsx`, `Settings.jsx`, `ClerkUserControls.jsx` |
+| **RBAC roles**        | Role names and hierarchy match `ROLE_HIERARCHY` in `rbacPermissions.js` (client + server)                                       | `HelpCenter.jsx`, `rbacPermissions.js`                    |
+| **Permission claims** | FAQ answers listing which roles can perform an action match the `PERMISSIONS` map                                               | `HelpCenter.jsx`, `rbacPermissions.js`                    |
+| **Route links**       | Any deep-link in docs or HelpCenter points to a path that exists in `ProtectedRoutes.jsx` or `PublicRoutes.jsx`                 | `HelpCenter.jsx`, route files                             |
+| **Server middleware** | Route-level `requirePermission()` / `requireRole()` calls match the client-side `resource`/`action` props on `<ProtectedRoute>` | `ProtectedRoutes.jsx`, `server/routes/*`                  |
+| **Onboarding flow**   | References to onboarding steps match the actual redirect logic in `ProtectedRoute.jsx`                                          | `HelpCenter.jsx`, `ProtectedRoute.jsx`                    |
+
+### How to run the content audit locally
+
+```bash
+# 1. Search HelpCenter for stale auth references
+rg -n "Change Password|password reset flow|local auth|login form" client/src/pages/HelpCenter.jsx
+
+# 2. Verify every deep-linked route exists
+rg -o '/[a-z][-a-z/]*' client/src/pages/HelpCenter.jsx | sort -u | while read -r route; do
+  rg -q "path=\"$route" client/src/routes/ProtectedRoutes.jsx client/src/routes/PublicRoutes.jsx 2>/dev/null || echo "MISSING ROUTE: $route"
+done
+
+# 3. Cross-check role names against RBAC
+rg -o '"[a-z]+"' client/src/utils/rbacPermissions.js | sort -u
+```
+
+> **Rule of thumb:** If you change a `requirePermission(resource, action)` on the server or a `<ProtectedRoute resource={} action={}>` on the client, grep HelpCenter.jsx for the affected keywords and update any stale copy in the same PR.
+
+---
+
 ## 🐞 Reporting Bugs
 
 Include: steps to reproduce, expected behavior, actual behavior, screenshots (if applicable), browser/OS info.

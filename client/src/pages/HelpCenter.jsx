@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
-import Navbar from "../components/Navbar.jsx";
+import React, { useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
+import Navbar from '../components/Navbar.jsx'
 import {
   HelpCircle,
   Search,
@@ -15,134 +15,142 @@ import {
   AlertTriangle,
   Settings,
   Activity,
-} from "lucide-react";
+} from 'lucide-react'
 
 // Categorized FAQ Data
-const faqCategories = [
-  { id: "getting-started", name: "Getting Started", icon: BookOpen },
-  { id: "account", name: "Account & Security", icon: Shield },
-  { id: "meetings", name: "Meetings & Transcription", icon: Clock },
-  { id: "ai-search", name: "AI & Knowledge Base", icon: Layers },
-];
+// eslint-disable-next-line react-refresh/only-export-components
+export const faqCategories = [
+  { id: 'getting-started', name: 'Getting Started', icon: BookOpen },
+  { id: 'account', name: 'Account & Security', icon: Shield },
+  { id: 'meetings', name: 'Meetings & Transcription', icon: Clock },
+  { id: 'ai-search', name: 'AI & Knowledge Base', icon: Layers },
+]
 
-const faqs = [
+// eslint-disable-next-line react-refresh/only-export-components
+export const faqs = [
   {
-    category: "getting-started",
-    q: "How do I create or join an organization?",
+    category: 'getting-started',
+    q: 'How do I create or join an organization?',
     a: "When you first sign up, you will land on the Organization Hub. You can click 'Create Organization' to spin up a new workspace as an Admin, or type in the name of an existing organization to request membership. If the organization is public, you can also browse the catalog and submit an access request.",
   },
   {
-    category: "getting-started",
-    q: "Is there a guest role on MeetOnMemory?",
-    a: "Yes! Guest is the default role for users who have just registered and have not completed organization onboarding. Guests can view public organization profiles and browse the public directory to find their community.",
+    category: 'getting-started',
+    q: 'Is there a guest role on MeetOnMemory?',
+    a: 'Yes! Guest is the default role for users who have just registered and have not completed organization onboarding. Guests can view public organization profiles and browse the public directory to find their community.',
   },
   {
-    category: "account",
-    q: "How can I change my password?",
-    a: "Navigate to Settings by clicking your avatar or using the sidebar, then locate the 'Security' section. Click 'Change Password' to trigger the password reset flow.",
+    category: 'account',
+    q: 'How can I change my password?',
+    a: "MeetOnMemory uses Clerk for authentication. To change your password, navigate to Settings (via the sidebar), scroll to the Security section, and click 'Manage account security'. This opens Clerk's account panel where you can update your password, email, MFA settings, and connected sign-in providers.",
   },
   {
-    category: "account",
-    q: "How do roles and permissions work?",
-    a: "MeetOnMemory uses a Role-Based Access Control (RBAC) hierarchy: Owner (highest), Admin, Moderator, Member, and Guest (lowest). Permissions are bound to roles. For example, creating meetings requires at least a Moderator role, while managing integrations or billing requires Admin/Owner status.",
+    category: 'account',
+    q: 'How do I sign in or sign up?',
+    a: "MeetOnMemory supports Clerk-powered authentication. You can sign up or sign in using your email and password, or use a connected OAuth provider (Google, etc.) if configured for your organization. After your first sign-in you'll be guided through organization onboarding.",
   },
   {
-    category: "meetings",
-    q: "What audio/video file formats are supported?",
-    a: "We support popular media formats including MP3, MP4, WAV, M4A, AAC, and WEBM. The maximum upload size for standard files is 250MB, which can be extended for enterprise subscriptions.",
+    category: 'account',
+    q: 'How do I reset a forgotten password?',
+    a: "Because authentication is handled by Clerk, password resets flow through Clerk's built-in forgot-password screen. Click the 'Forgot password?' link on the sign-in page, or go to Settings > Security > 'Manage account security' and follow the Clerk prompts to send a reset email.",
   },
   {
-    category: "meetings",
-    q: "How long does transcription take?",
-    a: "Transcription and AI summary generation typically take 15-30% of the meeting duration. For example, a 60-minute meeting will be processed, indexed, and summarized within 10-15 minutes.",
+    category: 'account',
+    q: 'How do roles and permissions work?',
+    a: 'MeetOnMemory uses a Role-Based Access Control (RBAC) hierarchy with six levels: Owner (highest), Admin, Moderator, Member, Viewer, and Guest (lowest). Permissions are bound to roles. For example, creating meetings requires at least a Member role, deleting meetings or managing team membership requires Admin/Owner status, and the Viewer role has read-only access across the workspace.',
   },
   {
-    category: "ai-search",
-    q: "What is Memory Consolidation?",
-    a: "Memory Consolidation is the process where Google Gemini AI scans multiple meeting transcripts to build a structured, semantic knowledge graph. It automatically identifies contradictions, updates action items, and connects related business logic to give you a single source of truth.",
+    category: 'meetings',
+    q: 'What audio/video file formats are supported?',
+    a: 'We support popular media formats including MP3, MP4, WAV, M4A, AAC, and WEBM. The maximum upload size for standard files is 250MB, which can be extended for enterprise subscriptions.',
   },
   {
-    category: "ai-search",
-    q: "How does AI Semantic Search differ from text search?",
+    category: 'meetings',
+    q: 'How long does transcription take?',
+    a: 'Transcription and AI summary generation typically take 15-30% of the meeting duration. For example, a 60-minute meeting will be processed, indexed, and summarized within 10-15 minutes.',
+  },
+  {
+    category: 'ai-search',
+    q: 'What is Memory Consolidation?',
+    a: 'Memory Consolidation is the process where Google Gemini AI scans multiple meeting transcripts to build a structured, semantic knowledge graph. It automatically identifies contradictions, updates action items, and connects related business logic to give you a single source of truth.',
+  },
+  {
+    category: 'ai-search',
+    q: 'How does AI Semantic Search differ from text search?',
     a: "Traditional search looks for exact keyword matches. Semantic search uses vector embeddings (backed by Pinecone) to understand the *intent* and *context* of your query. Searching for 'who agreed to build the API' will find instances even if the transcript says 'developers accepted the backend tasks'.",
   },
-];
+]
 
 // Troubleshooting Guides Data
-const troubleshootingGuides = [
+// eslint-disable-next-line react-refresh/only-export-components
+export const troubleshootingGuides = [
   {
-    title: "Meeting Upload Fails mid-way",
+    title: 'Meeting Upload Fails mid-way',
     problem:
-      "The file upload progress bar stops or shows a network error when uploading meeting recordings.",
+      'The file upload progress bar stops or shows a network error when uploading meeting recordings.',
     steps: [
-      "Check your file size: Ensure the file does not exceed the 250MB limit for your plan.",
-      "Check your connection: Large file uploads require a stable internet connection. If you are on VPN or proxy, try disabling it momentarily.",
-      "Convert file format: If you are using a raw format, try converting the video to a compressed MP4 or MP3 audio file to decrease the size and speed up transmission.",
-      "Retry using another browser: Sometimes browser extensions block continuous chunked uploads. Try running in an incognito window.",
+      'Check your file size: Ensure the file does not exceed the 250MB limit for your plan.',
+      'Check your connection: Large file uploads require a stable internet connection. If you are on VPN or proxy, try disabling it momentarily.',
+      'Convert file format: If you are using a raw format, try converting the video to a compressed MP4 or MP3 audio file to decrease the size and speed up transmission.',
+      'Retry using another browser: Sometimes browser extensions block continuous chunked uploads. Try running in an incognito window.',
     ],
     icon: AlertTriangle,
-    severity: "warning",
+    severity: 'warning',
   },
   {
-    title: "Slack Notification Integration is not posting updates",
-    problem:
-      "Meeting alerts or action items are not syncing to your configured Slack channels.",
+    title: 'Slack Notification Integration is not posting updates',
+    problem: 'Meeting alerts or action items are not syncing to your configured Slack channels.',
     steps: [
-      "Verify Slack Workspace connection: Go to Organization Settings > Integrations, and make sure the Slack workspace is marked as connected.",
-      "Check Channel Permissions: Ensure the MeetOnMemory Bot has been invited to the channel. You can type `/invite @MeetOnMemory` in Slack.",
+      'Verify Slack Workspace connection: Go to Organization Settings > Integrations, and make sure the Slack workspace is marked as connected.',
+      'Check Channel Permissions: Ensure the MeetOnMemory Bot has been invited to the channel. You can type `/invite @MeetOnMemory` in Slack.',
       "Re-authorize Slack: If the token expired, click 'Reconnect' under settings to refresh workspace permissions.",
     ],
     icon: Settings,
-    severity: "info",
+    severity: 'info',
   },
   {
-    title: "AI Search returns no results",
-    problem:
-      "When querying the vector knowledge base, you receive a 'No results found' screen.",
+    title: 'AI Search returns no results',
+    problem: "When querying the vector knowledge base, you receive a 'No results found' screen.",
     steps: [
       "Ensure transcripts are complete: Check if the meetings you uploaded have finished processing and show a 'Completed' status badge.",
       "Simplify query: Try searching for a broader concept or key names (e.g., 'API integration' instead of a very long sentence).",
-      "Check membership access: Ensure you are logged into the correct organization. You can only search across meetings within your active workspace.",
+      'Check membership access: Ensure you are logged into the correct organization. You can only search across meetings within your active workspace.',
     ],
     icon: Activity,
-    severity: "info",
+    severity: 'info',
   },
-];
+]
 
 const HelpCenter = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState("all");
-  const [expandedFaq, setExpandedFaq] = useState(null);
-  const [activeTab, setActiveTab] = useState("faqs"); // "faqs" or "troubleshooting"
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeCategory, setActiveCategory] = useState('all')
+  const [expandedFaq, setExpandedFaq] = useState(null)
+  const [activeTab, setActiveTab] = useState('faqs') // "faqs" or "troubleshooting"
 
   // Live filter logic
   const filteredFaqs = useMemo(() => {
     return faqs.filter((faq) => {
-      const matchesCategory =
-        activeCategory === "all" || faq.category === activeCategory;
+      const matchesCategory = activeCategory === 'all' || faq.category === activeCategory
       const matchesSearch =
         !searchQuery.trim() ||
         faq.q.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        faq.a.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
-    });
-  }, [activeCategory, searchQuery]);
+        faq.a.toLowerCase().includes(searchQuery.toLowerCase())
+      return matchesCategory && matchesSearch
+    })
+  }, [activeCategory, searchQuery])
 
   const filteredGuides = useMemo(() => {
-    if (!searchQuery.trim()) return troubleshootingGuides;
+    if (!searchQuery.trim()) return troubleshootingGuides
     return troubleshootingGuides.filter(
       (guide) =>
         guide.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         guide.problem.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        guide.steps.some((step) =>
-          step.toLowerCase().includes(searchQuery.toLowerCase()),
-        ),
-    );
-  }, [searchQuery]);
+        guide.steps.some((step) => step.toLowerCase().includes(searchQuery.toLowerCase())),
+    )
+  }, [searchQuery])
 
   const toggleFaq = (index) => {
-    setExpandedFaq(expandedFaq === index ? null : index);
-  };
+    setExpandedFaq(expandedFaq === index ? null : index)
+  }
 
   return (
     <div className="min-h-screen bg-linear-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-200 transition-colors duration-300 flex flex-col font-sans select-none">
@@ -164,8 +172,8 @@ const HelpCenter = () => {
             How can we help you today?
           </h1>
           <p className="text-slate-500 dark:text-slate-400 max-w-xl mx-auto text-sm sm:text-base mb-8">
-            Search our knowledge base for setup guides, FAQs, troubleshooting
-            tips, and self-service articles.
+            Search our knowledge base for setup guides, FAQs, troubleshooting tips, and self-service
+            articles.
           </p>
 
           {/* Search Box */}
@@ -188,21 +196,21 @@ const HelpCenter = () => {
         <div className="flex justify-center border-b border-slate-200 dark:border-slate-800 mb-10">
           <div className="flex gap-8">
             <button
-              onClick={() => setActiveTab("faqs")}
+              onClick={() => setActiveTab('faqs')}
               className={`pb-4 text-base font-semibold border-b-2 transition-all cursor-pointer ${
-                activeTab === "faqs"
-                  ? "border-blue-600 text-blue-600 dark:text-blue-400"
-                  : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                activeTab === 'faqs'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
               Frequently Asked Questions
             </button>
             <button
-              onClick={() => setActiveTab("troubleshooting")}
+              onClick={() => setActiveTab('troubleshooting')}
               className={`pb-4 text-base font-semibold border-b-2 transition-all cursor-pointer ${
-                activeTab === "troubleshooting"
-                  ? "border-blue-600 text-blue-600 dark:text-blue-400"
-                  : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                activeTab === 'troubleshooting'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
               Troubleshooting Guides
@@ -211,7 +219,7 @@ const HelpCenter = () => {
         </div>
 
         {/* 1. FAQs Tab Content */}
-        {activeTab === "faqs" && (
+        {activeTab === 'faqs' && (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
             {/* Sidebar Categories Card */}
             <div className="lg:col-span-1 bg-white dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-4 h-fit space-y-1.5 shadow-xs">
@@ -219,32 +227,32 @@ const HelpCenter = () => {
                 Categories
               </h3>
               <button
-                onClick={() => setActiveCategory("all")}
+                onClick={() => setActiveCategory('all')}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-                  activeCategory === "all"
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/10"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  activeCategory === 'all'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
                 }`}
               >
                 <HelpCircle className="w-4 h-4" />
                 All FAQs
               </button>
               {faqCategories.map((cat) => {
-                const IconComponent = cat.icon;
+                const IconComponent = cat.icon
                 return (
                   <button
                     key={cat.id}
                     onClick={() => setActiveCategory(cat.id)}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
                       activeCategory === cat.id
-                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/10"
-                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
                     }`}
                   >
                     <IconComponent className="w-4 h-4" />
                     {cat.name}
                   </button>
-                );
+                )
               })}
             </div>
 
@@ -252,8 +260,8 @@ const HelpCenter = () => {
             <div className="lg:col-span-3 space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">
-                  {activeCategory === "all"
-                    ? "General Help"
+                  {activeCategory === 'all'
+                    ? 'General Help'
                     : faqCategories.find((c) => c.id === activeCategory)?.name}
                 </h2>
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full">
@@ -274,7 +282,7 @@ const HelpCenter = () => {
               ) : (
                 <div className="space-y-3">
                   {filteredFaqs.map((faq, index) => {
-                    const isOpen = expandedFaq === index;
+                    const isOpen = expandedFaq === index
                     return (
                       <div
                         key={index}
@@ -294,8 +302,8 @@ const HelpCenter = () => {
                         <div
                           className={`transition-all duration-300 ease-in-out overflow-hidden ${
                             isOpen
-                              ? "max-h-96 border-t border-slate-100 dark:border-slate-800"
-                              : "max-h-0"
+                              ? 'max-h-96 border-t border-slate-100 dark:border-slate-800'
+                              : 'max-h-0'
                           }`}
                         >
                           <div className="px-6 py-5 text-sm leading-relaxed text-slate-600 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30">
@@ -303,7 +311,7 @@ const HelpCenter = () => {
                           </div>
                         </div>
                       </div>
-                    );
+                    )
                   })}
                 </div>
               )}
@@ -312,7 +320,7 @@ const HelpCenter = () => {
         )}
 
         {/* 2. Troubleshooting Guides Tab Content */}
-        {activeTab === "troubleshooting" && (
+        {activeTab === 'troubleshooting' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">
@@ -336,15 +344,15 @@ const HelpCenter = () => {
             ) : (
               <div className="space-y-6">
                 {filteredGuides.map((guide, idx) => {
-                  const Icon = guide.icon;
+                  const Icon = guide.icon
                   const borderClass =
-                    guide.severity === "warning"
-                      ? "border-l-4 border-l-amber-500 border-slate-200 dark:border-slate-800"
-                      : "border-l-4 border-l-blue-500 border-slate-200 dark:border-slate-800";
+                    guide.severity === 'warning'
+                      ? 'border-l-4 border-l-amber-500 border-slate-200 dark:border-slate-800'
+                      : 'border-l-4 border-l-blue-500 border-slate-200 dark:border-slate-800'
                   const iconBg =
-                    guide.severity === "warning"
-                      ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
-                      : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400";
+                    guide.severity === 'warning'
+                      ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                      : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
 
                   return (
                     <div
@@ -352,9 +360,7 @@ const HelpCenter = () => {
                       className={`bg-white dark:bg-slate-900/40 rounded-2xl p-6 shadow-sm border ${borderClass} hover:shadow-lg transition-all duration-300`}
                     >
                       <div className="flex items-start gap-4 mb-4">
-                        <div
-                          className={`p-3 rounded-xl ${iconBg} flex-shrink-0`}
-                        >
+                        <div className={`p-3 rounded-xl ${iconBg} flex-shrink-0`}>
                           <Icon className="w-6 h-6" />
                         </div>
                         <div>
@@ -374,22 +380,17 @@ const HelpCenter = () => {
                         </h4>
                         <ol className="space-y-3">
                           {guide.steps.map((step, stepIdx) => (
-                            <li
-                              key={stepIdx}
-                              className="flex items-start gap-3 text-sm"
-                            >
+                            <li key={stepIdx} className="flex items-start gap-3 text-sm">
                               <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
                                 {stepIdx + 1}
                               </span>
-                              <span className="text-slate-600 dark:text-slate-300">
-                                {step}
-                              </span>
+                              <span className="text-slate-600 dark:text-slate-300">{step}</span>
                             </li>
                           ))}
                         </ol>
                       </div>
                     </div>
-                  );
+                  )
                 })}
               </div>
             )}
@@ -409,8 +410,8 @@ const HelpCenter = () => {
               Still have questions?
             </h2>
             <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base mb-8 max-w-md mx-auto">
-              If you couldn't find the answers you need in our self-service
-              center, our support team is happy to help you.
+              If you couldn't find the answers you need in our self-service center, our support team
+              is happy to help you.
             </p>
             <Link
               to="/contact"
@@ -423,7 +424,7 @@ const HelpCenter = () => {
         </section>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default HelpCenter;
+export default HelpCenter
