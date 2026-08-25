@@ -72,6 +72,7 @@ import ParticipantEngagement from "../pages/ParticipantEngagement.jsx";
 import MeetingCostDashboard from "../pages/MeetingCostDashboard.jsx";
 import ComplianceMatrixDashboard from "../pages/ComplianceMatrixDashboard.jsx";
 import ActionItemsDashboard from "../pages/ActionItemsDashboard.jsx";
+import OkrAlignmentDashboard from "../pages/OkrAlignmentDashboard.jsx";
 import WorkloadDashboard from "../pages/WorkloadDashboard.jsx";
 import MyDelegations from "../pages/MyDelegations.jsx";
 import MeetingPatterns from "../pages/MeetingPatterns.jsx";
@@ -323,6 +324,14 @@ const ProtectedRoutes = (
       element={
         <ProtectedRoute>
           <ComplianceMatrixDashboard />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/okr-alignment"
+      element={
+        <ProtectedRoute>
+          <OkrAlignmentDashboard />
         </ProtectedRoute>
       }
     />
