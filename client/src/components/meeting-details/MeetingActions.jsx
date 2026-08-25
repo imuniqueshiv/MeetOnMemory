@@ -14,6 +14,10 @@ import {
   getOutlookCalendarUrl,
 } from "../../utils/calendarExport.js";
 
+import RecordingConsentModal, {
+  hasSavedRecordingConsent,
+} from "../RecordingConsentModal.jsx";
+
 /**
  * Deadline for the post-recording transcription poll (Issue #1455).
  *
@@ -40,6 +44,9 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
   const [emailPreviewHtml, setEmailPreviewHtml] = useState("");
   const [showEmailPreview, setShowEmailPreview] = useState(false);
   const [emailPreviewLoading, setEmailPreviewLoading] = useState(false);
+
+  // Recording consent state (#2247)
+  const [showConsentModal, setShowConsentModal] = useState(false);
 
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -321,8 +328,17 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
     if (isRecording) {
       stopRecording();
     } else {
-      startRecording();
+      if (hasSavedRecordingConsent()) {
+        startRecording();
+      } else {
+        setShowConsentModal(true);
+      }
     }
+  };
+
+  const handleConsentConfirmed = () => {
+    setShowConsentModal(false);
+    startRecording();
   };
 
   useEffect(() => {
@@ -805,6 +821,13 @@ const MeetingActions = ({ meeting, onDelete, onRename }) => {
           </div>
         </div>
       )}
+      {/* Recording Consent Modal (#2247) */}
+      <RecordingConsentModal
+        isOpen={showConsentModal}
+        onClose={() => setShowConsentModal(false)}
+        onConfirm={handleConsentConfirmed}
+        actionType="record"
+      />
     </>
   );
 };

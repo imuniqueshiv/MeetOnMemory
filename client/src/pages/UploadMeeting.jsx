@@ -30,6 +30,9 @@ import RecordingSessionAnalyticsPanel from "../components/analytics/RecordingSes
 import { createClerkSocketOptions } from "../services/apiClient.js";
 
 import { hasPermission } from "../utils/rbacPermissions.js";
+import RecordingConsentModal, {
+  hasSavedRecordingConsent,
+} from "../components/RecordingConsentModal.jsx";
 
 const UploadMeeting = () => {
   const { userData, backendUrl } = useContext(AppContent);
@@ -57,11 +60,27 @@ const UploadMeeting = () => {
     formatFileSize,
   } = useMeetingUpload();
 
+  const [showConsentModal, setShowConsentModal] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summary, setSummary] = useState("");
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [processingStep, setProcessingStep] = useState(0); // 0: Idle, 1: Uploading, 2: Transcribing, 3: MoM Generation, 4: Complete
   const { exportMeeting, isExporting } = useExport();
+
+  const handleTriggerUpload = () => {
+    if (hasSavedRecordingConsent()) {
+      setProcessingStep(1);
+      handleUpload(title, setTitle, tags);
+    } else {
+      setShowConsentModal(true);
+    }
+  };
+
+  const handleConsentConfirmed = () => {
+    setShowConsentModal(false);
+    setProcessingStep(1);
+    handleUpload(title, setTitle, tags);
+  };
 
   // Form Fields
   const [meetingDate, setMeetingDate] = useState(() => {
@@ -458,10 +477,7 @@ const UploadMeeting = () => {
                 <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="flex items-center gap-3 w-full sm:w-auto justify-start order-2 sm:order-1">
                     <button
-                      onClick={() => {
-                        setProcessingStep(1);
-                        handleUpload(title, setTitle, tags);
-                      }}
+                      onClick={handleTriggerUpload}
                       disabled={isUploading || !file}
                       className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
                         isUploading || !file
@@ -718,6 +734,14 @@ const UploadMeeting = () => {
           </div>
         </div>
       </div>
+
+      {/* Recording Consent Modal (#2247) */}
+      <RecordingConsentModal
+        isOpen={showConsentModal}
+        onClose={() => setShowConsentModal(false)}
+        onConfirm={handleConsentConfirmed}
+        actionType="upload"
+      />
     </div>
   );
 };
