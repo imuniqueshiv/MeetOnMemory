@@ -62,6 +62,7 @@ import MeetingCostAnalytics from "../pages/MeetingCostAnalytics.jsx";
 import RecapScheduleDashboard from "../pages/RecapScheduleDashboard.jsx";
 import MeetingHealthDashboard from "../pages/MeetingHealthDashboard.jsx";
 import AutomationRules from "../pages/AutomationRules.jsx";
+import IpVaultDashboard from "../pages/IpVaultDashboard.jsx";
 import TopicExplorer from "../pages/TopicExplorer.jsx";
 import ConflictResolution from "../pages/ConflictResolution.jsx";
 import SpeakingTimeTrends from "../pages/SpeakingTimeTrends.jsx";
@@ -765,6 +766,14 @@ const ProtectedRoutes = (
           forbiddenFallback={<AccessDenied />}
         >
           <AdminPanel />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/ip-vault"
+      element={
+        <ProtectedRoute>
+          <IpVaultDashboard />
         </ProtectedRoute>
       }
     />
