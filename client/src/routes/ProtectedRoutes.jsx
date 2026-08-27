@@ -163,9 +163,42 @@ const AsyncMeetingsDashboard = lazy(
 );
 const MeetingPlaybooks = lazy(() => import("../pages/MeetingPlaybooks.jsx"));
 const TopicIntelligence = lazy(() => import("../pages/TopicIntelligence.jsx"));
+const LanguagePreferences = lazy(
+  () => import("../pages/LanguagePreferences.jsx"),
+);
 
 const ProtectedRoutes = (
   <React.Fragment>
+    <Route
+      path="/settings/language"
+      element={
+        <ProtectedRoute>
+          <RouteErrorBoundary>
+            <LanguagePreferences />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/language-preferences"
+      element={
+        <ProtectedRoute>
+          <RouteErrorBoundary>
+            <LanguagePreferences />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/translations/preferences"
+      element={
+        <ProtectedRoute>
+          <RouteErrorBoundary>
+            <LanguagePreferences />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
     <Route
       path="/topics/analytics"
       element={

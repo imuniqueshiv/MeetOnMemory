@@ -619,6 +619,45 @@ const Settings = () => {
             </div>
           </div>
 
+          {/* Language & Translation Preferences Section */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm fade-in-up stagger-3">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-xl">
+                <Globe className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Language & Translation
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Manage primary language, live transcription translation, and
+                  glossaries
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between py-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
+                    Language Preferences & Translation
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Configure default meeting languages, glossary mappings, and
+                    translation quality
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate("/settings/language")}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  Manage Languages
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Notification Preferences Section */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm fade-in-up stagger-4">
             <div className="flex items-center gap-3 mb-6">
