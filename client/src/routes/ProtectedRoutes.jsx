@@ -163,9 +163,32 @@ const AsyncMeetingsDashboard = lazy(
 );
 const MeetingPlaybooks = lazy(() => import("../pages/MeetingPlaybooks.jsx"));
 const TopicIntelligence = lazy(() => import("../pages/TopicIntelligence.jsx"));
+const SemanticKnowledgeGraphExplorer = lazy(
+  () => import("../pages/SemanticKnowledgeGraphExplorer.jsx"),
+);
 
 const ProtectedRoutes = (
   <React.Fragment>
+    <Route
+      path="/semantic-knowledge-graph"
+      element={
+        <ProtectedRoute>
+          <RouteErrorBoundary>
+            <SemanticKnowledgeGraphExplorer />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/knowledge-graph/semantic"
+      element={
+        <ProtectedRoute>
+          <RouteErrorBoundary>
+            <SemanticKnowledgeGraphExplorer />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
     <Route
       path="/topics/analytics"
       element={
