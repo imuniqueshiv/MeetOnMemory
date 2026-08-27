@@ -69,6 +69,7 @@ import ParticipantContributions from "../components/MeetingDetails/ParticipantCo
 import ContributionSummaryPanel from "../components/MeetingDetails/ContributionSummaryPanel";
 import MeetingCostCard from "../components/meeting-details/MeetingCostCard";
 import AbsenteeBriefingCard from "../components/meeting-details/AbsenteeBriefingCard";
+import ObserverApprovalPanel from "../components/meetings/ObserverApprovalPanel";
 import PrintMomModal from "../components/meetings/PrintMomModal.jsx";
 import ActionItemsList from "../components/actionItems/ActionItemsList";
 import { Printer } from "lucide-react";
@@ -532,6 +533,11 @@ const MeetingDetails = () => {
           />
 
           <div className="mt-6 mb-6">
+            <ObserverApprovalPanel
+              meeting={meeting}
+              currentUser={userData}
+              onMeetingUpdated={fetchMeetingDetails}
+            />
             <MeetingCostCard meetingId={meeting._id} />
             <HealthScoreCard
               meetingId={meeting._id}

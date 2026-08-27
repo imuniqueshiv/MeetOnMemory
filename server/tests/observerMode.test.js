@@ -1,61 +1,125 @@
-import { expect } from "chai";
-import sinon from "sinon";
-import * as observerController from "../controllers/observerController.js";
-import Meeting from "../models/meetingModel.js";
+import { describe, it, expect, jest, beforeEach } from "@jest/globals";
 
-describe("Observer Mode", () => {
-  afterEach(() => {
-    sinon.restore();
+const mockMeetingFindById = jest.fn();
+const mockUserFindById = jest.fn();
+const mockCreateNotification = jest.fn();
+
+jest.unstable_mockModule("../models/meetingModel.js", () => ({
+  default: {
+    findById: (...args) => mockMeetingFindById(...args),
+  },
+}));
+
+jest.unstable_mockModule("../models/userModel.js", () => ({
+  default: {
+    findById: (...args) => mockUserFindById(...args),
+  },
+}));
+
+jest.unstable_mockModule("../services/notificationService.js", () => ({
+  createNotification: (...args) => mockCreateNotification(...args),
+}));
+
+const { requestToShadow, approveShadowRequest, denyShadowRequest } =
+  await import("../controllers/observerController.js");
+
+describe("Observer Mode Controller (#2445)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
-  it("should approve a shadow request successfully", async () => {
-    const meetingMock = {
-      _id: "meeting123",
-      host: "host123",
-      participants: [{ user: "user456", role: "member" }],
-      save: sinon.stub().resolves(true),
+  it("should send a shadow request successfully", async () => {
+    const mockMeeting = {
+      _id: "m_1",
+      title: "Board Sync",
+      allowObservers: true,
+      uploadedBy: "u_host",
+      participants: [{ user: "u_host" }],
     };
 
-    sinon.stub(Meeting, "findById").resolves(meetingMock);
+    mockMeetingFindById.mockResolvedValue(mockMeeting);
+    mockUserFindById.mockResolvedValue({ _id: "u_req", name: "Requester" });
 
     const req = {
-      params: { meetingId: "meeting123", userId: "user789" },
-      user: { _id: "host123" },
+      params: { meetingId: "m_1" },
+      user: { _id: "u_req" },
     };
     const res = {
-      json: sinon.spy(),
-      status: sinon.stub().returns({ json: sinon.spy() }),
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
     };
 
-    await observerController.approveShadowRequest(req, res);
+    await requestToShadow(req, res);
 
-    expect(meetingMock.participants).to.have.lengthOf(2);
-    expect(meetingMock.participants[1].user).to.equal("user789");
-    expect(meetingMock.participants[1].role).to.equal("observer");
-    expect(meetingMock.save.calledOnce).to.be.true;
-    expect(res.json.calledOnce).to.be.true;
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(mockCreateNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "shadow_request",
+        recipient: "u_host",
+      }),
+    );
   });
 
-  it("should deny a shadow request if not host", async () => {
-    const meetingMock = {
-      _id: "meeting123",
-      host: "host123",
+  it("should approve a shadow request when caller is host", async () => {
+    const mockSave = jest.fn().mockResolvedValue(true);
+    const mockMeeting = {
+      _id: "m_1",
+      title: "Board Sync",
+      uploadedBy: "u_host",
+      participants: [{ user: "u_host" }],
+      save: mockSave,
+    };
+
+    mockMeetingFindById.mockResolvedValue(mockMeeting);
+    mockUserFindById.mockResolvedValue({
+      _id: "u_req",
+      name: "Requester",
+      email: "req@example.com",
+    });
+
+    const req = {
+      params: { meetingId: "m_1", userId: "u_req" },
+      user: { _id: "u_host" },
+    };
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    };
+
+    await approveShadowRequest(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(mockMeeting.participants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          user: "u_req",
+          role: "observer",
+        }),
+      ]),
+    );
+    expect(mockSave).toHaveBeenCalled();
+  });
+
+  it("should reject approval when caller is not the host", async () => {
+    const mockMeeting = {
+      _id: "m_1",
+      uploadedBy: "u_host",
       participants: [],
     };
 
-    sinon.stub(Meeting, "findById").resolves(meetingMock);
+    mockMeetingFindById.mockResolvedValue(mockMeeting);
 
     const req = {
-      params: { meetingId: "meeting123", userId: "user789" },
+      params: { meetingId: "m_1", userId: "u_req" },
       user: { _id: "not_the_host" },
     };
     const res = {
-      json: sinon.spy(),
-      status: sinon.stub().returns({ json: sinon.spy() }),
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
     };
 
-    await observerController.approveShadowRequest(req, res);
+    await approveShadowRequest(req, res);
 
-    expect(res.status.calledWith(403)).to.be.true;
+    expect(res.status).toHaveBeenCalledWith(403);
   });
 });
