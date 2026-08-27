@@ -16,7 +16,10 @@ const joinPaths = (mount, routePath) => {
 };
 
 const tagFromPath = (path) => {
-  const segments = path.replace(/^\/api\/?/, "").split("/").filter(Boolean);
+  const segments = path
+    .replace(/^\/api\/?/, "")
+    .split("/")
+    .filter(Boolean);
   if (segments.length === 0) return "Api";
   const first = segments[0];
   return first.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -102,8 +105,7 @@ const addOperation = (paths, tags, fullPath, method) => {
 
 export const buildOpenApiSpec = ({
   indexSource,
-  readRouteFile = (file) =>
-    readFileSync(join(routesDir, file), "utf8"),
+  readRouteFile = (file) => readFileSync(join(routesDir, file), "utf8"),
 }) => {
   const mounts = parseIndexMounts(indexSource);
   const paths = {};
@@ -131,12 +133,7 @@ export const buildOpenApiSpec = ({
     }
 
     for (const op of parseRouteOperations(routeSource)) {
-      addOperation(
-        paths,
-        tags,
-        joinPaths(mount.mountPath, op.path),
-        op.method,
-      );
+      addOperation(paths, tags, joinPaths(mount.mountPath, op.path), op.method);
     }
   }
 

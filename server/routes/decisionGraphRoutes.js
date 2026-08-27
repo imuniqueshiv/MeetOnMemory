@@ -2,6 +2,7 @@ import express from "express";
 import {
   getDecisionGraph,
   getDecisionNeighbors,
+  getDecisionDependencyMatrix,
   createDecision,
   linkDecisions,
   supersedeDecision,
@@ -19,6 +20,9 @@ router.use(requirePermission("knowledge", "view"));
 
 // Get the full decision graph for the current user's organization
 router.get("/", getDecisionGraph);
+
+// Get 2D decision dependency matrix
+router.get("/matrix", getDecisionDependencyMatrix);
 
 // Get immediate neighbors for a specific decision
 router.get("/:id/neighbors", getDecisionNeighbors);

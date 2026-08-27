@@ -1,79 +1,58 @@
-import request from "supertest";
-import mongoose from "mongoose";
-import app from "../server";
-import { connectDB, closeDB, clearDB } from "./setup";
-import Meeting from "../models/meetingModel";
-import AsyncMeeting from "../models/asyncMeetingModel";
+// server/tests/asyncMeeting.test.js
+import {
+  submitAsyncResponse,
+  convertToAsync,
+  asyncMeetings,
+  reminderJobsLog,
+} from "../controllers/asyncMeetingController";
 
-beforeAll(async () => await connectDB());
-afterEach(async () => await clearDB());
-afterAll(async () => await closeDB());
+describe("Asynchronous Meeting Lifecycle Engine", () => {
+  const sampleId = "async-881";
 
-describe("Async Meetings API", () => {
-  let userMock = {
-    _id: new mongoose.Types.ObjectId(),
-    name: "Test User",
-    email: "test@example.com",
-    clerkId: "user_test",
-  };
-
-  let meetingMock;
-
-  beforeEach(async () => {
-    meetingMock = await Meeting.create({
-      title: "Test Meeting",
-      date: new Date(),
-      uploadedBy: userMock._id,
-      participants: [
-        { user: userMock._id, name: userMock.name, role: "organizer" },
-      ],
-    });
+  beforeEach(() => {
+    delete asyncMeetings[sampleId];
+    reminderJobsLog.length = 0;
   });
 
-  it("should create an async meeting", async () => {
-    const res = await request(app)
-      .post("/api/async-meetings")
-      .set("clerk-id", userMock.clerkId)
-      .send({
-        originalMeetingId: meetingMock._id,
-        title: "Test Async Update",
-        template: ["What did you do?", "What's next?"],
-        deadline: new Date(Date.now() + 86400000).toISOString(), // 1 day
-        participants: [userMock._id.toString()],
-      });
+  test("Should block submission attempts outright when a meeting has passed its lock deadline", async () => {
+    // Inject a meeting whose deadline expired in the past
+    asyncMeetings[sampleId] = {
+      meetingId: sampleId,
+      deadline: new Date(Date.now() - 10000).toISOString(), // 10s ago
+      submissions: {},
+    };
 
-    expect(res.statusCode).toEqual(201);
-    expect(res.body.title).toEqual("Test Async Update");
-    expect(res.body.status).toEqual("pending");
+    const mockReq = {
+      params: { meetingId: sampleId },
+      body: { userId: "usr-1", responses: "Late updates" },
+    };
+    const mockRes = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+
+    await submitAsyncResponse(mockReq, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error:
+          "SUBMISSION_LOCKED: The submission deadline has passed for this asynchronous meeting.",
+      }),
+    );
   });
 
-  it("should fail to create with invalid data", async () => {
-    const res = await request(app)
-      .post("/api/async-meetings")
-      .set("clerk-id", userMock.clerkId)
-      .send({
-        title: "Missing fields",
-      });
+  test("Should schedule notification job 24 hours prior to configured target deadline", async () => {
+    const futureDate = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(); // 48 hours out
+    const mockReq = {
+      params: { meetingId: sampleId },
+      body: { deadline: futureDate, attendees: ["usr-1"] },
+    };
+    const mockRes = { status: jest.fn().mockReturnThis(), json: jest.fn() };
 
-    expect(res.statusCode).toEqual(400);
-  });
+    await convertToAsync(mockReq, mockRes);
+    expect(reminderJobsLog.length).toBe(1);
 
-  it("should fetch async meetings for user", async () => {
-    await AsyncMeeting.create({
-      originalMeetingId: meetingMock._id,
-      title: "Test Async Update",
-      creator: userMock._id,
-      participants: [userMock._id],
-      template: ["Update"],
-      deadline: new Date(),
-    });
-
-    const res = await request(app)
-      .get("/api/async-meetings")
-      .set("clerk-id", userMock.clerkId);
-
-    expect(res.statusCode).toEqual(200);
-    expect(Array.isArray(res.body)).toBeTruthy();
-    expect(res.body.length).toEqual(1);
+    const targetJobTime = new Date(reminderJobsLog[0].scheduledFor);
+    const expectedTime = new Date(
+      new Date(futureDate).getTime() - 24 * 60 * 60 * 1000,
+    );
+    expect(targetJobTime.getTime()).toBeCloseTo(expectedTime.getTime(), -2);
   });
 });

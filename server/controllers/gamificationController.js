@@ -12,7 +12,7 @@ export const getLeaderboard = async (req, res) => {
   try {
     const orgId = req.user.organization;
     const { period, team } = req.query;
-    
+
     if (!orgId) {
       return res.status(400).json({
         success: false,
@@ -36,7 +36,10 @@ export const getLeaderboard = async (req, res) => {
       const cached = await redis.get(`leaderboard:org:${orgId}`);
       if (cached) {
         // Also fetch history chart dynamically since it wasn't in cache previously
-        const historyData = await LeaderboardEngine.getFilteredLeaderboard({ orgId, period: 'all' });
+        const historyData = await LeaderboardEngine.getFilteredLeaderboard({
+          orgId,
+          period: "all",
+        });
         const data = JSON.parse(cached);
         data.historyChart = historyData.historyChart;
         return res.status(200).json({ success: true, data });
@@ -49,16 +52,22 @@ export const getLeaderboard = async (req, res) => {
     if (redis) {
       const newCached = await redis.get(`leaderboard:org:${orgId}`);
       if (newCached) {
-        const historyData = await LeaderboardEngine.getFilteredLeaderboard({ orgId, period: 'all' });
+        const historyData = await LeaderboardEngine.getFilteredLeaderboard({
+          orgId,
+          period: "all",
+        });
         const data = JSON.parse(newCached);
         data.historyChart = historyData.historyChart;
         return res.status(200).json({ success: true, data });
       }
     }
 
-    const dynamicData = await LeaderboardEngine.getFilteredLeaderboard({ orgId, period: 'all' });
+    const dynamicData = await LeaderboardEngine.getFilteredLeaderboard({
+      orgId,
+      period: "all",
+    });
     if (dynamicData) {
-       return res.status(200).json({ success: true, data: dynamicData });
+      return res.status(200).json({ success: true, data: dynamicData });
     }
 
     res

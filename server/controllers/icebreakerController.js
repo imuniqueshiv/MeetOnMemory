@@ -1,72 +1,47 @@
-import {
-  generateIcebreakers,
-  selectIcebreaker,
-} from "../services/icebreakerService.js";
+// server/controllers/icebreakerController.js
 
-export const generate = async (req, res, next) => {
-  try {
-    const { meetingId, participantIds } = req.body;
-    const organizationId = req.user.organization;
+// Mock persistent storage for session-scoped icebreaker states
+const icebreakerSessions = {};
 
-    if (!meetingId && (!participantIds || participantIds.length === 0)) {
-      return res
-        .status(400)
-        .json({ error: "meetingId or participantIds required" });
-    }
-
-    const icebreakers = await generateIcebreakers(
-      meetingId,
-      organizationId,
-      participantIds,
-    );
-    res.status(200).json({ icebreakers });
-  } catch (error) {
-    console.error("Error in icebreakerController.generate:", error);
-    next(error);
+const getSessionData = (roomId) => {
+  if (!icebreakerSessions[roomId]) {
+    icebreakerSessions[roomId] = { current: null, history: [], reactions: {} };
   }
+  return icebreakerSessions[roomId];
 };
 
-export const select = async (req, res, next) => {
-  try {
-    const { meetingId, category, promptText } = req.body;
-    const organizationId = req.user.organization;
+export const selectIcebreaker = (io, roomId, icebreakerText) => {
+  const session = getSessionData(roomId);
 
-    if (!meetingId || !category || !promptText) {
-      return res
-        .status(400)
-        .json({ error: "meetingId, category, and promptText are required" });
-    }
-
-    const icebreaker = await selectIcebreaker(
-      meetingId,
-      organizationId,
-      category,
-      promptText,
-    );
-    res.status(200).json(icebreaker);
-  } catch (error) {
-    console.error("Error in icebreakerController.select:", error);
-    next(error);
-  }
-};
-
-export const getActiveIcebreaker = async (req, res, next) => {
-  try {
-    const { meetingId } = req.params;
-    const Icebreaker = (await import("../models/icebreakerModel.js")).default;
-    const icebreaker = await Icebreaker.findOne({
-      usedInMeetings: meetingId,
-    }).sort({
-      updatedAt: -1,
+  // Push old one to history if it exists
+  if (session.current) {
+    session.history.unshift({
+      text: session.current,
+      timestamp: new Date(),
+      reactions: { ...session.reactions },
     });
-
-    if (icebreaker) {
-      res.status(200).json({ icebreaker });
-    } else {
-      res.status(404).json({ message: "No active icebreaker found" });
-    }
-  } catch (error) {
-    console.error("Error fetching active icebreaker:", error);
-    next(error);
   }
+
+  // Set new state
+  session.current = icebreakerText;
+  session.reactions = { "🔥": 0, "😂": 0, "❤️": 0, "🙌": 0 };
+
+  // Broadcast updated live state to everyone in the room
+  io.to(roomId).emit("icebreaker:sync", {
+    current: session.current,
+    history: session.history,
+    reactions: session.reactions,
+  });
+};
+
+export const handleIcebreakerReaction = (io, roomId, emoji) => {
+  const session = getSessionData(roomId);
+  if (session.reactions[emoji] !== undefined) {
+    session.reactions[emoji] += 1;
+  }
+
+  // Broadcast dynamic live feedback delta
+  io.to(roomId).emit("icebreaker:reaction_update", {
+    reactions: session.reactions,
+  });
 };

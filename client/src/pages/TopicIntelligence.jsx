@@ -1,10 +1,15 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useContext } from "react";
 import {
   useTopicDashboard,
   useOrphanedTopics,
   useCoOccurrenceGraph,
   useGenerateBriefing,
+  usePinTopic,
+  useHideTopic,
+  useMergeTopics,
 } from "../hooks/useTopicIntelligence";
+import AppContent from "../context/AppContent";
+import { exportTopicIntelligence } from "../api/topicIntelligenceApi";
 import ForceGraph2D from "react-force-graph-2d";
 import {
   LineChart,
@@ -14,8 +19,6 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
 } from "recharts";
 import {
   AlertCircle,
@@ -24,7 +27,14 @@ import {
   Minus,
   BookOpen,
   Loader2,
+  Pin,
+  Star,
+  Eye,
+  EyeOff,
+  GitMerge,
+  Download,
 } from "lucide-react";
+import { toast } from "react-toastify";
 
 const TrendIcon = ({ trend }) => {
   if (trend === "rising")
@@ -35,16 +45,39 @@ const TrendIcon = ({ trend }) => {
 };
 
 export default function TopicIntelligence() {
-  const { data: dashboardData, isLoading: dashboardLoading } =
-    useTopicDashboard();
-  const { data: orphanedData, isLoading: orphanedLoading } =
-    useOrphanedTopics();
-  const { data: graphData, isLoading: graphLoading } = useCoOccurrenceGraph();
+  const { userData } = useContext(AppContent) || {};
+  const isCurator = userData?.role === "owner" || userData?.role === "admin";
+
+  const [includeHidden, setIncludeHidden] = useState(false);
+  const [selectedTopicId, setSelectedTopicId] = useState(null);
+  const [briefing, setBriefing] = useState("");
+
+  // Modal target state
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [sourceTopicId, setSourceTopicId] = useState("");
+  const [targetTopicId, setTargetTopicId] = useState("");
+
+  const {
+    data: dashboardData,
+    isLoading: dashboardLoading,
+    refetch: refetchDashboard,
+  } = useTopicDashboard(includeHidden);
+  const {
+    data: orphanedData,
+    isLoading: orphanedLoading,
+    refetch: refetchOrphaned,
+  } = useOrphanedTopics();
+  const {
+    data: graphData,
+    isLoading: graphLoading,
+    refetch: refetchGraph,
+  } = useCoOccurrenceGraph(includeHidden);
   const { mutate: generateBriefing, isPending: briefingLoading } =
     useGenerateBriefing();
 
-  const [selectedTopicId, setSelectedTopicId] = useState(null);
-  const [briefing, setBriefing] = useState("");
+  const { mutate: pinTopicMutate } = usePinTopic();
+  const { mutate: hideTopicMutate } = useHideTopic();
+  const { mutate: mergeTopicsMutate } = useMergeTopics();
 
   const handleNodeClick = useCallback((node) => {
     setSelectedTopicId(node.id);
@@ -59,11 +92,94 @@ export default function TopicIntelligence() {
     });
   };
 
+  const handlePinToggle = (clusterId, currentPinned) => {
+    pinTopicMutate(
+      { clusterId, isPinned: !currentPinned },
+      {
+        onSuccess: () => {
+          toast.success(
+            `Topic ${!currentPinned ? "pinned" : "unpinned"} successfully`,
+          );
+          refetchDashboard();
+          refetchGraph();
+        },
+        onError: (err) => {
+          toast.error(
+            err.response?.data?.message || "Failed to update pin status",
+          );
+        },
+      },
+    );
+  };
+
+  const handleHideToggle = (clusterId, currentHidden) => {
+    hideTopicMutate(
+      { clusterId, isHidden: !currentHidden },
+      {
+        onSuccess: () => {
+          toast.success(
+            `Topic ${!currentHidden ? "hidden" : "unhidden"} successfully`,
+          );
+          refetchDashboard();
+          refetchGraph();
+        },
+        onError: (err) => {
+          toast.error(
+            err.response?.data?.message || "Failed to update hidden status",
+          );
+        },
+      },
+    );
+  };
+
+  const handleMerge = () => {
+    if (!sourceTopicId || !targetTopicId) {
+      toast.error("Please select both source and target topics");
+      return;
+    }
+    if (sourceTopicId === targetTopicId) {
+      toast.error("Source and Target topics cannot be the same");
+      return;
+    }
+    mergeTopicsMutate(
+      { sourceClusterId: sourceTopicId, targetClusterId: targetTopicId },
+      {
+        onSuccess: () => {
+          toast.success("Topics merged successfully");
+          setShowMergeModal(false);
+          setSourceTopicId("");
+          setTargetTopicId("");
+          refetchDashboard();
+          refetchGraph();
+          refetchOrphaned();
+          setSelectedTopicId(null);
+        },
+        onError: (err) => {
+          toast.error(err.response?.data?.message || "Failed to merge topics");
+        },
+      },
+    );
+  };
+
+  const handleExport = async (format) => {
+    try {
+      const blob = await exportTopicIntelligence(format);
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `topic_intelligence.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      toast.success(`Topic intelligence exported as ${format.toUpperCase()}`);
+    } catch {
+      toast.error("Failed to export topic intelligence");
+    }
+  };
+
   const formattedHeatmapData = useMemo(() => {
     if (!dashboardData?.trends) return [];
 
-    // We want weeks as X-axis and topics as Y-axis, or vice versa.
-    // For simplicity, let's create a list of weeks, and each week has counts per topic.
     const weeksSet = new Set();
     dashboardData.trends.forEach((t) => {
       t.history.forEach((h) => weeksSet.add(h.weekStarting));
@@ -103,6 +219,55 @@ export default function TopicIntelligence() {
           meetings.
         </p>
       </header>
+
+      {/* Curator Control Panel */}
+      {isCurator && (
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-150 flex flex-wrap gap-4 items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
+              Curator Control
+            </span>
+            <label className="flex items-center space-x-2 text-sm text-gray-600 font-medium cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeHidden}
+                onChange={(e) => setIncludeHidden(e.target.checked)}
+                className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+              />
+              <span>Show Hidden Topics</span>
+            </label>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowMergeModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition cursor-pointer shadow-sm border-0"
+            >
+              <GitMerge size={16} />
+              Merge Topics
+            </button>
+            <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-gray-50 shadow-sm">
+              <span className="text-xs text-gray-500 font-bold px-3 py-2 border-r border-gray-200">
+                Export
+              </span>
+              <button
+                onClick={() => handleExport("json")}
+                className="flex items-center gap-1 px-3 py-2 hover:bg-gray-100 text-gray-700 text-xs font-semibold transition cursor-pointer border-0"
+              >
+                <Download size={14} />
+                JSON
+              </button>
+              <button
+                onClick={() => handleExport("csv")}
+                className="flex items-center gap-1 px-3 py-2 hover:bg-gray-100 text-gray-700 text-xs font-semibold border-l border-gray-200 transition cursor-pointer border-0"
+              >
+                <Download size={14} />
+                CSV
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {orphanedData?.orphanedTopics?.length > 0 && (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md shadow-sm">
@@ -177,15 +342,56 @@ export default function TopicIntelligence() {
               >
                 <div className="flex items-center space-x-3">
                   <TrendIcon trend={trend.currentTrend} />
-                  <span className="font-medium text-gray-700">
+                  <span
+                    className={`font-medium ${trend.isHidden ? "text-gray-400 line-through" : "text-gray-700"}`}
+                  >
                     {trend.label}
                   </span>
+                  {trend.isPinned && (
+                    <span className="text-[10px] bg-blue-100 text-blue-600 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                      <Star size={10} fill="currentColor" /> Pinned
+                    </span>
+                  )}
+                  {trend.isHidden && (
+                    <span className="text-[10px] bg-gray-100 text-gray-500 font-bold px-1.5 py-0.5 rounded-full">
+                      Hidden
+                    </span>
+                  )}
                 </div>
-                <div className="text-sm text-gray-500">
+                <div className="flex items-center gap-2">
                   {trend.isOrphaned && (
                     <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full mr-2">
                       Orphaned
                     </span>
+                  )}
+                  {isCurator && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() =>
+                          handlePinToggle(trend.clusterId, trend.isPinned)
+                        }
+                        className={`p-1.5 rounded hover:bg-gray-100 transition cursor-pointer border-0 ${trend.isPinned ? "text-amber-500" : "text-gray-400 hover:text-gray-600"}`}
+                        title={trend.isPinned ? "Unpin Topic" : "Pin Topic"}
+                      >
+                        <Star
+                          size={16}
+                          fill={trend.isPinned ? "currentColor" : "none"}
+                        />
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleHideToggle(trend.clusterId, trend.isHidden)
+                        }
+                        className={`p-1.5 rounded hover:bg-gray-100 transition cursor-pointer border-0 ${trend.isHidden ? "text-red-500" : "text-gray-400 hover:text-gray-600"}`}
+                        title={trend.isHidden ? "Unhide Topic" : "Hide Topic"}
+                      >
+                        {trend.isHidden ? (
+                          <EyeOff size={16} />
+                        ) : (
+                          <Eye size={16} />
+                        )}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -211,7 +417,13 @@ export default function TopicIntelligence() {
               <ForceGraph2D
                 graphData={graphData}
                 nodeLabel="label"
-                nodeColor={() => "#3b82f6"}
+                nodeColor={(node) =>
+                  node.isPinned
+                    ? "#f59e0b"
+                    : node.isHidden
+                      ? "#cbd5e1"
+                      : "#3b82f6"
+                }
                 nodeRelSize={6}
                 linkColor={() => "#cbd5e1"}
                 linkWidth={(link) => Math.sqrt(link.weight || 1)}
@@ -261,7 +473,7 @@ export default function TopicIntelligence() {
                 <button
                   onClick={() => handleGenerateBriefing(selectedTopicId)}
                   disabled={briefingLoading}
-                  className="w-full py-2 px-4 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors font-medium shadow-sm"
+                  className="w-full py-2 px-4 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors font-medium shadow-sm border-0"
                 >
                   Generate AI Briefing
                 </button>
@@ -274,6 +486,78 @@ export default function TopicIntelligence() {
           </div>
         </div>
       </div>
+
+      {/* Merge Topics Modal */}
+      {showMergeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-gray-100">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              Merge Topics
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Combine two topics into one. All meeting references, occurrence
+              statistics, and related connections will be merged into the target
+              topic, and the source topic will be deleted.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                  Source Topic (to be deleted)
+                </label>
+                <select
+                  value={sourceTopicId}
+                  onChange={(e) => setSourceTopicId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                >
+                  <option value="">Select source topic...</option>
+                  {dashboardData?.trends?.map((t) => (
+                    <option key={t.clusterId} value={t.clusterId}>
+                      {t.label} {t.isHidden ? "(Hidden)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                  Target Topic (to keep)
+                </label>
+                <select
+                  value={targetTopicId}
+                  onChange={(e) => setTargetTopicId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                >
+                  <option value="">Select target topic...</option>
+                  {dashboardData?.trends
+                    ?.filter((t) => t.clusterId !== sourceTopicId)
+                    ?.map((t) => (
+                      <option key={t.clusterId} value={t.clusterId}>
+                        {t.label} {t.isHidden ? "(Hidden)" : ""}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
+              <button
+                onClick={() => {
+                  setShowMergeModal(false);
+                  setSourceTopicId("");
+                  setTargetTopicId("");
+                }}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold transition cursor-pointer border-0"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMerge}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition cursor-pointer shadow-sm border-0"
+              >
+                Confirm Merge
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -79,3 +79,10 @@ export const supersedeDecision = async (id, { targetId } = {}) => {
   });
   return response.data;
 };
+
+export const getDecisionDependencyMatrix = async (params = {}) => {
+  const response = await apiClient.get("/api/decision-graph/matrix", {
+    params,
+  });
+  return response.data;
+};

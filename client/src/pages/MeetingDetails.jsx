@@ -63,6 +63,7 @@ import ResourceConflictsPanel from "../components/meeting-details/ResourceConfli
 import SkillEndorsementModal from "../components/meetings/SkillEndorsementModal";
 import DebriefQAPanel from "../components/meetings/DebriefQAPanel";
 import DelegationPanel from "../components/meetings/DelegationPanel";
+import MeetingNudgesTab from "../components/meeting-details/MeetingNudgesTab.jsx";
 import ConvertToAsyncModal from "../components/meetings/ConvertToAsyncModal";
 import ParticipantContributions from "../components/MeetingDetails/ParticipantContributions";
 import ContributionSummaryPanel from "../components/MeetingDetails/ContributionSummaryPanel";
@@ -513,6 +514,13 @@ const MeetingDetails = () => {
           </div>
           <AbsenteeBriefingCard meetingId={meeting._id} />
           <MeetingSummary meeting={meeting} />
+
+          <div className="mt-6 mb-6">
+            <MeetingNudgesTab
+              meetingId={meeting._id}
+              isOrganizer={isOrganizer}
+            />
+          </div>
 
           <RetentionQuizSection
             meeting={meeting}

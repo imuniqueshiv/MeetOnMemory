@@ -50,6 +50,11 @@ const meetingSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Meeting nudge automation setting (Issue #2062)
+    nudgesEnabled: {
+      type: Boolean,
+      default: true,
+    },
     duration: {
       type: Number, // Duration in minutes
       default: null,

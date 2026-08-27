@@ -1,5 +1,4 @@
 import GamificationScore from "../models/gamificationScoreModel.js";
-import User from "../models/userModel.js";
 import mongoose from "mongoose";
 
 class LeaderboardEngine {
@@ -13,9 +12,17 @@ class LeaderboardEngine {
     let startDate = null;
     const now = new Date();
     if (period === "week") {
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+      startDate = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - 7,
+      );
     } else if (period === "month") {
-      startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      startDate = new Date(
+        now.getFullYear(),
+        now.getMonth() - 1,
+        now.getDate(),
+      );
     }
 
     const matchStage = { organization: new mongoose.Types.ObjectId(orgId) };
@@ -27,15 +34,15 @@ class LeaderboardEngine {
           from: "users",
           localField: "user",
           foreignField: "_id",
-          as: "userDetails"
-        }
+          as: "userDetails",
+        },
       },
-      { $unwind: "$userDetails" }
+      { $unwind: "$userDetails" },
     ];
 
     if (team) {
       pipeline.push({
-        $match: { "userDetails.team": team }
+        $match: { "userDetails.team": team },
       });
     }
 
@@ -46,10 +53,10 @@ class LeaderboardEngine {
             $filter: {
               input: "$history",
               as: "entry",
-              cond: { $gte: ["$$entry.timestamp", startDate] }
-            }
-          }
-        }
+              cond: { $gte: ["$$entry.timestamp", startDate] },
+            },
+          },
+        },
       });
       pipeline.push({
         $addFields: {
@@ -57,21 +64,21 @@ class LeaderboardEngine {
             $reduce: {
               input: "$filteredHistory",
               initialValue: 0,
-              in: { $add: ["$$value", "$$this.pointsAwarded"] }
-            }
-          }
-        }
+              in: { $add: ["$$value", "$$this.pointsAwarded"] },
+            },
+          },
+        },
       });
     } else {
       pipeline.push({
         $addFields: {
-          calculatedPoints: "$totalPoints"
-        }
+          calculatedPoints: "$totalPoints",
+        },
       });
     }
 
     pipeline.push({
-      $sort: { calculatedPoints: -1 }
+      $sort: { calculatedPoints: -1 },
     });
 
     const allScores = await GamificationScore.aggregate(pipeline);
@@ -81,13 +88,16 @@ class LeaderboardEngine {
     const totalUsers = allScores.length;
 
     // Ascending sort for percentiles
-    const ascendingScores = [...allScores].sort((a, b) => a.calculatedPoints - b.calculatedPoints);
+    const ascendingScores = [...allScores].sort(
+      (a, b) => a.calculatedPoints - b.calculatedPoints,
+    );
     ascendingScores.forEach((doc, index) => {
-      const percentile = totalUsers > 1 ? Math.floor((index / (totalUsers - 1)) * 100) : 100;
+      const percentile =
+        totalUsers > 1 ? Math.floor((index / (totalUsers - 1)) * 100) : 100;
       percentiles[doc.user.toString()] = percentile;
     });
 
-    const top10 = allScores.slice(0, 10).map(doc => ({
+    const top10 = allScores.slice(0, 10).map((doc) => ({
       _id: doc._id,
       user: {
         _id: doc.userDetails._id,
@@ -100,7 +110,11 @@ class LeaderboardEngine {
 
     // History View (Chart Data): Let's calculate daily points for the organization/team over the last 30 days
     // This allows the frontend to show a timeline graph of gamification activity.
-    const historyChartStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+    const historyChartStartDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - 30,
+    );
     const historyPipeline = [
       { $match: matchStage },
       {
@@ -108,10 +122,10 @@ class LeaderboardEngine {
           from: "users",
           localField: "user",
           foreignField: "_id",
-          as: "userDetails"
-        }
+          as: "userDetails",
+        },
       },
-      { $unwind: "$userDetails" }
+      { $unwind: "$userDetails" },
     ];
     if (team) {
       historyPipeline.push({ $match: { "userDetails.team": team } });
@@ -122,22 +136,25 @@ class LeaderboardEngine {
       {
         $group: {
           _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$history.timestamp" }
+            $dateToString: { format: "%Y-%m-%d", date: "$history.timestamp" },
           },
-          dailyPoints: { $sum: "$history.pointsAwarded" }
-        }
+          dailyPoints: { $sum: "$history.pointsAwarded" },
+        },
       },
-      { $sort: { _id: 1 } }
+      { $sort: { _id: 1 } },
     );
 
     const historyData = await GamificationScore.aggregate(historyPipeline);
-    const historyChart = historyData.map(d => ({ date: d._id, points: d.dailyPoints }));
+    const historyChart = historyData.map((d) => ({
+      date: d._id,
+      points: d.dailyPoints,
+    }));
 
     return {
       top10,
       percentiles,
       historyChart,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
   }
 }
