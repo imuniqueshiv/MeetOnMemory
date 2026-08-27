@@ -163,9 +163,32 @@ const AsyncMeetingsDashboard = lazy(
 );
 const MeetingPlaybooks = lazy(() => import("../pages/MeetingPlaybooks.jsx"));
 const TopicIntelligence = lazy(() => import("../pages/TopicIntelligence.jsx"));
+const DecisionTrackingDashboard = lazy(
+  () => import("../pages/DecisionTrackingDashboard.jsx"),
+);
 
 const ProtectedRoutes = (
   <React.Fragment>
+    <Route
+      path="/decisions/tracking"
+      element={
+        <ProtectedRoute>
+          <RouteErrorBoundary>
+            <DecisionTrackingDashboard />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/decision-tracking"
+      element={
+        <ProtectedRoute>
+          <RouteErrorBoundary>
+            <DecisionTrackingDashboard />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
     <Route
       path="/topics/analytics"
       element={
