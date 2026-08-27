@@ -40,6 +40,7 @@ import {
   getSnapshotDiff,
   createManualSnapshot,
 } from "../controllers/graphSnapshotController.js";
+import { getEnterpriseOkrAlignmentTelemetryController } from "../controllers/okrAlignmentTelemetryController.js";
 
 const router = express.Router();
 router.use(apiLimiter);
@@ -222,6 +223,14 @@ router.post(
   requireOrgMembership,
   requirePermission("knowledge", "resolve_conflicts"),
   resolveConflict,
+);
+
+// --- Enterprise Telemetry & Analytics ---
+router.get(
+  "/analytics/okr-alignment",
+  requireOrgMembership,
+  requirePermission("knowledge", "view"),
+  getEnterpriseOkrAlignmentTelemetryController,
 );
 
 export default router;

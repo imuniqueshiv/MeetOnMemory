@@ -54,6 +54,9 @@ const MemoryConsolidation = lazy(
   () => import("../pages/MemoryConsolidation.jsx"),
 );
 const MemoryLifecycle = lazy(() => import("../pages/MemoryLifecycle.jsx"));
+const EnterpriseOkrAlignmentTelemetry = lazy(
+  () => import("../pages/EnterpriseOkrAlignmentTelemetry.jsx"),
+);
 const KnowledgeArchive = lazy(() => import("../pages/KnowledgeArchive.jsx"));
 const GraphSnapshots = lazy(() => import("../pages/GraphSnapshots.jsx"));
 const KnowledgeGraph = lazy(() => import("../pages/KnowledgeGraph.jsx"));
@@ -855,6 +858,14 @@ const ProtectedRoutes = (
       element={
         <ProtectedRoute resource="reports" action="view">
           <MeetingHealthDashboard />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/okr-alignment-telemetry"
+      element={
+        <ProtectedRoute resource="reports" action="view">
+          <EnterpriseOkrAlignmentTelemetry />
         </ProtectedRoute>
       }
     />

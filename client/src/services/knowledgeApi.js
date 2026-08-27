@@ -129,14 +129,15 @@ export const knowledgeApi = {
     ),
   getConflictDetail: (conflictId) =>
     apiClient.get(`/api/knowledge/conflicts/${conflictId}`),
-  resolveConflict: (
-    conflictId,
-    { resolutionType, keptMemoryId, customValue, note },
-  ) =>
+  resolveConflict: (conflictId, { resolutionType, note }) =>
     apiClient.post(`/api/knowledge/conflicts/${conflictId}/resolve`, {
       resolutionType,
-      ...(keptMemoryId ? { keptMemoryId } : {}),
-      ...(customValue ? { customValue } : {}),
       ...(note ? { note } : {}),
     }),
+  getMemoryTelemetry: (timeframe = "30d") =>
+    apiClient.get(`/api/knowledge/analytics/telemetry?timeframe=${timeframe}`),
+  getOkrAlignmentTelemetry: (timeframe = "30d") =>
+    apiClient.get(
+      `/api/knowledge/analytics/okr-alignment?timeframe=${timeframe}`,
+    ),
 };
