@@ -18,6 +18,7 @@ import { validateRedirect } from "../utils/validateRedirect.js";
 import { io } from "socket.io-client";
 import { createClerkSocketOptions } from "../services/apiClient.js";
 import LanguageSwitcher from "./LanguageSwitcher.jsx";
+import ThemeToggle from "./ThemeToggle.jsx";
 import BrandLogo from "./branding/BrandLogo.jsx";
 import PwaInstallButton from "./pwa/PwaInstallButton.jsx";
 import { useUser } from "@clerk/clerk-react";
@@ -638,23 +639,7 @@ const Navbar = () => {
             <LanguageSwitcher />
 
             {/* Theme Toggle Button */}
-            <button
-              onClick={toggleTheme}
-              className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-              aria-label={
-                mounted
-                  ? theme === "light"
-                    ? t("navbar.switchToDark")
-                    : t("navbar.switchToLight")
-                  : t("navbar.toggleTheme")
-              }
-            >
-              {mounted && theme === "light" ? (
-                <Moon className="w-5 h-5" />
-              ) : (
-                <Sun className="w-5 h-5" />
-              )}
-            </button>
+            <ThemeToggle showLabel={false} />
 
             {userData ? (
               <>
