@@ -2,7 +2,10 @@ import {
   getPersonalNudges,
   updateNudgeStatus,
   getMeetingReadiness,
+  previewMeetingNudges,
+  triggerMeetingNudges,
 } from "../services/meetingNudgeService.js";
+import Meeting from "../models/meetingModel.js";
 
 export const getMyNudges = async (req, res) => {
   try {
@@ -42,5 +45,62 @@ export const getReadiness = async (req, res) => {
     res
       .status(500)
       .json({ message: "Failed to fetch readiness", error: err.message });
+  }
+};
+
+/**
+ * Preview upcoming nudges for organizers (Issue #2062)
+ */
+export const getMeetingNudgesPreview = async (req, res) => {
+  try {
+    const preview = await previewMeetingNudges(req.params.meetingId);
+    res.json({ success: true, ...preview });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Failed to preview nudges", error: err.message });
+  }
+};
+
+/**
+ * Trigger manual test dispatch of nudges (Issue #2062)
+ */
+export const triggerMeetingNudgesManual = async (req, res) => {
+  try {
+    const result = await triggerMeetingNudges(
+      req.params.meetingId,
+      req.user._id,
+    );
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Failed to trigger nudges", error: err.message });
+  }
+};
+
+/**
+ * Update meeting nudge automation settings (Issue #2062)
+ */
+export const updateMeetingNudgeSettings = async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    const meeting = await Meeting.findByIdAndUpdate(
+      req.params.meetingId,
+      { nudgesEnabled: Boolean(enabled) },
+      { new: true },
+    );
+    if (!meeting) {
+      return res.status(404).json({ message: "Meeting not found" });
+    }
+    res.json({
+      success: true,
+      nudgesEnabled: meeting.nudgesEnabled,
+      message: `Nudge automation ${meeting.nudgesEnabled ? "enabled" : "disabled"} for this meeting.`,
+    });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Failed to update nudge settings", error: err.message });
   }
 };

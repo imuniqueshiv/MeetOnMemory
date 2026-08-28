@@ -105,9 +105,12 @@ describe("TestimonialsSection", () => {
     );
 
     await waitFor(() => {
-      expect(apiClient.get).toHaveBeenCalledWith("/api/testimonials", {
-        params: { limit: 12, page: 1 },
-      });
+      expect(apiClient.get).toHaveBeenCalledWith(
+        "/api/testimonials/spotlight",
+        {
+          params: { limit: 12 },
+        },
+      );
     });
 
     expect(await screen.findByText("Share Your Experience")).toBeTruthy();

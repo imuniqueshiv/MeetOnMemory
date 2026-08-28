@@ -12,12 +12,35 @@ vi.mock("../../components/MeetingSentimentChart", () => ({
   default: () => <div data-testid="mock-sentiment-chart">Sentiment Chart</div>,
 }));
 
+vi.mock("../../components/meeting-details/SpeakerAttribution", () => ({
+  default: () => null,
+}));
+
+vi.mock("../../components/meeting-details/TranscriptTimelineScrubber", () => ({
+  default: ({ meeting, transcript }) => (
+    <div
+      data-testid="mock-transcript-scrubber"
+      data-has-media={
+        meeting?.fileUrl || meeting?.audioFilePath || transcript?.audioFilePath
+          ? "yes"
+          : "no"
+      }
+    >
+      Scrubber
+    </div>
+  ),
+}));
+
 vi.mock("../../services/apiClient.js", () => ({
   default: {
     get: vi.fn(),
     post: vi.fn(),
+    patch: vi.fn(),
+    put: vi.fn(),
   },
 }));
+
+import AppContent from "../../context/AppContent.js";
 
 vi.mock("react-toastify", () => ({
   toast: {
@@ -98,6 +121,22 @@ describe("TranscriptViewer Page (#1805)", () => {
     ).toBeInTheDocument();
   });
 
+  it("mounts transcript timeline scrubber (#2252)", async () => {
+    api.get.mockResolvedValueOnce({
+      data: {
+        ...sampleTranscriptData,
+        meeting: {
+          ...sampleTranscriptData.meeting,
+          fileUrl: "recordings/design.mp3",
+        },
+      },
+    });
+    render(<TranscriptViewer />);
+
+    const scrubber = await screen.findByTestId("mock-transcript-scrubber");
+    expect(scrubber).toHaveAttribute("data-has-media", "yes");
+  });
+
   it("searches transcript using /api/transcripts/meeting/:meetingId/search route prefix", async () => {
     api.get.mockResolvedValueOnce({ data: sampleTranscriptData });
     api.post.mockResolvedValueOnce({
@@ -173,6 +212,140 @@ describe("TranscriptViewer Page (#1805)", () => {
         "/api/transcripts/meeting/meeting-789/export/pdf",
         { responseType: "blob" },
       );
+    });
+  });
+
+  describe("Inline Segment Editing (#2251)", () => {
+    const mockAdminContext = {
+      userData: { _id: "admin_123", role: "admin" },
+    };
+    const mockGuestContext = {
+      userData: { _id: "guest_123", role: "guest" },
+    };
+
+    it("renders edit button for authorized users and opens inline editor", async () => {
+      api.get.mockResolvedValueOnce({ data: sampleTranscriptData });
+
+      render(
+        <AppContent.Provider value={mockAdminContext}>
+          <TranscriptViewer />
+        </AppContent.Provider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Design Review")).toBeInTheDocument();
+      });
+
+      const editBtns = screen.getAllByRole("button", { name: /edit segment/i });
+      expect(editBtns.length).toBe(2);
+
+      // Click first edit button
+      fireEvent.click(editBtns[0]);
+
+      expect(screen.getByText("Editing Segment #1")).toBeInTheDocument();
+      expect(
+        screen.getByDisplayValue("Welcome everyone to the meeting."),
+      ).toBeInTheDocument();
+      expect(screen.getByDisplayValue("00:00")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("00:10")).toBeInTheDocument();
+    });
+
+    it("saves segment text and timestamps via API and updates UI optimistically", async () => {
+      api.get.mockResolvedValueOnce({ data: sampleTranscriptData });
+      api.patch.mockResolvedValueOnce({
+        data: {
+          success: true,
+          message: "Transcript segment updated successfully",
+        },
+      });
+
+      render(
+        <AppContent.Provider value={mockAdminContext}>
+          <TranscriptViewer />
+        </AppContent.Provider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Design Review")).toBeInTheDocument();
+      });
+
+      const editBtns = screen.getAllByRole("button", { name: /edit segment/i });
+      fireEvent.click(editBtns[0]);
+
+      const textarea = screen.getByDisplayValue(
+        "Welcome everyone to the meeting.",
+      );
+      fireEvent.change(textarea, {
+        target: { value: "Updated welcome text from Alice." },
+      });
+
+      const startInput = screen.getByDisplayValue("00:00");
+      fireEvent.change(startInput, { target: { value: "00:02" } });
+
+      const saveBtn = screen.getByRole("button", { name: /save changes/i });
+      fireEvent.click(saveBtn);
+
+      await waitFor(() => {
+        expect(api.patch).toHaveBeenCalledWith(
+          "/api/transcripts/meeting-789/segments/0",
+          {
+            text: "Updated welcome text from Alice.",
+            startTime: 2,
+            endTime: 10,
+          },
+        );
+      });
+
+      // Assert optimistic update
+      expect(
+        screen.getByText("Updated welcome text from Alice."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Edited")).toBeInTheDocument();
+    });
+
+    it("cancels segment editing and restores original view", async () => {
+      api.get.mockResolvedValueOnce({ data: sampleTranscriptData });
+
+      render(
+        <AppContent.Provider value={mockAdminContext}>
+          <TranscriptViewer />
+        </AppContent.Provider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Design Review")).toBeInTheDocument();
+      });
+
+      const editBtns = screen.getAllByRole("button", { name: /edit segment/i });
+      fireEvent.click(editBtns[0]);
+
+      const cancelBtn = screen.getByRole("button", { name: /cancel/i });
+      fireEvent.click(cancelBtn);
+
+      expect(screen.queryByText("Editing Segment #1")).not.toBeInTheDocument();
+      expect(
+        screen.getByText("Welcome everyone to the meeting."),
+      ).toBeInTheDocument();
+      expect(api.patch).not.toHaveBeenCalled();
+    });
+
+    it("hides edit buttons for unauthorized users", async () => {
+      api.get.mockResolvedValueOnce({ data: sampleTranscriptData });
+
+      render(
+        <AppContent.Provider value={mockGuestContext}>
+          <TranscriptViewer />
+        </AppContent.Provider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Design Review")).toBeInTheDocument();
+      });
+
+      const editBtns = screen.queryAllByRole("button", {
+        name: /edit segment/i,
+      });
+      expect(editBtns.length).toBe(0);
     });
   });
 });

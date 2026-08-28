@@ -1,5 +1,10 @@
 # Risks
 
+> [!WARNING]
+> **ARCHIVED / HISTORICAL DOCUMENTATION**  
+> The Clerk authentication migration has been fully completed. Clerk is now the sole identity provider for MeetOnMemory.  
+> For current contributor setup and development instructions, please refer to [AUTH_CONTRIBUTOR_RUNBOOK.md](../AUTH_CONTRIBUTOR_RUNBOOK.md).
+
 | ID  | Risk                                             | Rank         | Mitigation                                                                        | Rollback                             | Monitoring                                         | Owner                     |
 | --- | ------------------------------------------------ | ------------ | --------------------------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------- | ------------------------- |
 | R1  | Email mismatch creates duplicate Mongo users     | **Critical** | Normalized email upsert; unique email + sparse `clerkUserId`; linking transaction | Disable Clerk signup; legacy login   | Count users with null `clerkUserId` vs Clerk total | Maintainer / Phase 6 lead |

@@ -5,6 +5,7 @@ import {
   getCostAnalytics,
   getMemberAnalytics,
   exportCostReport,
+  getMeetingCostDetails,
 } from "../controllers/meetingCostController.js";
 import userAuth from "../middleware/userAuth.js";
 import {
@@ -12,6 +13,8 @@ import {
   requireOrgMembership,
   requirePermission,
 } from "../middleware/rbac.js";
+
+import { getEnterpriseCostResourceEngineController } from "../controllers/enterpriseCostResourceEngineController.js";
 
 const router = express.Router();
 
@@ -22,6 +25,16 @@ router
   .route("/config")
   .get(requireAdminOrOwner, getConfig)
   .put(requireAdminOrOwner, updateConfig);
+
+// Meeting specific cost and ROI
+router.get("/meeting/:meetingId", getMeetingCostDetails);
+
+// Enterprise Meeting Cost & Resource Engine
+router.get(
+  "/enterprise-engine",
+  requireOrgMembership,
+  getEnterpriseCostResourceEngineController,
+);
 
 // Analytics endpoints
 router.get("/analytics/org", getCostAnalytics);

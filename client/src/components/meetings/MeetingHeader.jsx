@@ -13,6 +13,8 @@ import {
   BarChart3,
   Timer,
   ShieldAlert,
+  PenTool,
+  BookOpen,
 } from "lucide-react";
 
 export default function MeetingHeader({
@@ -26,7 +28,8 @@ export default function MeetingHeader({
   toggleTranscription,
   userRole: propUserRole,
 }) {
-  const { userData } = useContext(AppContent);
+  const appContext = useContext(AppContent) || {};
+  const userData = appContext.userData;
   const userRole = propUserRole || userData?.role || "member";
   const isViewerOrGuest = userRole === "viewer" || userRole === "guest";
   const formatTime = (seconds) => {
@@ -42,6 +45,9 @@ export default function MeetingHeader({
   const isBreakoutRoomsOpen = activePanel === "breakoutRooms";
   const isPollsOpen = activePanel === "polls";
   const isAgendaOpen = activePanel === "agenda";
+  const isCanvasOpen = activePanel === "canvas";
+  const isAttendanceOpen = activePanel === "attendance";
+  const isPlaybookOpen = activePanel === "playbook";
 
   return (
     <header
@@ -176,6 +182,64 @@ export default function MeetingHeader({
           <Timer size={16} />
           <span className="hidden sm:inline">
             {isAgendaOpen ? "Hide Agenda" : "Agenda"}
+          </span>
+        </button>
+
+        {/* Playbook Guidance Toggle */}
+        <button
+          type="button"
+          onClick={() => onTogglePanel("playbook")}
+          aria-pressed={isPlaybookOpen}
+          className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-all cursor-pointer ${
+            isPlaybookOpen
+              ? "bg-indigo-600 text-white hover:bg-indigo-700"
+              : "bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700"
+          }`}
+          title={
+            isPlaybookOpen ? "Hide playbook guidance" : "Open playbook guidance"
+          }
+        >
+          <BookOpen size={16} />
+          <span className="hidden sm:inline">
+            {isPlaybookOpen ? "Hide Playbook" : "Playbook"}
+          </span>
+        </button>
+
+        {/* Canvas Toggle */}
+        <button
+          type="button"
+          onClick={() => onTogglePanel("canvas")}
+          aria-pressed={isCanvasOpen}
+          className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-all cursor-pointer ${
+            isCanvasOpen
+              ? "bg-indigo-600 text-white hover:bg-indigo-700"
+              : "bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700"
+          }`}
+          title={
+            isCanvasOpen ? "Hide whiteboard" : "Open collaborative whiteboard"
+          }
+        >
+          <PenTool size={16} />
+          <span className="hidden sm:inline">
+            {isCanvasOpen ? "Hide Canvas" : "Canvas"}
+          </span>
+        </button>
+
+        {/* Attendance Toggle */}
+        <button
+          type="button"
+          onClick={() => onTogglePanel("attendance")}
+          aria-pressed={isAttendanceOpen}
+          className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-all cursor-pointer ${
+            isAttendanceOpen
+              ? "bg-indigo-600 text-white hover:bg-indigo-700"
+              : "bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700"
+          }`}
+          title={isAttendanceOpen ? "Hide attendance" : "Show attendance"}
+        >
+          <Users size={16} />
+          <span className="hidden sm:inline">
+            {isAttendanceOpen ? "Hide Attendance" : "Attendance"}
           </span>
         </button>
 

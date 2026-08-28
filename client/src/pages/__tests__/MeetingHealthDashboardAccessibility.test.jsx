@@ -1,14 +1,10 @@
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import MeetingHealthDashboard from "../MeetingHealthDashboard.jsx";
+import AppContent from "../../context/AppContent";
 import { meetingHealthApi } from "../../services/meetingHealthApi";
-
-vi.mock("@clerk/clerk-react", () => ({
-  useAuth: () => ({
-    user: { organization: "org-123" },
-  }),
-}));
 
 vi.mock("../../services/meetingHealthApi", () => ({
   meetingHealthApi: {
@@ -43,7 +39,18 @@ describe("MeetingHealthDashboard Accessibility (#1611)", () => {
       },
     });
 
-    render(<MeetingHealthDashboard />);
+    render(
+      <MemoryRouter>
+        <AppContent.Provider
+          value={{
+            userData: { organization: { _id: "org-123" } },
+            loading: false,
+          }}
+        >
+          <MeetingHealthDashboard />
+        </AppContent.Provider>
+      </MemoryRouter>,
+    );
 
     await waitFor(() => {
       expect(

@@ -1,5 +1,6 @@
 import express from "express";
 import * as actionItemsController from "../controllers/actionItems.controller.js";
+import * as actionItemChangeLogController from "../controllers/actionItemChangeLogController.js";
 import userAuth from "../middleware/userAuth.js";
 import {
   verifyMeetingAccess,
@@ -34,6 +35,18 @@ router.delete(
   "/:id",
   verifyActionItemAccess,
   actionItemsController.deleteActionItem,
+);
+
+router.get(
+  "/:id/changelog",
+  verifyActionItemAccess,
+  actionItemChangeLogController.getChangeLogs,
+);
+
+router.get(
+  "/:id/changelog/stats",
+  verifyActionItemAccess,
+  actionItemChangeLogController.getChangeLogStats,
 );
 
 export default router;

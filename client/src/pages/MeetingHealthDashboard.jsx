@@ -1,293 +1,316 @@
-import React, { useState, useMemo } from "react";
-import {
-  Shield,
-  Activity,
-  AlertTriangle,
-  Users,
-  Lightbulb,
-  Filter,
-  RotateCcw,
-  TrendingUp,
-  CheckCircle,
-  Clock,
-  ChevronDown,
-  Sparkles,
-  BarChart3,
-  Zap,
-} from "lucide-react";
-import {
-  HealthScoreRing,
-  MetricScoreCard,
-  IssueCard,
-  TeamHealthCard,
-  InsightCard,
-  MeetingTypeHealthCard,
-} from "./HealthCards";
-import {
-  HealthTrendChart,
-  TeamComparisonBarChart,
-  MetricRadarChart,
-  IssueSeverityPieChart,
-  MeetingTypeHealthBarChart,
-  IssueTrendChart,
-} from "./HealthCharts";
-import {
-  generateMockOverallHealth,
-  generateMockHealthTrend,
-  generateMockTeamHealth,
-  generateMockIssues,
-  generateMockMeetingHealthDetails,
-  generateMockActionableInsights,
-} from "./healthData";
-import { MOCK_TEAMS } from "./healthTypes";
+import React, { useState, useEffect, useContext, useCallback } from "react";
+import AppContent from "../context/AppContent";
+import { meetingHealthApi } from "../services/meetingHealthApi";
+import OrganizationEmptyState from "../components/organization/OrganizationEmptyState";
 
-const TABS = [
-  { key: "overview", label: "Overview", icon: Activity },
-  { key: "metrics", label: "Metrics", icon: BarChart3 },
-  { key: "issues", label: "Issues", icon: AlertTriangle },
-  { key: "teams", label: "Teams", icon: Users },
-  { key: "improvements", label: "Improvements", icon: Lightbulb },
-];
-
-/* ─── Meeting Health Dashboard ─────────────────────────────────────── */
 const MeetingHealthDashboard = () => {
-  const [activeTab, setActiveTab] = useState("overview");
-  const [selectedTeam, setSelectedTeam] = useState("all");
+  const { userData, loading: authLoading } = useContext(AppContent) || {};
+  const organizationId =
+    userData?.organization?._id || userData?.organization || null;
 
-  // Data
-  const overallHealth = useMemo(() => generateMockOverallHealth(), []);
-  const healthTrend = useMemo(() => generateMockHealthTrend(12), []);
-  const teamHealth = useMemo(() => generateMockTeamHealth(), []);
-  const issues = useMemo(() => generateMockIssues(15), []);
-  const meetingDetails = useMemo(() => generateMockMeetingHealthDetails(), []);
-  const insights = useMemo(() => generateMockActionableInsights(), []);
+  const [trends, setTrends] = useState([]);
+  const [benchmarks, setBenchmarks] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const unresolvedIssues = issues.filter((i) => !i.isResolved);
-  const resolvedIssues = issues.filter((i) => i.isResolved);
-  const criticalIssues = issues.filter(
-    (i) => i.severity === "critical" || i.severity === "error",
-  );
+  const fetchTrends = useCallback(async () => {
+    if (!organizationId) {
+      setTrends([]);
+      setBenchmarks(null);
+      setError("");
+      setLoading(false);
+      return;
+    }
 
-  const filteredTeams = useMemo(() => {
-    if (selectedTeam === "all") return teamHealth;
-    return teamHealth.filter((t) => t.team === selectedTeam);
-  }, [teamHealth, selectedTeam]);
+    try {
+      setLoading(true);
+      setError("");
+      const res =
+        await meetingHealthApi.getOrganizationHealthTrends(organizationId);
+      if (res.success) {
+        setTrends(res.data?.trends || []);
+        setBenchmarks(res.data?.benchmarks || null);
+      } else {
+        setTrends([]);
+        setBenchmarks(null);
+        setError(res.message || "Failed to load meeting health trends");
+      }
+    } catch (err) {
+      console.error("Failed to fetch trends", err);
+      setTrends([]);
+      setBenchmarks(null);
+      setError(
+        err.response?.data?.message || "Failed to load meeting health trends",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    fetchTrends();
+  }, [authLoading, fetchTrends]);
+
+  const renderLineChart = () => {
+    if (trends.length === 0) {
+      return (
+        <p role="status" className="text-gray-500 dark:text-gray-400">
+          No meeting health data available yet.
+        </p>
+      );
+    }
+
+    const width = 800;
+    const height = 300;
+    const padding = 40;
+    const maxScore = 100;
+    const minScore = 0;
+    const xScale = (width - padding * 2) / Math.max(1, trends.length - 1);
+    const yScale = (height - padding * 2) / (maxScore - minScore);
+
+    const points = trends
+      .map((t, i) => {
+        const x = padding + i * xScale;
+        const y = height - padding - (t.compositeScore - minScore) * yScale;
+        return `${x},${y}`;
+      })
+      .join(" ");
+
+    return (
+      <svg
+        width="100%"
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full"
+        aria-label="Meeting health composite score chart"
+      >
+        <line
+          x1={padding}
+          y1={padding}
+          x2={padding}
+          y2={height - padding}
+          stroke="currentColor"
+          className="text-gray-300 dark:text-gray-600"
+        />
+        <line
+          x1={padding}
+          y1={height - padding}
+          x2={width - padding}
+          y2={height - padding}
+          stroke="currentColor"
+          className="text-gray-300 dark:text-gray-600"
+        />
+
+        {[0, 25, 50, 75, 100].map((val) => (
+          <g key={val}>
+            <line
+              x1={padding}
+              y1={height - padding - val * yScale}
+              x2={width - padding}
+              y2={height - padding - val * yScale}
+              stroke="currentColor"
+              strokeDasharray="4"
+              className="text-gray-200 dark:text-gray-700"
+            />
+            <text
+              x={padding - 10}
+              y={height - padding - val * yScale + 4}
+              textAnchor="end"
+              fontSize="12"
+              fill="currentColor"
+              className="text-gray-500 dark:text-gray-400"
+            >
+              {val}
+            </text>
+          </g>
+        ))}
+
+        <polyline
+          fill="none"
+          stroke="#3B82F6"
+          strokeWidth="3"
+          points={points}
+        />
+
+        {trends.map((t, i) => {
+          const x = padding + i * xScale;
+          const y = height - padding - (t.compositeScore - minScore) * yScale;
+          return (
+            <g key={t._id || i}>
+              <circle cx={x} cy={y} r="4" fill="#2563EB" />
+              <title>
+                {t.meetingId?.title || "Meeting"}: {t.compositeScore}
+              </title>
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
+
+  const pageShellClass =
+    "min-h-screen bg-gray-50 dark:bg-gray-900 p-6 flex justify-center items-center";
+
+  if (authLoading || loading) {
+    return (
+      <div className={pageShellClass}>
+        <div
+          data-testid="meeting-health-loading"
+          role="status"
+          aria-label="Loading meeting health trends"
+          aria-busy="true"
+          className="animate-pulse h-32 w-full max-w-4xl bg-gray-200 dark:bg-gray-700 rounded-lg"
+        />
+      </div>
+    );
+  }
+
+  if (!organizationId) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+        <div
+          data-testid="meeting-health-no-org"
+          className="max-w-6xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700"
+        >
+          <OrganizationEmptyState />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+        <div className="max-w-6xl mx-auto">
+          <div
+            data-testid="meeting-health-error"
+            role="alert"
+            className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700"
+          >
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+              Organization Meeting Health
+            </h1>
+            <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+              {error}
+            </p>
+            <button
+              type="button"
+              onClick={fetchTrends}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-12">
-        {/* Header */}
-        <section className="mb-6 sm:mb-8">
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-            <div className="h-1 bg-linear-to-r from-emerald-600 via-blue-600 to-violet-600" />
-            <div className="px-5 py-7 sm:px-8 sm:py-9">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-900/30">
-                    <Shield className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+    <div
+      data-testid="meeting-health-dashboard"
+      data-organization-id={String(organizationId)}
+      className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6"
+    >
+      <div className="max-w-6xl mx-auto space-y-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          Organization Meeting Health
+        </h1>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+            <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">
+              Average Composite Score
+            </h3>
+            <p className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-2">
+              {benchmarks?.averageComposite || 0}
+            </p>
+          </div>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+            <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">
+              Total Meetings Analyzed
+            </h3>
+            <p className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-2">
+              {trends.length}
+            </p>
+          </div>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+            <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">
+              Avg Engagement
+            </h3>
+            <p className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-2">
+              {benchmarks?.averageEngagement || 0}%
+            </p>
+          </div>
+        </div>
+
+        <div
+          role="region"
+          aria-label="Composite score trend chart"
+          className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700"
+        >
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            Composite Score Trend
+          </h2>
+          <div className="overflow-x-auto">{renderLineChart()}</div>
+        </div>
+
+        {benchmarks && (
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              Factor Benchmarks
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[
+                {
+                  label: "Agenda Coverage",
+                  value: benchmarks.averageAgendaCoverage,
+                },
+                {
+                  label: "Time Adherence",
+                  value: benchmarks.averageTimeAdherence,
+                },
+                { label: "Engagement", value: benchmarks.averageEngagement },
+                {
+                  label: "Action Item Clarity",
+                  value: benchmarks.averageActionItemClarity,
+                },
+                { label: "Sentiment", value: benchmarks.averageSentiment },
+              ].map((factor) => (
+                <div key={factor.label}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {factor.label}
+                    </span>
+                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      {factor.value}%
+                    </span>
                   </div>
-                  <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
-                      Meeting Health Dashboard
-                    </h1>
-                    <p className="text-sm text-slate-500 dark:text-gray-400 mt-0.5">
-                      Monitor meeting quality, track issues, and optimize team
-                      performance
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold ${
-                      unresolvedIssues.length > 5
-                        ? "border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-                        : "border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
-                    }`}
+                  <div
+                    role="progressbar"
+                    aria-valuenow={factor.value}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`${factor.label} percentage`}
+                    className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2"
                   >
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    {unresolvedIssues.length} Open Issues
-                  </span>
+                    <div
+                      className={`h-2 rounded-full ${
+                        factor.value >= 80
+                          ? "bg-green-500"
+                          : factor.value >= 60
+                            ? "bg-yellow-500"
+                            : "bg-red-500"
+                      }`}
+                      style={{ width: `${factor.value}%` }}
+                    />
+                  </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Health Score + Stats */}
-        <section className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6 sm:mb-8">
-          <div className="lg:col-span-1 flex justify-center">
-            <HealthScoreRing score={overallHealth.overallScore} size={140} />
-          </div>
-          <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="rounded-xl border border-slate-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 text-center shadow-sm">
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                {overallHealth.grade}
-              </p>
-              <p className="text-[10px] text-slate-400 uppercase font-semibold">
-                Grade
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 text-center shadow-sm">
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                {overallHealth.totalMeetingsAnalyzed}
-              </p>
-              <p className="text-[10px] text-slate-400 uppercase font-semibold">
-                Meetings Analyzed
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 text-center shadow-sm">
-              <p className="text-2xl font-bold text-amber-600">
-                {criticalIssues.length}
-              </p>
-              <p className="text-[10px] text-slate-400 uppercase font-semibold">
-                Critical Issues
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 text-center shadow-sm">
-              <p className="text-2xl font-bold text-emerald-600">
-                {resolvedIssues.length}
-              </p>
-              <p className="text-[10px] text-slate-400 uppercase font-semibold">
-                Resolved
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Tabs */}
-        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-gray-800 rounded-xl mb-6 overflow-x-auto">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                  activeTab === tab.key
-                    ? "bg-white dark:bg-gray-700 text-slate-900 dark:text-white shadow-sm"
-                    : "text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200"
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Tab: Overview */}
-        {activeTab === "overview" && (
-          <div className="space-y-6">
-            <HealthTrendChart data={healthTrend} />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <MetricRadarChart scores={overallHealth.scores} />
-              <IssueSeverityPieChart issues={issues} />
-            </div>
-          </div>
-        )}
-
-        {/* Tab: Metrics */}
-        {activeTab === "metrics" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {overallHealth.scores.map((score) => (
-                <MetricScoreCard key={score.metric} healthScore={score} />
-              ))}
-            </div>
-            <MeetingTypeHealthBarChart data={meetingDetails} />
-          </div>
-        )}
-
-        {/* Tab: Issues */}
-        {activeTab === "issues" && (
-          <div className="space-y-6">
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-xs font-semibold text-slate-500">
-                {unresolvedIssues.length} open
-              </span>
-              <span className="text-xs text-slate-300">·</span>
-              <span className="text-xs font-semibold text-emerald-500">
-                {resolvedIssues.length} resolved
-              </span>
-              <span className="text-xs text-slate-300">·</span>
-              <span className="text-xs font-semibold text-red-500">
-                {criticalIssues.length} critical
-              </span>
-            </div>
-            <IssueTrendChart issues={issues} />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {issues.map((issue) => (
-                <IssueCard key={issue.id} issue={issue} />
               ))}
             </div>
           </div>
         )}
-
-        {/* Tab: Teams */}
-        {activeTab === "teams" && (
-          <div className="space-y-6">
-            <div className="flex items-center gap-3">
-              <Filter className="h-4 w-4 text-slate-400" />
-              <select
-                value={selectedTeam}
-                onChange={(e) => setSelectedTeam(e.target.value)}
-                className="px-3 py-1.5 text-xs font-medium bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="all">All Teams</option>
-                {MOCK_TEAMS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredTeams.map((team) => (
-                <TeamHealthCard key={team.team} team={team} />
-              ))}
-            </div>
-            <TeamComparisonBarChart data={filteredTeams} />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {meetingDetails.map((detail) => (
-                <MeetingTypeHealthCard key={detail.type} detail={detail} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Tab: Improvements */}
-        {activeTab === "improvements" && (
-          <div className="space-y-6">
-            <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20 p-5">
-              <div className="flex items-center gap-3 mb-2">
-                <Sparkles className="h-5 w-5 text-violet-600" />
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Potential Improvement: +
-                  {insights.reduce((sum, i) => sum + i.estimatedImprovement, 0)}
-                  %
-                </h3>
-              </div>
-              <p className="text-sm text-slate-600 dark:text-gray-400">
-                AI analysis identified {insights.length} actionable
-                improvements. Implementing all could boost your health score
-                significantly.
-              </p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {insights.map((insight) => (
-                <InsightCard key={insight.id} insight={insight} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="mt-8 pt-6 border-t border-slate-200 dark:border-gray-700 text-center">
-          <p className="text-xs text-slate-400 dark:text-gray-500">
-            Meeting Health Dashboard · AI-Powered Analysis · Real-time
-            Monitoring
-          </p>
-        </div>
       </div>
     </div>
   );

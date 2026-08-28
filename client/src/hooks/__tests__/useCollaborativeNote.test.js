@@ -23,17 +23,20 @@ vi.mock("react-toastify", () => ({
 vi.mock("socket.io-client", () => {
   const listeners = {};
   const mockSocket = {
-    on: vi.fn((event, callback) => {
+    on(event, callback) {
       listeners[event] = callback;
-    }),
-    emit: vi.fn((event, data, cb) => {
-      if (event === "join-meeting" && cb) {
+    },
+    emit(event, _data, cb) {
+      if (event === "join-meeting" && typeof cb === "function") {
         cb({ success: true, userColor: "#ff0000", activeUsers: [] });
       }
-    }),
+    },
     disconnect: vi.fn(),
-    __trigger: (event, payload) => {
-      if (listeners[event]) listeners[event](payload);
+    __trigger(event, payload) {
+      listeners[event]?.(payload);
+    },
+    __has(event) {
+      return typeof listeners[event] === "function";
     },
   };
   return {
@@ -41,9 +44,10 @@ vi.mock("socket.io-client", () => {
   };
 });
 
-describe("useCollaborativeNote socket URL & backend config alignment (#2002)", () => {
+describe("useCollaborativeNote socket URL & sync status (#2002, #2250)", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    io.mockClear();
+    toast.error.mockClear();
   });
 
   it("connects to ${getBackendUrl()}/notes using shared Clerk socket options", async () => {
@@ -59,14 +63,18 @@ describe("useCollaborativeNote socket URL & backend config alignment (#2002)", (
     });
   });
 
-  it("handles connect_error, updates error state, and triggers toast error", async () => {
+  it("handles connect_error, updates error + syncStatus, and triggers toast (#2250)", async () => {
     const { result } = renderHook(() => useCollaborativeNote("meeting-123"));
 
     await waitFor(() => {
       expect(io).toHaveBeenCalled();
     });
+    const mockSocket = io.mock.results.at(-1).value;
 
-    const mockSocket = io.mock.results[0].value;
+    await waitFor(() => {
+      expect(mockSocket.__has("connect_error")).toBe(true);
+    });
+
     act(() => {
       mockSocket.__trigger("connect_error", new Error("Authentication failed"));
     });
@@ -74,9 +82,32 @@ describe("useCollaborativeNote socket URL & backend config alignment (#2002)", (
     await waitFor(() => {
       expect(result.current.error).toBe("Authentication failed");
       expect(result.current.isConnected).toBe(false);
+      expect(result.current.syncStatus).toBe("error");
       expect(toast.error).toHaveBeenCalledWith(
         expect.stringContaining("Authentication failed"),
       );
+    });
+  });
+
+  it("sets offline syncStatus on disconnect (#2250)", async () => {
+    const { result } = renderHook(() => useCollaborativeNote("meeting-123"));
+
+    await waitFor(() => {
+      expect(io).toHaveBeenCalled();
+    });
+    const mockSocket = io.mock.results.at(-1).value;
+
+    await waitFor(() => {
+      expect(mockSocket.__has("disconnect")).toBe(true);
+    });
+
+    act(() => {
+      mockSocket.__trigger("disconnect");
+    });
+
+    await waitFor(() => {
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.syncStatus).toBe("offline");
     });
   });
 });

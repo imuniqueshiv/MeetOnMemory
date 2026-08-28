@@ -11,14 +11,21 @@ export const useNotionIntegration = () => {
   const [loadingDatabases, setLoadingDatabases] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Sync History state
+  const [history, setHistory] = useState([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [syncingMeetingId, setSyncingMeetingId] = useState(null);
+
   const fetchStatus = useCallback(async () => {
     try {
       setLoading(true);
       const { data } = await notionIntegrationApi.getStatus();
-      if (data.success && data.connected) {
+      const payload = data?.data || data;
+      if (payload && (payload.connected || payload.isConnected)) {
         setConnected(true);
-        setWorkspaceName(data.workspaceName);
-        setTargetDatabaseId(data.targetDatabaseId || "");
+        setWorkspaceName(payload.workspaceName || "");
+        setTargetDatabaseId(payload.targetDatabaseId || "");
         fetchDatabases();
       } else {
         setConnected(false);
@@ -34,8 +41,9 @@ export const useNotionIntegration = () => {
     try {
       setLoadingDatabases(true);
       const { data } = await notionIntegrationApi.getDatabases();
-      if (data.success) {
-        setDatabases(data.databases);
+      const payload = data?.data || data;
+      if (payload?.databases) {
+        setDatabases(payload.databases);
       }
     } catch (err) {
       console.error("Failed to fetch databases:", err);
@@ -45,11 +53,28 @@ export const useNotionIntegration = () => {
     }
   };
 
+  const fetchHistory = useCallback(async (params = {}) => {
+    try {
+      setLoadingHistory(true);
+      const { data } = await notionIntegrationApi.getHistory(params);
+      const payload = data?.data || data;
+      if (payload?.history) {
+        setHistory(payload.history);
+        setHistoryTotal(payload.total || payload.history.length);
+      }
+    } catch (err) {
+      console.error("Failed to fetch Notion sync history:", err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
   const handleConnect = async () => {
     try {
       const { data } = await notionIntegrationApi.getAuthUrl();
-      if (data.success && data.url) {
-        window.location.href = data.url;
+      const payload = data?.data || data;
+      if (payload && (payload.authUrl || payload.url)) {
+        window.location.href = payload.authUrl || payload.url;
       }
     } catch (err) {
       console.error("Failed to get Notion Auth URL:", err);
@@ -61,11 +86,12 @@ export const useNotionIntegration = () => {
     try {
       setSaving(true);
       const { data } = await notionIntegrationApi.disconnect();
-      if (data.success) {
+      if (data.success || data?.status === 200) {
         setConnected(false);
         setWorkspaceName("");
         setTargetDatabaseId("");
         setDatabases([]);
+        setHistory([]);
         toast.success("Disconnected from Notion successfully.");
       }
     } catch (err) {
@@ -80,7 +106,7 @@ export const useNotionIntegration = () => {
     try {
       setSaving(true);
       const { data } = await notionIntegrationApi.saveMapping(dbId);
-      if (data.success) {
+      if (data.success || data?.status === 200) {
         setTargetDatabaseId(dbId);
         toast.success("Notion database mapping saved!");
       }
@@ -89,6 +115,31 @@ export const useNotionIntegration = () => {
       toast.error("Failed to save database mapping.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const syncMeeting = async (meetingId, force = false) => {
+    try {
+      setSyncingMeetingId(meetingId);
+      const { data } = await notionIntegrationApi.syncMeeting(meetingId, force);
+      const payload = data?.data || data;
+      if (payload?.alreadySynced) {
+        toast.info("Meeting is already synced to Notion.");
+      } else {
+        toast.success("Successfully synced meeting to Notion!");
+      }
+      fetchHistory();
+      return payload;
+    } catch (err) {
+      const msg =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to sync meeting to Notion";
+      toast.error(msg);
+      fetchHistory();
+      throw err;
+    } finally {
+      setSyncingMeetingId(null);
     }
   };
 
@@ -104,8 +155,14 @@ export const useNotionIntegration = () => {
     databases,
     loadingDatabases,
     saving,
+    history,
+    historyTotal,
+    loadingHistory,
+    syncingMeetingId,
     handleConnect,
     handleDisconnect,
     saveDatabaseMapping,
+    fetchHistory,
+    syncMeeting,
   };
 };

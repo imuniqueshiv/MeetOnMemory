@@ -47,11 +47,16 @@ router.delete(
   glossaryController.deleteTerm,
 );
 
-// Approval for pending terms
+// Approval for pending terms (#2245)
 router.post(
   "/:id/approve",
   requirePermission("knowledge", "edit"),
   glossaryController.approveTerm,
+);
+router.post(
+  "/:id/reject",
+  requirePermission("knowledge", "edit"),
+  glossaryController.rejectTerm,
 );
 
 // Detection endpoint

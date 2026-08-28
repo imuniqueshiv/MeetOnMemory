@@ -31,9 +31,10 @@ describe("LanguageSwitcher", () => {
     // Check if dropdown options are visible
     expect(screen.getByRole("listbox")).toBeInTheDocument();
     expect(screen.getByText("हिंदी")).toBeInTheDocument();
+    expect(screen.getByText("العربية")).toBeInTheDocument();
   });
 
-  it("calls changeLanguage when a new language is selected", () => {
+  it("calls changeLanguage when Hindi is selected", () => {
     render(<LanguageSwitcher />);
 
     // Open dropdown
@@ -45,5 +46,19 @@ describe("LanguageSwitcher", () => {
     fireEvent.click(screen.getByText("हिंदी"));
 
     expect(mockChangeLanguage).toHaveBeenCalledWith("hi");
+  });
+
+  it("calls changeLanguage when Arabic is selected", () => {
+    render(<LanguageSwitcher />);
+
+    // Open dropdown
+    fireEvent.click(
+      screen.getByRole("button", { name: "language.switchLanguage" }),
+    );
+
+    // Click on Arabic
+    fireEvent.click(screen.getByText("العربية"));
+
+    expect(mockChangeLanguage).toHaveBeenCalledWith("ar");
   });
 });

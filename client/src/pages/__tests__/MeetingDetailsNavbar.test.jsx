@@ -91,6 +91,9 @@ vi.mock("../../components/meetings/CarryForwardConfig", () => ({
 vi.mock("../../components/meeting-details/DuplicateDetectionPanel", () => ({
   default: () => null,
 }));
+vi.mock("../../components/meeting-details/CommentSection", () => ({
+  default: () => null,
+}));
 vi.mock("../../components/meeting-details/MeetingTimeline", () => ({
   default: () => null,
 }));
@@ -161,6 +164,15 @@ vi.mock("../../components/meeting-details/ClipManager", () => ({
       Clips for {meetingId}
     </div>
   ),
+}));
+vi.mock("../../components/meeting-details/AttachmentPanel", () => ({
+  default: () => null,
+}));
+vi.mock("../../components/meeting-details/DigestActions", () => ({
+  default: () => null,
+}));
+vi.mock("../../components/meeting-details/TopicSummary", () => ({
+  default: () => null,
 }));
 
 import { meetingApi } from "../../services";

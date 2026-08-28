@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useRef,
   useCallback,
+  useMemo,
 } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -39,12 +40,12 @@ import {
   CheckSquare,
   Activity,
   ShieldAlert,
+  ShieldCheck,
   Moon,
   Sun,
   Plus,
   Compass,
   Check,
-  MessageSquare,
   Code2,
   ScanSearch,
   GitMerge,
@@ -54,6 +55,28 @@ import {
   Clock,
   AlertTriangle,
   BookOpen,
+  BarChart3,
+  LineChart,
+  TrendingUp,
+  UserCheck,
+  DollarSign,
+  HeartPulse,
+  Mic,
+  FileText,
+  GitCompare,
+  Trash2,
+  Bookmark,
+  Tag,
+  Zap,
+  GitFork,
+  FileSpreadsheet,
+  Layers,
+  ListTodo,
+  CheckCheck,
+  Smile,
+  Lightbulb,
+  Presentation,
+  Brain,
 } from "lucide-react";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -110,6 +133,7 @@ const Navbar = () => {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileNotifOpen, setMobileNotifOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -256,7 +280,6 @@ const Navbar = () => {
             time: "Just now",
             unread: true,
           };
-          // Keep only top 5 recent notifications
           return [formattedNotif, ...prev].slice(0, 5);
         });
         toast.info(`🔔 ${newNotif.title}`);
@@ -290,6 +313,7 @@ const Navbar = () => {
   const mobileMenuRef = useRef();
   const notificationsRef = useRef();
   const orgDropdownRef = useRef();
+  const desktopNavRef = useRef();
 
   // Detect scroll for navbar style
   useEffect(() => {
@@ -315,6 +339,9 @@ const Navbar = () => {
         !orgDropdownRef.current.contains(e.target)
       ) {
         setOrgDropdownOpen(false);
+      }
+      if (desktopNavRef.current && !desktopNavRef.current.contains(e.target)) {
+        setOpenDropdown(null);
       }
       if (
         mobileMenuRef.current &&
@@ -347,6 +374,7 @@ const Navbar = () => {
         setMenuOpen(false);
         setNotificationsOpen(false);
         setOrgDropdownOpen(false);
+        setOpenDropdown(null);
         setMobileOpen(false);
       }
     };
@@ -393,167 +421,391 @@ const Navbar = () => {
     }
   };
 
-  const isTabActive = (tabPath) => {
-    const currentPath = location.pathname;
-    if (tabPath === "/dashboard") {
-      return currentPath === "/dashboard";
-    }
-    if (tabPath === "/meetings") {
-      return (
-        currentPath.startsWith("/meetings") ||
-        currentPath === "/create-meeting" ||
-        currentPath === "/upload-meeting" ||
-        currentPath === "/summaries" ||
-        currentPath === "/reports" ||
-        currentPath === "/policies"
-      );
-    }
-    if (tabPath === "/meeting-series") {
-      return currentPath.startsWith("/meeting-series");
-    }
-    if (tabPath === "/organizations") {
-      return (
-        currentPath === "/organizations" ||
-        currentPath === "/create-organization" ||
-        currentPath === "/join-organization"
-      );
-    }
-    return currentPath === tabPath;
-  };
-
-  const primaryLinks = [
-    {
-      label: t("navbar.dashboard"),
-      href: "/dashboard",
-      icon: LayoutDashboard,
-      permission: null,
+  const isTabActive = useCallback(
+    (tabPath) => {
+      const currentPath = location.pathname;
+      if (tabPath === "/dashboard") {
+        return currentPath === "/dashboard";
+      }
+      if (tabPath === "/meetings") {
+        return (
+          currentPath === "/meetings" ||
+          currentPath.startsWith("/meetings/") ||
+          currentPath === "/create-meeting" ||
+          currentPath === "/upload-meeting" ||
+          currentPath === "/summaries" ||
+          currentPath === "/reports" ||
+          currentPath === "/policies" ||
+          currentPath === "/parking-lot"
+        );
+      }
+      if (tabPath === "/meeting-series") {
+        return currentPath.startsWith("/meeting-series");
+      }
+      if (tabPath === "/organizations") {
+        return (
+          currentPath === "/organizations" ||
+          currentPath === "/create-organization" ||
+          currentPath === "/join-organization" ||
+          currentPath.startsWith("/organizations/")
+        );
+      }
+      return currentPath === tabPath;
     },
-    {
-      label: t("navbar.meetings"),
-      href: "/meetings",
-      icon: Calendar,
-      permission: { resource: "meetings", action: "view" },
-    },
-    {
-      label: "Meeting Series",
-      href: "/meeting-series",
-      icon: CalendarDays,
-      permission: { resource: "meetings", action: "view" },
-    },
-    {
-      label: t("navbar.tasks"),
-      href: "/tasks",
-      icon: CheckSquare,
-      permission: { resource: "tasks", action: "view" },
-    },
-    {
-      label: t("navbar.organizations"),
-      href: "/organizations",
-      icon: Building2,
-      permission: { resource: "organizations", action: "view" },
-    },
-    {
-      label: "Focus Time",
-      href: "/focus-time",
-      icon: Clock,
-      permission: null,
-    },
-  ].filter(
-    (link) =>
-      !link.permission ||
-      hasPermission(link.permission.resource, link.permission.action),
+    [location.pathname],
   );
 
-  const secondaryLinks = [
-    {
-      label: "Glossary",
-      href: "/glossary",
-      icon: BookOpen,
-      permission: { resource: "knowledge", action: "view" },
-    },
-    {
-      label: "Conflict Resolution",
-      href: "/knowledge/conflicts",
-      icon: ScanSearch,
-      permission: { resource: "knowledge", action: "view" },
-    },
-    {
-      label: "Memory Lifecycle",
-      href: "/knowledge/lifecycle",
-      icon: History,
-      permission: { resource: "knowledge", action: "view" },
-    },
-    {
-      label: "Knowledge Archive",
-      href: "/knowledge/archive",
-      icon: Archive,
-      permission: { resource: "knowledge", action: "view" },
-    },
-    {
-      label: "Knowledge Graph",
-      href: "/knowledge/graph",
-      icon: Network,
-      permission: { resource: "knowledge", action: "view" },
-    },
-    {
-      label: "Meeting Templates",
-      href: "/meeting-templates",
-      icon: GitMerge,
-      permission: { resource: "meetings", action: "view" },
-    },
-    {
-      label: t("navbar.compliance"),
-      href: "/policy-compliance",
-      icon: ShieldAlert,
-      permission: { resource: "policies", action: "view" },
-    },
-    {
-      label: "SLA Compliance",
-      href: "/sla-compliance",
-      icon: ShieldAlert,
-      permission: { resource: "reports", action: "view" },
-    },
-    {
-      label: t("navbar.calendar"),
-      href: "/calendar",
-      icon: CalendarDays,
-      permission: { resource: "calendar", action: "view" },
-    },
-    {
-      label: "My Delegations",
-      href: "/delegations",
-      icon: Users,
-    },
-    {
-      label: "Escalations",
-      href: "/escalations",
-      icon: AlertTriangle,
-    },
-    {
-      label: "Workload Balance",
-      href: "/workload",
-      icon: Activity,
-      permission: { resource: "tasks", action: "view" },
-    },
-    {
-      label: t("navbar.teamMembers"),
-      href: "/team-members",
-      icon: Users,
-      permission: { resource: "team_members", action: "view" },
-    },
-    {
-      label: "Developer Docs",
-      href: "/docs",
-      icon: Code2,
-    },
-  ].filter(
-    (link) =>
-      !link.permission ||
-      hasPermission(link.permission.resource, link.permission.action),
-  );
+  // Grouped Navigation definition with RBAC filtering
+  const navGroups = useMemo(() => {
+    const rawGroups = [
+      {
+        id: "meetings",
+        label: t("navbar.meetings"),
+        icon: Calendar,
+        items: [
+          {
+            label: t("navbar.meetings"),
+            href: "/meetings",
+            icon: Calendar,
+            permission: { resource: "meetings", action: "view" },
+          },
+          {
+            label: t("navbar.meetingSeries"),
+            href: "/meeting-series",
+            icon: CalendarDays,
+            permission: { resource: "meetings", action: "view" },
+          },
+          {
+            label: t("navbar.orgTimeline", "Org Timeline"),
+            href: "/timeline",
+            icon: History,
+            permission: { resource: "meetings", action: "view" },
+          },
+          {
+            label: t("navbar.meetingTemplates"),
+            href: "/meeting-templates",
+            icon: GitMerge,
+            permission: { resource: "meetings", action: "view" },
+          },
+          {
+            label: t("navbar.sessionCards", "Session Cards"),
+            href: "/session-cards",
+            icon: Presentation,
+            permission: { resource: "meetings", action: "view" },
+          },
+          {
+            label: t("navbar.compareMeetings"),
+            href: "/meetings/compare",
+            icon: GitCompare,
+            permission: { resource: "meetings", action: "view" },
+          },
+          {
+            label: t("navbar.recycleBin"),
+            href: "/meetings/recycle-bin",
+            icon: Trash2,
+            permission: { resource: "meetings", action: "view" },
+          },
+          {
+            label: t("navbar.parkingLot"),
+            href: "/parking-lot",
+            icon: Lightbulb,
+            permission: { resource: "meetings", action: "view" },
+          },
+        ],
+      },
+      {
+        id: "workspace",
+        label: t("navbar.workspace"),
+        icon: CheckSquare,
+        items: [
+          {
+            label: t("navbar.tasks"),
+            href: "/tasks",
+            icon: CheckSquare,
+            permission: { resource: "tasks", action: "view" },
+          },
+          {
+            label: t("navbar.actionItems"),
+            href: "/action-items",
+            icon: ListTodo,
+            permission: { resource: "tasks", action: "view" },
+          },
+          {
+            label: t("navbar.followups"),
+            href: "/followup",
+            icon: CheckCheck,
+            permission: { resource: "tasks", action: "view" },
+          },
+          {
+            label: t("navbar.workloadBalance"),
+            href: "/workload",
+            icon: Activity,
+            permission: { resource: "tasks", action: "view" },
+          },
+          {
+            label: t("navbar.calendar"),
+            href: "/calendar",
+            icon: CalendarDays,
+            permission: { resource: "calendar", action: "view" },
+          },
+          {
+            label: t("navbar.focusTime"),
+            href: "/focus-time",
+            icon: Clock,
+          },
+          {
+            label: t("navbar.myDelegations"),
+            href: "/delegations",
+            icon: Users,
+          },
+          {
+            label: t("navbar.escalations"),
+            href: "/escalations",
+            icon: AlertTriangle,
+          },
+          {
+            label: t("navbar.bookmarks"),
+            href: "/bookmarks",
+            icon: Bookmark,
+            permission: { resource: "bookmarks", action: "view" },
+          },
+          {
+            label: t("navbar.activityFeed"),
+            href: "/activities",
+            icon: Activity,
+          },
+          {
+            label: t("navbar.tags"),
+            href: "/tags",
+            icon: Tag,
+          },
+        ],
+      },
+      {
+        id: "insights",
+        label: t("navbar.insights"),
+        icon: BarChart3,
+        items: [
+          {
+            label: t("navbar.attendanceAnalytics"),
+            href: "/attendance-analytics",
+            icon: UserCheck,
+            permission: { resource: "reports", action: "view" },
+          },
+          {
+            label: t("navbar.costAnalytics"),
+            href: "/meeting-cost-analytics",
+            icon: DollarSign,
+            permission: { resource: "reports", action: "view" },
+          },
+          {
+            label: t("navbar.meetingInsights"),
+            href: "/meeting-insights",
+            icon: Brain,
+            permission: { resource: "reports", action: "view" },
+          },
+          {
+            label: t("navbar.meetingHealth"),
+            href: "/meeting-health",
+            icon: HeartPulse,
+            permission: { resource: "reports", action: "view" },
+          },
+          {
+            label: t("navbar.speakingTime"),
+            href: "/speaking-time-trends",
+            icon: Mic,
+            permission: { resource: "reports", action: "view" },
+          },
+          {
+            label: t("navbar.speakingCompare"),
+            href: "/speaking-time-compare",
+            icon: GitCompare,
+            permission: { resource: "reports", action: "view" },
+          },
+          {
+            label: t("navbar.actionItemAnalytics"),
+            href: "/action-item-analytics",
+            icon: BarChart3,
+            permission: { resource: "reports", action: "view" },
+          },
+          {
+            label: t("navbar.topicExplorer"),
+            href: "/topics",
+            icon: Compass,
+            permission: { resource: "reports", action: "view" },
+          },
+          {
+            label: t("navbar.reportsAndInsights"),
+            href: "/reports",
+            icon: FileText,
+            permission: { resource: "reports", action: "view" },
+          },
+          {
+            label: t("navbar.weeklyInsights"),
+            href: "/reports/weekly-insights",
+            icon: Sparkles,
+            permission: { resource: "reports", action: "view" },
+          },
+          {
+            label: t("navbar.meetingPatterns"),
+            href: "/patterns",
+            icon: TrendingUp,
+            permission: { resource: "reports", action: "view" },
+          },
+          {
+            label: t("navbar.engagement"),
+            href: "/engagement",
+            icon: LineChart,
+            permission: { resource: "reports", action: "view" },
+          },
+          {
+            label: t("navbar.sentimentTrends", "Sentiment Trends"),
+            href: "/sentiment-trends",
+            icon: Smile,
+            permission: { resource: "reports", action: "view" },
+          },
+          {
+            label: t("navbar.slaCompliance"),
+            href: "/sla-compliance",
+            icon: ShieldAlert,
+            permission: { resource: "reports", action: "view" },
+          },
+          {
+            label: t("navbar.policyCompliance"),
+            href: "/policy-compliance",
+            icon: ShieldCheck,
+            permission: { resource: "policies", action: "view" },
+          },
+        ],
+      },
+      {
+        id: "knowledge",
+        label: t("navbar.knowledge"),
+        icon: Network,
+        items: [
+          {
+            label: t("navbar.knowledgeGraph"),
+            href: "/knowledge/graph",
+            icon: Network,
+            permission: { resource: "knowledge", action: "view" },
+          },
+          {
+            label: t("navbar.decisionGraph"),
+            href: "/decisions/graph",
+            icon: GitFork,
+            permission: { resource: "knowledge", action: "view" },
+          },
+          {
+            label: t("navbar.decisionLog"),
+            href: "/decision-log",
+            icon: FileSpreadsheet,
+            permission: { resource: "knowledge", action: "view" },
+          },
+          {
+            label: t("navbar.memoryConsolidation"),
+            href: "/knowledge/consolidate",
+            icon: Layers,
+            permission: { resource: "knowledge", action: "view" },
+          },
+          {
+            label: t("navbar.conflictResolution"),
+            href: "/knowledge/conflicts",
+            icon: ScanSearch,
+            permission: { resource: "knowledge", action: "view" },
+          },
+          {
+            label: t("navbar.memoryLifecycle"),
+            href: "/knowledge/lifecycle",
+            icon: History,
+            permission: { resource: "knowledge", action: "view" },
+          },
+          {
+            label: t("navbar.knowledgeArchive"),
+            href: "/knowledge/archive",
+            icon: Archive,
+            permission: { resource: "knowledge", action: "view" },
+          },
+          {
+            label: t("navbar.graphHistory"),
+            href: "/knowledge/graph-history",
+            icon: History,
+            permission: { resource: "knowledge", action: "view" },
+          },
+          {
+            label: t("navbar.glossary"),
+            href: "/glossary",
+            icon: BookOpen,
+            permission: { resource: "knowledge", action: "view" },
+          },
+        ],
+      },
+      {
+        id: "admin",
+        label: t("navbar.admin"),
+        icon: Building2,
+        items: [
+          {
+            label: t("navbar.organizations"),
+            href: "/organizations",
+            icon: Building2,
+            permission: { resource: "organizations", action: "view" },
+          },
+          {
+            label: t("navbar.teamMembers"),
+            href: "/team-members",
+            icon: Users,
+            permission: { resource: "team_members", action: "view" },
+          },
+          {
+            label: t("navbar.automationRules"),
+            href: "/automation-rules",
+            icon: Zap,
+            permission: { resource: "automation_rules", action: "view" },
+          },
+          {
+            label: t("navbar.recapSchedule"),
+            href: "/recap-schedule",
+            icon: Clock,
+            permission: { resource: "settings", action: "view" },
+          },
+          {
+            label: t("navbar.adminPanel"),
+            href: "/admin-panel",
+            icon: Sparkles,
+            permission: { resource: "admin_panel", action: "view" },
+          },
+        ],
+      },
+    ];
 
-  // Retain all allowed links for the mobile drawer navigation
-  const appLinks = [...primaryLinks, ...secondaryLinks];
+    // Filter items and groups by user RBAC permissions
+    return rawGroups
+      .map((group) => {
+        const filteredItems = group.items.filter(
+          (item) =>
+            !item.permission ||
+            hasPermission(item.permission.resource, item.permission.action),
+        );
+        return {
+          ...group,
+          items: filteredItems,
+        };
+      })
+      .filter((group) => group.items.length > 0);
+  }, [hasPermission, t]);
+
+  const isGroupActive = useCallback(
+    (group) => {
+      return group.items.some(
+        (item) =>
+          location.pathname === item.href ||
+          (item.href !== "/" &&
+            item.href !== "/dashboard" &&
+            location.pathname.startsWith(item.href)),
+      );
+    },
+    [location.pathname],
+  );
 
   return (
     <header
@@ -582,35 +834,113 @@ const Navbar = () => {
                 className="relative w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 transition-transform duration-300 group-hover:scale-105"
               />
             </div>
-            {/* Clean, Consistent Text Layout (Hover effects removed) */}
             <span className="font-bold text-lg sm:text-2xl text-gray-900 dark:text-gray-100 tracking-tight shrink-0">
               MeetOn
               <span className="text-blue-600 dark:text-blue-400">Memory</span>
             </span>
           </div>
+
           {/* Desktop Navigation */}
           {userData ? (
             /* Logged In Desktop App Nav */
             <nav
+              ref={desktopNavRef}
               className="hidden md:flex items-center gap-1 lg:gap-1.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 p-1 rounded-2xl"
               aria-label="Application navigation"
             >
-              {primaryLinks.map((link) => {
-                const active = isTabActive(link.href);
+              {/* Direct Dashboard Link */}
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenDropdown(null);
+                  navigate("/dashboard");
+                }}
+                aria-current={isTabActive("/dashboard") ? "page" : undefined}
+                className={`flex items-center gap-1.5 px-3 lg:px-3.5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-900 cursor-pointer ${
+                  isTabActive("/dashboard")
+                    ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-xs border border-gray-100/50 dark:border-gray-600/50"
+                    : "text-gray-600 dark:text-gray-300 border border-transparent hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100/60 dark:hover:bg-gray-700/60"
+                }`}
+              >
+                <span>{t("navbar.dashboard")}</span>
+              </button>
+
+              {/* Grouped Category Dropdowns */}
+              {navGroups.map((group) => {
+                const groupActive = isGroupActive(group);
+                const isOpen = openDropdown === group.id;
                 return (
-                  <button
-                    key={link.href}
-                    type="button"
-                    onClick={() => navigate(link.href)}
-                    aria-current={active ? "page" : undefined}
-                    className={`flex items-center px-3 lg:px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-900 cursor-pointer ${
-                      active
-                        ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-xs border border-gray-100/50 dark:border-gray-600/50"
-                        : "text-gray-600 dark:text-gray-300 border border-transparent hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100/60 dark:hover:bg-gray-700/60"
-                    }`}
-                  >
-                    <span>{link.label}</span>
-                  </button>
+                  <div key={group.id} className="relative">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenDropdown((prev) =>
+                          prev === group.id ? null : group.id,
+                        )
+                      }
+                      aria-expanded={isOpen}
+                      aria-haspopup="true"
+                      aria-label={`${group.label} menu`}
+                      className={`flex items-center gap-1 px-3 lg:px-3.5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer ${
+                        groupActive || isOpen
+                          ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-xs border border-gray-100/50 dark:border-gray-600/50"
+                          : "text-gray-600 dark:text-gray-300 border border-transparent hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100/60 dark:hover:bg-gray-700/60"
+                      }`}
+                    >
+                      <span>{group.label}</span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                          isOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {/* Category Dropdown Popover */}
+                    {isOpen && (
+                      <div
+                        role="menu"
+                        aria-label={`${group.label} sub-navigation`}
+                        className={`absolute left-0 mt-2 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl shadow-xl overflow-hidden z-50 p-1.5 animate-in fade-in zoom-in-95 duration-150 ${
+                          group.items.length > 6
+                            ? "w-80 max-h-96 overflow-y-auto"
+                            : "w-56"
+                        }`}
+                      >
+                        <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-700/60 mb-1">
+                          {group.label}
+                        </div>
+                        {group.items.map((item) => {
+                          const Icon = item.icon;
+                          const active = isTabActive(item.href);
+                          return (
+                            <button
+                              key={item.href}
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setOpenDropdown(null);
+                                navigate(item.href);
+                              }}
+                              className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl transition-colors text-left cursor-pointer ${
+                                active
+                                  ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold"
+                                  : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-100"
+                              }`}
+                            >
+                              <Icon
+                                className={`w-4 h-4 shrink-0 ${
+                                  active
+                                    ? "text-blue-600 dark:text-blue-400"
+                                    : "text-gray-400 dark:text-gray-500"
+                                }`}
+                              />
+                              <span className="truncate">{item.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </nav>
@@ -1018,44 +1348,33 @@ const Navbar = () => {
                           <Settings className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
                           {t("navbar.settings")}
                         </button>
+
+                        <button
+                          onClick={() => {
+                            setMenuOpen(false);
+                            navigate("/docs");
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"
+                          role="menuitem"
+                        >
+                          <Code2 className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+                          Developer Docs
+                        </button>
+
+                        {hasPermission("admin_panel", "view") && (
+                          <button
+                            onClick={() => {
+                              setMenuOpen(false);
+                              navigate("/admin-panel");
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"
+                            role="menuitem"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-yellow-500" />
+                            {t("navbar.adminPanel")}
+                          </button>
+                        )}
                       </div>
-
-                      {(secondaryLinks.length > 0 ||
-                        hasPermission("admin_panel", "view")) && (
-                        <div className="border-t border-gray-100 dark:border-gray-700 p-1">
-                          {secondaryLinks.map((link) => {
-                            const LinkIcon = link.icon;
-                            return (
-                              <button
-                                key={link.href}
-                                onClick={() => {
-                                  setMenuOpen(false);
-                                  navigate(link.href);
-                                }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"
-                                role="menuitem"
-                              >
-                                <LinkIcon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                                {link.label}
-                              </button>
-                            );
-                          })}
-
-                          {hasPermission("admin_panel", "view") && (
-                            <button
-                              onClick={() => {
-                                setMenuOpen(false);
-                                navigate("/admin-panel");
-                              }}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl transition-colors text-left cursor-pointer"
-                              role="menuitem"
-                            >
-                              <Sparkles className="w-3.5 h-3.5 text-yellow-500" />
-                              {t("navbar.adminPanel")}
-                            </button>
-                          )}
-                        </div>
-                      )}
 
                       <div className="border-t border-gray-100 dark:border-gray-600 p-1">
                         <button
@@ -1103,7 +1422,7 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile Drawer Menu - Enhanced with viewport-based height and internal scrolling */}
+      {/* Mobile Drawer Menu */}
       <div
         ref={mobileMenuRef}
         className={`md:hidden transition-all duration-300 ease-in-out bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 shadow-lg ${
@@ -1251,40 +1570,71 @@ const Navbar = () => {
                   </div>
                 </div>
 
-                {/* Main Navigation Links */}
-                <div className="space-y-1 py-2">
-                  {appLinks.map((link) => {
-                    const Icon = link.icon;
-                    const active = isTabActive(link.href);
-                    return (
-                      <button
-                        key={link.href}
-                        type="button"
-                        onClick={() => {
-                          setMobileOpen(false);
-                          navigate(link.href);
-                        }}
-                        aria-current={active ? "page" : undefined}
-                        className={`w-full flex items-center gap-3 px-4 py-3.5 text-sm font-semibold rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer ${
-                          active
-                            ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                            : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
-                        }`}
-                      >
-                        <Icon
-                          className={`w-5 h-5 shrink-0 ${
-                            active
-                              ? "text-blue-600 dark:text-blue-400"
-                              : "text-gray-400 dark:text-gray-500"
-                          }`}
-                        />
-                        <span>{link.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                {/* Dashboard Direct Route */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    navigate("/dashboard");
+                  }}
+                  aria-current={isTabActive("/dashboard") ? "page" : undefined}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer ${
+                    isTabActive("/dashboard")
+                      ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                      : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+                  }`}
+                >
+                  <LayoutDashboard
+                    className={`w-5 h-5 shrink-0 ${
+                      isTabActive("/dashboard")
+                        ? "text-blue-600 dark:text-blue-400"
+                        : "text-gray-400 dark:text-gray-500"
+                    }`}
+                  />
+                  <span>{t("navbar.dashboard")}</span>
+                </button>
 
-                {/* Secondary Links */}
+                {/* Grouped Navigation Sections */}
+                {navGroups.map((group) => (
+                  <div key={group.id} className="py-2">
+                    <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                      {group.label}
+                    </div>
+                    <div className="space-y-0.5 mt-1">
+                      {group.items.map((link) => {
+                        const Icon = link.icon;
+                        const active = isTabActive(link.href);
+                        return (
+                          <button
+                            key={link.href}
+                            type="button"
+                            onClick={() => {
+                              setMobileOpen(false);
+                              navigate(link.href);
+                            }}
+                            aria-current={active ? "page" : undefined}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer ${
+                              active
+                                ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-semibold"
+                                : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+                            }`}
+                          >
+                            <Icon
+                              className={`w-4 h-4 shrink-0 ${
+                                active
+                                  ? "text-blue-600 dark:text-blue-400"
+                                  : "text-gray-400 dark:text-gray-500"
+                              }`}
+                            />
+                            <span className="truncate">{link.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Secondary Links & Actions */}
                 <div className="border-t border-gray-100 dark:border-gray-700 my-3"></div>
 
                 <button
@@ -1292,7 +1642,7 @@ const Navbar = () => {
                     setMobileOpen(false);
                     navigate("/notifications");
                   }}
-                  className={`w-full flex items-center justify-between px-4 py-3.5 text-sm font-semibold rounded-xl transition-all cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-4 py-3 text-sm font-semibold rounded-xl transition-all cursor-pointer ${
                     mobileNotifOpen
                       ? "bg-blue-50/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
                       : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
@@ -1320,7 +1670,7 @@ const Navbar = () => {
                     setMobileOpen(false);
                     navigate("/profile");
                   }}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all cursor-pointer"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all cursor-pointer"
                 >
                   <User className="w-5 h-5 shrink-0 text-gray-400 dark:text-gray-500" />
                   <span>{t("navbar.myProfile")}</span>
@@ -1331,24 +1681,11 @@ const Navbar = () => {
                     setMobileOpen(false);
                     navigate("/settings");
                   }}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all cursor-pointer"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all cursor-pointer"
                 >
                   <Settings className="w-5 h-5 shrink-0 text-gray-400 dark:text-gray-500" />
                   <span>{t("navbar.settings")}</span>
                 </button>
-
-                {hasPermission("admin_panel", "view") && (
-                  <button
-                    onClick={() => {
-                      setMobileOpen(false);
-                      navigate("/admin-panel");
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl transition-all cursor-pointer"
-                  >
-                    <Sparkles className="w-5 h-5 shrink-0 text-yellow-500" />
-                    <span>{t("navbar.adminPanel")}</span>
-                  </button>
-                )}
 
                 {/* Logout Button - Sticky at bottom */}
                 <div className="border-t border-gray-100 dark:border-gray-700 mt-3 pt-3 sticky bottom-0 bg-white dark:bg-gray-900 pb-2">

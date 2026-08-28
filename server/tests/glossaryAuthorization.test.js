@@ -366,6 +366,76 @@ describe("role permissions", () => {
     await request(app).delete(`/api/glossary/${pending._id}`).expect(200);
   });
 
+  it("rejects a pending term with reason and removes it from pending queue (#2245)", async () => {
+    const pending = await seedTerm({
+      term: "KPI",
+      definition: "Key Performance Indicator",
+      approvalStatus: "pending",
+      isAutoSuggested: true,
+    });
+    currentUser = moderator;
+
+    const res = await request(app)
+      .post(`/api/glossary/${pending._id}/reject`)
+      .send({ reason: "Duplicate of an existing metric" })
+      .expect(200);
+
+    expect(res.body.approvalStatus).toBe("rejected");
+    expect(res.body.rejectionReason).toBe("Duplicate of an existing metric");
+
+    const pendingList = await request(app)
+      .get("/api/glossary")
+      .query({ status: "pending" })
+      .expect(200);
+    expect(pendingList.body).toHaveLength(0);
+  });
+
+  it("approves a pending term with corrected fields (#2245)", async () => {
+    const pending = await seedTerm({
+      term: "K8s",
+      definition: "Bad definition",
+      approvalStatus: "pending",
+      isAutoSuggested: true,
+    });
+    currentUser = moderator;
+
+    const res = await request(app)
+      .post(`/api/glossary/${pending._id}/approve`)
+      .send({
+        definition: "Kubernetes container orchestration platform",
+        category: "Engineering",
+      })
+      .expect(200);
+
+    expect(res.body.approvalStatus).toBe("approved");
+    expect(res.body.definition).toBe(
+      "Kubernetes container orchestration platform",
+    );
+    expect(res.body.category).toBe("Engineering");
+  });
+
+  it("refuses a viewer rejecting a pending term (#2245)", async () => {
+    const pending = await seedTerm({ approvalStatus: "pending" });
+    currentUser = viewer;
+
+    await request(app)
+      .post(`/api/glossary/${pending._id}/reject`)
+      .send({ reason: "Not relevant" })
+      .expect(403);
+
+    const stored = await GlossaryTerm.findById(pending._id);
+    expect(stored.approvalStatus).toBe("pending");
+  });
+
+  it("requires a rejection reason (#2245)", async () => {
+    const pending = await seedTerm({ approvalStatus: "pending" });
+
+    await request(app)
+      .post(`/api/glossary/${pending._id}/reject`)
+      .send({ reason: "   " })
+      .expect(400);
+  });
+
   it("rejects a caller with no organization", async () => {
     currentUser = {
       _id: new mongoose.Types.ObjectId(),

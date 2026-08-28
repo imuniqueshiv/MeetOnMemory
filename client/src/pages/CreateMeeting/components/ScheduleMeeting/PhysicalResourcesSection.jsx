@@ -17,8 +17,9 @@ const PhysicalResourcesSection = ({
     let cancelled = false;
 
     if (!scheduleData.date || !scheduleData.time || !scheduleData.duration) {
-      setAvailableResources([]);
-      setSelectedResources([]);
+      if (typeof setAvailableResources === "function")
+        setAvailableResources([]);
+      if (typeof setSelectedResources === "function") setSelectedResources([]);
       return;
     }
 

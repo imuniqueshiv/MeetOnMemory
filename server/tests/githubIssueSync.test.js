@@ -8,7 +8,7 @@ import User from "../models/userModel.js";
 import Organization from "../models/organizationModel.js";
 import Membership from "../models/membershipModel.js";
 import ActionItem from "../models/actionItemModel.js";
-import Meeting from "../models/Meeting.js";
+import Meeting from "../models/meetingModel.js";
 import GithubIntegration from "../models/githubIntegrationModel.js";
 import GitHubIssueSync from "../models/githubIssueSyncModel.js";
 import { encryptToken } from "../utils/crypto.js";

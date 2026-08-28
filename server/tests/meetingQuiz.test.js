@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import MeetingQuiz from "../models/meetingQuizModel.js";
-import QuizResponse from "../models/quizResponseModel.js";
 
 describe("Meeting Retention Quiz Models", () => {
   beforeAll(() => {

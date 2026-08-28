@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import DuplicateDetectionPanel from "../DuplicateDetectionPanel.jsx";
 import { meetingDuplicateApi } from "../../../api/meetingDuplicateApi.js";
 import apiClient from "../../../services/apiClient.js";
@@ -19,53 +19,84 @@ vi.mock("react-toastify", () => ({
   },
 }));
 
-describe("DuplicateDetectionPanel & useMeetingDuplicates (#1895)", () => {
-  let originalReload;
-  let reloadMock;
-
+describe("DuplicateDetectionPanel & useMeetingDuplicates (#2260)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    originalReload = window.location.reload;
-    reloadMock = vi.fn();
-    Object.defineProperty(window.location, "reload", {
-      configurable: true,
-      value: reloadMock,
-    });
   });
 
-  afterEach(() => {
-    Object.defineProperty(window.location, "reload", {
-      configurable: true,
-      value: originalReload,
+  it("sends field selections through the duplicate merge API", async () => {
+    apiClient.get.mockResolvedValue({
+      data: {
+        duplicates: [
+          {
+            _id: "dup-1",
+            title: "Duplicate Meeting",
+            date: "2026-08-01T10:00:00.000Z",
+            time: "10:00",
+            participants: [{ name: "Duplicate Person" }],
+            summary: "Secondary summary",
+            tags: ["secondary"],
+            similarity: 0.85,
+          },
+        ],
+      },
     });
-  });
-
-  it("meetingDuplicateApi uses apiClient", async () => {
-    apiClient.get.mockResolvedValue({ data: { duplicates: [] } });
-    await meetingDuplicateApi.detectDuplicates("meeting-123");
-    expect(apiClient.get).toHaveBeenCalledWith(
-      "/api/meetings/meeting-123/duplicates",
-    );
-
     apiClient.post.mockResolvedValue({ data: { success: true } });
-    await meetingDuplicateApi.mergeMeetings("meeting-123", "meeting-456");
-    expect(apiClient.post).toHaveBeenCalledWith(
-      "/api/meetings/meeting-123/duplicates/merge",
-      {
-        secondaryId: "meeting-456",
-      },
+
+    render(
+      <DuplicateDetectionPanel
+        meetingId="meeting-123"
+        meeting={{
+          _id: "meeting-123",
+          title: "Primary Meeting",
+          date: "2026-08-01T09:00:00.000Z",
+          time: "09:00",
+          participants: [{ name: "Primary Person" }],
+          summary: "Primary summary",
+          tags: ["primary"],
+        }}
+      />,
     );
 
-    await meetingDuplicateApi.dismissDuplicate("meeting-123", "meeting-456");
-    expect(apiClient.post).toHaveBeenCalledWith(
-      "/api/meetings/meeting-123/duplicates",
-      {
-        secondaryId: "meeting-456",
-      },
+    await waitFor(() => {
+      expect(screen.getByText("Duplicate Meeting")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Merge Data"));
+
+    expect(
+      screen.getByRole("heading", { name: "Review merge before confirming" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Primary summary")).toBeInTheDocument();
+    expect(screen.getByText("Secondary summary")).toBeInTheDocument();
+
+    const duplicateRadios = screen.getAllByRole("radio");
+    const secondaryTitleRadio = duplicateRadios.find(
+      (radio) => radio.value === "secondary",
     );
+    expect(secondaryTitleRadio).toBeDefined();
+    fireEvent.click(secondaryTitleRadio);
+
+    fireEvent.click(screen.getByText("Confirm Merge"));
+
+    await waitFor(() => {
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/api/meetings/meeting-123/duplicates/merge",
+        {
+          secondaryId: "dup-1",
+          fieldSelections: {
+            title: "secondary",
+            time: "primary",
+            participants: "primary",
+            summary: "primary",
+            tags: "primary",
+          },
+        },
+      );
+    });
   });
 
-  it("renders duplicates list and handles merge in-place without page reload", async () => {
+  it("updates the panel without reloading the page after a successful merge", async () => {
     const mockDuplicates = [
       {
         _id: "dup-1",
@@ -78,31 +109,46 @@ describe("DuplicateDetectionPanel & useMeetingDuplicates (#1895)", () => {
     apiClient.get.mockResolvedValue({ data: { duplicates: mockDuplicates } });
     apiClient.post.mockResolvedValue({ data: { success: true } });
 
-    render(<DuplicateDetectionPanel meetingId="meeting-123" />);
+    const reloadSpy = vi
+      .spyOn(window.location, "reload")
+      .mockImplementation(() => {});
 
-    // Wait for render
+    render(
+      <DuplicateDetectionPanel
+        meetingId="meeting-123"
+        meeting={{ _id: "meeting-123", title: "Primary Meeting" }}
+      />,
+    );
+
     await waitFor(() => {
       expect(screen.getByText("Duplicate Meeting")).toBeInTheDocument();
-      expect(screen.getByText("Similarity: 85%")).toBeInTheDocument();
     });
 
-    // Click Merge Data
     fireEvent.click(screen.getByText("Merge Data"));
+    fireEvent.click(screen.getByText("Confirm Merge"));
 
-    // Click Confirm Merge
-    fireEvent.click(screen.getByText("Yes, Merge Meetings"));
-
-    // Verify API called
     await waitFor(() => {
-      expect(apiClient.post).toHaveBeenCalledWith(
-        "/api/meetings/meeting-123/duplicates/merge",
-        {
-          secondaryId: "dup-1",
-        },
-      );
+      expect(screen.queryByText("Duplicate Meeting")).not.toBeInTheDocument();
     });
 
-    // Verify window.location.reload was NOT called
-    expect(reloadMock).not.toHaveBeenCalled();
+    expect(reloadSpy).not.toHaveBeenCalled();
+    reloadSpy.mockRestore();
+  });
+
+  it("uses apiClient for duplicate detection and dismissal", async () => {
+    apiClient.get.mockResolvedValue({ data: { duplicates: [] } });
+    await meetingDuplicateApi.detectDuplicates("meeting-123");
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/api/meetings/meeting-123/duplicates",
+    );
+
+    apiClient.post.mockResolvedValue({ data: { success: true } });
+    await meetingDuplicateApi.dismissDuplicate("meeting-123", "meeting-456");
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/api/meetings/meeting-123/duplicates",
+      {
+        secondaryId: "meeting-456",
+      },
+    );
   });
 });

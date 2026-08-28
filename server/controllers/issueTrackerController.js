@@ -63,10 +63,37 @@ export const updateConfig = async (req, res) => {
       provider,
     });
 
+    if (config?.siteUrl && provider === "jira") {
+      try {
+        const parsed = new URL(config.siteUrl);
+        if (!["http:", "https:"].includes(parsed.protocol)) {
+          return res
+            .status(400)
+            .json({ success: false, error: "Invalid site URL protocol" });
+        }
+      } catch (_e) {
+        return res
+          .status(400)
+          .json({ success: false, error: "Invalid site URL format" });
+      }
+    }
+
+    const logEntry = {
+      timestamp: new Date(),
+      action: integration ? "config_update" : "connected",
+      status: "success",
+      details: `Saved ${provider} configuration & field mappings`,
+    };
+
     if (integration) {
       if (accessToken) integration.accessToken = accessToken;
       if (config) integration.config = { ...integration.config, ...config };
       integration.connectedBy = userId;
+      integration.lastSyncStatus = "idle";
+      integration.syncLogs = [logEntry, ...(integration.syncLogs || [])].slice(
+        0,
+        15,
+      );
       await integration.save();
     } else {
       if (!accessToken) {
@@ -81,6 +108,8 @@ export const updateConfig = async (req, res) => {
         accessToken,
         config: config || {},
         connectedBy: userId,
+        lastSyncStatus: "idle",
+        syncLogs: [logEntry],
       });
     }
 
@@ -93,6 +122,56 @@ export const updateConfig = async (req, res) => {
     res.status(200).json({ success: true, data: safeData });
   } catch (error) {
     console.error("Error updating issue tracker config:", error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+/**
+ * Get issue tracker sync status & history logs
+ */
+export const getSyncStatus = async (req, res) => {
+  try {
+    const { provider } = req.params;
+    const orgId = req.user.organization;
+
+    if (!["jira", "linear"].includes(provider)) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid provider" });
+    }
+
+    const integration = await IssueTrackerIntegration.findOne({
+      organization: orgId,
+      provider,
+    });
+
+    if (!integration) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          connected: false,
+          lastSyncAt: null,
+          lastSyncStatus: "idle",
+          lastSyncError: null,
+          syncCount: 0,
+          syncLogs: [],
+        },
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        connected: true,
+        lastSyncAt: integration.lastSyncAt,
+        lastSyncStatus: integration.lastSyncStatus,
+        lastSyncError: integration.lastSyncError,
+        syncCount: integration.syncCount || 0,
+        syncLogs: integration.syncLogs || [],
+      },
+    });
+  } catch (error) {
+    console.error("Error getting issue tracker sync status:", error);
     res.status(500).json({ success: false, error: "Server error" });
   }
 };

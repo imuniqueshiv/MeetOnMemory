@@ -4,12 +4,12 @@ import {
   getMeetingEndorsements,
   getUserEndorsements,
 } from "../controllers/skillEndorsementController.js";
-import { requireAuth } from "../middlewares/requireAuth.js";
+import userAuth from "../middleware/userAuth.js";
 
 const router = express.Router();
 
 // All routes require authentication
-router.use(requireAuth);
+router.use(userAuth);
 
 router.post("/", createEndorsement);
 router.get("/meeting/:meetingId", getMeetingEndorsements);

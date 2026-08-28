@@ -16,6 +16,7 @@ export const evaluateUpcomingMeetings = async (hoursFromNow = 24) => {
   }).populate("participants.user");
 
   for (const meeting of upcomingMeetings) {
+    if (meeting.nudgesEnabled === false) continue;
     for (const participant of meeting.participants) {
       if (participant.user) {
         await generateNudgesForParticipant(
@@ -27,7 +28,11 @@ export const evaluateUpcomingMeetings = async (hoursFromNow = 24) => {
   }
 };
 
-export const generateNudgesForParticipant = async (meeting, userId) => {
+export const generateNudgesForParticipant = async (
+  meeting,
+  userId,
+  forceNotify = false,
+) => {
   // 1. Check for unresolved action items assigned to this user
   const unresolvedItems = await ActionItem.find({
     assignee: userId,
@@ -83,12 +88,13 @@ export const generateNudgesForParticipant = async (meeting, userId) => {
     );
 
     if (
-      nudge &&
-      nudge.status === "PENDING" &&
-      nudge.createdAt &&
-      nudge.createdAt.getTime() > Date.now() - 60000
+      forceNotify ||
+      (nudge &&
+        nudge.status === "PENDING" &&
+        nudge.createdAt &&
+        nudge.createdAt.getTime() > Date.now() - 60000)
     ) {
-      // Newly created
+      // Newly created or manual test trigger
       createNotification({
         userId: userId,
         title: "Action Items Pending for Upcoming Meeting",
@@ -115,12 +121,13 @@ export const generateNudgesForParticipant = async (meeting, userId) => {
     );
 
     if (
-      nudge &&
-      nudge.status === "PENDING" &&
-      nudge.createdAt &&
-      nudge.createdAt.getTime() > Date.now() - 60000
+      forceNotify ||
+      (nudge &&
+        nudge.status === "PENDING" &&
+        nudge.createdAt &&
+        nudge.createdAt.getTime() > Date.now() - 60000)
     ) {
-      // Newly created
+      // Newly created or manual test trigger
       createNotification({
         userId: userId,
         title: "Agenda Review Reminder",
@@ -131,6 +138,13 @@ export const generateNudgesForParticipant = async (meeting, userId) => {
       }).catch(console.error);
     }
   }
+
+  return {
+    userId,
+    score,
+    unresolvedCount,
+    hasViewedAgenda,
+  };
 };
 
 export const getPersonalNudges = async (userId, organizationId) => {
@@ -163,5 +177,119 @@ export const getMeetingReadiness = async (meetingId) => {
       score: n.readinessScore,
       context: n.context,
     })),
+  };
+};
+
+/**
+ * Preview nudges that will be generated for a meeting (Issue #2062)
+ */
+export const previewMeetingNudges = async (meetingId) => {
+  const meeting =
+    await Meeting.findById(meetingId).populate("participants.user");
+  if (!meeting) {
+    throw new Error("Meeting not found");
+  }
+
+  const previews = [];
+  for (const participant of meeting.participants || []) {
+    const user = participant.user || participant;
+    const userId = user._id ? user._id.toString() : user.toString();
+    if (!userId) continue;
+
+    const unresolvedItems = await ActionItem.find({
+      assignee: userId,
+      status: { $in: ["open", "in-progress", "pending"] },
+      organization: meeting.organization,
+    });
+
+    const activity = await Activity.findOne({
+      actor: userId,
+      targetId: meeting._id,
+      action: { $in: ["meeting.viewed", "agenda.viewed"] },
+    });
+
+    const hasViewedAgenda = !!activity;
+    const unresolvedCount = unresolvedItems.length;
+    let score = 100;
+    if (unresolvedCount > 0) score -= Math.min(50, unresolvedCount * 10);
+    if (!hasViewedAgenda) score -= 20;
+
+    const plannedNudges = [];
+    plannedNudges.push({
+      type: "GENERAL_PREP",
+      title: "Preparation Readiness",
+      score,
+      summary: `Participant readiness score: ${score}%`,
+    });
+
+    if (unresolvedCount > 0) {
+      plannedNudges.push({
+        type: "UNRESOLVED_ACTION_ITEMS",
+        title: "Action Items Pending",
+        count: unresolvedCount,
+        summary: `Has ${unresolvedCount} open action item(s) pending before meeting.`,
+      });
+    }
+
+    if (!hasViewedAgenda) {
+      plannedNudges.push({
+        type: "AGENDA_REVIEW",
+        title: "Agenda Not Viewed",
+        summary: "Has not opened or reviewed meeting agenda yet.",
+      });
+    }
+
+    previews.push({
+      user: {
+        _id: userId,
+        name: user.name || "Participant",
+        email: user.email || "",
+      },
+      readinessScore: score,
+      unresolvedCount,
+      hasViewedAgenda,
+      plannedNudges,
+    });
+  }
+
+  const totalScore = previews.reduce((sum, p) => sum + p.readinessScore, 0);
+  const avgScore = previews.length
+    ? Math.round(totalScore / previews.length)
+    : 100;
+
+  return {
+    meetingId,
+    meetingTitle: meeting.title,
+    nudgesEnabled: meeting.nudgesEnabled ?? true,
+    averageScore: avgScore,
+    totalParticipants: previews.length,
+    participants: previews,
+  };
+};
+
+/**
+ * Manually trigger nudge test dispatch for organizer (Issue #2062)
+ */
+export const triggerMeetingNudges = async (meetingId, _organizerUserId) => {
+  const meeting =
+    await Meeting.findById(meetingId).populate("participants.user");
+  if (!meeting) {
+    throw new Error("Meeting not found");
+  }
+
+  let triggeredCount = 0;
+  for (const participant of meeting.participants || []) {
+    const user = participant.user || participant;
+    const userId = user._id ? user._id.toString() : user.toString();
+    if (!userId) continue;
+
+    await generateNudgesForParticipant(meeting, userId, true);
+    triggeredCount++;
+  }
+
+  return {
+    success: true,
+    message: `Generated and dispatched nudges to ${triggeredCount} participants.`,
+    triggeredCount,
   };
 };

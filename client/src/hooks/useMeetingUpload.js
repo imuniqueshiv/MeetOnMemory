@@ -32,11 +32,30 @@ const useMeetingUpload = () => {
   };
 
   const { isDragging, handlers } = useDragAndDrop(handleDropCallback);
-  const { status, progress, uploadMeeting } = useUploadMeetingApi();
+
+  const {
+    status,
+    progress,
+
+    uploadId,
+    totalChunks,
+    uploadedChunks,
+    uploadMeetingResumable,
+    pauseUpload,
+
+    checkInactivityOrRehydrate,
+    abortCurrentUpload,
+  } = useUploadMeetingApi();
+
   const isUploading = status === "pending";
+  const isPaused = status === "paused";
+  const isError = status === "error";
   const uploadProgress = progress;
 
   const resetUpload = (setSummary, setTitle) => {
+    if (uploadId) {
+      abortCurrentUpload(uploadId);
+    }
     setFile(null);
     setTranscript("");
     if (setSummary) setSummary("");
@@ -47,14 +66,21 @@ const useMeetingUpload = () => {
     }
   };
 
-  const handleUpload = (title, setTitle, tags = []) => {
-    if (!file) {
+  const handleUpload = (
+    title,
+    setTitle,
+    tags = [],
+    date = "",
+    options = {},
+  ) => {
+    if (!file && !options.existingUploadId) {
       toast.error("Please select an audio file first.");
       return;
     }
     setTranscript("");
     setMeetingId(null);
-    uploadMeeting(file, title, tags, {
+    uploadMeetingResumable(file, title, tags, date, {
+      existingUploadId: options.existingUploadId,
       onSuccess: (data) => {
         toast.success("Transcription complete!");
         setTranscript(data.transcript || "");
@@ -72,6 +98,12 @@ const useMeetingUpload = () => {
     setFile,
     uploadProgress,
     isUploading,
+    isPaused,
+    isError,
+    status,
+    uploadId,
+    totalChunks,
+    uploadedChunks,
     isDragging,
     transcript,
     setTranscript,
@@ -85,6 +117,9 @@ const useMeetingUpload = () => {
     handleDrop: handlers.onDrop,
     resetUpload,
     handleUpload,
+    pauseUpload,
+    checkInactivityOrRehydrate,
+    abortCurrentUpload,
     formatFileSize,
   };
 };

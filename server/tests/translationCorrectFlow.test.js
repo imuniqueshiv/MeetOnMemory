@@ -53,7 +53,7 @@ beforeEach(async () => {
 describe("MultiLanguageTranscript Correct and Reload Flow (#2282)", () => {
   it("submits correction, persists to database cache, and reloads in-room", async () => {
     // 1. Setup translation cache record for the segment
-    const cacheRecord = await RealtimeTranslationCache.create({
+    await RealtimeTranslationCache.create({
       meeting: meeting._id,
       segmentId: "seg-trans-1",
       sourceLanguage: "en",

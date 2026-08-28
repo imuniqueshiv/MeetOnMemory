@@ -1,5 +1,10 @@
 # Files To Remove
 
+> [!WARNING]
+> **ARCHIVED / HISTORICAL DOCUMENTATION**  
+> The Clerk authentication migration has been fully completed. Clerk is now the sole identity provider for MeetOnMemory.  
+> For current contributor setup and development instructions, please refer to [AUTH_CONTRIBUTOR_RUNBOOK.md](../AUTH_CONTRIBUTOR_RUNBOOK.md).
+
 **When:** Phase 8 only (after cutover soak).  
 **Rule:** Verified identity-layer obsolescence only.  
 **Do not remove** during Phases 1–7.

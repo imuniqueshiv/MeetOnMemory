@@ -15,6 +15,8 @@ import {
   disconnect,
   updateRepository,
   syncActionItem,
+  getWebhookEvents,
+  getRepositories,
 } from "../controllers/githubIntegrationController.js";
 
 const router = express.Router();
@@ -55,6 +57,20 @@ router.get(
   getStatus,
 );
 
+// Webhook Event Logs (Issue #2237)
+router.get(
+  "/webhook-events/:organizationId",
+  normalizeOrgId,
+  requireOrganizationParamMatch("organizationId"),
+  getWebhookEvents,
+);
+router.get(
+  "/webhook-events",
+  normalizeOrgId,
+  requireOrganizationParamMatch("organizationId"),
+  getWebhookEvents,
+);
+
 // Scoped disconnection
 router.delete(
   "/disconnect/:organizationId",
@@ -83,24 +99,18 @@ router.post(
   updateRepository,
 );
 
-// Repository listing (stub)
+// Repository listing
+router.get(
+  "/repos/:organizationId",
+  normalizeOrgId,
+  requireOrganizationParamMatch("organizationId"),
+  getRepositories,
+);
 router.get(
   "/repos",
   normalizeOrgId,
   requireOrganizationParamMatch("organizationId"),
-  async (req, res) => {
-    try {
-      return res.status(200).json({
-        success: true,
-        repositories: [],
-      });
-    } catch (_err) {
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error fetching GitHub repositories.",
-      });
-    }
-  },
+  getRepositories,
 );
 
 // Action Item manual sync trigger

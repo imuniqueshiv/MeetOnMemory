@@ -1,26 +1,27 @@
-import React from "react";
+import React, { lazy } from "react";
 import { Route, Navigate } from "react-router-dom";
 
-// --- Public Pages ---
-import Home from "../pages/Home.jsx";
-import Login from "../pages/Login.jsx";
-import SignUp from "../pages/SignUp.jsx";
-import PublicOrganizationProfile from "../pages/PublicOrganizationProfile.jsx";
-import Privacy from "../pages/Privacy.jsx";
-import Terms from "../pages/Terms.jsx";
-import Security from "../pages/Security.jsx";
-import Contact from "../pages/Contact.jsx";
-import CookiePolicy from "../pages/CookiePolicy.jsx";
-import Status from "../pages/Status.jsx";
-import HelpCenter from "../pages/HelpCenter.jsx";
-import Careers from "../pages/Careers.jsx";
-import PublicSharedView from "../pages/PublicSharedView.jsx";
-import DeveloperDocs from "../pages/DeveloperDocs.jsx";
-import AcceptInvite from "../pages/AcceptInvite.jsx";
-import MeetingInviteJoin from "../pages/MeetingInviteJoin.jsx";
-import Testimonials from "../pages/Testimonials.jsx";
-import GuestMeetingView from "../pages/GuestMeetingView.jsx";
-import GuestJoin from "../pages/GuestJoin.jsx";
+const Home = lazy(() => import("../pages/Home.jsx"));
+const Login = lazy(() => import("../pages/Login.jsx"));
+const SignUp = lazy(() => import("../pages/SignUp.jsx"));
+const PublicOrganizationProfile = lazy(
+  () => import("../pages/PublicOrganizationProfile.jsx"),
+);
+const Privacy = lazy(() => import("../pages/Privacy.jsx"));
+const Terms = lazy(() => import("../pages/Terms.jsx"));
+const Security = lazy(() => import("../pages/Security.jsx"));
+const Contact = lazy(() => import("../pages/Contact.jsx"));
+const CookiePolicy = lazy(() => import("../pages/CookiePolicy.jsx"));
+const Status = lazy(() => import("../pages/Status.jsx"));
+const HelpCenter = lazy(() => import("../pages/HelpCenter.jsx"));
+const Careers = lazy(() => import("../pages/Careers.jsx"));
+const PublicSharedView = lazy(() => import("../pages/PublicSharedView.jsx"));
+const DeveloperDocs = lazy(() => import("../pages/DeveloperDocs.jsx"));
+const AcceptInvite = lazy(() => import("../pages/AcceptInvite.jsx"));
+const MeetingInviteJoin = lazy(() => import("../pages/MeetingInviteJoin.jsx"));
+const Testimonials = lazy(() => import("../pages/Testimonials.jsx"));
+const GuestMeetingView = lazy(() => import("../pages/GuestMeetingView.jsx"));
+const GuestJoin = lazy(() => import("../pages/GuestJoin.jsx"));
 
 const PublicRoutes = (
   <React.Fragment>

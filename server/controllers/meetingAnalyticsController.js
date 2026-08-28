@@ -1,6 +1,8 @@
 import MeetingAnalytics from "../models/MeetingAnalytics.js";
 import Meeting from "../models/meetingModel.js";
 import Policy from "../models/policyModel.js";
+import Decision from "../models/decisionModel.js";
+import ActionItem from "../models/actionItemModel.js";
 import {
   analyzeMeeting,
   getOrganizationAnalytics,
@@ -514,5 +516,127 @@ export const getAnalytics = async (req, res) => {
     res
       .status(500)
       .json({ success: false, message: "Failed to load analytics" });
+  }
+};
+
+/**
+ * Retreives an organization-wide paginated chronological list of meetings with filters.
+ */
+export const getOrgTimeline = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 100);
+    const skip = (page - 1) * limit;
+
+    const match = {
+      organization: req.user.organization,
+      deletedAt: null,
+    };
+
+    if (
+      req.query.teamId &&
+      req.query.teamId !== req.user.organization.toString()
+    ) {
+      if (mongoose.isValidObjectId(req.query.teamId)) {
+        const analytics = await MeetingAnalytics.find(
+          {
+            organization: req.user.organization,
+            teamId: new mongoose.Types.ObjectId(req.query.teamId),
+          },
+          "meeting",
+        ).lean();
+        const meetingIds = analytics.map((a) => a.meeting);
+        match._id = { $in: meetingIds };
+      } else {
+        const analytics = await MeetingAnalytics.find(
+          {
+            organization: req.user.organization,
+            teamId: req.query.teamId,
+          },
+          "meeting",
+        ).lean();
+        const meetingIds = analytics.map((a) => a.meeting);
+        match._id = { $in: meetingIds };
+      }
+    }
+
+    if (req.query.tag) {
+      match.tags = req.query.tag;
+    }
+
+    if (req.query.seriesId) {
+      if (mongoose.isValidObjectId(req.query.seriesId)) {
+        match.series = new mongoose.Types.ObjectId(req.query.seriesId);
+      }
+    }
+
+    const totalCount = await Meeting.countDocuments(match);
+    const meetings = await Meeting.find(match)
+      .sort({ date: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("series", "title")
+      .lean();
+
+    const data = await Promise.all(
+      meetings.map(async (m) => {
+        const [decisionsCount, actionItemsCount] = await Promise.all([
+          Decision.countDocuments({ sourceMeetingId: m._id }),
+          ActionItem.countDocuments({ sourceMeetingId: m._id }),
+        ]);
+
+        let teamName = m.meetingType
+          ? m.meetingType.charAt(0).toUpperCase() + m.meetingType.slice(1)
+          : "Internal";
+
+        const analyticsDoc = await MeetingAnalytics.findOne({
+          meeting: m._id,
+        }).lean();
+        if (analyticsDoc && analyticsDoc.teamId) {
+          const teamIdStr = analyticsDoc.teamId.toString();
+          if (teamIdStr === "team-eng") {
+            teamName = "Engineering Core";
+          } else if (teamIdStr === "team-prod") {
+            teamName = "Product Management";
+          } else if (mongoose.isValidObjectId(teamIdStr)) {
+            teamName = `Team ${teamIdStr.substring(0, 6)}`;
+          } else {
+            teamName = teamIdStr;
+          }
+        }
+
+        return {
+          id: m._id,
+          title: m.title,
+          date: m.date ? new Date(m.date).toISOString().split("T")[0] : null,
+          time: m.time || "",
+          teamName,
+          seriesName: m.series?.title || null,
+          tags: m.tags || [],
+          counts: {
+            decisions: decisionsCount,
+            actionItems: actionItemsCount,
+            attendees: m.participants?.length || 0,
+          },
+        };
+      }),
+    );
+
+    res.status(200).json({
+      success: true,
+      data,
+      pagination: {
+        page,
+        limit,
+        totalRecords: totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+      },
+    });
+  } catch (error) {
+    console.error("❌ Org Timeline Controller Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error compiling structural timeline metrics.",
+    });
   }
 };

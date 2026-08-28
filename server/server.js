@@ -71,6 +71,13 @@ import {
   startActionItemSlaJob,
   stopActionItemSlaJob,
 } from "./jobs/actionItemSlaJob.js";
+import { startAbsenteeCatchUpJob } from "./jobs/absenteeCatchUpJob.js";
+import startAsyncMeetingSummaryJob from "./jobs/asyncMeetingSummaryJob.js";
+import scheduleRecurringActionItemJob from "./jobs/recurringActionItemJob.js";
+import {
+  startDecisionReviewReminderJob,
+  stopDecisionReviewReminderJob,
+} from "./jobs/decisionReviewReminderJob.js";
 import { createClient } from "redis"; // eslint-disable-line no-unused-vars
 import {
   initDataExportWorker, // eslint-disable-line no-unused-vars
@@ -205,6 +212,18 @@ if (process.env.NODE_ENV !== "test") {
 
   // Start Action Item SLA background job
   startActionItemSlaJob();
+
+  // Start Absentee Catch-Up background job
+  startAbsenteeCatchUpJob();
+
+  // Start Async Meeting Summary background job
+  startAsyncMeetingSummaryJob();
+
+  // Start Recurring Action Item job
+  scheduleRecurringActionItemJob();
+
+  // Start Decision Review Reminder job
+  startDecisionReviewReminderJob();
 }
 
 // (AI, Data Export, and Webhook workers are initialized inside server.listen callback)
@@ -223,6 +242,7 @@ const gracefulShutdown = createGracefulShutdown({
     stopWeeklyInsightJob();
     stopStandupReportJob();
     stopActionItemSlaJob();
+    stopDecisionReviewReminderJob();
   },
   closeQueues: shutdownQueues,
   closeDatabase: () => mongoose.connection.close(),

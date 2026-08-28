@@ -30,6 +30,14 @@ const topicClusterSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isPinned: {
+      type: Boolean,
+      default: false,
+    },
+    isHidden: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true },
 );

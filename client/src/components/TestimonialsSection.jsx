@@ -38,8 +38,8 @@ export default function TestimonialsSection() {
       try {
         setLoading(true);
         setError(null);
-        const { data } = await apiClient.get("/api/testimonials", {
-          params: { limit: 12, page: 1 },
+        const { data } = await apiClient.get("/api/testimonials/spotlight", {
+          params: { limit: 12 },
         });
         if (!cancelled) {
           setTestimonials(data.testimonials || []);

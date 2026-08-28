@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../services/apiClient.js";
+import GitHubIntegrationPanel from "../components/integrations/GitHubIntegrationPanel.jsx";
 
 export const IntegrationMarketplaceHub = () => {
   const navigate = useNavigate();
@@ -180,6 +181,11 @@ export const IntegrationMarketplaceHub = () => {
           ))}
         </div>
       )}
+
+      {/* GitHub Integration Management Panel (#2237) */}
+      <div className="pt-4 border-t border-slate-100">
+        <GitHubIntegrationPanel />
+      </div>
     </div>
   );
 };

@@ -314,6 +314,137 @@ export const handleSlackEvents = async (req, res, next) => {
   }
 };
 
+// 4. GET /api/slack/status
+
+/**
+ * Returns connection status and workspace/channel info for the given organization.
+ *
+ * @param {import('express').Request}  req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
+export const getSlackStatus = async (req, res, next) => {
+  try {
+    let organizationId =
+      req.query.organizationId || req.user?.organization?.toString() || "";
+
+    if (
+      typeof organizationId !== "string" ||
+      !/^[0-9a-fA-F]{24}$/.test(organizationId)
+    ) {
+      return sendError(res, 400, "Invalid or missing organizationId format.");
+    }
+
+    const org = await Organization.findById(organizationId).select(
+      "+slackIntegration.botToken",
+    );
+    if (!org) {
+      return sendError(res, 404, "Organization not found.");
+    }
+
+    const isConnected = Boolean(
+      org.slackIntegration?.botToken || org.slackIntegration?.teamId,
+    );
+
+    return res.status(200).json({
+      success: true,
+      isConnected,
+      teamName: org.slackIntegration?.teamName || "",
+      teamId: org.slackIntegration?.teamId || "",
+      channelId: org.slackIntegration?.channelId || "",
+      installedAt: org.slackIntegration?.installedAt || null,
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+// 5. POST /api/slack/disconnect
+
+/**
+ * Clears Slack integration credentials from the organization document.
+ *
+ * @param {import('express').Request}  req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
+export const disconnectSlack = async (req, res, next) => {
+  try {
+    let organizationId =
+      req.body?.organizationId ||
+      req.query?.organizationId ||
+      req.user?.organization?.toString() ||
+      "";
+
+    if (
+      typeof organizationId !== "string" ||
+      !/^[0-9a-fA-F]{24}$/.test(organizationId)
+    ) {
+      return sendError(res, 400, "Invalid or missing organizationId format.");
+    }
+
+    const org = await Organization.findById(organizationId);
+    if (!org) {
+      return sendError(res, 404, "Organization not found.");
+    }
+
+    org.slackIntegration = {
+      botToken: "",
+      channelId: "",
+      teamId: "",
+      teamName: "",
+      installedAt: null,
+    };
+    await org.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Slack integration disconnected successfully.",
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+// 6. PATCH /api/slack/channel
+
+/**
+ * Updates default channel ID for notifications in the organization.
+ *
+ * @param {import('express').Request}  req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
+export const updateSlackChannel = async (req, res, next) => {
+  try {
+    const { organizationId, channelId } = req.body;
+    const orgId = organizationId || req.user?.organization?.toString() || "";
+
+    if (typeof orgId !== "string" || !/^[0-9a-fA-F]{24}$/.test(orgId)) {
+      return sendError(res, 400, "Invalid or missing organizationId format.");
+    }
+
+    const org = await Organization.findById(orgId);
+    if (!org) {
+      return sendError(res, 404, "Organization not found.");
+    }
+
+    if (!org.slackIntegration) {
+      org.slackIntegration = {};
+    }
+    org.slackIntegration.channelId =
+      typeof channelId === "string" ? channelId.trim() : "";
+    await org.save();
+
+    return res.status(200).json({
+      success: true,
+      channelId: org.slackIntegration.channelId,
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 // Middleware: Verify Slack Signing Secret
 
 /**

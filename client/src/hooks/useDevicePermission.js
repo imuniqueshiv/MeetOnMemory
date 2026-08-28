@@ -1,5 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
+const DEVICE_PREFERENCES_KEY = "meetonmemory_device_preferences";
+
+const readDevicePreferences = () => {
+  try {
+    if (typeof window === "undefined") return {};
+    const value = JSON.parse(
+      localStorage.getItem(DEVICE_PREFERENCES_KEY) || "{}",
+    );
+    return value && typeof value === "object" ? value : {};
+  } catch {
+    return {};
+  }
+};
+
 const BROWSER_GUIDES = {
   Chrome: {
     name: "Chrome",
@@ -58,8 +72,12 @@ export default function useDevicePermission() {
   const [micStatus, setMicStatus] = useState("prompt");
   const [cameras, setCameras] = useState([]);
   const [microphones, setMicrophones] = useState([]);
-  const [selectedCamera, setSelectedCamera] = useState("");
-  const [selectedMicrophone, setSelectedMicrophone] = useState("");
+  const [selectedCamera, setSelectedCamera] = useState(
+    () => readDevicePreferences().cameraId || "",
+  );
+  const [selectedMicrophone, setSelectedMicrophone] = useState(
+    () => readDevicePreferences().microphoneId || "",
+  );
   const [stream, setStream] = useState(null);
   const [error, setError] = useState(null);
   const [errorType, setErrorType] = useState(null);
@@ -73,6 +91,22 @@ export default function useDevicePermission() {
   // Tracks ownership of the preview MediaStream so Device Setup can hand it
   // off to Meeting Room without cleanup() stopping live tracks (#1210).
   const streamRef = useRef(null);
+
+  // Persist the selected device IDs so the next Upload/Record or Meeting Room
+  // setup starts with the user's preferred camera and microphone.
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        DEVICE_PREFERENCES_KEY,
+        JSON.stringify({
+          cameraId: selectedCamera || "",
+          microphoneId: selectedMicrophone || "",
+        }),
+      );
+    } catch {
+      // Storage can be unavailable in private browsing; preferences remain in memory.
+    }
+  }, [selectedCamera, selectedMicrophone]);
 
   const stopAudioAnalyser = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);

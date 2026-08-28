@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { toast } from "react-toastify";
 import { Plus, Trash2, CheckCircle, Circle, ArrowRight } from "lucide-react";
 import { meetingGoalApi } from "../../services";
+import SeriesGoalRollup from "./SeriesGoalRollup";
 
 const MeetingGoalsPanel = ({ meeting, currentUser }) => {
   const [goals, setGoals] = useState([]);
@@ -353,6 +354,8 @@ const MeetingGoalsPanel = ({ meeting, currentUser }) => {
           )}
         </div>
       )}
+
+      <SeriesGoalRollup meetingId={meeting?._id} />
     </div>
   );
 };

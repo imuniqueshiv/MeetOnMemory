@@ -10,6 +10,7 @@ import { customFieldApi } from "../../../api/customFieldApi";
 import { focusTimeApi } from "../../../api/focusTimeApi";
 import { calendarAvailabilityApi } from "../../../api/calendarAvailabilityApi";
 import resourceBookingApi from "../../../services/resourceBookingApi";
+import { attachmentApi } from "../../../services/attachmentApi";
 import AppContent from "../../../context/AppContent";
 import {
   buildMeetingDraftKey,
@@ -48,9 +49,11 @@ export const buildDuplicateScheduleState = (duplicateData = {}) => ({
     duration: duplicateData.duration ?? "",
     location: duplicateData.location || "",
     venue: duplicateData.venue || "",
+    venueCoordinates: duplicateData.venueCoordinates || null,
     syncToCalendar: true,
     reminderEnabled: duplicateData.reminderEnabled || false,
     reminderMinutesBefore: duplicateData.reminderMinutesBefore || 30,
+    tags: duplicateData.tags || [],
   },
   participants: (duplicateData.participants || []).map(
     (participant, index) => ({
@@ -84,11 +87,13 @@ export const useScheduleMeeting = ({
     duration: "",
     location: "",
     venue: "",
+    venueCoordinates: null,
     syncToCalendar: true,
     reminderEnabled: false,
     reminderMinutesBefore: 30,
     recurrencePattern: "none",
     endDate: "",
+    tags: [],
   });
   const [participants, setParticipants] = useState([]);
   const [newParticipant, setNewParticipant] = useState({ name: "", email: "" });
@@ -411,6 +416,7 @@ export const useScheduleMeeting = ({
       duration: "",
       location: "",
       venue: "",
+      venueCoordinates: null,
       syncToCalendar: true,
       reminderEnabled: false,
       reminderMinutesBefore: 30,
@@ -496,10 +502,18 @@ export const useScheduleMeeting = ({
 
     setLoading(true);
     try {
+      const selectedTags =
+        Array.isArray(scheduleData.tags) && scheduleData.tags.length > 0
+          ? scheduleData.tags
+          : duplicateMetadata.tags || [];
+
       const payload = {
         ...scheduleData,
         participants,
-        tags: duplicateMetadata.tags,
+        tags: selectedTags,
+        metadata: {
+          tags: selectedTags,
+        },
         policyDetails: duplicateMetadata.policyDetails,
         recordingType: duplicateMetadata.recordingType,
         agendaItems: normalizeAgendaItems(agendaItems),
@@ -570,6 +584,24 @@ export const useScheduleMeeting = ({
                   `Failed to book a selected physical resource: ${err.response?.data?.message || err.message}`,
                 );
               }
+            }
+          }
+        }
+
+        if (attachments.length > 0 && response.data.meeting?._id) {
+          for (const file of attachments) {
+            const formData = new FormData();
+            formData.append("file", file);
+            try {
+              await attachmentApi.uploadAttachment(
+                response.data.meeting._id,
+                formData,
+              );
+            } catch (err) {
+              console.error("Failed to upload attachment", err);
+              toast.error(
+                `Meeting saved, but failed to upload ${file.name || "attachment"}`,
+              );
             }
           }
         }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar.jsx";
+import EnterpriseAiComplianceMatrix from "../components/security/EnterpriseAiComplianceMatrix.jsx";
 import {
   Shield,
   Search,
@@ -24,6 +25,7 @@ import {
   UserCheck,
   Scale,
   Globe,
+  ShieldCheck,
 } from "lucide-react";
 
 // Sections data
@@ -66,6 +68,13 @@ Your data is NEVER used to train, evaluate, or improve public machine learning m
 
 C. Encryption:
 All payloads sent to AI endpoints are encrypted using TLS 1.3, guaranteeing secure server-to-server transfers.`,
+  },
+  {
+    id: "complianceMatrix",
+    title: "Enterprise AI Compliance Matrix",
+    icon: ShieldCheck,
+    content:
+      "Comprehensive matrix mapping MeetOnMemory AI controls to SOC 2, GDPR, HIPAA, ISO 27001, CCPA, and FedRAMP frameworks.",
   },
   {
     id: "vectorIsolation",
@@ -680,6 +689,19 @@ const Security = () => {
               ) : (
                 filteredSections.map((sec) => {
                   const Icon = sec.icon;
+                  if (sec.id === "complianceMatrix") {
+                    return (
+                      <article
+                        key={sec.id}
+                        ref={(el) => {
+                          sectionRefs.current[sec.id] = el;
+                        }}
+                        className="scroll-mt-24 border-b border-gray-100 last:border-0 dark:border-slate-700/60 pb-8 last:pb-0"
+                      >
+                        <EnterpriseAiComplianceMatrix />
+                      </article>
+                    );
+                  }
                   return (
                     <article
                       key={sec.id}

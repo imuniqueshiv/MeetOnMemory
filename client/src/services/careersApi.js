@@ -41,4 +41,35 @@ export async function submitCareerApplication({
   });
 }
 
-export default submitCareerApplication;
+/**
+ * Retrieve careers applications for administrative review.
+ * @param {object} [params]
+ * @param {string} [params.status]
+ * @param {string} [params.jobId]
+ */
+export async function getCareerApplications(params) {
+  return apiClient.get("/api/careers/admin/applications", { params });
+}
+
+/**
+ * Update the status and admin notes for a career application.
+ * @param {string} id - The application ID.
+ * @param {object} payload
+ * @param {string} payload.status - The target status transition.
+ * @param {string} payload.adminNotes - Assessment internal notes.
+ */
+export async function updateCareerApplicationStatus(
+  id,
+  { status, adminNotes },
+) {
+  return apiClient.patch(`/api/careers/admin/applications/${id}/status`, {
+    status,
+    adminNotes,
+  });
+}
+
+export default {
+  submitCareerApplication,
+  getCareerApplications,
+  updateCareerApplicationStatus,
+};

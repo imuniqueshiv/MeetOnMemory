@@ -137,6 +137,27 @@ const organizationSchema = new mongoose.Schema(
         default: null,
       },
     },
+
+    // E2EE Feature Flag & Rollout Settings (#2263)
+    e2eeSettings: {
+      enabled: {
+        type: Boolean,
+        default: false,
+      },
+      enforceOrgWide: {
+        type: Boolean,
+        default: false,
+      },
+      updatedAt: {
+        type: Date,
+        default: null,
+      },
+      updatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "user",
+        default: null,
+      },
+    },
   },
   {
     timestamps: true,

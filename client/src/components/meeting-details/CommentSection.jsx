@@ -8,11 +8,18 @@ import {
   deleteComment,
   toggleReaction,
 } from "../../api/commentApi";
+import { organizationApi } from "../../services/organizationApi";
 import { createClerkSocketOptions } from "../../services/apiClient.js";
 import { toast } from "react-toastify";
+import MentionPicker from "../mentions/MentionPicker.jsx";
+import {
+  extractMentionQuery,
+  insertMention,
+  renderMentions,
+} from "../../utils/mentionUtils.jsx";
 
 const CommentSection = ({ meetingId }) => {
-  const { userData, backendUrl } = useContext(AppContent);
+  const { userData, backendUrl } = useContext(AppContent) || {};
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
   const [replyingTo, setReplyingTo] = useState(null);
@@ -20,7 +27,29 @@ const CommentSection = ({ meetingId }) => {
   const [editingComment, setEditingComment] = useState(null);
   const [editText, setEditText] = useState("");
 
+  const [orgMembers, setOrgMembers] = useState([]);
+  const [activeMention, setActiveMention] = useState({
+    field: null, // "new" | "reply" | "edit"
+    query: "",
+  });
+
+  const newCommentRef = useRef(null);
+  const replyRef = useRef(null);
+  const editRef = useRef(null);
   const socketRef = useRef(null);
+
+  useEffect(() => {
+    const loadMembers = async () => {
+      try {
+        const res = await organizationApi.getMembers();
+        const data = res?.data?.data || res?.data || [];
+        setOrgMembers(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to load org members for mentions:", err);
+      }
+    };
+    loadMembers();
+  }, []);
 
   useEffect(() => {
     const fetchComments = async () => {
@@ -78,6 +107,36 @@ const CommentSection = ({ meetingId }) => {
     };
   }, [meetingId, backendUrl, userData]);
 
+  const handleInputChange = (field, text, cursorPosition) => {
+    if (field === "new") setNewComment(text);
+    if (field === "reply") setReplyText(text);
+    if (field === "edit") setEditText(text);
+
+    const mentionData = extractMentionQuery(text, cursorPosition);
+    if (mentionData.isMentioning) {
+      setActiveMention({ field, query: mentionData.query });
+    } else {
+      setActiveMention({ field: null, query: "" });
+    }
+  };
+
+  const handleSelectMember = (member) => {
+    if (activeMention.field === "new" && newCommentRef.current) {
+      const pos = newCommentRef.current.selectionStart || newComment.length;
+      const { newText } = insertMention(newComment, pos, member);
+      setNewComment(newText);
+    } else if (activeMention.field === "reply" && replyRef.current) {
+      const pos = replyRef.current.selectionStart || replyText.length;
+      const { newText } = insertMention(replyText, pos, member);
+      setReplyText(newText);
+    } else if (activeMention.field === "edit" && editRef.current) {
+      const pos = editRef.current.selectionStart || editText.length;
+      const { newText } = insertMention(editText, pos, member);
+      setEditText(newText);
+    }
+    setActiveMention({ field: null, query: "" });
+  };
+
   const handleCreateComment = async (e) => {
     e.preventDefault();
     if (!newComment.trim()) {
@@ -91,6 +150,7 @@ const CommentSection = ({ meetingId }) => {
         body: newComment,
       });
       setNewComment("");
+      setActiveMention({ field: null, query: "" });
       toast.success("Comment posted successfully!");
     } catch (err) {
       console.error("Error creating comment:", err);
@@ -115,6 +175,7 @@ const CommentSection = ({ meetingId }) => {
       });
       setReplyText("");
       setReplyingTo(null);
+      setActiveMention({ field: null, query: "" });
       toast.success("Reply posted successfully!");
     } catch (err) {
       console.error("Error posting reply:", err);
@@ -135,6 +196,7 @@ const CommentSection = ({ meetingId }) => {
       await updateComment(commentId, { body: editText });
       setEditingComment(null);
       setEditText("");
+      setActiveMention({ field: null, query: "" });
       toast.success("Comment updated successfully!");
     } catch (err) {
       console.error("Error updating comment:", err);
@@ -184,17 +246,33 @@ const CommentSection = ({ meetingId }) => {
         className={`${isReply ? "ml-8 mt-2" : "mt-4"} p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800`}
       >
         {isEditing ? (
-          <div className="space-y-2">
+          <div className="space-y-2 relative">
             <textarea
+              ref={editRef}
               value={editText}
-              onChange={(e) => setEditText(e.target.value)}
+              onChange={(e) =>
+                handleInputChange(
+                  "edit",
+                  e.target.value,
+                  e.target.selectionStart,
+                )
+              }
               className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               rows={3}
             />
+            {activeMention.field === "edit" && (
+              <MentionPicker
+                isOpen={true}
+                query={activeMention.query}
+                members={orgMembers}
+                onSelect={handleSelectMember}
+                onClose={() => setActiveMention({ field: null, query: "" })}
+              />
+            )}
             <div className="flex gap-2">
               <button
                 onClick={() => handleEditComment(comment._id)}
-                className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 cursor-pointer"
               >
                 Save
               </button>
@@ -202,8 +280,9 @@ const CommentSection = ({ meetingId }) => {
                 onClick={() => {
                   setEditingComment(null);
                   setEditText("");
+                  setActiveMention({ field: null, query: "" });
                 }}
-                className="px-3 py-1 bg-gray-300 text-gray-700 rounded text-sm hover:bg-gray-400 dark:bg-gray-600 dark:text-gray-200"
+                className="px-3 py-1 bg-gray-300 text-gray-700 rounded text-sm hover:bg-gray-400 dark:bg-gray-600 dark:text-gray-200 cursor-pointer"
               >
                 Cancel
               </button>
@@ -248,7 +327,7 @@ const CommentSection = ({ meetingId }) => {
             </div>
 
             <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap">
-              {comment.body}
+              {renderMentions(comment.body)}
             </p>
 
             <div className="flex items-center gap-2 mt-2">
@@ -279,18 +358,34 @@ const CommentSection = ({ meetingId }) => {
             </div>
 
             {replyingTo === comment._id && (
-              <div className="mt-2 space-y-2">
+              <div className="mt-2 space-y-2 relative">
                 <textarea
+                  ref={replyRef}
                   value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  placeholder="Write a reply..."
+                  onChange={(e) =>
+                    handleInputChange(
+                      "reply",
+                      e.target.value,
+                      e.target.selectionStart,
+                    )
+                  }
+                  placeholder="Write a reply... Use @ to mention"
                   className="w-full p-2 border rounded text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   rows={2}
                 />
+                {activeMention.field === "reply" && (
+                  <MentionPicker
+                    isOpen={true}
+                    query={activeMention.query}
+                    members={orgMembers}
+                    onSelect={handleSelectMember}
+                    onClose={() => setActiveMention({ field: null, query: "" })}
+                  />
+                )}
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleReply(comment._id)}
-                    className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                    className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 cursor-pointer"
                   >
                     Reply
                   </button>
@@ -298,8 +393,9 @@ const CommentSection = ({ meetingId }) => {
                     onClick={() => {
                       setReplyingTo(null);
                       setReplyText("");
+                      setActiveMention({ field: null, query: "" });
                     }}
-                    className="px-3 py-1 bg-gray-300 text-gray-700 rounded text-sm hover:bg-gray-400 dark:bg-gray-600 dark:text-gray-200"
+                    className="px-3 py-1 bg-gray-300 text-gray-700 rounded text-sm hover:bg-gray-400 dark:bg-gray-600 dark:text-gray-200 cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -324,18 +420,30 @@ const CommentSection = ({ meetingId }) => {
         Comments ({comments.length})
       </h3>
 
-      <form onSubmit={handleCreateComment} className="mb-6">
+      <form onSubmit={handleCreateComment} className="mb-6 relative">
         <textarea
+          ref={newCommentRef}
           value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          placeholder="Add a comment..."
+          onChange={(e) =>
+            handleInputChange("new", e.target.value, e.target.selectionStart)
+          }
+          placeholder="Add a comment... Use @ to mention team members"
           className="w-full p-3 border rounded-lg dark:bg-gray-800 dark:border-gray-700 dark:text-white"
           rows={3}
         />
+        {activeMention.field === "new" && (
+          <MentionPicker
+            isOpen={true}
+            query={activeMention.query}
+            members={orgMembers}
+            onSelect={handleSelectMember}
+            onClose={() => setActiveMention({ field: null, query: "" })}
+          />
+        )}
         <div className="flex justify-end mt-2">
           <button
             type="submit"
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
           >
             Post Comment
           </button>

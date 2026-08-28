@@ -3,7 +3,7 @@ import apiClient from "./apiClient";
 export const effectivenessApi = {
   calculateMeetingScore: async (meetingId, organizationId, seriesId) => {
     const response = await apiClient.post(
-      `/effectiveness/calculate/${meetingId}`,
+      `/api/effectiveness/calculate/${meetingId}`,
       {
         organizationId,
         seriesId,
@@ -13,13 +13,15 @@ export const effectivenessApi = {
   },
 
   getMeetingScore: async (meetingId) => {
-    const response = await apiClient.get(`/effectiveness/meeting/${meetingId}`);
+    const response = await apiClient.get(
+      `/api/effectiveness/meeting/${meetingId}`,
+    );
     return response.data;
   },
 
   getOrganizationTrends: async (organizationId, days = 30) => {
     const response = await apiClient.get(
-      `/effectiveness/organization/${organizationId}`,
+      `/api/effectiveness/organization/${organizationId}`,
       {
         params: { days },
       },
@@ -28,9 +30,12 @@ export const effectivenessApi = {
   },
 
   getSeriesTrends: async (seriesId, limit = 10) => {
-    const response = await apiClient.get(`/effectiveness/series/${seriesId}`, {
-      params: { limit },
-    });
+    const response = await apiClient.get(
+      `/api/effectiveness/series/${seriesId}`,
+      {
+        params: { limit },
+      },
+    );
     return response.data;
   },
 };

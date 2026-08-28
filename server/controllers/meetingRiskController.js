@@ -1,6 +1,11 @@
 import MeetingRisk from "../models/meetingRiskModel.js";
 import Meeting from "../models/meetingModel.js";
 import { calculateRiskScore } from "../services/riskScoringService.js";
+import {
+  risksToCsv,
+  isValidRiskTransition,
+  RISK_STATUSES,
+} from "../utils/riskExport.js";
 
 export const createRisk = async (req, res) => {
   try {
@@ -57,6 +62,84 @@ export const getRisksByOrganization = async (req, res) => {
     res.status(200).json({ success: true, data: risks });
   } catch (error) {
     console.error("Error fetching organization risks:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+/**
+ * Export an organization's risk register as CSV (default) or JSON.
+ * @route GET /api/meeting-risks/organization/:organizationId/export?format=csv|json
+ */
+export const exportOrganizationRisks = async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    const format = (req.query.format || "csv").toString().toLowerCase();
+
+    const risks = await MeetingRisk.find({ organizationId })
+      .populate("ownerId", "firstName lastName")
+      .sort("-createdAt")
+      .lean();
+
+    if (format === "json") {
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader(
+        "Content-Disposition",
+        'attachment; filename="risk-register.json"',
+      );
+      return res.status(200).send(JSON.stringify(risks, null, 2));
+    }
+
+    const csv = risksToCsv(risks);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="risk-register.csv"',
+    );
+    return res.status(200).send(csv);
+  } catch (error) {
+    console.error("Error exporting risks:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+/**
+ * Move a risk through its mitigation status workflow (with transition
+ * validation) and optionally (re)assign its owner.
+ * @route PATCH /api/meeting-risks/:riskId/status
+ */
+export const updateRiskStatus = async (req, res) => {
+  try {
+    const { riskId } = req.params;
+    const { status, ownerId } = req.body;
+
+    if (!RISK_STATUSES.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `status must be one of: ${RISK_STATUSES.join(", ")}`,
+      });
+    }
+
+    const risk = await MeetingRisk.findById(riskId);
+    if (!risk) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Risk not found" });
+    }
+
+    if (!isValidRiskTransition(risk.status, status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot move a risk from "${risk.status}" to "${status}"`,
+      });
+    }
+
+    risk.status = status;
+    if (ownerId !== undefined) risk.ownerId = ownerId;
+    await risk.save();
+
+    res.status(200).json({ success: true, data: risk });
+  } catch (error) {
+    console.error("Error updating risk status:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };

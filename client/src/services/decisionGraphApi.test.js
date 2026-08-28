@@ -1,10 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import apiClient from "./apiClient";
-import { getAllDecisionGraphPages } from "./decisionGraphApi";
+import {
+  getAllDecisionGraphPages,
+  createDecision,
+  linkDecisions,
+  supersedeDecision,
+} from "./decisionGraphApi";
 
 vi.mock("./apiClient", () => ({
   default: {
     get: vi.fn(),
+    post: vi.fn(),
   },
 }));
 
@@ -90,5 +96,54 @@ describe("getAllDecisionGraphPages", () => {
     const graph = await getAllDecisionGraphPages();
 
     expect(graph.edges).toHaveLength(2);
+  });
+});
+
+describe("decision graph mutations (Issue #2027)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("createDecision posts the decision payload", async () => {
+    apiClient.post.mockResolvedValueOnce({ data: { decision: { id: "d1" } } });
+    const out = await createDecision({
+      text: "Adopt Rust for the parser",
+      owner: "alice",
+      status: "open",
+      sourceMeetingId: "m1",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/api/decision-graph", {
+      text: "Adopt Rust for the parser",
+      owner: "alice",
+      status: "open",
+      sourceMeetingId: "m1",
+    });
+    expect(out.decision.id).toBe("d1");
+  });
+
+  it("linkDecisions posts a relatesTo edge to the right id", async () => {
+    apiClient.post.mockResolvedValueOnce({
+      data: { edge: { type: "relatesTo" } },
+    });
+    await linkDecisions("d1", { targetId: "d2", confidence: 80 });
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/api/decision-graph/d1/relations",
+      {
+        targetId: "d2",
+        confidence: 80,
+      },
+    );
+  });
+
+  it("supersedeDecision posts to the supersede endpoint", async () => {
+    apiClient.post.mockResolvedValueOnce({ data: { status: "superseded" } });
+    const out = await supersedeDecision("d1", { targetId: "d2" });
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/api/decision-graph/d1/supersede",
+      {
+        targetId: "d2",
+      },
+    );
+    expect(out.status).toBe("superseded");
   });
 });

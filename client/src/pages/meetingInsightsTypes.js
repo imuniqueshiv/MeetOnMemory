@@ -146,32 +146,3 @@ export const SEVERITY_CONFIG = {
     textColor: "text-red-600 dark:text-red-400",
   },
 };
-
-export const MOCK_MEMBERS = [
-  { id: "m1", name: "Sarah Chen", role: "Product Lead", avatar: "SC" },
-  { id: "m2", name: "James Wilson", role: "Engineering Manager", avatar: "JW" },
-  { id: "m3", name: "Priya Sharma", role: "Designer", avatar: "PS" },
-  { id: "m4", name: "Alex Rivera", role: "Backend Developer", avatar: "AR" },
-  { id: "m5", name: "Emma Thompson", role: "QA Lead", avatar: "ET" },
-  { id: "m6", name: "David Kim", role: "DevOps Engineer", avatar: "DK" },
-  { id: "m7", name: "Lisa Park", role: "Scrum Master", avatar: "LP" },
-  {
-    id: "m8",
-    name: "Marcus Johnson",
-    role: "Frontend Developer",
-    avatar: "MJ",
-  },
-];
-
-export const MOCK_MEETING_TYPES = [
-  "Standup",
-  "Sprint Planning",
-  "Retrospective",
-  "Design Review",
-  "Architecture Review",
-  "1-on-1",
-  "All Hands",
-  "Brainstorm",
-  "Client Sync",
-  "Technical Deep Dive",
-];

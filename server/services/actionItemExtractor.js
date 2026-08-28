@@ -3,7 +3,7 @@ import smartAssignment from "./smartAssignment.js";
 
 // Initialize AI client (Assuming OpenAI for this implementation)
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY || "mock-openai-key",
 });
 
 /**

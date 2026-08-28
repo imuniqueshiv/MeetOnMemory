@@ -38,7 +38,7 @@ export const getNotifications = async (req, res) => {
       return sendError(res, 401, "Authentication error, user ID not found.");
     }
 
-    const { category, status } = req.query;
+    const { category, status, search } = req.query;
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(
       100,
@@ -57,6 +57,13 @@ export const getNotifications = async (req, res) => {
       filter.isRead = false;
     } else if (status === "read") {
       filter.isRead = true;
+    }
+
+    if (search && typeof search === "string") {
+      filter.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
     }
 
     const [notifications, total, unreadCount] = await Promise.all([

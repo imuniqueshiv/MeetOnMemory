@@ -4,6 +4,9 @@ export const topicApi = {
   getTopicClusters: (orgId) =>
     apiClient.get(`/api/topics/clusters/org/${orgId}`),
 
+  getTopicVelocityAndTrends: (orgId) =>
+    apiClient.get(`/api/topics/velocity/org/${orgId}`),
+
   renameCluster: (clusterId, label) =>
     apiClient.put(`/api/topics/clusters/${clusterId}`, { label }),
 

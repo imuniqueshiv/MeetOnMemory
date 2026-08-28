@@ -10,6 +10,7 @@ import aiRoutes from "./aiRoutes.js";
 import policyRoutes from "./policyRoutes.js";
 import analyticsRoutes from "./analyticsRoutes.js";
 import actionItemAnalyticsRoutes from "./actionItemAnalyticsRoutes.js";
+import standupRoutes from "./standupRoutes.js";
 import geminiRoutes from "./geminiRoutes.js";
 import notesRoutes from "./notes.routes.js";
 import userRoutes from "./userRoutes.js";
@@ -19,9 +20,12 @@ import knowledgeGraphRoutes from "./knowledgeGraphRoutes.js";
 import policyComplianceRoutes from "./policyComplianceRoutes.js";
 import sessionRoutes from "./sessionRoutes.js";
 import transcriptRoutes from "./transcriptRoutes.js";
+import transcriptChapterRoutes from "./transcriptChapterRoutes.js";
+import meetingAttendanceRoutes from "./meetingAttendanceRoutes.js";
 import customFieldRoutes from "./customFieldRoutes.js";
 import sharedLinkRoutes from "./sharedLinkRoutes.js";
 import meetingTemplateRoutes from "./meetingTemplateRoutes.js";
+import meetingNoteTemplateRoutes from "./meetingNoteTemplateRoutes.js";
 import bookmarkRoutes from "./bookmarkRoutes.js";
 import commentRoutes from "./commentRoutes.js";
 import activityRoutes from "./activityRoutes.js";
@@ -36,6 +40,7 @@ import agendaTimerRoutes from "./agendaTimerRoutes.js";
 import digestRoutes from "./digestRoutes.js";
 import decisionGraphRoutes from "./decisionGraphRoutes.js";
 import decisionLogRoutes from "./decisionLogRoutes.js";
+import decisionImpactRoutes from "./decisionImpactRoutes.js";
 import attendanceAnalyticsRoutes from "./attendanceAnalyticsRoutes.js";
 import meetingFeedbackRoutes from "./meetingFeedbackRoutes.js";
 import meetingCostRoutes from "./meetingCostRoutes.js";
@@ -55,6 +60,7 @@ import transcriptAnnotationRoutes from "./transcriptAnnotationRoutes.js";
 import glossaryRoutes from "./glossaryRoutes.js";
 import aiSummaryTemplateRoutes from "./aiSummaryTemplateRoutes.js";
 import topicRoutes from "./topicRoutes.js";
+import topicIntelligenceRoutes from "./topicIntelligenceRoutes.js";
 import automationRuleRoutes from "./automationRuleRoutes.js";
 import meetingHealthRoutes from "./meetingHealthRoutes.js";
 import workspaceRoutes from "./workspaceRoutes.js";
@@ -77,6 +83,8 @@ import favoriteRoutes from "./favoriteRoutes.js";
 import testimonialRoutes, {
   adminTestimonialRouter,
 } from "./testimonialRoutes.js";
+import absenteeCatchUpRoutes from "./absenteeCatchUpRoutes.js";
+import asyncMeetingRoutes from "./asyncMeetingRoutes.js";
 
 import calendarRoutes from "./calendarRoutes.js";
 import assistantRoutes from "./assistantRoutes.js";
@@ -99,6 +107,8 @@ import teamAvailabilityRoutes from "./teamAvailabilityRoutes.js";
 import icebreakerRoutes from "./icebreakerRoutes.js";
 import meetingQuizRoutes from "./meetingQuizRoutes.js";
 import resourceBookingRoutes from "./resourceBookingRoutes.js";
+import recordingSessionRoutes from "./recordingSessionRoutes.js";
+import meetingPlaybookRoutes from "./meetingPlaybookRoutes.js";
 
 const router = express.Router();
 
@@ -118,6 +128,7 @@ router.use("/api/meetings/:meetingId/checklist", meetingChecklistRoutes);
 router.use("/api/meetings/:id/duplicates", meetingDuplicateRoutes);
 router.use("/api/delegations", meetingDelegationRoutes);
 router.use("/api/meetings/:meetingId/quiz", meetingQuizRoutes);
+router.use("/api/playbooks", meetingPlaybookRoutes);
 router.use("/api/meetings", meetingRoutes);
 router.use("/api/meetings", meetingTimelineRoutes);
 router.use("/api/meetings", highlightReelRoutes);
@@ -129,6 +140,7 @@ router.use("/api/ai", aiRoutes);
 router.use("/api/policies", policyRoutes);
 router.use("/api/analytics", analyticsRoutes);
 router.use("/api/action-item-analytics", actionItemAnalyticsRoutes);
+router.use("/api/standup", standupRoutes);
 router.use("/api/gemini", geminiRoutes);
 router.use("/api/notes", notesRoutes);
 router.use("/api/favorites", favoriteRoutes);
@@ -139,10 +151,14 @@ router.use("/api/graph", knowledgeGraphRoutes);
 router.use("/api/calendar", calendarRoutes);
 router.use("/api/policy-compliance", policyComplianceRoutes);
 router.use("/api/sessions", sessionRoutes);
+router.use("/api/recording-sessions", recordingSessionRoutes);
 router.use("/api/assistant", assistantRoutes);
 router.use("/api/transcripts", transcriptRoutes);
+router.use("/api/meetings/:meetingId/chapters", transcriptChapterRoutes);
+router.use("/api/meetings/:meetingId/attendance", meetingAttendanceRoutes);
 router.use("/api/shared-links", sharedLinkRoutes);
 router.use("/api/templates", meetingTemplateRoutes);
+router.use("/api/note-templates", meetingNoteTemplateRoutes);
 router.use("/api/bookmarks", bookmarkRoutes);
 router.use("/api/comments", commentRoutes);
 router.use("/api/activities", activityRoutes);
@@ -163,6 +179,7 @@ router.use("/api/dashboard", dashboardRoutes);
 router.use("/api/digest-preferences", digestRoutes);
 router.use("/api/decision-graph", decisionGraphRoutes);
 router.use("/api/decision-log", decisionLogRoutes);
+router.use("/api/decisions", decisionImpactRoutes);
 router.use("/api/attendance-analytics", attendanceAnalyticsRoutes);
 router.use("/api/feedback", meetingFeedbackRoutes);
 router.use("/api/meeting-cost", meetingCostRoutes);
@@ -185,6 +202,7 @@ router.use("/api/transcript-annotations", transcriptAnnotationRoutes);
 router.use("/api/glossary", glossaryRoutes);
 router.use("/api/ai-summary-templates", aiSummaryTemplateRoutes);
 router.use("/api/topics", topicRoutes);
+router.use("/api/topic-intelligence", topicIntelligenceRoutes);
 router.use("/api/automation-rules", automationRuleRoutes);
 router.use("/api/meeting-health", meetingHealthRoutes);
 router.use("/api/workspace", workspaceRoutes);
@@ -204,6 +222,10 @@ router.use("/api/sentiment-timeline", sentimentTimelineRoutes);
 router.use("/api/rsvps", meetingRsvpRoutes);
 router.use("/api/testimonials", testimonialRoutes);
 router.use("/api/admin/testimonials", adminTestimonialRouter);
+router.use("/api/absentee-catchup", absenteeCatchUpRoutes);
+router.use("/api/async-meetings", asyncMeetingRoutes);
+import debriefQARoutes from "./debriefQARoutes.js";
+router.use("/api/debrief", debriefQARoutes);
 import adminJobsRoutes from "./adminJobsRoutes.js";
 router.use("/api/admin/jobs", adminJobsRoutes);
 import adminReindexRoutes from "./adminReindexRoutes.js";
@@ -241,7 +263,11 @@ import escalationRoutes from "./escalationRoutes.js";
 router.use("/api/escalations", escalationRoutes);
 import participantEngagementRoutes from "./participantEngagementRoutes.js";
 router.use("/api/engagement", participantEngagementRoutes);
-
+import participantContributionRoutes from "./participantContributionRoutes.js";
+router.use(
+  "/api/meetings/:meetingId/contributions",
+  participantContributionRoutes,
+);
 import meetingPatternRoutes from "./meetingPatternRoutes.js";
 router.use("/api/patterns", meetingPatternRoutes);
 
@@ -282,5 +308,17 @@ import complianceRoutes from "./complianceRoutes.js";
 router.use("/api/compliance", complianceRoutes);
 import actionItemGraphRoutes from "./actionItemGraphRoutes.js";
 router.use("/api/action-item-graph", actionItemGraphRoutes);
+
+import recurringActionItemRoutes from "./recurringActionItemRoutes.js";
+router.use("/api/recurring-action-items", recurringActionItemRoutes);
+
+import apiKeyRoutes from "./apiKeyRoutes.js";
+router.use("/api/api-keys", apiKeyRoutes);
+
+import meetingRetrospectiveRoutes from "./meetingRetrospectiveRoutes.js";
+router.use("/api/meeting-retrospectives", meetingRetrospectiveRoutes);
+
+import meetingQuestionRoutes from "./meetingQuestionRoutes.js";
+router.use("/api", meetingQuestionRoutes);
 
 export default router;

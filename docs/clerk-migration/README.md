@@ -1,5 +1,10 @@
 # Clerk Authentication Migration — Official Guide
 
+> [!WARNING]
+> **ARCHIVED / HISTORICAL DOCUMENTATION**  
+> The Clerk authentication migration has been fully completed. Clerk is now the sole identity provider for MeetOnMemory.  
+> For current contributor setup and development instructions, please refer to [AUTH_CONTRIBUTOR_RUNBOOK.md](../AUTH_CONTRIBUTOR_RUNBOOK.md).
+
 **Status:** Production cutover complete for identity (Issue #974). Clerk is the sole identity provider.  
 **Scope:** Identity/session = Clerk Bearer tokens. Authorization = MongoDB RBAC.  
 **Preserve:** Organizations, Memberships, RBAC, Meetings, Policies, AI, Analytics, Calendar (Google API OAuth), Notifications, Tasks, Slack, shared-link/export/Slack-state JWTs.

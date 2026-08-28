@@ -61,3 +61,13 @@ export const acknowledgeBreach = async (breachId) => {
   );
   return response.data;
 };
+
+/**
+ * Notify breach assignee
+ * @param {string} breachId
+ * @returns {Promise<Object>}
+ */
+export const notifyBreach = async (breachId) => {
+  const response = await axios.post(`${API_URL}/breach/${breachId}/notify`);
+  return response.data;
+};

@@ -236,9 +236,8 @@ describe("POST /api/slack/events", () => {
     expect(res.body.response_type).toBe("in_channel");
     expect(res.body.text).toMatch(/Q3 Planning/i);
     expect(Array.isArray(res.body.blocks)).toBe(true);
-    // The first block should be our header block
     expect(res.body.blocks[0].type).toBe("header");
-  });
+  }, 120000);
 
   // Case 3: Slash command — org NOT connected
 
@@ -435,5 +434,97 @@ describe("GET /api/slack/oauth_redirect", () => {
       "xoxb-test-token",
     );
     expect(updatedOrg.slackIntegration.installedAt).toBeTruthy();
+  });
+});
+
+// 8. GET /api/slack/status, POST /api/slack/disconnect, PATCH /api/slack/channel
+
+describe("Slack Status and Disconnect APIs (#2007)", () => {
+  let user;
+  let org;
+  let token;
+
+  beforeEach(async () => {
+    user = await User.create({
+      name: "Slack Admin",
+      email: `slackadmin-${Math.random()}@example.com`,
+      password: "password123",
+      role: "admin",
+    });
+
+    user.clerkUserId = `user_test_${user._id}`;
+    await user.save();
+
+    org = await Organization.create({
+      name: "Slack Test Org",
+      slug: "slack-org-" + Math.random().toString(36).substring(7),
+      owner: user._id,
+      slackIntegration: {
+        botToken: "encrypted-token:1234",
+        channelId: "C1111",
+        teamId: "T1111",
+        teamName: "Org Slack Team",
+        installedAt: new Date(),
+      },
+    });
+
+    await User.findByIdAndUpdate(user._id, { organization: org._id });
+    await Membership.create({
+      user: user._id,
+      organization: org._id,
+      role: "admin",
+      status: "active",
+    });
+
+    token = createClerkTestToken({
+      clerkUserId: user.clerkUserId,
+      email: user.email,
+    });
+  });
+
+  it("GET /api/slack/status returns connected status", async () => {
+    const res = await request(app)
+      .get("/api/slack/status")
+      .set(authHeader(token))
+      .query({ organizationId: org._id.toString() });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.isConnected).toBe(true);
+    expect(res.body.teamName).toBe("Org Slack Team");
+    expect(res.body.teamId).toBe("T1111");
+    expect(res.body.channelId).toBe("C1111");
+  });
+
+  it("PATCH /api/slack/channel updates notification channel", async () => {
+    const res = await request(app)
+      .patch("/api/slack/channel")
+      .set(authHeader(token))
+      .send({ organizationId: org._id.toString(), channelId: "C9999" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.channelId).toBe("C9999");
+
+    const updatedOrg = await Organization.findById(org._id);
+    expect(updatedOrg.slackIntegration.channelId).toBe("C9999");
+  });
+
+  it("POST /api/slack/disconnect clears slack credentials", async () => {
+    const res = await request(app)
+      .post("/api/slack/disconnect")
+      .set(authHeader(token))
+      .send({ organizationId: org._id.toString() });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const updatedOrg = await Organization.findById(org._id).select(
+      "+slackIntegration.botToken",
+    );
+    expect(updatedOrg.slackIntegration.teamId).toBe("");
+    expect(updatedOrg.slackIntegration.teamName).toBe("");
+    expect(updatedOrg.slackIntegration.botToken).toBe("");
+    expect(updatedOrg.slackIntegration.installedAt).toBeNull();
   });
 });

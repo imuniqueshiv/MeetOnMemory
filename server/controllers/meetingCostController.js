@@ -2,7 +2,6 @@ import MeetingCostConfig, {
   setMemberRateOverrides,
 } from "../models/meetingCostConfigModel.js";
 import meetingCostService from "../services/meetingCostService.js";
-import { Parser } from "json2csv";
 import { neutralizeRow } from "../utils/csvSafety.js";
 import { getOrganizationIdFromReq } from "../middleware/cacheMiddleware.js";
 import { stripClientTenantFields } from "../utils/resolveSearchTenant.js";
@@ -117,6 +116,78 @@ export const getCostAnalytics = async (req, res) => {
   }
 };
 
+import Meeting from "../models/meetingModel.js";
+
+/**
+ * Get financial cost and ROI metrics for a single meeting (Issue #2427).
+ */
+export const getMeetingCostDetails = async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const orgId = req.user.organization;
+
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Meeting not found" });
+    }
+
+    const config = (await MeetingCostConfig.findOne({
+      organization: orgId,
+    })) || {
+      defaultHourlyRate: 75,
+      currency: "USD",
+      includePreparationTime: false,
+      prepTimeMultiplier: 1.2,
+    };
+
+    const participantCount = Math.max(1, meeting.participants?.length || 1);
+    const durationMinutes = Math.max(15, meeting.duration || 30);
+    const hourlyRate = config.defaultHourlyRate || 75;
+    const multiplier = config.includePreparationTime
+      ? config.prepTimeMultiplier || 1.2
+      : 1.0;
+
+    const hours = (durationMinutes / 60) * multiplier;
+    const totalCost = Math.round(participantCount * hours * hourlyRate);
+
+    const decisionsCount = meeting.structuredMoM?.decisions?.length || 0;
+    const actionItemsCount = meeting.structuredMoM?.action_items?.length || 0;
+
+    const costPerDecision =
+      decisionsCount > 0 ? Math.round(totalCost / decisionsCount) : null;
+    const costPerActionItem =
+      actionItemsCount > 0 ? Math.round(totalCost / actionItemsCount) : null;
+
+    const budgetThreshold = 250; // default threshold
+    const isBudgetExceeded =
+      totalCost > budgetThreshold || durationMinutes > 60;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalCost,
+        currency: config.currency || "USD",
+        hourlyRate,
+        participantCount,
+        durationMinutes,
+        decisionsCount,
+        actionItemsCount,
+        costPerDecision,
+        costPerActionItem,
+        isBudgetExceeded,
+        budgetThreshold,
+      },
+    });
+  } catch (error) {
+    console.error("Error computing meeting cost details:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to compute meeting cost" });
+  }
+};
+
 export const getMemberAnalytics = async (req, res) => {
   try {
     const orgId = req.user.organization;
@@ -154,13 +225,20 @@ export const exportCostReport = async (req, res) => {
     );
 
     const fields = ["name", "email", "totalMeetings", "totalHours"];
-    const opts = { fields };
-    const parser = new Parser(opts);
-    // `name` is a member's own display name. json2csv escapes correctly *for
-    // the CSV format*, which is exactly why a value starting with `=`, `+`,
-    // `-` or `@` reaches the spreadsheet as a formula and runs on open
-    // (Issue #1161). Numeric columns pass through untouched.
-    const csv = parser.parse(data.map(neutralizeRow));
+    let csv = "";
+    try {
+      const { Parser } = await import("json2csv");
+      const parser = new Parser({ fields });
+      csv = parser.parse(data.map(neutralizeRow));
+    } catch (_pkgErr) {
+      // Fallback CSV generation
+      const rows = data.map((r) => neutralizeRow(r));
+      const csvHeader = fields.join(",");
+      const csvBody = rows
+        .map((r) => fields.map((f) => `"${r[f] ?? ""}"`).join(","))
+        .join("\n");
+      csv = `${csvHeader}\n${csvBody}`;
+    }
 
     res.setHeader("Content-Type", "text/csv");
     res.setHeader(

@@ -25,6 +25,9 @@ const MeetingRecorder = ({
   title,
   date,
   tags,
+  deviceStream = null,
+  autoStart = false,
+  onDeviceSetupNeeded,
 }) => {
   const [recordingState, setRecordingState] = useState("idle"); // 'idle' | 'recording' | 'paused' | 'stopped'
   const [error, setError] = useState(null);
@@ -43,6 +46,7 @@ const MeetingRecorder = ({
   const recognitionRef = useRef(null);
   const transcriptContainerRef = useRef(null);
   const activeMeetingIdRef = useRef(meetingId);
+  const recordingSessionIdRef = useRef(null);
 
   activeMeetingIdRef.current = meetingId;
 
@@ -184,6 +188,14 @@ const MeetingRecorder = ({
   const startRecording = async () => {
     try {
       setError(null);
+
+      // DeviceSetupModal performs the browser/device preflight. Never start a
+      // recording without giving Upload/Record users the same setup flow.
+      if (!deviceStream?.getAudioTracks?.().length && onDeviceSetupNeeded) {
+        onDeviceSetupNeeded();
+        return;
+      }
+
       let activeMeetingId = meetingId;
 
       if (!activeMeetingId) {
@@ -208,7 +220,28 @@ const MeetingRecorder = ({
         }
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Initialize RecordingSession backend tracking
+      try {
+        const sessionRes = await apiClient.post(
+          "/api/recording-sessions/start",
+          {
+            meetingId: activeMeetingId,
+            metadata: { userAgent: navigator.userAgent },
+          },
+        );
+        if (sessionRes.data?.session?._id) {
+          recordingSessionIdRef.current = sessionRes.data.session._id;
+        }
+      } catch (sessErr) {
+        console.warn(
+          "Failed to initialize RecordingSession tracking:",
+          sessErr,
+        );
+      }
+
+      const stream = deviceStream?.getAudioTracks?.().length
+        ? new MediaStream(deviceStream.getAudioTracks())
+        : await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
       const mediaRecorder = new MediaRecorder(stream, {
@@ -274,6 +307,17 @@ const MeetingRecorder = ({
       toast.error("Failed to access microphone.");
     }
   };
+
+  // If the user clicked Record while setup was required, automatically
+  // continue once DeviceSetupModal hands us a validated stream.
+  useEffect(() => {
+    if (autoStart && deviceStream?.getAudioTracks?.().length) {
+      startRecording();
+    }
+    // startRecording intentionally omitted: it is recreated with recorder state.
+    // autoStart/deviceStream are the parent-controlled trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, deviceStream]);
 
   // Pause Recording
   const pauseRecording = () => {
@@ -345,6 +389,21 @@ const MeetingRecorder = ({
       setRecordingState("stopped");
       setAudioLevel(0);
       saveDraftLocally(liveTranscript, duration, "stopped");
+
+      if (recordingSessionIdRef.current) {
+        apiClient
+          .post(
+            `/api/recording-sessions/${recordingSessionIdRef.current}/status`,
+            {
+              status: "COMPLETED",
+              duration,
+            },
+          )
+          .catch((err) =>
+            console.warn("Failed to mark session COMPLETED:", err),
+          );
+      }
+
       toast.info("Recording stopped. Ready to finalize.");
     }
   };

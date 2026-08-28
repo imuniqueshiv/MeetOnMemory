@@ -90,7 +90,7 @@ const troubleshootingGuides = [
     steps: [
       "Verify Slack Workspace connection: Go to Organization Settings > Integrations, and make sure the Slack workspace is marked as connected.",
       "Check Channel Permissions: Ensure the MeetOnMemory Bot has been invited to the channel. You can type `/invite @MeetOnMemory` in Slack.",
-      "Re-authorize Slack: If the token expired, click 'Reconnect' under settings to refresh workspace permissions.",
+      "Re-authorize Slack: If the token expired or you need to reconnect, click 'Disconnect' and then 'Connect Slack' under Organization Settings > Integrations.",
     ],
     icon: Settings,
     severity: "info",

@@ -6,8 +6,9 @@
 import { searchVectorStore } from "../utils/embeddingUtils.js";
 import Meeting from "../models/meetingModel.js";
 import Membership from "../models/membershipModel.js";
-import { getRedisClient, setSearchCache } from "../services/redisService.js"; // eslint-disable-line no-unused-vars
+import { setSearchCache } from "../services/redisService.js";
 import { buildExplanation } from "../utils/explanationBuilder.js";
+import { buildSearchExplainability } from "../utils/searchExplainability.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
 
 /**
@@ -17,7 +18,6 @@ import { sendSuccess, sendError } from "../utils/responseHandler.js";
  */
 export const semanticSearch = async (req, res) => {
   try {
-    // ✅ Step 1 — Defensive check for body
     if (!req.body || Object.keys(req.body).length === 0) {
       return sendError(
         res,
@@ -26,7 +26,6 @@ export const semanticSearch = async (req, res) => {
       );
     }
 
-    // ✅ Step 2 — Extract query safely
     const { query } = req.body;
 
     if (!query || typeof query !== "string" || query.trim().length < 3) {
@@ -37,7 +36,6 @@ export const semanticSearch = async (req, res) => {
       );
     }
 
-    // ✅ Step 3 — Get user's active organizations for filtering
     const memberships = await Membership.find(
       { user: req.user._id, status: "active" },
       "organization",
@@ -54,7 +52,6 @@ export const semanticSearch = async (req, res) => {
 
     console.log(`🔍 AI Semantic Search for query: "${query}"`);
 
-    // ✅ Step 4 — Perform vector search scoped to user's orgs
     const results = await searchVectorStore(query, {
       organization: userOrgIds,
     });
@@ -63,7 +60,8 @@ export const semanticSearch = async (req, res) => {
       return sendSuccess(res, { results: [] }, "No relevant meetings found.");
     }
 
-    // ✅ Step 5 — Fetch full meeting data for context, scoped to user's orgs
+    // Fetch only meetings the authenticated user can access. The transcript
+    // evidence builder below receives these already-authorized records.
     const meetingIds = results.map((r) => r.meetingId);
     const meetings = await Meeting.find({
       _id: { $in: meetingIds },
@@ -72,29 +70,42 @@ export const semanticSearch = async (req, res) => {
         { uploadedBy: req.user._id },
       ],
     })
-      .select("title summary createdAt")
+      .select(
+        "title description summary createdAt date meetingType tags participants transcript encryptedTranscript isTranscriptEncrypted structuredMoM organization",
+      )
       .lean();
 
-    // ✅ Step 6 — Merge vector results with DB data and filter out deleted meetings
     const mergedResults = results
       .map((r, index) => {
         const m = meetings.find((mt) => mt._id.toString() === r.meetingId);
-        // Defense in depth: only return results that still exist in MongoDB
+
         if (!m) return null;
+
+        const searchEvidence = buildSearchExplainability({
+          query,
+          meeting: m,
+          meetingId: r.meetingId,
+          similarityScore: r.similarityScore || 0,
+          vectorRank: index + 1,
+        });
+
         return {
           meetingId: r.meetingId,
-          title: m?.title || r.title || "Untitled Meeting",
-          summary: m?.summary || r.summary || "No summary available.",
+          title: m.title || r.title || "Untitled Meeting",
+          summary: m.summary || r.summary || "No summary available.",
           score: (1 - r.similarityScore).toFixed(3),
-          createdAt: m?.createdAt || null,
-          // FEATURE #270: human-readable explanation of why this result was
-          // returned. Meetings don't carry graph/access-history data today
-          // (see server/graph/graphIndex.js), so those fields are honestly
-          // reported as not applicable rather than faked.
+          similarityScore: r.similarityScore || 0,
+          createdAt: m.createdAt || null,
+          date: m.date || m.createdAt || null,
+          meetingType: m.meetingType || null,
+          tags: m.tags || [],
+          participants: m.participants || [],
           explanation: buildExplanation({
             type: "meeting",
             semanticScore: r.similarityScore || 0,
             vectorRank: index + 1,
+            organization: m.organization?.toString?.() || null,
+            searchEvidence,
           }),
         };
       })
@@ -104,12 +115,10 @@ export const semanticSearch = async (req, res) => {
       results: mergedResults,
     };
 
-    // ✅ Step 7 — Save to Redis Cache (if applicable)
     if (req.cacheKey) {
       await setSearchCache(req.cacheKey, req.organizationId, responsePayload);
     }
 
-    // ✅ Step 8 — Send response
     return sendSuccess(res, responsePayload, "AI Search successful.");
   } catch (error) {
     console.error("❌ Semantic search error:", error);

@@ -41,6 +41,16 @@ const testimonialSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    featuredOnHomepage: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    spotlightOrder: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   { timestamps: true },
 );
@@ -48,6 +58,11 @@ const testimonialSchema = new mongoose.Schema(
 // One active review per user
 testimonialSchema.index({ user: 1 }, { unique: true });
 testimonialSchema.index({ status: 1, createdAt: -1 });
+testimonialSchema.index({
+  featuredOnHomepage: 1,
+  spotlightOrder: 1,
+  createdAt: -1,
+});
 
 export const TESTIMONIAL_COMMENT_MAX_LENGTH = COMMENT_MAX_LENGTH;
 

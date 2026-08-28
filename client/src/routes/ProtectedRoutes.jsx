@@ -1,98 +1,244 @@
-import React from "react";
+import React, { lazy } from "react";
 import { Route } from "react-router-dom";
 
 import ProtectedRoute from "../components/ProtectedRoute.jsx";
+import RouteErrorBoundary from "../components/RouteErrorBoundary.jsx";
 import AccessDenied from "../pages/AccessDenied.jsx";
 
-// --- Protected Pages ---
-import MeetingListPage from "../pages/MeetingListPage.jsx";
-import OrganizationHub from "../pages/OrganizationHub.jsx";
-import JoinOrganizationPage from "../pages/JoinOrganizationPage.jsx";
-import CreateOrganizationPage from "../pages/CreateOrganizationPage.jsx";
-import BrowseOrganizations from "../pages/BrowseOrganizations/BrowseOrganizations.jsx";
-import OrganizationSettings from "../pages/OrganizationSettings.jsx";
-import Dashboard from "../pages/Dashboard.jsx";
-
-// Feature Pages
-import CompareMeetings from "../pages/MeetingComparison";
-import CreateMeeting from "../pages/CreateMeeting.jsx";
-import MeetingTemplates from "../pages/MeetingTemplates.jsx";
-import TemplateLibrary from "../pages/TemplateLibrary.jsx";
-import UploadMeeting from "../pages/UploadMeeting.jsx";
-import Policies from "../pages/Policies.jsx";
-import AiSummaryTemplates from "../pages/AiSummaryTemplates.jsx";
-import Summaries from "../pages/Summaries.jsx";
-import Reports from "../pages/Reports.jsx";
-import WeeklyInsights from "../pages/WeeklyInsights.jsx";
-import ReportBuilder from "../pages/ReportBuilder.jsx";
-import AiSearch from "../pages/AiSearch.jsx";
-import AiAssistant from "../pages/AiAssistant.jsx";
-import MeetingDetails from "../pages/MeetingDetails.jsx";
-import MeetingBriefing from "../pages/MeetingBriefing.jsx";
-import MeetingQuality from "../pages/MeetingQuality.jsx";
-import MeetingEffectiveness from "../pages/MeetingEffectiveness.jsx";
-import MeetingRecycleBin from "../pages/MeetingRecycleBin.jsx";
-import MeetingRoom from "../pages/MeetingRoom.jsx";
-import TranscriptViewer from "../pages/TranscriptViewer.jsx";
-import TeamMembers from "../pages/TeamMembers.jsx";
-import Profile from "../pages/Profile.jsx";
-import Calendar from "../pages/Calendar.jsx";
-import Notifications from "../pages/Notifications.jsx";
-import Tasks from "../pages/Tasks.jsx";
-import KnowledgeTimeline from "../pages/KnowledgeTimeline.jsx";
-import MemoryConsolidation from "../pages/MemoryConsolidation.jsx";
-import MemoryLifecycle from "../pages/MemoryLifecycle.jsx";
-import KnowledgeArchive from "../pages/KnowledgeArchive.jsx";
-import GraphSnapshots from "../pages/GraphSnapshots.jsx";
-import KnowledgeGraph from "../pages/KnowledgeGraph.jsx";
-import DecisionGraph from "../pages/DecisionGraph.jsx";
-import DecisionLog from "../pages/DecisionLog.jsx";
-import PolicyCompliance from "../pages/PolicyCompliance.jsx";
-import Settings from "../pages/Settings.jsx";
-import MembershipRequests from "../pages/MembershipRequests.jsx";
-import MembersManagement from "../pages/Admin/MembersManagement.jsx";
-import AuditLogViewer from "../pages/Admin/AuditLogViewer.jsx";
-import AdminHealth from "../pages/Admin/AdminHealth.jsx";
-import AdminPanel from "../pages/AdminPanel.jsx";
-import ResourceManagement from "../pages/Admin/ResourceManagement.jsx";
-import Bookmarks from "../pages/Bookmarks.jsx";
-import ActivityFeed from "../pages/ActivityFeed.jsx";
-import TagBrowser from "../pages/TagBrowser.jsx";
-import AttendanceAnalytics from "../pages/AttendanceAnalytics.jsx";
-import RsvpInbox from "../pages/RsvpInbox.jsx";
-import MeetingCostAnalytics from "../pages/MeetingCostAnalytics.jsx";
-import RecapScheduleDashboard from "../pages/RecapScheduleDashboard.jsx";
-import MeetingHealthDashboard from "../pages/MeetingHealthDashboard.jsx";
-import AutomationRules from "../pages/AutomationRules.jsx";
-import TopicExplorer from "../pages/TopicExplorer.jsx";
-import ConflictResolution from "../pages/ConflictResolution.jsx";
-import SpeakingTimeTrends from "../pages/SpeakingTimeTrends.jsx";
-import SpeakingTimeCompare from "../pages/SpeakingTimeCompare.jsx";
-import Leaderboard from "../pages/Leaderboard.jsx";
-import Badges from "../pages/Badges.jsx";
-import ParticipantEngagement from "../pages/ParticipantEngagement.jsx";
-import ActionItemAnalytics from "../pages/ActionItemAnalytics.jsx";
-import ActionItemsDashboard from "../pages/ActionItemsDashboard.jsx";
-import WorkloadDashboard from "../pages/WorkloadDashboard.jsx";
-import MyDelegations from "../pages/MyDelegations.jsx";
-import MeetingPatterns from "../pages/MeetingPatterns.jsx";
-import FocusTime from "../pages/FocusTime.jsx";
-import SeriesRetrospective from "../pages/SeriesRetrospective.jsx";
-import MeetingSeriesList from "../pages/MeetingSeriesList.jsx";
-import DataRetentionSettings from "../pages/DataRetentionSettings.jsx";
-import FollowUpDashboard from "../pages/FollowUpDashboard.jsx";
-import EscalationDashboard from "../pages/EscalationDashboard.jsx";
-import Glossary from "../pages/Glossary.jsx";
-import StandupReports from "../pages/StandupReports.jsx";
-import SlaCompliance from "../pages/SlaCompliance.jsx";
-import TeamAvailability from "../pages/TeamAvailability.jsx";
-import ActionItemTemplates from "../pages/ActionItemTemplates.jsx";
-import IntegrationMarketplaceHub from "../pages/IntegrationMarketplaceHub.jsx";
+const MeetingListPage = lazy(() => import("../pages/MeetingListPage.jsx"));
+const OrganizationHub = lazy(() => import("../pages/OrganizationHub.jsx"));
+const JoinOrganizationPage = lazy(
+  () => import("../pages/JoinOrganizationPage.jsx"),
+);
+const CreateOrganizationPage = lazy(
+  () => import("../pages/CreateOrganizationPage.jsx"),
+);
+const BrowseOrganizations = lazy(
+  () => import("../pages/BrowseOrganizations/BrowseOrganizations.jsx"),
+);
+const OrganizationSettings = lazy(
+  () => import("../pages/OrganizationSettings.jsx"),
+);
+const Dashboard = lazy(() => import("../pages/Dashboard.jsx"));
+const CompareMeetings = lazy(() => import("../pages/MeetingComparison.jsx"));
+const CreateMeeting = lazy(() => import("../pages/CreateMeeting.jsx"));
+const MeetingTemplates = lazy(() => import("../pages/MeetingTemplates.jsx"));
+const TemplateLibrary = lazy(() => import("../pages/TemplateLibrary.jsx"));
+const UploadMeeting = lazy(() => import("../pages/UploadMeeting.jsx"));
+const Policies = lazy(() => import("../pages/Policies.jsx"));
+const AiSummaryTemplates = lazy(
+  () => import("../pages/AiSummaryTemplates.jsx"),
+);
+const Summaries = lazy(() => import("../pages/Summaries.jsx"));
+const Reports = lazy(() => import("../pages/Reports.jsx"));
+const WeeklyInsights = lazy(() => import("../pages/WeeklyInsights.jsx"));
+const ReportBuilder = lazy(() => import("../pages/ReportBuilder.jsx"));
+const AiSearch = lazy(() => import("../pages/AiSearch.jsx"));
+const AiAssistant = lazy(() => import("../pages/AiAssistant.jsx"));
+const MeetingDetails = lazy(() => import("../pages/MeetingDetails.jsx"));
+const MeetingBriefing = lazy(() => import("../pages/MeetingBriefing.jsx"));
+const MeetingQuality = lazy(() => import("../pages/MeetingQuality.jsx"));
+const MeetingEffectiveness = lazy(
+  () => import("../pages/MeetingEffectiveness.jsx"),
+);
+const MeetingRecycleBin = lazy(() => import("../pages/MeetingRecycleBin.jsx"));
+const MeetingRoom = lazy(() => import("../pages/MeetingRoom.jsx"));
+const TranscriptViewer = lazy(() => import("../pages/TranscriptViewer.jsx"));
+const TeamMembers = lazy(() => import("../pages/TeamMembers.jsx"));
+const Profile = lazy(() => import("../pages/Profile.jsx"));
+const Calendar = lazy(() => import("../pages/Calendar.jsx"));
+const Notifications = lazy(() => import("../pages/Notifications.jsx"));
+const Tasks = lazy(() => import("../pages/Tasks.jsx"));
+const KnowledgeTimeline = lazy(() => import("../pages/KnowledgeTimeline.jsx"));
+const MemoryConsolidation = lazy(
+  () => import("../pages/MemoryConsolidation.jsx"),
+);
+const MemoryLifecycle = lazy(() => import("../pages/MemoryLifecycle.jsx"));
+const EnterpriseMemoryTelemetry = lazy(
+  () => import("../pages/EnterpriseMemoryTelemetry.jsx"),
+);
+const KnowledgeArchive = lazy(() => import("../pages/KnowledgeArchive.jsx"));
+const GraphSnapshots = lazy(() => import("../pages/GraphSnapshots.jsx"));
+const KnowledgeGraph = lazy(() => import("../pages/KnowledgeGraph.jsx"));
+const DecisionGraph = lazy(() => import("../pages/DecisionGraph.jsx"));
+const DecisionDependencyMatrix = lazy(
+  () => import("../pages/DecisionDependencyMatrix.jsx"),
+);
+const DecisionLog = lazy(() => import("../pages/DecisionLog.jsx"));
+const PolicyCompliance = lazy(() => import("../pages/PolicyCompliance.jsx"));
+const Settings = lazy(() => import("../pages/Settings.jsx"));
+const MembershipRequests = lazy(
+  () => import("../pages/MembershipRequests.jsx"),
+);
+const MembersManagement = lazy(
+  () => import("../pages/Admin/MembersManagement.jsx"),
+);
+const AuditLogViewer = lazy(() => import("../pages/Admin/AuditLogViewer.jsx"));
+const AdminHealth = lazy(() => import("../pages/Admin/AdminHealth.jsx"));
+const AdminPanel = lazy(() => import("../pages/AdminPanel.jsx"));
+const ResourceManagement = lazy(
+  () => import("../pages/Admin/ResourceManagement.jsx"),
+);
+const Bookmarks = lazy(() => import("../pages/Bookmarks.jsx"));
+const ActivityFeed = lazy(() => import("../pages/ActivityFeed.jsx"));
+const TagBrowser = lazy(() => import("../pages/TagBrowser.jsx"));
+const AttendanceAnalytics = lazy(
+  () => import("../pages/AttendanceAnalytics.jsx"),
+);
+const RsvpInbox = lazy(() => import("../pages/RsvpInbox.jsx"));
+const MeetingCostAnalytics = lazy(
+  () => import("../pages/MeetingCostAnalytics.jsx"),
+);
+const MeetingInsightsDashboard = lazy(
+  () => import("../pages/MeetingInsightsDashboard.jsx"),
+);
+const EnterpriseMeetingCostEngine = lazy(
+  () => import("../pages/EnterpriseMeetingCostEngine.jsx"),
+);
+const RecapScheduleDashboard = lazy(
+  () => import("../pages/RecapScheduleDashboard.jsx"),
+);
+const MeetingHealthDashboard = lazy(
+  () => import("../pages/MeetingHealthDashboard.jsx"),
+);
+const AutomationRules = lazy(() => import("../pages/AutomationRules.jsx"));
+const TopicExplorer = lazy(() => import("../pages/TopicExplorer.jsx"));
+const TopicAnalyticsDashboard = lazy(
+  () => import("../pages/TopicAnalyticsDashboard.jsx"),
+);
+const ParkingLotBacklogPage = lazy(
+  () => import("../pages/ParkingLotBacklogPage.jsx"),
+);
+const ConflictResolution = lazy(
+  () => import("../pages/ConflictResolution.jsx"),
+);
+const SpeakingTimeTrends = lazy(
+  () => import("../pages/SpeakingTimeTrends.jsx"),
+);
+const SpeakingTimeCompare = lazy(
+  () => import("../pages/SpeakingTimeCompare.jsx"),
+);
+const Leaderboard = lazy(() => import("../pages/Leaderboard.jsx"));
+const Badges = lazy(() => import("../pages/Badges.jsx"));
+const ParticipantEngagement = lazy(
+  () => import("../pages/ParticipantEngagement.jsx"),
+);
+const ActionItemAnalytics = lazy(
+  () => import("../pages/ActionItemAnalytics.jsx"),
+);
+const ActionItemsDashboard = lazy(
+  () => import("../pages/ActionItemsDashboard.jsx"),
+);
+const WorkloadDashboard = lazy(() => import("../pages/WorkloadDashboard.jsx"));
+const MyDelegations = lazy(() => import("../pages/MyDelegations.jsx"));
+const MeetingPatterns = lazy(() => import("../pages/MeetingPatterns.jsx"));
+const FocusTime = lazy(() => import("../pages/FocusTime.jsx"));
+const SeriesRetrospective = lazy(
+  () => import("../pages/SeriesRetrospective.jsx"),
+);
+const MeetingSeriesList = lazy(() => import("../pages/MeetingSeriesList.jsx"));
+const DataRetentionSettings = lazy(
+  () => import("../pages/DataRetentionSettings.jsx"),
+);
+const FollowUpDashboard = lazy(() => import("../pages/FollowUpDashboard.jsx"));
+const EscalationDashboard = lazy(
+  () => import("../pages/EscalationDashboard.jsx"),
+);
+const Glossary = lazy(() => import("../pages/Glossary.jsx"));
+const StandupReports = lazy(() => import("../pages/StandupReports.jsx"));
+const SlaCompliance = lazy(() => import("../pages/SlaCompliance.jsx"));
+const TeamAvailability = lazy(() => import("../pages/TeamAvailability.jsx"));
+const ActionItemTemplates = lazy(
+  () => import("../pages/ActionItemTemplates.jsx"),
+);
+const OrgTimelineDashboard = lazy(
+  () => import("../pages/OrgTimelineDashboard.jsx"),
+);
+const AbsenteeCatchUpInbox = lazy(
+  () => import("../pages/AbsenteeCatchUpInbox.jsx"),
+);
+const IntegrationMarketplaceHub = lazy(
+  () => import("../pages/IntegrationMarketplaceHub.jsx"),
+);
+const SentimentTrends = lazy(() => import("../pages/SentimentTrends.jsx"));
+const AsyncMeetingsDashboard = lazy(
+  () => import("../pages/AsyncMeetingsDashboard.jsx"),
+);
+const MeetingPlaybooks = lazy(() => import("../pages/MeetingPlaybooks.jsx"));
+const TopicIntelligence = lazy(() => import("../pages/TopicIntelligence.jsx"));
+const SessionGallery = lazy(() => import("../pages/SessionGallery.jsx"));
 
 const ProtectedRoutes = (
   <React.Fragment>
     <Route
+      path="/session-cards"
+      element={
+        <ProtectedRoute>
+          <RouteErrorBoundary>
+            <SessionGallery />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/session-gallery"
+      element={
+        <ProtectedRoute>
+          <RouteErrorBoundary>
+            <SessionGallery />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/topics/analytics"
+      element={
+        <ProtectedRoute>
+          <RouteErrorBoundary>
+            <TopicAnalyticsDashboard />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/analytics/topics"
+      element={
+        <ProtectedRoute>
+          <RouteErrorBoundary>
+            <TopicAnalyticsDashboard />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/topic-intelligence"
+      element={
+        <ProtectedRoute>
+          <RouteErrorBoundary>
+            <TopicIntelligence />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/sentiment-trends"
+      element={
+        <ProtectedRoute resource="meetings" action="view">
+          <SentimentTrends />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/analytics/sentiment-trends"
+      element={
+        <ProtectedRoute resource="meetings" action="view">
+          <SentimentTrends />
+        </ProtectedRoute>
+      }
+    />
+    <Route
       path="/integrations/marketplace"
+
       element={
         <ProtectedRoute resource="organizations" action="view">
           <IntegrationMarketplaceHub />
@@ -104,6 +250,14 @@ const ProtectedRoutes = (
       element={
         <ProtectedRoute resource="meetings" action="view">
           <MeetingListPage />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/playbooks"
+      element={
+        <ProtectedRoute resource="meetings" action="view">
+          <MeetingPlaybooks />
         </ProtectedRoute>
       }
     />
@@ -212,6 +366,14 @@ const ProtectedRoutes = (
       }
     />
     <Route
+      path="/decision-matrix"
+      element={
+        <ProtectedRoute resource="knowledge" action="view">
+          <DecisionDependencyMatrix />
+        </ProtectedRoute>
+      }
+    />
+    <Route
       path="/decision-log"
       element={
         <ProtectedRoute resource="knowledge" action="view">
@@ -223,7 +385,9 @@ const ProtectedRoutes = (
       path="/admin/members"
       element={
         <ProtectedRoute resource="team_members" action="view">
-          <MembersManagement />
+          <RouteErrorBoundary section="Admin">
+            <MembersManagement />
+          </RouteErrorBoundary>
         </ProtectedRoute>
       }
     />
@@ -231,7 +395,9 @@ const ProtectedRoutes = (
       path="/admin/audit-logs"
       element={
         <ProtectedRoute resource="audit_logs" action="view">
-          <AuditLogViewer />
+          <RouteErrorBoundary section="Admin">
+            <AuditLogViewer />
+          </RouteErrorBoundary>
         </ProtectedRoute>
       }
     />
@@ -243,7 +409,9 @@ const ProtectedRoutes = (
           action="view"
           forbiddenFallback={<AccessDenied />}
         >
-          <AdminHealth />
+          <RouteErrorBoundary section="Admin">
+            <AdminHealth />
+          </RouteErrorBoundary>
         </ProtectedRoute>
       }
     />
@@ -255,7 +423,9 @@ const ProtectedRoutes = (
           action="view"
           forbiddenFallback={<AccessDenied />}
         >
-          <ResourceManagement />
+          <RouteErrorBoundary section="Admin">
+            <ResourceManagement />
+          </RouteErrorBoundary>
         </ProtectedRoute>
       }
     />
@@ -303,7 +473,9 @@ const ProtectedRoutes = (
       path="/organization/settings"
       element={
         <ProtectedRoute resource="organizations" action="view">
-          <OrganizationSettings />
+          <RouteErrorBoundary section="Org Settings">
+            <OrganizationSettings />
+          </RouteErrorBoundary>
         </ProtectedRoute>
       }
     />
@@ -311,7 +483,9 @@ const ProtectedRoutes = (
       path="/organizations/settings"
       element={
         <ProtectedRoute resource="organizations" action="view">
-          <OrganizationSettings />
+          <RouteErrorBoundary section="Org Settings">
+            <OrganizationSettings />
+          </RouteErrorBoundary>
         </ProtectedRoute>
       }
     />
@@ -319,7 +493,9 @@ const ProtectedRoutes = (
       path="/organization-settings"
       element={
         <ProtectedRoute resource="organizations" action="view">
-          <OrganizationSettings />
+          <RouteErrorBoundary section="Org Settings">
+            <OrganizationSettings />
+          </RouteErrorBoundary>
         </ProtectedRoute>
       }
     />
@@ -335,7 +511,9 @@ const ProtectedRoutes = (
       path="/dashboard"
       element={
         <ProtectedRoute>
-          <Dashboard />
+          <RouteErrorBoundary section="Dashboard">
+            <Dashboard />
+          </RouteErrorBoundary>
         </ProtectedRoute>
       }
     />
@@ -344,6 +522,14 @@ const ProtectedRoutes = (
       element={
         <ProtectedRoute resource="reports" action="view">
           <TopicExplorer />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/parking-lot"
+      element={
+        <ProtectedRoute resource="meetings" action="view">
+          <ParkingLotBacklogPage />
         </ProtectedRoute>
       }
     />
@@ -473,7 +659,9 @@ const ProtectedRoutes = (
       path="/meeting/:id"
       element={
         <ProtectedRoute resource="meetings" action="view">
-          <MeetingDetails />
+          <RouteErrorBoundary section="Meeting Details">
+            <MeetingDetails />
+          </RouteErrorBoundary>
         </ProtectedRoute>
       }
     />
@@ -505,7 +693,9 @@ const ProtectedRoutes = (
       path="/meeting-room/:roomId"
       element={
         <ProtectedRoute resource="meetings" action="view">
-          <MeetingRoom />
+          <RouteErrorBoundary section="Meeting Room">
+            <MeetingRoom />
+          </RouteErrorBoundary>
         </ProtectedRoute>
       }
     />
@@ -598,6 +788,14 @@ const ProtectedRoutes = (
       }
     />
     <Route
+      path="/timeline"
+      element={
+        <ProtectedRoute resource="meetings" action="view">
+          <OrgTimelineDashboard />
+        </ProtectedRoute>
+      }
+    />
+    <Route
       path="/policy-compliance"
       element={
         <ProtectedRoute resource="policies" action="view">
@@ -678,10 +876,34 @@ const ProtectedRoutes = (
       }
     />
     <Route
+      path="/meeting-insights"
+      element={
+        <ProtectedRoute resource="reports" action="view">
+          <MeetingInsightsDashboard />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/meeting-cost-engine"
+      element={
+        <ProtectedRoute resource="reports" action="view">
+          <EnterpriseMeetingCostEngine />
+        </ProtectedRoute>
+      }
+    />
+    <Route
       path="/action-item-analytics"
       element={
         <ProtectedRoute resource="reports" action="view">
           <ActionItemAnalytics />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/memory-telemetry"
+      element={
+        <ProtectedRoute resource="knowledge" action="view">
+          <EnterpriseMemoryTelemetry />
         </ProtectedRoute>
       }
     />
@@ -788,6 +1010,14 @@ const ProtectedRoutes = (
       }
     />
     <Route
+      path="/catch-up"
+      element={
+        <ProtectedRoute>
+          <AbsenteeCatchUpInbox />
+        </ProtectedRoute>
+      }
+    />
+    <Route
       path="/admin-panel"
       element={
         <ProtectedRoute
@@ -795,7 +1025,17 @@ const ProtectedRoutes = (
           action="view"
           forbiddenFallback={<AccessDenied />}
         >
-          <AdminPanel />
+          <RouteErrorBoundary section="Admin">
+            <AdminPanel />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/async-meetings"
+      element={
+        <ProtectedRoute>
+          <AsyncMeetingsDashboard />
         </ProtectedRoute>
       }
     />

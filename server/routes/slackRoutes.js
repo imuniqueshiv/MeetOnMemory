@@ -15,11 +15,22 @@ import {
   slackOAuthRedirect,
   handleSlackEvents,
   slackSignatureMiddleware,
+  getSlackStatus,
+  disconnectSlack,
+  updateSlackChannel,
 } from "../controllers/slackController.js";
 import userAuth from "../middleware/userAuth.js";
-import { requireOrgMembership, requirePermission } from "../middleware/rbac.js"; // eslint-disable-line no-unused-vars
+import { requirePermission } from "../middleware/rbac.js";
 
 const router = Router();
+
+// GET /api/slack/status
+router.get(
+  "/status",
+  userAuth,
+  requirePermission("settings", "view"),
+  getSlackStatus,
+);
 
 // GET /api/slack/install
 // Requires the user to be authenticated so we can derive their organizationId.
@@ -29,6 +40,22 @@ router.get(
   userAuth,
   requirePermission("settings", "edit"),
   slackInstall,
+);
+
+// POST /api/slack/disconnect
+router.post(
+  "/disconnect",
+  userAuth,
+  requirePermission("settings", "edit"),
+  disconnectSlack,
+);
+
+// PATCH /api/slack/channel
+router.patch(
+  "/channel",
+  userAuth,
+  requirePermission("settings", "edit"),
+  updateSlackChannel,
 );
 
 // GET /api/slack/oauth_redirect

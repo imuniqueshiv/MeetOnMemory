@@ -43,6 +43,23 @@ const RiskRegister = () => {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const blob = await meetingRiskApi.exportRisks(orgId, "csv");
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "risk-register.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to export risks");
+    }
+  };
+
   const categories = [
     "All",
     "Technical",
@@ -115,6 +132,13 @@ const RiskRegister = () => {
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-medium transition-colors border border-slate-700 shadow-sm flex items-center gap-2"
             >
               Refresh
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={risks.length === 0}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-medium transition-colors border border-slate-700 shadow-sm flex items-center gap-2 disabled:opacity-50"
+            >
+              Export CSV
             </button>
           </div>
         </div>

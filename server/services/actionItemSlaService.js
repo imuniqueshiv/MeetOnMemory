@@ -3,6 +3,7 @@ import ActionItemSlaConfig from "../models/actionItemSlaConfigModel.js";
 import ActionItemSlaBreach from "../models/actionItemSlaBreachModel.js";
 import mongoose from "mongoose";
 import eventBus from "./eventBus.js";
+import { createNotification } from "./notificationService.js";
 
 class ActionItemSlaService {
   /**
@@ -43,7 +44,7 @@ class ActionItemSlaService {
     return await ActionItemSlaBreach.find(query)
       .populate(
         "actionItem",
-        "text status priority dueDate createdAt resolvedAt",
+        "text status priority dueDate createdAt resolvedAt sourceMeetingId",
       )
       .populate("assignee", "name email")
       .populate("acknowledgedBy", "name email")
@@ -217,6 +218,41 @@ class ActionItemSlaService {
         count: b.count,
       })),
     };
+  }
+
+  /**
+   * Notify breach assignee
+   */
+  async notifyAssignee(breachId) {
+    const breach = await ActionItemSlaBreach.findById(breachId)
+      .populate("actionItem")
+      .populate("assignee");
+
+    if (!breach) {
+      throw new Error("Breach not found");
+    }
+
+    if (!breach.assignee) {
+      throw new Error("No assignee assigned to this task");
+    }
+
+    const title = "SLA Compliance Breach Alert";
+    const description = `The task "${breach.actionItem.text}" has breached its SLA of ${breach.targetHours} hours (actual: ${Math.round(breach.actualHours)} hours).`;
+    const category = "tasks";
+    const actionUrl = `/followup/tasks/${breach.actionItem._id}`;
+    const actionLabel = "View Task";
+
+    await createNotification(
+      breach.assignee._id || breach.assignee,
+      title,
+      description,
+      category,
+      actionUrl,
+      actionLabel,
+      { breachId: breach._id, actionItemId: breach.actionItem._id },
+    );
+
+    return breach;
   }
 }
 

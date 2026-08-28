@@ -385,3 +385,122 @@ export const extractForOrganization = async (req, res) => {
       .json({ success: false, error: "An internal server error occurred" });
   }
 };
+
+/**
+ * Fetch organization topic trends and semantic velocity analytics (Issue #2425).
+ */
+export const getTopicVelocityAndTrends = async (req, res) => {
+  try {
+    const orgId = req.user.organization;
+
+    // Fetch meeting topics for this organization
+    const meetingTopics = await MeetingTopic.find({ organization: orgId })
+      .populate("meeting", "title date createdAt")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const clusters = await TopicCluster.find({ organization: orgId }).lean();
+
+    const clusterMap = new Map();
+    clusters.forEach((c) => clusterMap.set(String(c._id), c.label));
+
+    // Calculate frequency in recent (last 30 days) vs prior (30-60 days ago)
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+    const topicStats = new Map();
+
+    meetingTopics.forEach((mt) => {
+      const meetingDate = mt.meeting?.date
+        ? new Date(mt.meeting.date)
+        : new Date(mt.createdAt);
+      const isRecent = meetingDate >= thirtyDaysAgo;
+      const isPrior =
+        meetingDate >= sixtyDaysAgo && meetingDate < thirtyDaysAgo;
+
+      (mt.topics || []).forEach((t) => {
+        const topicName = (t.name || "").trim();
+        if (!topicName) return;
+
+        const clusterName = t.clusterId
+          ? clusterMap.get(String(t.clusterId)) || "General"
+          : "General";
+
+        if (!topicStats.has(topicName)) {
+          topicStats.set(topicName, {
+            name: topicName,
+            cluster: clusterName,
+            recentCount: 0,
+            priorCount: 0,
+            totalCount: 0,
+            meetings: new Set(),
+          });
+        }
+
+        const stats = topicStats.get(topicName);
+        stats.totalCount += 1;
+        if (isRecent) stats.recentCount += 1;
+        if (isPrior) stats.priorCount += 1;
+        if (mt.meeting?._id) stats.meetings.add(String(mt.meeting._id));
+      });
+    });
+
+    const topicsArray = Array.from(topicStats.values()).map((stat) => {
+      const growth =
+        stat.priorCount === 0
+          ? stat.recentCount > 0
+            ? 100
+            : 0
+          : Math.round(
+              ((stat.recentCount - stat.priorCount) / stat.priorCount) * 100,
+            );
+
+      let velocity = "stable";
+      if (growth > 25) velocity = "accelerating";
+      else if (growth < -25) velocity = "decelerating";
+
+      return {
+        name: stat.name,
+        cluster: stat.cluster,
+        recentCount: stat.recentCount,
+        priorCount: stat.priorCount,
+        totalCount: stat.totalCount,
+        meetingCount: stat.meetings.size,
+        growthPercentage: growth,
+        velocity,
+      };
+    });
+
+    // Sort by total frequency descending
+    topicsArray.sort((a, b) => b.totalCount - a.totalCount);
+
+    const totalTopics = topicsArray.length;
+    const totalMeetings = meetingTopics.length;
+    const acceleratingCount = topicsArray.filter(
+      (t) => t.velocity === "accelerating",
+    ).length;
+    const deceleratingCount = topicsArray.filter(
+      (t) => t.velocity === "decelerating",
+    ).length;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        topics: topicsArray,
+        metrics: {
+          totalTopics,
+          totalMeetings,
+          acceleratingCount,
+          deceleratingCount,
+          activeClustersCount: clusters.length,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error computing topic velocity:", error);
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to compute topic velocity" });
+  }
+};

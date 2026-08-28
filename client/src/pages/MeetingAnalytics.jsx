@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { usePolling } from "../hooks/usePolling.js";
 import apiClient from "../services/apiClient.js";
 import Navbar from "../components/Navbar.jsx";
+import RecordingSessionAnalyticsPanel from "../components/analytics/RecordingSessionAnalyticsPanel.jsx";
 import {
   BarChart,
   Bar,
@@ -566,6 +567,11 @@ const MeetingAnalytics = () => {
               icon={Clock}
             />
           </div>
+        </div>
+
+        {/* Recording Session Analytics Panel */}
+        <div className="mt-10">
+          <RecordingSessionAnalyticsPanel meetingId={meetingId} />
         </div>
       </div>
     </div>

@@ -142,13 +142,9 @@ export const processActionItemReminders = async ({ organization } = {}) => {
           targetUserId,
           `⏰ Action Item Due Soon`,
           `Your action item "${item.text}"${meetingTitle} is due on ${dueDate.toLocaleDateString()}.`,
-          // Issue #977: these were filed under "meetings", so the
-          // `pushTaskAssignments` toggle governed nothing while
-          // `pushMeetingReminders` silently killed task reminders — the switches
-          // were wired to the wrong behaviour.
           "tasks",
-          "/tasks",
-          "View Action Items",
+          `/followup/tasks/${item._id}`,
+          "View Task",
           { actionItemId: item._id, reminderType: "upcoming", dueDate },
         );
 
@@ -171,8 +167,8 @@ export const processActionItemReminders = async ({ organization } = {}) => {
           `⚠️ Action Item Overdue`,
           `Your action item "${item.text}"${meetingTitle} was due on ${dueDate.toLocaleDateString()}.`,
           "tasks",
-          "/tasks",
-          "View Action Items",
+          `/followup/tasks/${item._id}`,
+          "View Task",
           { actionItemId: item._id, reminderType: "overdue", dueDate },
         );
 

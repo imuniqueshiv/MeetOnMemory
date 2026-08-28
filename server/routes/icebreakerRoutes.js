@@ -4,7 +4,7 @@ import {
   select,
   getActiveIcebreaker,
 } from "../controllers/icebreakerController.js";
-import { protect } from "../middleware/auth.js"; // Standard auth middleware
+import protect from "../middleware/userAuth.js"; // Standard auth middleware
 
 const router = express.Router();
 

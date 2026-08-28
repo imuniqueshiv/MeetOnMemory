@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import OrganizationSettings from "../OrganizationSettings.jsx";
-import AppContent from "../../context/AppContent.jsx";
+import AppContent from "../../context/AppContent";
 import { organizationApi } from "../../services/organizationApi.js";
 import { customFieldApi } from "../../api/customFieldApi";
 

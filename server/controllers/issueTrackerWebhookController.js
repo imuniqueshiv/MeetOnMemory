@@ -1,5 +1,43 @@
 import ActionItem from "../models/actionItemModel.js";
+import IssueTrackerIntegration from "../models/issueTrackerIntegrationModel.js";
 import crypto from "crypto";
+
+const recordSyncLog = async (
+  orgId,
+  provider,
+  action,
+  details,
+  isError = false,
+  errorMsg = null,
+) => {
+  if (!orgId) return;
+  try {
+    const integration = await IssueTrackerIntegration.findOne({
+      organization: orgId,
+      provider,
+    });
+    if (integration) {
+      integration.lastSyncAt = new Date();
+      integration.lastSyncStatus = isError ? "error" : "success";
+      if (isError) integration.lastSyncError = errorMsg;
+      integration.syncCount = (integration.syncCount || 0) + 1;
+      const log = {
+        timestamp: new Date(),
+        action,
+        status: isError ? "error" : "success",
+        details,
+        error: errorMsg,
+      };
+      integration.syncLogs = [log, ...(integration.syncLogs || [])].slice(
+        0,
+        15,
+      );
+      await integration.save();
+    }
+  } catch (e) {
+    console.error("Failed recording sync log:", e);
+  }
+};
 
 /**
  * Helper to verify Linear webhook signature using HMAC-SHA256 and timing-safe comparison.
@@ -124,9 +162,10 @@ export const handleJiraWebhook = async (req, res) => {
     // Jira webhook payloads usually have `webhookEvent`, `issue`, etc.
     if (payload && payload.issue && payload.issue.key) {
       const issueKey = payload.issue.key;
-      const statusName = payload.issue.fields?.status?.name?.toLowerCase();
+      const fields = payload.issue.fields || {};
+      const statusName = fields.status?.name?.toLowerCase();
 
-      // Simple status mapping
+      // Status mapping
       let newStatus = null;
       if (
         statusName === "done" ||
@@ -140,18 +179,48 @@ export const handleJiraWebhook = async (req, res) => {
         newStatus = "open";
       }
 
-      if (newStatus) {
-        // Find corresponding ActionItem
-        const actionItem = await ActionItem.findOne({
-          externalJiraIssueId: issueKey,
-        });
-        if (actionItem && actionItem.status !== newStatus) {
+      // Find corresponding ActionItem
+      const actionItem = await ActionItem.findOne({
+        externalJiraIssueId: issueKey,
+      });
+
+      if (actionItem) {
+        let changed = false;
+
+        if (newStatus && actionItem.status !== newStatus) {
           actionItem.status = newStatus;
           if (newStatus === "completed") {
             actionItem.completedAt = new Date();
           }
+          changed = true;
+        }
+
+        if (fields.summary && fields.summary !== actionItem.text) {
+          actionItem.text = fields.summary;
+          changed = true;
+        }
+
+        if (fields.duedate) {
+          const parsedDueDate = new Date(fields.duedate);
+          if (
+            !isNaN(parsedDueDate.getTime()) &&
+            String(actionItem.dueDate) !== String(parsedDueDate)
+          ) {
+            actionItem.dueDate = parsedDueDate;
+            changed = true;
+          }
+        }
+
+        if (changed) {
           await actionItem.save();
         }
+
+        await recordSyncLog(
+          actionItem.organization,
+          "jira",
+          "inbound_webhook",
+          `Updated action item from Jira issue ${issueKey}`,
+        );
       }
     }
 
@@ -178,11 +247,17 @@ export const handleLinearWebhook = async (req, res) => {
 
     const payload = req.body;
 
-    if (payload && payload.action === "update" && payload.type === "Issue") {
+    if (
+      payload &&
+      (payload.action === "update" || payload.action === "create") &&
+      payload.type === "Issue"
+    ) {
       const issueId = payload.data?.id;
       const stateName = payload.data?.state?.name?.toLowerCase();
+      const issueTitle = payload.data?.title;
+      const dueDate = payload.data?.dueDate;
 
-      // Simple status mapping based on typical Linear states
+      // Status mapping based on typical Linear states
       let newStatus = null;
       if (
         stateName === "done" ||
@@ -196,16 +271,48 @@ export const handleLinearWebhook = async (req, res) => {
         newStatus = "open";
       }
 
-      if (issueId && newStatus) {
+      if (issueId) {
         const actionItem = await ActionItem.findOne({
           externalLinearIssueId: issueId,
         });
-        if (actionItem && actionItem.status !== newStatus) {
-          actionItem.status = newStatus;
-          if (newStatus === "completed") {
-            actionItem.completedAt = new Date();
+
+        if (actionItem) {
+          let changed = false;
+
+          if (newStatus && actionItem.status !== newStatus) {
+            actionItem.status = newStatus;
+            if (newStatus === "completed") {
+              actionItem.completedAt = new Date();
+            }
+            changed = true;
           }
-          await actionItem.save();
+
+          if (issueTitle && issueTitle !== actionItem.text) {
+            actionItem.text = issueTitle;
+            changed = true;
+          }
+
+          if (dueDate) {
+            const parsedDueDate = new Date(dueDate);
+            if (
+              !isNaN(parsedDueDate.getTime()) &&
+              String(actionItem.dueDate) !== String(parsedDueDate)
+            ) {
+              actionItem.dueDate = parsedDueDate;
+              changed = true;
+            }
+          }
+
+          if (changed) {
+            await actionItem.save();
+          }
+
+          await recordSyncLog(
+            actionItem.organization,
+            "linear",
+            "inbound_webhook",
+            `Updated action item from Linear issue ${issueId}`,
+          );
         }
       }
     }

@@ -37,6 +37,19 @@ const transcriptSegmentSchema = new mongoose.Schema({
     type: [String],
     default: [],
   },
+  isEdited: {
+    type: Boolean,
+    default: false,
+  },
+  editedAt: {
+    type: Date,
+    default: null,
+  },
+  editedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "user",
+    default: null,
+  },
 });
 
 const transcriptSchema = new mongoose.Schema(

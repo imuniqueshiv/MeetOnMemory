@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { getComparableMeetings } from "../../services/comparisonApi";
 
 const CompareButton = ({ meetingId }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [comparableMeetings, setComparableMeetings] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -68,14 +70,14 @@ const CompareButton = ({ meetingId }) => {
             d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
           ></path>
         </svg>
-        Compare
+        {t("meetingComparison.compare")}
       </button>
 
       {isOpen && (
         <div className="origin-top-right absolute right-0 mt-2 w-72 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50 overflow-hidden">
           <div className="py-2">
             <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-              Compare with...
+              {t("meetingComparison.compareWith")}
             </div>
 
             <div className="max-h-60 overflow-y-auto">
@@ -100,7 +102,7 @@ const CompareButton = ({ meetingId }) => {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
-                  Loading...
+                  {t("meetingComparison.loading")}
                 </div>
               ) : comparableMeetings.length > 0 ? (
                 comparableMeetings.map((meeting) => (
@@ -119,7 +121,7 @@ const CompareButton = ({ meetingId }) => {
                 ))
               ) : (
                 <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center italic">
-                  No comparable meetings found.
+                  {t("meetingComparison.noComparable")}
                 </div>
               )}
             </div>

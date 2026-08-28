@@ -85,4 +85,21 @@ describe("MeetingRecorder Draft Persistence & Recovery (#1098)", () => {
       "Restored draft transcript content.",
     );
   });
+
+  it("runs device setup before starting a new recording", () => {
+    const onDeviceSetupNeeded = vi.fn();
+
+    render(
+      <MeetingRecorder
+        title="Preflight Meeting"
+        date="2026-08-25"
+        tags={[]}
+        onDeviceSetupNeeded={onDeviceSetupNeeded}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Start Recording/i }));
+
+    expect(onDeviceSetupNeeded).toHaveBeenCalledTimes(1);
+  });
 });

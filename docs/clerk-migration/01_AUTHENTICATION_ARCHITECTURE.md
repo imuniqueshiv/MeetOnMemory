@@ -1,5 +1,10 @@
 # Authentication Architecture (Current System)
 
+> [!WARNING]
+> **ARCHIVED / HISTORICAL DOCUMENTATION**  
+> The Clerk authentication migration has been fully completed. Clerk is now the sole identity provider for MeetOnMemory.  
+> For current contributor setup and development instructions, please refer to [AUTH_CONTRIBUTOR_RUNBOOK.md](../AUTH_CONTRIBUTOR_RUNBOOK.md).
+
 **Status:** Verified from MeetOnMemory source.  
 **Last reviewed against:** repository `server/` and `client/src/` during Clerk migration planning.
 

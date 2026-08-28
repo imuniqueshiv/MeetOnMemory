@@ -131,52 +131,72 @@ export const createMeetingPage = async (
   meeting,
   integration,
   actionItems = [],
+  force = false,
 ) => {
   if (!integration.targetDatabaseId) {
     throw new Error("Target Notion database is not configured.");
   }
 
-  const existingSync = integration.syncHistory?.find(
-    (s) =>
-      s.meetingId?.toString() === meeting._id?.toString() &&
-      s.status === "success",
-  );
-  if (existingSync) {
-    return {
-      pageId: existingSync.notionPageId,
-      pageUrl: existingSync.notionPageUrl,
-      alreadySynced: true,
-    };
+  if (!force) {
+    const existingSync = integration.syncHistory?.find(
+      (s) =>
+        s.meetingId?.toString() === meeting._id?.toString() &&
+        s.status === "success",
+    );
+    if (existingSync) {
+      return {
+        pageId: existingSync.notionPageId,
+        pageUrl: existingSync.notionPageUrl,
+        alreadySynced: true,
+      };
+    }
   }
 
-  const notion = buildClient(integration.accessToken);
-  const { properties, children } = transformMeetingToNotionBlocks(
-    meeting,
-    actionItems,
-  );
+  try {
+    const notion = buildClient(integration.accessToken);
+    const { properties, children } = transformMeetingToNotionBlocks(
+      meeting,
+      actionItems,
+    );
 
-  const response = await withRetry(() =>
-    notion.pages.create({
-      parent: { database_id: integration.targetDatabaseId },
-      properties,
-      children,
-    }),
-  );
+    const response = await withRetry(() =>
+      notion.pages.create({
+        parent: { database_id: integration.targetDatabaseId },
+        properties,
+        children,
+      }),
+    );
 
-  integration.syncHistory.push({
-    meetingId: meeting._id,
-    notionPageId: response.id,
-    notionPageUrl: response.url || null,
-    syncedAt: new Date(),
-    status: "success",
-  });
-  await integration.save();
+    integration.syncHistory = integration.syncHistory || [];
+    integration.syncHistory.push({
+      meetingId: meeting._id,
+      notionPageId: response.id,
+      notionPageUrl: response.url || null,
+      syncedAt: new Date(),
+      status: "success",
+    });
+    await integration.save();
 
-  logger.info(`Meeting ${meeting._id} synced to Notion page ${response.id}`);
+    logger.info(`Meeting ${meeting._id} synced to Notion page ${response.id}`);
 
-  return {
-    pageId: response.id,
-    pageUrl: response.url,
-    alreadySynced: false,
-  };
+    return {
+      pageId: response.id,
+      pageUrl: response.url,
+      alreadySynced: false,
+    };
+  } catch (err) {
+    integration.syncHistory = integration.syncHistory || [];
+    integration.syncHistory.push({
+      meetingId: meeting._id,
+      notionPageId: "none",
+      notionPageUrl: null,
+      syncedAt: new Date(),
+      status: "failed",
+      errorMessage: err.message || "Failed to create Notion page",
+    });
+    await integration.save().catch((saveErr) => {
+      logger.error("Failed to save failed Notion sync history:", saveErr);
+    });
+    throw err;
+  }
 };

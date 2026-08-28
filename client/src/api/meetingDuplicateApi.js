@@ -4,9 +4,10 @@ const detectDuplicates = async (meetingId) => {
   return apiClient.get(`/api/meetings/${meetingId}/duplicates`);
 };
 
-const mergeMeetings = async (primaryId, secondaryId) => {
+const mergeMeetings = async (primaryId, secondaryId, fieldSelections = {}) => {
   return apiClient.post(`/api/meetings/${primaryId}/duplicates/merge`, {
     secondaryId,
+    fieldSelections,
   });
 };
 

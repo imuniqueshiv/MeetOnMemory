@@ -1,3 +1,4 @@
+import { describe, test, expect } from "vitest";
 import { createMeetingSchema } from "../middleware/meetingValidation.js";
 
 describe("createMeetingSchema", () => {
@@ -107,5 +108,30 @@ describe("createMeetingSchema", () => {
         agendaItems: Array.from({ length: 201 }, () => ({ text: "Agenda" })),
       }).success,
     ).toBe(false);
+  });
+
+  test("accepts valid venue coordinates and persists them (#2256)", () => {
+    const withCoords = {
+      ...validMeeting,
+      venue: "1600 Amphitheatre Pkwy, Mountain View, CA",
+      venueCoordinates: {
+        lat: 37.422,
+        lng: -122.084,
+      },
+    };
+    const parsed = createMeetingSchema.safeParse(withCoords);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data.venueCoordinates).toEqual({
+      lat: 37.422,
+      lng: -122.084,
+    });
+  });
+
+  test("handles null or missing venue coordinates gracefully (#2256)", () => {
+    const withNullCoords = {
+      ...validMeeting,
+      venueCoordinates: null,
+    };
+    expect(createMeetingSchema.safeParse(withNullCoords).success).toBe(true);
   });
 });

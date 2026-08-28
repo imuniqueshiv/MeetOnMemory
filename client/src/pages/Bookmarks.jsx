@@ -9,7 +9,9 @@ import {
   updateCollectionAPI,
   toggleBookmarkAPI,
   updateBookmarkAPI,
+  shareCollectionAPI,
 } from "../api/bookmarkApi.js";
+import { useDebounce } from "../hooks/useDebounce.js";
 import {
   FaBookmark,
   FaFolder,
@@ -21,6 +23,9 @@ import {
   FaPlus,
   FaEdit,
   FaCheck,
+  FaShareAlt,
+  FaFileExport,
+  FaSearch,
 } from "react-icons/fa";
 
 const PRESET_COLORS = [
@@ -51,11 +56,17 @@ const Bookmarks = () => {
   const [bookmarkNotesInput, setBookmarkNotesInput] = useState("");
   const [bookmarkColorInput, setBookmarkColorInput] = useState("#3b82f6");
 
+  // Search & Share
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareEmailsInput, setShareEmailsInput] = useState("");
+
   useEffect(() => {
     fetchCollections();
     fetchBookmarks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCollection]);
+  }, [activeCollection, debouncedSearchQuery]);
 
   // Close mobile drawer / modals when pressing Escape
   useEffect(() => {
@@ -83,7 +94,10 @@ const Bookmarks = () => {
   const fetchBookmarks = async () => {
     try {
       setIsLoading(true);
-      const data = await getBookmarksAPI(activeCollection);
+      const data = await getBookmarksAPI(
+        activeCollection,
+        debouncedSearchQuery,
+      );
       setBookmarks(data || []);
     } catch (error) {
       console.error(error);
@@ -198,6 +212,41 @@ const Bookmarks = () => {
     } catch (error) {
       console.error(error);
       toast.error("Failed to update bookmark");
+    }
+  };
+
+  const handleExport = () => {
+    if (bookmarks.length === 0) {
+      toast.info("No bookmarks to export.");
+      return;
+    }
+    const data = JSON.stringify(bookmarks, null, 2);
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${activeCollection || "all"}_bookmarks.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Collection exported");
+  };
+
+  const handleShareSubmit = async (e) => {
+    e.preventDefault();
+    if (!shareEmailsInput.trim()) return;
+    const emails = shareEmailsInput
+      .split(",")
+      .map((e) => e.trim())
+      .filter(Boolean);
+    try {
+      await shareCollectionAPI(activeCollection, emails);
+      toast.success("Collection shared successfully");
+      setIsShareModalOpen(false);
+      setShareEmailsInput("");
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to share collection",
+      );
     }
   };
 
@@ -328,7 +377,7 @@ const Bookmarks = () => {
 
         {/* Main Content */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 min-w-0">
-          <div className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div className="mb-6 flex flex-col xl:flex-row xl:items-end justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-4">
             <div>
               <div className="flex items-center gap-3">
                 <button
@@ -356,6 +405,40 @@ const Bookmarks = () => {
                 {bookmarks.length} saved meeting
                 {bookmarks.length !== 1 ? "s" : ""}
               </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+              <div className="relative w-full sm:w-64">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <FaSearch className="text-gray-400 w-3.5 h-3.5" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search bookmarks..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              {activeCollection && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsShareModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <FaShareAlt className="w-3.5 h-3.5" />
+                    Share
+                  </button>
+                  <button
+                    onClick={handleExport}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <FaFileExport className="w-3.5 h-3.5" />
+                    Export
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -620,6 +703,62 @@ const Bookmarks = () => {
                   className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md cursor-pointer"
                 >
                   {editingCollectionName ? "Update" : "Create"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Share Collection Modal */}
+      {isShareModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Share Collection Dialog"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-xl border border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+              Share "{activeCollection}"
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Share all bookmarks in this collection with other users in your
+              organization. They will receive independent copies.
+            </p>
+            <form onSubmit={handleShareSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase text-gray-600 dark:text-gray-400 mb-1">
+                  Email Addresses
+                </label>
+                <textarea
+                  data-testid="share-emails-input"
+                  value={shareEmailsInput}
+                  onChange={(e) => setShareEmailsInput(e.target.value)}
+                  placeholder="user1@test.com, user2@test.com"
+                  rows={3}
+                  className="w-full px-3.5 py-2 text-sm rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsShareModalOpen(false);
+                    setShareEmailsInput("");
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  data-testid="share-collection-submit-button"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md cursor-pointer"
+                >
+                  Share
                 </button>
               </div>
             </form>

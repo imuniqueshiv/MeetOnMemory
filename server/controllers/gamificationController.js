@@ -6,9 +6,13 @@ import { buildBadgeCatalogEntry } from "../utils/badgeCatalog.js";
 
 export { buildBadgeCatalogEntry };
 
+import LeaderboardEngine from "../services/leaderboardService.js";
+
 export const getLeaderboard = async (req, res) => {
   try {
     const orgId = req.user.organization;
+    const { period, team } = req.query;
+
     if (!orgId) {
       return res.status(400).json({
         success: false,
@@ -16,13 +20,29 @@ export const getLeaderboard = async (req, res) => {
       });
     }
 
+    if (period || team) {
+      // Use dynamic engine for filtered requests
+      const data = await LeaderboardEngine.getFilteredLeaderboard({
+        orgId,
+        period,
+        team,
+      });
+      return res.status(200).json({ success: true, data });
+    }
+
+    // Default to cache for overall leaderboard if no filters applied
     const redis = getRedisClient();
     if (redis) {
       const cached = await redis.get(`leaderboard:org:${orgId}`);
       if (cached) {
-        return res
-          .status(200)
-          .json({ success: true, data: JSON.parse(cached) });
+        // Also fetch history chart dynamically since it wasn't in cache previously
+        const historyData = await LeaderboardEngine.getFilteredLeaderboard({
+          orgId,
+          period: "all",
+        });
+        const data = JSON.parse(cached);
+        data.historyChart = historyData.historyChart;
+        return res.status(200).json({ success: true, data });
       }
     }
 
@@ -32,10 +52,22 @@ export const getLeaderboard = async (req, res) => {
     if (redis) {
       const newCached = await redis.get(`leaderboard:org:${orgId}`);
       if (newCached) {
-        return res
-          .status(200)
-          .json({ success: true, data: JSON.parse(newCached) });
+        const historyData = await LeaderboardEngine.getFilteredLeaderboard({
+          orgId,
+          period: "all",
+        });
+        const data = JSON.parse(newCached);
+        data.historyChart = historyData.historyChart;
+        return res.status(200).json({ success: true, data });
       }
+    }
+
+    const dynamicData = await LeaderboardEngine.getFilteredLeaderboard({
+      orgId,
+      period: "all",
+    });
+    if (dynamicData) {
+      return res.status(200).json({ success: true, data: dynamicData });
     }
 
     res

@@ -56,8 +56,20 @@ const actionItemSlaBreachSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   },
 );
+
+// Virtual severity based on priority and breach ratio
+actionItemSlaBreachSchema.virtual("severity").get(function () {
+  if (!this.targetHours || !this.actualHours) return "low";
+  const ratio = this.actualHours / this.targetHours;
+  if (this.priority === "urgent" || ratio >= 2.0) return "critical";
+  if (this.priority === "high" || ratio >= 1.5) return "high";
+  if (this.priority === "medium" || ratio >= 1.1) return "medium";
+  return "low";
+});
 
 // Prevent duplicate breaches of the same type for the same action item
 actionItemSlaBreachSchema.index(

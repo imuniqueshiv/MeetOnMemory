@@ -95,6 +95,22 @@ export const syncActionItemToJira = async (actionItem) => {
     actionItem.externalJiraIssueUrl = `${siteUrl}/browse/${response.data.key}`;
     await actionItem.save();
 
+    // Update integration sync status metrics
+    integration.lastSyncAt = new Date();
+    integration.lastSyncStatus = "success";
+    integration.lastSyncError = null;
+    integration.syncCount = (integration.syncCount || 0) + 1;
+    integration.syncLogs = [
+      {
+        timestamp: new Date(),
+        action: "outbound_push",
+        status: "success",
+        details: `Created Jira issue ${response.data.key}`,
+      },
+      ...(integration.syncLogs || []),
+    ].slice(0, 15);
+    await integration.save();
+
     return response.data;
   } catch (error) {
     console.error(

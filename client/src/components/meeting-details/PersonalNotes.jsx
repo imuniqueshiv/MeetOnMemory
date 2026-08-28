@@ -4,11 +4,15 @@ import React, {
   useRef,
   useCallback,
   useMemo,
+  useContext,
 } from "react";
 import { personalNoteApi } from "../../services";
 import { Pin, Save, CheckCircle, Highlighter, Trash2, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { normalizeTranscript } from "../../utils/normalizeTranscript.js";
+import AppContent from "../../context/AppContent";
+import { useFormDraft } from "../../hooks/useFormDraft";
+import PersonalNotesDraftRecoveryBanner from "./PersonalNotesDraftRecoveryBanner";
 
 const PersonalNotes = ({ meeting }) => {
   const [content, setContent] = useState("");
@@ -17,6 +21,10 @@ const PersonalNotes = ({ meeting }) => {
   const [annotations, setAnnotations] = useState([]);
   const [isPinning, setIsPinning] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [serverUpdatedAt, setServerUpdatedAt] = useState(null);
+
+  const context = useContext(AppContent) || {};
+  const { userData } = context;
 
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
@@ -24,6 +32,48 @@ const PersonalNotes = ({ meeting }) => {
 
   const lastSavedContentRef = useRef("");
   const containerRef = useRef(null);
+
+  const draftKey = useMemo(() => {
+    const userId = userData?._id || userData?.id || "anonymous";
+    const meetingId = meeting?._id || meeting?.id;
+    if (!meetingId) return null;
+    return `meet-on-memory:personal-notes-draft:v1:${userId}:${meetingId}`;
+  }, [userData, meeting]);
+
+  const draftValues = useMemo(() => ({ content }), [content]);
+
+  const restoreDraftValues = useCallback((draft) => {
+    if (typeof draft?.content === "string") {
+      setContent(draft.content);
+    }
+  }, []);
+
+  const {
+    recoverableDraft,
+    isCheckComplete,
+    restoreDraft,
+    discardDraft,
+    clearDraft,
+  } = useFormDraft({
+    key: draftKey,
+    values: draftValues,
+    enabled: Boolean(draftKey) && isLoaded,
+    maxAgeMs: 7 * 24 * 60 * 60 * 1000,
+    serverUpdatedAt,
+    onRestore: restoreDraftValues,
+  });
+
+  // Proactively clear draft when content matches server's synced content
+  useEffect(() => {
+    if (
+      isLoaded &&
+      isCheckComplete &&
+      !recoverableDraft &&
+      content === lastSavedContentRef.current
+    ) {
+      clearDraft();
+    }
+  }, [content, isLoaded, isCheckComplete, recoverableDraft, clearDraft]);
 
   const normalizedSegments = useMemo(() => {
     return normalizeTranscript(meeting?.transcript);
@@ -40,6 +90,9 @@ const PersonalNotes = ({ meeting }) => {
         setIsPinned(noteData.isPinned || false);
         setAnnotations(noteData.annotations || []);
         lastSavedContentRef.current = initialContent;
+        if (noteData.updatedAt) {
+          setServerUpdatedAt(noteData.updatedAt);
+        }
       }
     } catch (error) {
       console.error("Error fetching personal note", error);
@@ -57,9 +110,16 @@ const PersonalNotes = ({ meeting }) => {
       if (!meeting?._id) return;
       setSaveStatus("saving");
       try {
-        await personalNoteApi.upsertNote(meeting._id, newContent);
+        const response = await personalNoteApi.upsertNote(
+          meeting._id,
+          newContent,
+        );
+        const noteData = response?.data?.note || response?.note;
         lastSavedContentRef.current = newContent;
         setSaveStatus("saved");
+        if (noteData?.updatedAt) {
+          setServerUpdatedAt(noteData.updatedAt);
+        }
       } catch (error) {
         console.error("Error saving note", error);
         setSaveStatus("error");
@@ -299,6 +359,11 @@ const PersonalNotes = ({ meeting }) => {
 
       {/* RIGHT: Markdown Editor */}
       <div className="md:w-1/2 p-6 flex flex-col max-h-[600px]">
+        <PersonalNotesDraftRecoveryBanner
+          savedAt={recoverableDraft?.savedAt}
+          onRestore={restoreDraft}
+          onDiscard={discardDraft}
+        />
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-gray-100">

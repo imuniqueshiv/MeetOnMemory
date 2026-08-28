@@ -67,6 +67,7 @@ export const useFormDraft = ({
   const [recoverableDraft, setRecoverableDraft] = useState(null);
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [status, setStatus] = useState("idle");
+  const [isCheckComplete, setIsCheckComplete] = useState(false);
   const hasInspectedStorage = useRef(false);
   const hasDraftRef = useRef(false);
   const skipNextSave = useRef(false);
@@ -112,6 +113,7 @@ export const useFormDraft = ({
     setRecoverableDraft(null);
     setLastSavedAt(null);
     setStatus("idle");
+    setIsCheckComplete(false);
 
     if (!enabled || !storageAvailable || !key) return;
 
@@ -122,6 +124,7 @@ export const useFormDraft = ({
     if (!draft) {
       if (rawDraft) window.localStorage.removeItem(key);
       skipNextSave.current = true;
+      setIsCheckComplete(true);
       return;
     }
 
@@ -132,6 +135,7 @@ export const useFormDraft = ({
       window.localStorage.removeItem(key);
       setStatus("expired");
       skipNextSave.current = true;
+      setIsCheckComplete(true);
       return;
     }
 
@@ -139,6 +143,7 @@ export const useFormDraft = ({
     setRecoverableDraft(draft);
     setLastSavedAt(draft.savedAt);
     setStatus("recovery-available");
+    setIsCheckComplete(true);
   }, [enabled, key, maxAgeMs, serverUpdatedAt, storageAvailable]);
 
   useEffect(() => {
@@ -183,6 +188,7 @@ export const useFormDraft = ({
     recoverableDraft,
     lastSavedAt,
     status,
+    isCheckComplete,
     restoreDraft,
     discardDraft,
     clearDraft,

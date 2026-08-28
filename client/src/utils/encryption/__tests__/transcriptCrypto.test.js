@@ -1,11 +1,11 @@
 /**
- * Issue #1335 — Web Crypto AES-GCM transcript encryption tests.
+ * Issue #1335 & #2030 — Web Crypto AES-GCM transcript encryption tests.
  *
  * Uses Node's webcrypto when available so tests run without a browser.
  */
 
 import { webcrypto } from "node:crypto";
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import { Buffer } from "buffer";
 
 beforeAll(() => {
@@ -20,6 +20,19 @@ beforeAll(() => {
   }
 });
 
+// Mock browser localStorage for Node vitest environment
+const mockStorage = new Map();
+globalThis.localStorage = {
+  getItem: (k) => mockStorage.get(k) ?? null,
+  setItem: (k, v) => mockStorage.set(k, String(v)),
+  removeItem: (k) => mockStorage.delete(k),
+  clear: () => mockStorage.clear(),
+  get length() {
+    return mockStorage.size;
+  },
+  key: (i) => Array.from(mockStorage.keys())[i] ?? null,
+};
+
 const {
   generateKey,
   exportKey,
@@ -27,9 +40,22 @@ const {
   encryptTranscript,
   decryptTranscript,
   isEncryptedTranscriptPayload,
-} = await import("../transcriptCrypto.js");
+  exportEncryptedKeyBundle,
+  importEncryptedKeyBundle,
+  saveMeetingKey,
+  loadMeetingKey,
+  clearMeetingKey,
+  hasMeetingKey,
+  listStoredMeetingKeyIds,
+  createShareableKeyPayload,
+  parseImportedKeyInput,
+} = await import("../index.js");
 
-describe("transcriptCrypto (Issue #1335)", () => {
+describe("transcriptCrypto & meetingKeyStore (Issue #1335 & #2030)", () => {
+  beforeEach(() => {
+    mockStorage.clear();
+  });
+
   it("generates an AES-GCM key and round-trips export/import", async () => {
     const key = await generateKey();
     const exported = await exportKey(key);
@@ -114,5 +140,74 @@ describe("transcriptCrypto (Issue #1335)", () => {
     expect(isEncryptedTranscriptPayload("plain text transcript")).toBe(false);
     expect(isEncryptedTranscriptPayload(null)).toBe(false);
     expect(isEncryptedTranscriptPayload({})).toBe(false);
+  });
+
+  it("exports and imports passphrase-encrypted key bundles (#2030)", async () => {
+    const key = await generateKey();
+    const rawKey = await exportKey(key);
+    const meetingId = "meet_789123";
+    const passphrase = "correct-horse-battery";
+
+    const bundle = await exportEncryptedKeyBundle(
+      meetingId,
+      rawKey,
+      passphrase,
+      { title: "Sprint Planning" },
+    );
+
+    expect(bundle.magic).toBe("MOM_E2EE_KEY_BUNDLE_V1");
+    expect(bundle.salt).toBeTruthy();
+    expect(bundle.encryptedData).toBeTruthy();
+
+    // Successful unlock with correct passphrase
+    const unlocked = await importEncryptedKeyBundle(bundle, passphrase);
+    expect(unlocked.rawKey).toBe(rawKey);
+    expect(unlocked.meetingId).toBe(meetingId);
+    expect(unlocked.metadata.title).toBe("Sprint Planning");
+
+    // Rejection with wrong passphrase
+    await expect(
+      importEncryptedKeyBundle(bundle, "wrong-passphrase"),
+    ).rejects.toThrow(/incorrect passphrase/i);
+  });
+
+  it("manages localStorage key persistence and listings (#2030)", () => {
+    expect(hasMeetingKey("m1")).toBe(false);
+    expect(loadMeetingKey("m1")).toBeNull();
+
+    saveMeetingKey("m1", "base64-key-data-1");
+    saveMeetingKey("m2", "base64-key-data-2");
+
+    expect(hasMeetingKey("m1")).toBe(true);
+    expect(loadMeetingKey("m1")).toBe("base64-key-data-1");
+    expect(listStoredMeetingKeyIds()).toContain("m1");
+    expect(listStoredMeetingKeyIds()).toContain("m2");
+
+    clearMeetingKey("m1");
+    expect(hasMeetingKey("m1")).toBe(false);
+    expect(loadMeetingKey("m1")).toBeNull();
+  });
+
+  it("generates shareable JSON payload and parses valid input (#2030)", () => {
+    const meetingId = "meet_456";
+    const rawKey = "dGVzdC1rZXktYmFzZTY0LXN0cmluZw==";
+    const payload = createShareableKeyPayload(meetingId, rawKey, "Design Sync");
+
+    expect(payload).toContain("E2EE_MEETING_KEY");
+    expect(payload).toContain(meetingId);
+
+    // Parsing JSON payload
+    const parsed = parseImportedKeyInput(payload, meetingId);
+    expect(parsed.isBundle).toBe(false);
+    expect(parsed.key).toBe(rawKey);
+
+    // Mismatched meetingId detection
+    expect(() =>
+      parseImportedKeyInput(payload, "different_meeting_id"),
+    ).toThrow(/belongs to meeting/i);
+
+    // Parsing raw base64 string
+    const parsedRaw = parseImportedKeyInput(rawKey, meetingId);
+    expect(parsedRaw.key).toBe(rawKey);
   });
 });

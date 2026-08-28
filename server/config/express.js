@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import path from "path";
 import { corsOptions } from "./corsOptions.js";
 import { configureHealthEndpoints } from "./health.js";
 import { configureSecurity } from "./security.js";
@@ -17,6 +18,7 @@ import publicSharedRoutes from "../routes/publicSharedRoutes.js";
 import { createStatusRoutes } from "../routes/statusRoutes.js";
 import { createCareerRoutes } from "../routes/careerRoutes.js";
 import { createContactRoutes } from "../routes/contactRoutes.js";
+import openapiRoutes from "../routes/openapiRoutes.js";
 
 export function configureExpress(app) {
   app.set("trust proxy", 1);
@@ -55,10 +57,14 @@ export function configureExpress(app) {
   app.use("/api/status", createStatusRoutes());
   app.use("/api/careers", createCareerRoutes());
   app.use("/api/contact", createContactRoutes());
+  app.use("/api", openapiRoutes);
 
   // External/public routes use their own authentication mechanisms.
   app.use("/api/webhooks", webhookRoutes);
   app.use("/api/public/shared", publicSharedRoutes);
+
+  // Serve static uploads
+  app.use("/uploads", express.static(path.resolve("uploads")));
 
   app.use(globalLimiter);
 }

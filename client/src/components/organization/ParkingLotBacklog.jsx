@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { parkingLotApi } from "../../services";
-import { Lightbulb, Trash2, CalendarClock } from "lucide-react";
+import { Lightbulb, Trash2 } from "lucide-react";
 import { toast } from "react-toastify";
 
 const ParkingLotBacklog = ({ organizationId }) => {
@@ -55,11 +56,21 @@ const ParkingLotBacklog = ({ organizationId }) => {
 
   return (
     <div className="p-4 border rounded-xl bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-      <div className="flex items-center gap-2 mb-4">
-        <Lightbulb className="text-yellow-500" size={20} />
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Parking Lot Backlog
-        </h3>
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <div className="flex items-center gap-2">
+          <Lightbulb className="text-yellow-500" size={20} />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Parking Lot Backlog
+          </h3>
+        </div>
+        {organizationId ? (
+          <Link
+            to="/parking-lot"
+            className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            View all
+          </Link>
+        ) : null}
       </div>
 
       {items.length === 0 ? (

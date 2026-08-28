@@ -75,7 +75,7 @@ class SemanticKnowledgeGraphExtractionService {
 
     // Extract Topics & Tags
     const tags = meeting.tags || [];
-    tags.forEach((tag, idx) => {
+    tags.forEach((tag, _idx) => {
       const topicId = `topic-${encodeURIComponent(tag)}`;
       if (!nodes.some((n) => n.id === topicId)) {
         nodes.push({

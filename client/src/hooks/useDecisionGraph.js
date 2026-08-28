@@ -8,6 +8,10 @@ const useDecisionGraph = () => {
 
   const [keywordFilter, setKeywordFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Let callers reload the graph after a mutation (create/link/supersede, #2027).
+  const refetch = () => setRefreshKey((k) => k + 1);
 
   useEffect(() => {
     let isCurrent = true;
@@ -35,7 +39,7 @@ const useDecisionGraph = () => {
     return () => {
       isCurrent = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   // Filter logic: when filters change, we compute the visible subset of nodes and edges
   const filteredData = useMemo(() => {
@@ -73,6 +77,7 @@ const useDecisionGraph = () => {
     setKeywordFilter,
     statusFilter,
     setStatusFilter,
+    refetch,
   };
 };
 

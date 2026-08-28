@@ -320,3 +320,167 @@ export const getTagStats = async (req, res, next) => {
     next(err);
   }
 };
+
+const mergeTagsSchema = z.object({
+  sourceTagId: z.string().min(1).optional(),
+  sourceName: z.string().min(1).optional(),
+  targetTagId: z.string().min(1).optional(),
+  targetName: z.string().min(1).optional(),
+});
+
+export const mergeTags = async (req, res, next) => {
+  try {
+    const { sourceTagId, sourceName, targetTagId, targetName } =
+      mergeTagsSchema.parse(req.body);
+    const orgId = req.user.organization;
+
+    const source = sourceTagId
+      ? await Tag.findOne({ _id: sourceTagId, organization: orgId })
+      : await findTagByName(orgId, sourceName);
+
+    const target = targetTagId
+      ? await Tag.findOne({ _id: targetTagId, organization: orgId })
+      : await findTagByName(orgId, targetName);
+
+    if (!source || !target) {
+      throw new NotFoundError(
+        "Both source and target tags must exist in your organization.",
+      );
+    }
+
+    if (source._id.equals(target._id)) {
+      throw new ValidationError("Source and target tags cannot be the same.");
+    }
+
+    const sName = source.name;
+    const tName = target.name;
+
+    const meetings = await Meeting.find({ organization: orgId, tags: sName });
+    for (const m of meetings) {
+      const filtered = (m.tags || []).filter((t) => t !== sName);
+      if (!filtered.includes(tName)) {
+        filtered.push(tName);
+      }
+      m.tags = filtered;
+      await m.save();
+    }
+
+    const targetUsage = await Meeting.countDocuments({
+      organization: orgId,
+      tags: tName,
+    });
+    target.usageCount = targetUsage;
+    await target.save();
+
+    await Tag.deleteOne({ _id: source._id, organization: orgId });
+
+    return sendSuccess(
+      res,
+      { targetTag: target, affectedMeetingsCount: meetings.length },
+      `Successfully merged '${sName}' into '${tName}' across ${meetings.length} meeting(s).`,
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+const bulkRetagSchema = z.object({
+  meetingIds: z.array(z.string().min(1)).min(1),
+  tagsToAdd: z.array(z.string().min(1)).optional().default([]),
+  tagsToRemove: z.array(z.string().min(1)).optional().default([]),
+});
+
+export const bulkRetag = async (req, res, next) => {
+  try {
+    const { meetingIds, tagsToAdd, tagsToRemove } = bulkRetagSchema.parse(
+      req.body,
+    );
+    const orgId = req.user.organization;
+
+    const meetings = await Meeting.find({
+      _id: { $in: meetingIds },
+      organization: orgId,
+    });
+
+    if (!meetings.length) {
+      throw new NotFoundError(
+        "No matching meetings found in your organization.",
+      );
+    }
+
+    for (const tagName of tagsToAdd) {
+      const exists = await findTagByName(orgId, tagName);
+      if (!exists) {
+        await Tag.create({
+          name: tagName,
+          organization: orgId,
+          createdBy: req.user._id,
+        });
+      }
+    }
+
+    for (const m of meetings) {
+      let currentTags = m.tags || [];
+      if (tagsToRemove.length > 0) {
+        currentTags = currentTags.filter((t) => !tagsToRemove.includes(t));
+      }
+      for (const toAdd of tagsToAdd) {
+        if (!currentTags.includes(toAdd)) {
+          currentTags.push(toAdd);
+        }
+      }
+      m.tags = currentTags;
+      await m.save();
+    }
+
+    const allOrgTags = await Tag.find({ organization: orgId });
+    for (const t of allOrgTags) {
+      t.usageCount = await Meeting.countDocuments({
+        organization: orgId,
+        tags: t.name,
+      });
+      await t.save();
+    }
+
+    return sendSuccess(
+      res,
+      { updatedMeetingsCount: meetings.length },
+      `Successfully retagged ${meetings.length} meeting(s).`,
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const exportTags = async (req, res, next) => {
+  try {
+    const orgId = req.user.organization;
+    const tags = await Tag.find({ organization: orgId }).sort({
+      usageCount: -1,
+      name: 1,
+    });
+
+    const headers = ["Name", "Color", "UsageCount", "Description", "CreatedAt"];
+    const rows = tags.map((t) => [
+      `"${(t.name || "").replace(/"/g, '""')}"`,
+      `"${(t.color || "").replace(/"/g, '""')}"`,
+      t.usageCount || 0,
+      `"${(t.description || "").replace(/"/g, '""')}"`,
+      `"${t.createdAt ? new Date(t.createdAt).toISOString() : ""}"`,
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((r) => r.join(",")),
+    ].join("\n");
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="tags-taxonomy-export.csv"',
+    );
+    return res.status(200).send(csvContent);
+  } catch (err) {
+    next(err);
+  }
+};

@@ -161,6 +161,12 @@ const actionItemSchema = new mongoose.Schema(
       default: [],
     },
 
+    recurringActionItemId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "RecurringActionItem",
+      default: null,
+    },
+
     resolvedAt: {
       type: Date,
       default: null,

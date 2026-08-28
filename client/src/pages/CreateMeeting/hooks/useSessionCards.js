@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "react-toastify";
-import { meetingApi } from "../../../services";
+import { sessionCardApi } from "../../../services";
 
 export const useSessionCards = () => {
   const [sessionData, setSessionData] = useState({
@@ -14,6 +14,30 @@ export const useSessionCards = () => {
   const [videoFile, setVideoFile] = useState(null);
   const [generatedSessions, setGeneratedSessions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fetchingCards, setFetchingCards] = useState(false);
+
+  const fetchSessionCards = useCallback(async () => {
+    setFetchingCards(true);
+    try {
+      const response = await sessionCardApi.getSessionCards({ limit: 50 });
+      if (response.data?.success) {
+        const list = Array.isArray(response.data?.sessions)
+          ? response.data.sessions
+          : Array.isArray(response.data?.data?.sessions)
+            ? response.data.data.sessions
+            : [];
+        setGeneratedSessions(list);
+      }
+    } catch (error) {
+      console.error("Error loading session cards:", error);
+    } finally {
+      setFetchingCards(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSessionCards();
+  }, [fetchSessionCards]);
 
   const handleSessionChange = (e) => {
     const { name, value } = e.target;
@@ -22,7 +46,7 @@ export const useSessionCards = () => {
 
   const handleSlideUpload = (e) => {
     const files = Array.from(e.target.files);
-    setSlideFiles([...slideFiles, ...files]);
+    setSlideFiles((prev) => [...prev, ...files]);
     toast.success(`${files.length} slide file(s) uploaded`);
   };
 
@@ -35,7 +59,25 @@ export const useSessionCards = () => {
   };
 
   const removeSlideFile = (index) => {
-    setSlideFiles(slideFiles.filter((_, i) => i !== index));
+    setSlideFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDeleteSession = async (sessionId) => {
+    if (!sessionId) return;
+    try {
+      const response = await sessionCardApi.deleteSessionCard(sessionId);
+      if (response.data?.success || response.status === 200) {
+        setGeneratedSessions((prev) =>
+          prev.filter((s) => s._id !== sessionId && s.id !== sessionId),
+        );
+        toast.success("Session card deleted successfully");
+      }
+    } catch (error) {
+      console.error("Error deleting session card:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to delete session card",
+      );
+    }
   };
 
   const handleSessionSubmit = async (e) => {
@@ -62,11 +104,17 @@ export const useSessionCards = () => {
         formData.append("video", videoFile);
       }
 
-      const response = await meetingApi.generateSession(formData);
+      const response = await sessionCardApi.generateSession(formData);
 
       if (response.data?.success) {
-        toast.success("✨ AI Session card generated successfully!");
-        setGeneratedSessions([response.data.session, ...generatedSessions]);
+        toast.success("✨ AI Session card generated and saved successfully!");
+        const newSession =
+          response.data?.data?.session || response.data?.session;
+        if (newSession) {
+          setGeneratedSessions((prev) => [newSession, ...prev]);
+        } else {
+          fetchSessionCards();
+        }
 
         // Reset form
         setSessionData({
@@ -95,10 +143,13 @@ export const useSessionCards = () => {
     videoFile,
     generatedSessions,
     loading,
+    fetchingCards,
+    fetchSessionCards,
     handleSessionChange,
     handleSlideUpload,
     handleVideoUpload,
     removeSlideFile,
+    handleDeleteSession,
     handleSessionSubmit,
   };
 };

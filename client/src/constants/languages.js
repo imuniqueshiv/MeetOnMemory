@@ -4,6 +4,7 @@
 export const LANGUAGES = [
   { code: "en", label: "EN", name: "English", flag: "🌐" },
   { code: "hi", label: "हिंदी", name: "Hindi", flag: "🇮🇳" },
+  { code: "ar", label: "العربية", name: "Arabic", flag: "🇸🇦" },
 ];
 
 export const DEFAULT_LANGUAGE = "en";

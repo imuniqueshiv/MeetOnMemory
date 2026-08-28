@@ -2,6 +2,7 @@ import { z } from "zod";
 import MeetingGoal from "../models/meetingGoalModel.js";
 import Meeting from "../models/meetingModel.js";
 import mongoose from "mongoose";
+import { computeGoalRollup } from "../utils/goalRollup.js";
 
 const setGoalsSchema = z.object({
   goals: z
@@ -117,6 +118,72 @@ export const getGoals = async (req, res, next) => {
     }
 
     return res.status(200).json({ success: true, meetingGoal });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Aggregate goal outcomes across every occurrence of a meeting's series.
+ * If the meeting is not part of a series, the rollup covers just that meeting.
+ * @route GET /api/meeting-goals/meeting/:meetingId/series-rollup
+ */
+export const getSeriesGoalRollup = async (req, res, next) => {
+  try {
+    const { meetingId } = req.params;
+    const userOrg = req.user.organization || req.user.activeOrganization;
+
+    if (!userOrg) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Organization required" });
+    }
+
+    const meeting = await Meeting.findOne({
+      _id: meetingId,
+      organization: userOrg,
+      deletedAt: null,
+    });
+
+    if (!meeting) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: different organization or meeting not found",
+      });
+    }
+
+    // Every meeting in the same series (org-scoped); or just this one if it's standalone.
+    const seriesFilter = meeting.series
+      ? { series: meeting.series, organization: userOrg, deletedAt: null }
+      : { _id: meeting._id, organization: userOrg, deletedAt: null };
+    const meetings = await Meeting.find(seriesFilter).select(
+      "_id seriesOccurrence title",
+    );
+
+    const meetingIds = meetings.map((m) => m._id);
+    const goalDocs = await MeetingGoal.find({
+      meetingId: { $in: meetingIds },
+      organization: userOrg,
+    });
+    const goalsByMeeting = new Map(
+      goalDocs.map((doc) => [doc.meetingId.toString(), doc.goals]),
+    );
+
+    const entries = meetings.map((m) => ({
+      meetingId: m._id,
+      seriesOccurrence:
+        typeof m.seriesOccurrence === "number" ? m.seriesOccurrence : null,
+      goals: goalsByMeeting.get(m._id.toString()) || [],
+    }));
+
+    const rollup = computeGoalRollup(entries);
+
+    return res.status(200).json({
+      success: true,
+      seriesId: meeting.series || null,
+      meetingCount: meetings.length,
+      rollup,
+    });
   } catch (error) {
     next(error);
   }

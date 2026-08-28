@@ -9,6 +9,7 @@ vi.mock("../../services/glossaryApi.js", () => ({
   createTerm: vi.fn(),
   deleteTerm: vi.fn(),
   approveTerm: vi.fn(),
+  rejectTerm: vi.fn(),
 }));
 
 describe("Glossary Confirmation Modal (#1489)", () => {

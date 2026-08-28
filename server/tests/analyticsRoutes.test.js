@@ -181,4 +181,146 @@ describe("Analytics Routes Integration Tests", () => {
       expect(res.statusCode).toBe(401);
     });
   });
+
+  describe("GET /api/analytics/org-timeline", () => {
+    it("should reject unauthenticated access", async () => {
+      const res = await request(app).get("/api/analytics/org-timeline");
+      expect(res.statusCode).toBe(401);
+    });
+
+    it("should return a paginated chronological list of meetings with counts", async () => {
+      await Meeting.create({
+        title: "Timeline Meeting 1",
+        date: new Date(Date.now() - 3600000), // 1 hour ago
+        organization: organizationId,
+        uploadedBy: user._id,
+        status: "completed",
+        participants: [{ name: "Alice" }],
+        tags: ["sprint-review"],
+      });
+
+      const m2 = await Meeting.create({
+        title: "Timeline Meeting 2",
+        date: new Date(), // Now
+        organization: organizationId,
+        uploadedBy: user._id,
+        status: "completed",
+        participants: [{ name: "Alice" }, { name: "Bob" }],
+        tags: ["planning"],
+      });
+
+      const Decision = (await import("../models/decisionModel.js")).default;
+      const ActionItem = (await import("../models/actionItemModel.js")).default;
+
+      await Decision.create({
+        text: "Decision 1",
+        sourceMeetingId: m2._id,
+        organization: organizationId,
+      });
+
+      await ActionItem.create({
+        text: "Action Item 1",
+        sourceMeetingId: m2._id,
+        organization: organizationId,
+      });
+
+      const res = await request(app)
+        .get("/api/analytics/org-timeline?page=1&limit=10")
+        .set(authHeader(token));
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toHaveLength(2);
+
+      // Verify chronological sorting (latest/newest first, meeting 2 then meeting 1)
+      expect(res.body.data[0].title).toBe("Timeline Meeting 2");
+      expect(res.body.data[0].counts.decisions).toBe(1);
+      expect(res.body.data[0].counts.actionItems).toBe(1);
+      expect(res.body.data[0].counts.attendees).toBe(2);
+
+      expect(res.body.data[1].title).toBe("Timeline Meeting 1");
+      expect(res.body.data[1].counts.decisions).toBe(0);
+      expect(res.body.data[1].counts.actionItems).toBe(0);
+      expect(res.body.data[1].counts.attendees).toBe(1);
+    });
+
+    it("should filter meetings by tag", async () => {
+      await Meeting.create([
+        {
+          title: "Tag Match Meeting",
+          date: new Date(),
+          organization: organizationId,
+          uploadedBy: user._id,
+          status: "completed",
+          tags: ["marketing-tag"],
+          participants: [],
+        },
+        {
+          title: "Tag Other Meeting",
+          date: new Date(),
+          organization: organizationId,
+          uploadedBy: user._id,
+          status: "completed",
+          tags: ["sales-tag"],
+          participants: [],
+        },
+      ]);
+
+      const res = await request(app)
+        .get("/api/analytics/org-timeline?tag=marketing-tag")
+        .set(authHeader(token));
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].title).toBe("Tag Match Meeting");
+    });
+
+    it("should filter meetings by teamId via MeetingAnalytics", async () => {
+      const targetMeeting = await Meeting.create({
+        title: "Team Match Meeting",
+        date: new Date(),
+        organization: organizationId,
+        uploadedBy: user._id,
+        status: "completed",
+        participants: [],
+      });
+
+      const otherMeeting = await Meeting.create({
+        title: "Team Other Meeting",
+        date: new Date(),
+        organization: organizationId,
+        uploadedBy: user._id,
+        status: "completed",
+        participants: [],
+      });
+
+      const MeetingAnalytics = (await import("../models/MeetingAnalytics.js"))
+        .default;
+      const teamObjId = new mongoose.Types.ObjectId();
+
+      await MeetingAnalytics.create([
+        {
+          meeting: targetMeeting._id,
+          organization: organizationId,
+          teamId: teamObjId,
+          status: "completed",
+        },
+        {
+          meeting: otherMeeting._id,
+          organization: organizationId,
+          teamId: new mongoose.Types.ObjectId(),
+          status: "completed",
+        },
+      ]);
+
+      const res = await request(app)
+        .get(`/api/analytics/org-timeline?teamId=${teamObjId}`)
+        .set(authHeader(token));
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].title).toBe("Team Match Meeting");
+      expect(res.body.data[0].teamName).toBe("Engineering Core"); // matching mock teamId conversion or similar logic
+    });
+  });
 });

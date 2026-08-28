@@ -6,6 +6,7 @@ import { syncActionItemToGitHub } from "../services/githubSyncService.js";
 import { syncActionItemToJira } from "../services/jiraSyncService.js";
 import { syncActionItemToLinear } from "../services/linearSyncService.js";
 import eventBus from "../services/eventBus.js";
+import ActionItemChangeLog from "../models/actionItemChangeLogModel.js";
 
 /**
  * @desc Trigger AI extraction from meeting transcript (Idempotent)
@@ -331,6 +332,59 @@ export const updateActionItem = async (req, res) => {
       new: true,
       runValidators: true,
     }).populate("assignee", "name avatar");
+
+    // --- Changelog Tracking ---
+    try {
+      const changelogEntries = [];
+      const fieldsToTrack = [
+        "status",
+        "assignee",
+        "dueDate",
+        "priority",
+        "title",
+        "text",
+        "description",
+      ];
+      const actingUserId = req.user._id || req.user.id;
+
+      fieldsToTrack.forEach((field) => {
+        let oldValue = item[field];
+        let newValue = updatedItem[field];
+
+        if (field === "assignee") {
+          oldValue = item.assignee?._id
+            ? item.assignee._id.toString()
+            : item.assignee
+              ? item.assignee.toString()
+              : null;
+          newValue = updatedItem.assignee?._id
+            ? updatedItem.assignee._id.toString()
+            : updatedItem.assignee
+              ? updatedItem.assignee.toString()
+              : null;
+        } else if (field === "dueDate") {
+          oldValue = oldValue ? new Date(oldValue).toISOString() : null;
+          newValue = newValue ? new Date(newValue).toISOString() : null;
+        }
+
+        if (oldValue !== newValue) {
+          changelogEntries.push({
+            actionItemId: updatedItem._id,
+            changedBy: actingUserId,
+            changeType: field,
+            oldValue,
+            newValue,
+          });
+        }
+      });
+
+      if (changelogEntries.length > 0) {
+        await ActionItemChangeLog.insertMany(changelogEntries);
+      }
+    } catch (changelogErr) {
+      console.error("Failed to create action item changelog", changelogErr);
+    }
+    // -------------------------
 
     if (["completed", "resolved"].includes(updates.status)) {
       eventBus.emit("actionItem.completed", {

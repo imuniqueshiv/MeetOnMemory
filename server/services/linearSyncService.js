@@ -87,6 +87,22 @@ export const syncActionItemToLinear = async (actionItem) => {
       actionItem.externalLinearIssueId = issueData.id;
       actionItem.externalLinearIssueUrl = issueData.url;
       await actionItem.save();
+
+      // Update integration sync status metrics
+      integration.lastSyncAt = new Date();
+      integration.lastSyncStatus = "success";
+      integration.lastSyncError = null;
+      integration.syncCount = (integration.syncCount || 0) + 1;
+      integration.syncLogs = [
+        {
+          timestamp: new Date(),
+          action: "outbound_push",
+          status: "success",
+          details: `Created Linear issue ${issueData.identifier || issueData.id}`,
+        },
+        ...(integration.syncLogs || []),
+      ].slice(0, 15);
+      await integration.save();
     }
 
     return issueData;

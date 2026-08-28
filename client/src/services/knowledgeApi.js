@@ -139,4 +139,6 @@ export const knowledgeApi = {
       ...(customValue ? { customValue } : {}),
       ...(note ? { note } : {}),
     }),
+  getMemoryTelemetry: (timeframe = "30d") =>
+    apiClient.get(`/api/knowledge/analytics/telemetry?timeframe=${timeframe}`),
 };

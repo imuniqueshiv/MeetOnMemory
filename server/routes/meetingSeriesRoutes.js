@@ -6,6 +6,7 @@ import {
   getSeriesById,
   getSeriesMeetings,
   cancelSeries,
+  getSeriesDrift,
   listSeries,
   pauseSeries,
   resumeSeries,
@@ -36,6 +37,8 @@ router.get(
   requirePermission("meetings", "view"),
   getSeriesMeetings,
 );
+
+router.get("/:id/drift", requirePermission("meetings", "view"), getSeriesDrift);
 
 router.patch(
   "/:id/cancel",

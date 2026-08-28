@@ -11,6 +11,8 @@ import {
   finalizeTranscript,
   translateTranscript,
   updateSpeakers,
+  updateTranscriptSegment,
+  persistCaptionSegments,
 } from "../controllers/transcriptController.js";
 
 const router = express.Router();
@@ -77,5 +79,24 @@ router.post(
 );
 // Update speaker names in transcript
 router.put("/:id/speakers", userAuth, updateSpeakers);
+
+// Update transcript segment text and timestamps (#2251)
+router.patch("/:id/segments/:segmentIndex", userAuth, updateTranscriptSegment);
+router.patch(
+  "/meeting/:meetingId/segments/:segmentIndex",
+  userAuth,
+  requireOrgAccess(Meeting),
+  requirePermission("meetings", "edit"),
+  updateTranscriptSegment,
+);
+
+// Persist live caption segments (#2246)
+router.post(
+  "/meeting/:meetingId/captions",
+  userAuth,
+  requireOrgAccess(Meeting),
+  requirePermission("meetings", "edit"),
+  persistCaptionSegments,
+);
 
 export default router;

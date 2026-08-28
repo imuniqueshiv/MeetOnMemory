@@ -4,11 +4,11 @@ import {
   submitQuizResponse,
   getQuizAnalytics,
 } from "../controllers/meetingQuizController.js";
-import { requireAuth } from "../middleware/authMiddleware.js";
+import userAuth from "../middleware/userAuth.js";
 
 const router = express.Router({ mergeParams: true });
 
-router.use(requireAuth);
+router.use(userAuth);
 
 router.get("/", getQuizForMeeting);
 router.post("/submit", submitQuizResponse);

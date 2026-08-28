@@ -9,11 +9,12 @@ const TimelinePlayer = ({
   handleDurationChange,
   setIsPlaying,
 }) => {
-  // If there's an audioFilePath, use it; else, placeholder
-  const audioUrl = meeting?.audioFilePath
-    ? meeting.audioFilePath.startsWith("http")
-      ? meeting.audioFilePath
-      : `/api/media/${meeting.audioFilePath}`
+  // If there's an audioFilePath or fileUrl, use it; else, placeholder
+  const mediaPath = meeting?.audioFilePath || meeting?.fileUrl || null;
+  const audioUrl = mediaPath
+    ? mediaPath.startsWith("http")
+      ? mediaPath
+      : `/api/media/${mediaPath}`
     : null;
 
   if (!audioUrl) {

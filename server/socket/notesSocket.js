@@ -108,7 +108,7 @@ const initializeNotesSocket = (io) => {
      * @desc Receives a binary CRDT update from a client, applies it to the server doc,
      * and broadcasts it to all other clients in the room.
      */
-    socket.on("sync-update", async ({ meetingId, update }) => {
+    socket.on("sync-update", async ({ meetingId, update }, callback) => {
       try {
         const uint8Update = new Uint8Array(update);
 
@@ -120,8 +120,15 @@ const initializeNotesSocket = (io) => {
           update: Array.from(uint8Update),
           userId: socket.user.id,
         });
+
+        if (typeof callback === "function") {
+          callback({ success: true });
+        }
       } catch (error) {
         console.error("[NotesSocket] Error applying update:", error);
+        if (typeof callback === "function") {
+          callback({ success: false, error: error.message });
+        }
       }
     });
 

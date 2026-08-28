@@ -4,8 +4,15 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
-import { createSubmitCareerApplicationHandler } from "../controllers/careerApplicationController.js";
+import {
+  createSubmitCareerApplicationHandler,
+  createListApplicationsHandler,
+  createUpdateApplicationStatusHandler,
+  createDownloadResumeHandler,
+} from "../controllers/careerApplicationController.js";
 import { createCareersApplicationLimiter } from "../middleware/rateLimiter.js";
+import userAuth from "../middleware/userAuth.js";
+import { requirePermission } from "../middleware/rbac.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,6 +86,12 @@ const handleResumeUpload = (req, res, next) => {
         message: err.message || "Resume upload failed.",
       });
     }
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Resume file is required.",
+      });
+    }
     next();
   });
 };
@@ -98,6 +111,27 @@ export const createCareerRoutes = (options = {}) => {
     submitLimiter,
     handleResumeUpload,
     createSubmitCareerApplicationHandler(),
+  );
+
+  router.get(
+    "/admin/applications",
+    userAuth,
+    requirePermission("admin_panel", "view"),
+    createListApplicationsHandler(),
+  );
+
+  router.patch(
+    "/admin/applications/:id/status",
+    userAuth,
+    requirePermission("admin_panel", "manage"),
+    createUpdateApplicationStatusHandler(),
+  );
+
+  router.get(
+    "/admin/applications/:id/resume",
+    userAuth,
+    requirePermission("admin_panel", "view"),
+    createDownloadResumeHandler(),
   );
 
   return router;

@@ -30,9 +30,17 @@ export const getTasks = async (req, res) => {
       query.assignee = userId;
     }
 
-    // Filter by status
+    // Filter by status and handle snooze visibility
+    const now = new Date();
     if (status && status !== "all") {
-      query.status = status;
+      if (status === "snoozed") {
+        query.snoozedUntil = { $gt: now };
+      } else {
+        query.status = status;
+        query.$or = [{ snoozedUntil: null }, { snoozedUntil: { $lte: now } }];
+      }
+    } else {
+      query.$or = [{ snoozedUntil: null }, { snoozedUntil: { $lte: now } }];
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -334,6 +342,42 @@ export const processRemindersManually = async (req, res) => {
     res.status(200).json({ message: "Reminders processed", summary });
   } catch (error) {
     console.error("Error processing reminders:", error);
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+/**
+ * @desc Snooze a follow-up task
+ * @route PATCH /api/followup/tasks/:id/snooze
+ * @access Private
+ */
+export const snoozeTask = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { snoozedUntil } = req.body;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: "Invalid task ID" });
+    }
+
+    const task = await FollowUpTask.findById(id);
+    if (!task) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    // Verify organization access
+    if (task.organization.toString() !== req.user.organization.toString()) {
+      return res
+        .status(403)
+        .json({ message: "Forbidden: Not part of organization" });
+    }
+
+    task.snoozedUntil = snoozedUntil ? new Date(snoozedUntil) : null;
+    await task.save();
+
+    res.status(200).json({ message: "Task snoozed successfully", task });
+  } catch (error) {
+    console.error("Error snoozing task:", error);
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 };

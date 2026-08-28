@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
 import {
   BarChart,
   Bar,
@@ -8,15 +7,15 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import { speakingTimeApi } from "../services";
 import { toast } from "react-toastify";
 import Navbar from "../components/Navbar.jsx";
 
-const formatDuration = (seconds) => {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
+const formatDuration = (seconds = 0) => {
+  const sec = Math.max(0, Number(seconds) || 0);
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
   return `${m}m ${s}s`;
 };
 
@@ -26,16 +25,16 @@ const CustomTooltip = ({ active, payload }) => {
     return (
       <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 shadow-md rounded-md">
         <p className="font-semibold text-gray-900 dark:text-gray-100">
-          {data.speakerName}
+          {data.speakerName || "Unknown"}
         </p>
         <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-          Avg Talk Ratio: {data.averageTalkRatio?.toFixed(1)}%
+          Avg Talk Ratio: {(data.averageTalkRatio || 0).toFixed(1)}%
         </p>
         <p className="text-sm text-gray-600 dark:text-gray-300">
           Total Duration: {formatDuration(data.totalDuration)}
         </p>
         <p className="text-sm text-gray-600 dark:text-gray-300">
-          Meetings Spoken In: {data.meetingCount}
+          Meetings Spoken In: {data.meetingCount || 0}
         </p>
       </div>
     );
@@ -58,19 +57,29 @@ const SpeakingTimeCompare = () => {
   const [endDate, setEndDate] = useState(getToday());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const fetchCompareData = useCallback(async (start, end) => {
     try {
       setLoading(true);
+      setError(null);
       const res = await speakingTimeApi.getOrgCompare(start, end);
-      if (res.data.success) {
+      if (res?.data?.success) {
         setData(res.data.data);
       } else {
-        toast.error("Failed to load organization comparison data");
+        const errorMsg =
+          res?.data?.message || "Failed to load organization comparison data";
+        setError(errorMsg);
+        toast.error(errorMsg);
       }
     } catch (err) {
       console.error("Error fetching compare data:", err);
-      toast.error("An error occurred while loading team comparison data");
+      const errorMsg =
+        err.response?.data?.message ||
+        err.message ||
+        "An error occurred while loading team comparison data";
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -88,7 +97,12 @@ const SpeakingTimeCompare = () => {
   };
 
   const handleExportCSV = () => {
-    if (!data || !data.memberStats || data.memberStats.length === 0) return;
+    if (
+      !data ||
+      !Array.isArray(data.memberStats) ||
+      data.memberStats.length === 0
+    )
+      return;
 
     const headers = [
       "Member Name",
@@ -98,34 +112,59 @@ const SpeakingTimeCompare = () => {
       "Meetings Spoken In",
     ];
 
-    const rows = data.memberStats.map((stat) => [
-      `"${stat.speakerName.replace(/"/g, '""')}"`,
-      stat.averageTalkRatio.toFixed(2),
-      stat.totalDuration,
-      `"${formatDuration(stat.totalDuration)}"`,
-      stat.meetingCount,
-    ]);
+    const rows = data.memberStats.map((stat) => {
+      const name = stat?.speakerName
+        ? String(stat.speakerName).replace(/"/g, '""')
+        : "Unknown";
+      const talkRatio = (Number(stat?.averageTalkRatio) || 0).toFixed(2);
+      const duration = Number(stat?.totalDuration) || 0;
+      const formattedDuration = formatDuration(duration);
+      const meetings = Number(stat?.meetingCount) || 0;
 
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+      return [
+        `"${name}"`,
+        talkRatio,
+        duration,
+        `"${formattedDuration}"`,
+        meetings,
+      ];
+    });
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute(
-      "download",
-      `team_speaking_time_compare_${startDate}_to_${endDate}.csv`,
+    const csvText = [headers.join(","), ...rows.map((e) => e.join(","))].join(
+      "\n",
     );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+
+    try {
+      const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute(
+        "download",
+        `team_speaking_time_compare_${startDate}_to_${endDate}.csv`,
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch {
+      const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvText);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute(
+        "download",
+        `team_speaking_time_compare_${startDate}_to_${endDate}.csv`,
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   const chartData =
     data?.memberStats?.map((stat) => ({
       ...stat,
-      totalDurationMins: Math.round(stat.totalDuration / 60),
+      totalDurationMins: Math.round((Number(stat?.totalDuration) || 0) / 60),
     })) || [];
 
   return (
@@ -143,7 +182,7 @@ const SpeakingTimeCompare = () => {
               organization.
             </p>
           </div>
-          {data?.memberStats?.length > 0 && (
+          {data?.memberStats?.length > 0 && !error && (
             <button
               onClick={handleExportCSV}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow transition-colors flex items-center gap-2"
@@ -224,12 +263,48 @@ const SpeakingTimeCompare = () => {
           </form>
         </div>
 
+        {/* Error Banner */}
+        {error && (
+          <div className="p-6 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 text-red-700 dark:text-red-400">
+              <svg
+                className="w-6 h-6 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <div>
+                <h3 className="font-semibold text-sm sm:text-base">
+                  Failed to load team comparison
+                </h3>
+                <p className="text-xs sm:text-sm text-red-600 dark:text-red-300 mt-0.5">
+                  {error}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => fetchCompareData(startDate, endDate)}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg shadow transition-colors shrink-0"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Loading Spinner */}
         {loading ? (
           <div className="py-20 flex justify-center items-center">
             <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
           </div>
-        ) : !data || data.meetingCount === 0 || chartData.length === 0 ? (
+        ) : !error &&
+          (!data || data.meetingCount === 0 || chartData.length === 0) ? (
           /* Empty State */
           <div className="bg-white dark:bg-gray-800 p-12 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 text-center flex flex-col items-center justify-center space-y-4">
             <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center text-gray-400 dark:text-gray-500">
@@ -255,7 +330,7 @@ const SpeakingTimeCompare = () => {
               organization. Ensure your meetings have transcripts completed.
             </p>
           </div>
-        ) : (
+        ) : !error && data ? (
           /* Main Content Dashboard */
           <div className="space-y-6">
             {/* Overview Summary Cards */}
@@ -265,7 +340,7 @@ const SpeakingTimeCompare = () => {
                   Meetings Analyzed
                 </p>
                 <p className="text-3xl font-extrabold text-gray-900 dark:text-white mt-2">
-                  {data.meetingCount}
+                  {data.meetingCount || 0}
                 </p>
               </div>
 
@@ -274,7 +349,7 @@ const SpeakingTimeCompare = () => {
                   Average Talk Ratio
                 </p>
                 <p className="text-3xl font-extrabold text-emerald-600 mt-2">
-                  {data.avgTalkRatio?.toFixed(1)}%
+                  {(data.avgTalkRatio || 0).toFixed(1)}%
                 </p>
               </div>
 
@@ -283,7 +358,7 @@ const SpeakingTimeCompare = () => {
                   Median Talk Ratio
                 </p>
                 <p className="text-3xl font-extrabold text-indigo-600 mt-2">
-                  {data.medianTalkRatio?.toFixed(1)}%
+                  {(data.medianTalkRatio || 0).toFixed(1)}%
                 </p>
               </div>
 
@@ -292,10 +367,10 @@ const SpeakingTimeCompare = () => {
                   Most Active Member
                 </p>
                 <p className="text-lg font-bold text-gray-900 dark:text-white mt-3 truncate">
-                  {data.topSpeakers[0]?.speakerName || "None"}
+                  {data.topSpeakers?.[0]?.speakerName || "None"}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {data.topSpeakers[0]
+                  {data.topSpeakers?.[0]
                     ? formatDuration(data.topSpeakers[0].totalDuration)
                     : "0s"}
                 </p>
@@ -387,18 +462,18 @@ const SpeakingTimeCompare = () => {
                         className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
                       >
                         <td className="px-6 py-4 font-semibold text-gray-900 dark:text-white">
-                          {stat.speakerName}
+                          {stat.speakerName || "Unknown"}
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             <span className="w-10">
-                              {stat.averageTalkRatio.toFixed(1)}%
+                              {(stat.averageTalkRatio || 0).toFixed(1)}%
                             </span>
                             <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-blue-500 rounded-full"
                                 style={{
-                                  width: `${Math.min(100, stat.averageTalkRatio)}%`,
+                                  width: `${Math.min(100, Math.max(0, stat.averageTalkRatio || 0))}%`,
                                 }}
                               ></div>
                             </div>
@@ -407,7 +482,7 @@ const SpeakingTimeCompare = () => {
                         <td className="px-6 py-4">
                           {formatDuration(stat.totalDuration)}
                         </td>
-                        <td className="px-6 py-4">{stat.meetingCount}</td>
+                        <td className="px-6 py-4">{stat.meetingCount || 0}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -415,7 +490,7 @@ const SpeakingTimeCompare = () => {
               </div>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

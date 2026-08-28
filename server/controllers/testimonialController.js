@@ -54,6 +54,24 @@ const toAdminTestimonial = (doc) => ({
   userId: doc.user?._id || doc.user,
   moderatedAt: doc.moderatedAt,
   moderatedBy: doc.moderatedBy,
+  featuredOnHomepage: Boolean(doc.featuredOnHomepage),
+  spotlightOrder: Number.isFinite(doc.spotlightOrder) ? doc.spotlightOrder : 0,
+});
+
+const idsSchema = z.object({
+  ids: z
+    .array(z.string().refine((id) => mongoose.isValidObjectId(id)))
+    .min(1, "Select at least one testimonial")
+    .max(100),
+});
+
+const bulkActionSchema = idsSchema.extend({
+  action: z.enum(["approve", "reject", "delete"]),
+});
+
+const spotlightSchema = z.object({
+  featuredOnHomepage: z.boolean(),
+  spotlightOrder: z.coerce.number().int().min(0).max(9999).optional(),
 });
 
 const populatePublic = (query) =>
@@ -100,6 +118,50 @@ export const listApprovedTestimonials = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to load testimonials",
+    });
+  }
+};
+
+/**
+ * GET /api/testimonials/spotlight
+ * Approved testimonials curated for the marketing homepage.
+ * Falls back to recent approved items when no spotlight is set.
+ */
+export const listSpotlightTestimonials = async (req, res) => {
+  try {
+    const limit = Math.min(
+      24,
+      Math.max(1, parseInt(req.query.limit, 10) || 12),
+    );
+
+    const spotlightFilter = {
+      status: "approved",
+      featuredOnHomepage: true,
+    };
+
+    let items = await populatePublic(
+      Testimonial.find(spotlightFilter)
+        .sort({ spotlightOrder: 1, createdAt: -1 })
+        .limit(limit),
+    ).lean();
+
+    if (!items.length) {
+      items = await populatePublic(
+        Testimonial.find({ status: "approved" })
+          .sort({ createdAt: -1 })
+          .limit(limit),
+      ).lean();
+    }
+
+    return res.status(200).json({
+      success: true,
+      testimonials: items.map(toPublicTestimonial),
+    });
+  } catch (error) {
+    console.error("Error listing spotlight testimonials:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load homepage testimonials",
     });
   }
 };
@@ -274,6 +336,8 @@ export const updateTestimonial = async (req, res) => {
     existing.status = "pending";
     existing.moderatedAt = null;
     existing.moderatedBy = null;
+    existing.featuredOnHomepage = false;
+    existing.spotlightOrder = 0;
     await existing.save();
 
     const doc = await populatePublic(Testimonial.findById(existing._id)).lean();
@@ -415,6 +479,10 @@ export const updateTestimonialStatus = async (req, res) => {
     existing.status = parsed.data.status;
     existing.moderatedBy = req.user._id || req.user.id;
     existing.moderatedAt = new Date();
+    if (parsed.data.status !== "approved") {
+      existing.featuredOnHomepage = false;
+      existing.spotlightOrder = 0;
+    }
     await existing.save();
 
     const doc = await populatePublic(Testimonial.findById(existing._id)).lean();
@@ -429,6 +497,128 @@ export const updateTestimonialStatus = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update moderation status",
+    });
+  }
+};
+
+/**
+ * POST /api/admin/testimonials/bulk
+ * Bulk approve, reject, or delete testimonials.
+ */
+export const bulkModerateTestimonials = async (req, res) => {
+  try {
+    const parsed = bulkActionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        message: parsed.error.issues[0]?.message || "Invalid bulk action",
+      });
+    }
+
+    const { ids, action } = parsed.data;
+    const moderatorId = req.user._id || req.user.id;
+    const now = new Date();
+
+    if (action === "delete") {
+      const result = await Testimonial.deleteMany({ _id: { $in: ids } });
+      return res.status(200).json({
+        success: true,
+        message: `Removed ${result.deletedCount} testimonial(s)`,
+        modifiedCount: result.deletedCount,
+      });
+    }
+
+    const nextStatus = action === "approve" ? "approved" : "rejected";
+    const update = {
+      status: nextStatus,
+      moderatedBy: moderatorId,
+      moderatedAt: now,
+    };
+    if (nextStatus !== "approved") {
+      update.featuredOnHomepage = false;
+      update.spotlightOrder = 0;
+    }
+
+    const result = await Testimonial.updateMany(
+      { _id: { $in: ids } },
+      { $set: update },
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Marked ${result.modifiedCount} testimonial(s) as ${nextStatus}`,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error bulk-moderating testimonials:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to apply bulk moderation action",
+    });
+  }
+};
+
+/**
+ * PATCH /api/admin/testimonials/:id/spotlight
+ * Feature an approved testimonial on the homepage and set order.
+ */
+export const updateTestimonialSpotlight = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid testimonial id",
+      });
+    }
+
+    const parsed = spotlightSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        message:
+          parsed.error.issues[0]?.message || "Invalid spotlight settings",
+      });
+    }
+
+    const existing = await Testimonial.findById(id);
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: "Testimonial not found",
+      });
+    }
+
+    if (parsed.data.featuredOnHomepage && existing.status !== "approved") {
+      return res.status(400).json({
+        success: false,
+        message: "Only approved testimonials can be featured on the homepage",
+      });
+    }
+
+    existing.featuredOnHomepage = parsed.data.featuredOnHomepage;
+    if (parsed.data.spotlightOrder !== undefined) {
+      existing.spotlightOrder = parsed.data.spotlightOrder;
+    }
+    if (!existing.featuredOnHomepage) {
+      existing.spotlightOrder = 0;
+    }
+    await existing.save();
+
+    const doc = await populatePublic(Testimonial.findById(existing._id)).lean();
+
+    return res.status(200).json({
+      success: true,
+      message: existing.featuredOnHomepage
+        ? "Testimonial featured on homepage"
+        : "Testimonial removed from homepage spotlight",
+      testimonial: toAdminTestimonial(doc),
+    });
+  } catch (error) {
+    console.error("Error updating testimonial spotlight:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update homepage spotlight",
     });
   }
 };

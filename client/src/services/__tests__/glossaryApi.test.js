@@ -6,6 +6,7 @@ import {
   updateTerm,
   deleteTerm,
   approveTerm,
+  rejectTerm,
   detectTerms,
   extractTerms,
 } from "../glossaryApi.js";
@@ -55,7 +56,28 @@ describe("glossaryApi endpoint prefixes (#1878)", () => {
   it("approves terms through /api/glossary/:id/approve", async () => {
     api.post.mockResolvedValue({ data: {} });
     await approveTerm("term-123");
-    expect(api.post).toHaveBeenCalledWith("/api/glossary/term-123/approve");
+    expect(api.post).toHaveBeenCalledWith(
+      "/api/glossary/term-123/approve",
+      undefined,
+    );
+  });
+
+  it("approves terms with edits through /api/glossary/:id/approve (#2245)", async () => {
+    api.post.mockResolvedValue({ data: {} });
+    const edits = { definition: "Updated definition" };
+    await approveTerm("term-123", edits);
+    expect(api.post).toHaveBeenCalledWith(
+      "/api/glossary/term-123/approve",
+      edits,
+    );
+  });
+
+  it("rejects terms through /api/glossary/:id/reject (#2245)", async () => {
+    api.post.mockResolvedValue({ data: {} });
+    await rejectTerm("term-123", "Incorrect definition");
+    expect(api.post).toHaveBeenCalledWith("/api/glossary/term-123/reject", {
+      reason: "Incorrect definition",
+    });
   });
 
   it("detects glossary terms through /api/glossary/detect", async () => {

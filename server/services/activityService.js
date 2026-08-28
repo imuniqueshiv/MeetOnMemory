@@ -3,14 +3,6 @@ import Activity from "../models/activityModel.js";
 
 /**
  * Log an activity and emit real-time event.
- * @param {Object} io - Socket.io instance
- * @param {String} orgId - Organization ID
- * @param {String} actorId - User ID who performed the action
- * @param {String} action - Action enum string (e.g., "meeting.created")
- * @param {String} targetType - Type of target entity (e.g., "Meeting")
- * @param {String} targetId - ID of target entity
- * @param {String} targetTitle - Display title of target entity
- * @param {Object} metadata - Optional additional data
  */
 export const logActivity = async (
   io,
@@ -34,11 +26,8 @@ export const logActivity = async (
     });
 
     await activity.save();
-
-    // Populate actor details for the real-time feed
     await activity.populate("actor", "name avatarUrl email");
 
-    // Emit real-time event to the organization room
     if (io) {
       io.to(`org_${orgId}`).emit("activity:new", activity);
     }
@@ -46,27 +35,52 @@ export const logActivity = async (
     return activity;
   } catch (error) {
     console.error("Error logging activity:", error);
-    // Don't throw so it doesn't break the main transaction/flow
     return null;
   }
 };
 
+const normalizeDate = (value, endOfDay = false) => {
+  if (!value || typeof value !== "string") return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value) && endOfDay) {
+    parsed.setHours(23, 59, 59, 999);
+  }
+  return parsed;
+};
+
+const buildActivityQuery = (orgId, filters = {}) => {
+  const { action, actor, targetType, from, to } = filters;
+  const query = { organization: orgId };
+
+  if (typeof action === "string" && action) query.action = action;
+  if (typeof actor === "string" && actor) {
+    if (mongoose.Types.ObjectId.isValid(actor)) query.actor = actor;
+    else query.actor = new mongoose.Types.ObjectId("000000000000000000000000");
+  }
+  if (typeof targetType === "string" && targetType) {
+    query.targetType = targetType;
+  }
+
+  const createdAt = {};
+  const fromDate = normalizeDate(from);
+  const toDate = normalizeDate(to, true);
+  if (fromDate) createdAt.$gte = fromDate;
+  if (toDate) createdAt.$lte = toDate;
+  if (Object.keys(createdAt).length) query.createdAt = createdAt;
+
+  return query;
+};
+
 /**
  * Get paginated activities for an organization.
- * @param {String} orgId - Organization ID
- * @param {Object} filters - Query parameters (page, limit, action, actor)
  */
 export const getOrgActivities = async (orgId, filters = {}) => {
-  const { page = 1, limit = 20, action, actor } = filters;
-
-  // Defensively clamp page and limit for database queries (Issue #1668)
+  const { page = 1, limit = 20 } = filters;
   const parsedLimit = Math.min(Math.max(1, parseInt(limit, 10) || 20), 100);
   const parsedPage = Math.max(1, parseInt(page, 10) || 1);
   const skip = (parsedPage - 1) * parsedLimit;
-
-  const query = { organization: orgId };
-  if (typeof action === "string") query.action = action;
-  if (typeof actor === "string") query.actor = actor;
+  const query = buildActivityQuery(orgId, filters);
 
   const [activities, total] = await Promise.all([
     Activity.find(query)
@@ -87,9 +101,23 @@ export const getOrgActivities = async (orgId, filters = {}) => {
 };
 
 /**
- * Get activity statistics for an organization.
- * @param {String} orgId - Organization ID
+ * Get a bounded filtered set for CSV export. The export intentionally caps
+ * rows so a very large organization cannot exhaust server memory.
  */
+export const exportOrgActivities = async (orgId, filters = {}) => {
+  const parsedLimit = Math.min(
+    Math.max(1, parseInt(filters.limit, 10) || 5000),
+    5000,
+  );
+  const query = buildActivityQuery(orgId, filters);
+
+  return Activity.find(query)
+    .sort({ createdAt: -1 })
+    .limit(parsedLimit)
+    .populate("actor", "name avatarUrl email")
+    .lean();
+};
+
 export const getActivityStats = async (orgId) => {
   const stats = await Activity.aggregate([
     { $match: { organization: new mongoose.Types.ObjectId(orgId) } },

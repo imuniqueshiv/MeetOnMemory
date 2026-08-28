@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { compareMeetings } from "../services/comparisonApi";
+import { useTranslation } from "react-i18next";
+import {
+  compareMeetings,
+  getComparableMeetings,
+} from "../services/comparisonApi";
 
 const ItemDiffList = ({ title, diff, isActionItem }) => {
+  const { t } = useTranslation();
+
   if (!diff) return null;
 
   const { resolved, added, carriedOver } = diff;
@@ -40,7 +46,9 @@ const ItemDiffList = ({ title, diff, isActionItem }) => {
         </svg>
       );
       colorClass = "text-green-500";
-      badgeText = isActionItem ? "Resolved" : "Dropped";
+      badgeText = isActionItem
+        ? t("meetingComparison.resolved")
+        : t("meetingComparison.dropped");
       badgeClass =
         "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800";
     } else if (type === "added") {
@@ -60,7 +68,7 @@ const ItemDiffList = ({ title, diff, isActionItem }) => {
         </svg>
       );
       colorClass = "text-blue-500";
-      badgeText = "Added";
+      badgeText = t("meetingComparison.added");
       badgeClass =
         "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800";
     } else {
@@ -80,7 +88,7 @@ const ItemDiffList = ({ title, diff, isActionItem }) => {
         </svg>
       );
       colorClass = "text-gray-500";
-      badgeText = "Carried Over";
+      badgeText = t("meetingComparison.carriedOver");
       badgeClass =
         "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600";
     }
@@ -97,7 +105,8 @@ const ItemDiffList = ({ title, diff, isActionItem }) => {
           </p>
           {type === "carriedOver" && (
             <p className="text-xs text-gray-500 mt-1">
-              Similarity: {(itemData.similarity * 100).toFixed(0)}%
+              {t("meetingComparison.similarity")}:{" "}
+              {(itemData.similarity * 100).toFixed(0)}%
             </p>
           )}
         </div>
@@ -124,7 +133,7 @@ const ItemDiffList = ({ title, diff, isActionItem }) => {
           added.length === 0 &&
           carriedOver.length === 0 && (
             <li className="py-4 text-sm text-gray-500 italic text-center">
-              No changes found.
+              {t("meetingComparison.noChanges")}
             </li>
           )}
       </ul>
@@ -133,6 +142,7 @@ const ItemDiffList = ({ title, diff, isActionItem }) => {
 };
 
 const MeetingComparison = () => {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const meetingIdA = searchParams.get("meetingA");
   const meetingIdB = searchParams.get("meetingB");
@@ -141,10 +151,24 @@ const MeetingComparison = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [comparisonData, setComparisonData] = useState(null);
+  const [comparableMeetings, setComparableMeetings] = useState([]);
+
+  useEffect(() => {
+    if (!meetingIdA) return;
+    const fetchComparable = async () => {
+      try {
+        const meetings = await getComparableMeetings(meetingIdA);
+        setComparableMeetings(meetings);
+      } catch (err) {
+        console.error("Failed to fetch comparable meetings", err);
+      }
+    };
+    fetchComparable();
+  }, [meetingIdA]);
 
   useEffect(() => {
     if (!meetingIdA || !meetingIdB) {
-      setError("Missing meeting IDs for comparison.");
+      setError(t("meetingComparison.missingIds"));
       setLoading(false);
       return;
     }
@@ -156,7 +180,7 @@ const MeetingComparison = () => {
         setComparisonData(data);
       } catch (err) {
         setError(
-          err.response?.data?.message || "Failed to load comparison data.",
+          err.response?.data?.message || t("meetingComparison.failedLoad"),
         );
       } finally {
         setLoading(false);
@@ -164,7 +188,7 @@ const MeetingComparison = () => {
     };
 
     fetchData();
-  }, [meetingIdA, meetingIdB]);
+  }, [meetingIdA, meetingIdB, t]);
 
   if (loading) {
     return (
@@ -201,7 +225,7 @@ const MeetingComparison = () => {
               d="M10 19l-7-7m0 0l7-7m-7 7h18"
             ></path>
           </svg>
-          Go Back
+          {t("meetingComparison.goBack")}
         </button>
       </div>
     );
@@ -212,43 +236,81 @@ const MeetingComparison = () => {
   const { meetingA, meetingB, actionItemsDiff, decisionsDiff, aiSummary } =
     comparisonData;
 
+  const selectOptions = [...comparableMeetings];
+  if (meetingB && !selectOptions.some((m) => m._id === meetingB._id)) {
+    selectOptions.unshift(meetingB);
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-center mb-8">
-        <button
-          onClick={() => navigate(-1)}
-          className="mr-4 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div className="flex items-center">
+          <button
+            onClick={() => navigate(-1)}
+            className="mr-4 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+            aria-label={t("meetingComparison.goBack")}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M10 19l-7-7m0 0l7-7m-7 7h18"
-            ></path>
-          </svg>
-        </button>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-          <svg
-            className="w-8 h-8 text-blue-600"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-            ></path>
-          </svg>
-          Meeting Comparison
-        </h1>
+            <svg
+              className="w-5 h-5 text-gray-600 dark:text-gray-400 RTL-mirror"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              ></path>
+            </svg>
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <svg
+              className="w-8 h-8 text-blue-600 dark:text-blue-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+              ></path>
+            </svg>
+            {t("meetingComparison.title")}
+          </h1>
+        </div>
+
+        {selectOptions.length > 0 && (
+          <div className="flex items-center gap-3 bg-white dark:bg-gray-800 p-2 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider pl-2">
+              {t("meetingComparison.compareWith")}
+            </span>
+            <select
+              value={meetingIdB || ""}
+              onChange={(e) => {
+                if (e.target.value) {
+                  navigate(
+                    `/meetings/compare?meetingA=${meetingIdA}&meetingB=${e.target.value}`,
+                  );
+                }
+              }}
+              className="bg-transparent border-0 text-sm font-semibold text-blue-600 dark:text-blue-400 focus:ring-0 focus:outline-none cursor-pointer pr-8"
+            >
+              {selectOptions.map((meeting) => (
+                <option
+                  key={meeting._id}
+                  value={meeting._id}
+                  className="text-gray-900 dark:text-white bg-white dark:bg-gray-800"
+                >
+                  {meeting.title} ({new Date(meeting.date).toLocaleDateString()}
+                  )
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* AI Summary Card */}
@@ -268,7 +330,7 @@ const MeetingComparison = () => {
                 d="M13 10V3L4 14h7v7l9-11h-7z"
               ></path>
             </svg>
-            AI Summary of Changes
+            {t("meetingComparison.aiSummary")}
           </h2>
           <p className="text-blue-900 dark:text-blue-100 text-sm whitespace-pre-wrap leading-relaxed">
             {aiSummary}
@@ -281,7 +343,7 @@ const MeetingComparison = () => {
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden flex flex-col">
           <div className="px-6 py-5 flex-1">
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 mb-3">
-              Previous
+              {t("meetingComparison.previous")}
             </span>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
               {meetingA.title}
@@ -299,7 +361,7 @@ const MeetingComparison = () => {
         {/* Meeting B Column */}
         <div className="bg-white dark:bg-gray-800 border-2 border-blue-500 dark:border-blue-500 rounded-xl shadow-sm overflow-hidden flex flex-col relative">
           <div className="absolute top-0 right-0 bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
-            Latest
+            {t("meetingComparison.latest")}
           </div>
           <div className="px-6 py-5 flex-1 mt-2">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
@@ -320,13 +382,13 @@ const MeetingComparison = () => {
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden">
         <div className="px-6 py-5">
           <ItemDiffList
-            title="Action Items Evolution"
+            title={t("meetingComparison.actionItemsEvolution")}
             diff={actionItemsDiff}
             isActionItem={true}
           />
           <div className="h-px bg-gray-200 dark:bg-gray-700 w-full my-6"></div>
           <ItemDiffList
-            title="Decisions Evolution"
+            title={t("meetingComparison.decisionsEvolution")}
             diff={decisionsDiff}
             isActionItem={false}
           />

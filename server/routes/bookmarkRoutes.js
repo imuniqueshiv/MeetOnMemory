@@ -7,6 +7,7 @@ import {
   updateBookmark,
   deleteCollection,
   updateCollection,
+  shareCollection,
 } from "../controllers/bookmarkController.js";
 
 const router = express.Router();
@@ -17,6 +18,7 @@ router.post("/toggle", toggleBookmark);
 router.get("/", getBookmarks);
 router.get("/collections", getCollections);
 router.put("/collections/:name", updateCollection);
+router.post("/collections/:name/share", shareCollection);
 router.put("/:id", updateBookmark);
 router.delete("/collections/:name", deleteCollection);
 

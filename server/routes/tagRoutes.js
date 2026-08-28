@@ -13,6 +13,9 @@ import {
   autocomplete,
   getMeetingsByTag,
   getTagStats,
+  mergeTags,
+  bulkRetag,
+  exportTags,
 } from "../controllers/tagController.js";
 
 const router = express.Router();
@@ -22,14 +25,23 @@ router.use(userAuth);
 router.use(apiLimiter);
 
 // ==========================================
-// TAG MANAGEMENT ROUTES
+// TAG MANAGEMENT & TAXONOMY ADMIN ROUTES
 // ==========================================
 
 // Autocomplete tags (used during meeting creation)
 router.get("/autocomplete", requireOrgMembership, autocomplete);
 
+// Export tag taxonomy stats (CSV)
+router.get("/export", requireOrgMembership, exportTags);
+
 // Get tag statistics (top tags)
 router.get("/stats", requireOrgMembership, getTagStats);
+
+// Merge tags (admin only)
+router.post("/merge", requireAdminOrOwner, mergeTags);
+
+// Bulk retag meetings (admin only)
+router.post("/bulk-retag", requireAdminOrOwner, bulkRetag);
 
 // Get all tags for the organization
 router.get("/", requireOrgMembership, getOrgTags);

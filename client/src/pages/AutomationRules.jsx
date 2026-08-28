@@ -320,6 +320,16 @@ const AutomationRules = () => {
                             }
                             placeholder="C12345678"
                           />
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Make sure Slack is connected in{" "}
+                            <a
+                              href="/organizations"
+                              className="text-indigo-600 dark:text-indigo-400 underline hover:text-indigo-700"
+                            >
+                              Organization Settings &gt; Integrations
+                            </a>
+                            .
+                          </p>
                         </div>
                       )}
                       {action.type === "webhook" && (

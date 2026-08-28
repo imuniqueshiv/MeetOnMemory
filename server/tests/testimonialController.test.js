@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   listApprovedTestimonials,
+  listSpotlightTestimonials,
   getTestimonialStats,
   createTestimonial,
   updateTestimonial,
   deleteOwnTestimonial,
   updateTestimonialStatus,
+  bulkModerateTestimonials,
+  updateTestimonialSpotlight,
 } from "../controllers/testimonialController.js";
 import Testimonial from "../models/testimonialModel.js";
 
@@ -17,6 +20,8 @@ vi.mock("../models/testimonialModel.js", () => {
     countDocuments: vi.fn(),
     create: vi.fn(),
     aggregate: vi.fn(),
+    updateMany: vi.fn(),
+    deleteMany: vi.fn(),
   };
   return {
     default: Model,
@@ -329,5 +334,147 @@ describe("testimonialController", () => {
 
     expect(existing.status).toBe("approved");
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it("bulk approves selected testimonials", async () => {
+    Testimonial.updateMany.mockResolvedValue({ modifiedCount: 2 });
+
+    const req = {
+      user: { _id: "admin1" },
+      body: {
+        ids: ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012"],
+        action: "approve",
+      },
+    };
+    const res = mockRes();
+    await bulkModerateTestimonials(req, res);
+
+    expect(Testimonial.updateMany).toHaveBeenCalledWith(
+      {
+        _id: {
+          $in: ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012"],
+        },
+      },
+      expect.objectContaining({
+        $set: expect.objectContaining({ status: "approved" }),
+      }),
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it("bulk deletes selected testimonials", async () => {
+    Testimonial.deleteMany.mockResolvedValue({ deletedCount: 1 });
+
+    const req = {
+      user: { _id: "admin1" },
+      body: {
+        ids: ["507f1f77bcf86cd799439011"],
+        action: "delete",
+      },
+    };
+    const res = mockRes();
+    await bulkModerateTestimonials(req, res);
+
+    expect(Testimonial.deleteMany).toHaveBeenCalledWith({
+      _id: { $in: ["507f1f77bcf86cd799439011"] },
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it("lists curated spotlight testimonials for homepage", async () => {
+    const docs = [
+      {
+        _id: "t1",
+        rating: 5,
+        comment: "Featured review for homepage spotlight",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        featuredOnHomepage: true,
+        spotlightOrder: 1,
+        user: { name: "Ada", profilePic: "", role: "member" },
+        organization: null,
+      },
+    ];
+    Testimonial.find.mockReturnValue(chainFind(docs));
+
+    const req = { query: { limit: "6" } };
+    const res = mockRes();
+    await listSpotlightTestimonials(req, res);
+
+    expect(Testimonial.find).toHaveBeenCalledWith({
+      status: "approved",
+      featuredOnHomepage: true,
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        testimonials: [
+          expect.objectContaining({
+            comment: "Featured review for homepage spotlight",
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("features an approved testimonial on the homepage", async () => {
+    const existing = {
+      _id: "507f1f77bcf86cd799439011",
+      status: "approved",
+      featuredOnHomepage: false,
+      spotlightOrder: 0,
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    Testimonial.findById.mockResolvedValueOnce(existing).mockReturnValueOnce(
+      (() => {
+        const chain = {
+          populate: vi.fn().mockReturnThis(),
+          lean: vi.fn().mockResolvedValue({
+            _id: existing._id,
+            rating: 5,
+            comment: "Approved review content here",
+            status: "approved",
+            featuredOnHomepage: true,
+            spotlightOrder: 2,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            user: { _id: "u1", name: "Ada", profilePic: "", role: "member" },
+            organization: null,
+          }),
+        };
+        chain.populate.mockReturnValue(chain);
+        return chain;
+      })(),
+    );
+
+    const req = {
+      user: { _id: "admin1" },
+      params: { id: "507f1f77bcf86cd799439011" },
+      body: { featuredOnHomepage: true, spotlightOrder: 2 },
+    };
+    const res = mockRes();
+    await updateTestimonialSpotlight(req, res);
+
+    expect(existing.featuredOnHomepage).toBe(true);
+    expect(existing.spotlightOrder).toBe(2);
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it("rejects featuring non-approved testimonials", async () => {
+    Testimonial.findById.mockResolvedValue({
+      status: "pending",
+      save: vi.fn(),
+    });
+
+    const req = {
+      user: { _id: "admin1" },
+      params: { id: "507f1f77bcf86cd799439011" },
+      body: { featuredOnHomepage: true },
+    };
+    const res = mockRes();
+    await updateTestimonialSpotlight(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 });

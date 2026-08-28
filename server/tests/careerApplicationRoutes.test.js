@@ -1,16 +1,42 @@
-/**
- * Issue #1790 — public careers application route and resume upload.
- */
-
 import { jest } from "@jest/globals";
 import request from "supertest";
 import express from "express";
 
 const mockSubmitCareerApplication = jest.fn();
+const mockFind = jest.fn();
+const mockFindByIdAndUpdate = jest.fn();
+const mockUserAuth = jest.fn((req, res, next) => {
+  req.user = { _id: "admin-1", role: "admin" };
+  next();
+});
+const mockRequirePermission = jest.fn(
+  (_resource, _action) => (req, res, next) => {
+    next();
+  },
+);
 
 jest.unstable_mockModule("../services/careerApplicationService.js", () => ({
   submitCareerApplication: (...args) => mockSubmitCareerApplication(...args),
   removeUploadedFile: jest.fn(),
+}));
+
+jest.unstable_mockModule("../models/careerApplicationModel.js", () => ({
+  default: {
+    find: (...args) => mockFind(...args),
+    findByIdAndUpdate: (...args) => mockFindByIdAndUpdate(...args),
+  },
+}));
+
+jest.unstable_mockModule("../middleware/userAuth.js", () => ({
+  default: (req, res, next) => mockUserAuth(req, res, next),
+}));
+
+jest.unstable_mockModule("../middleware/rbac.js", () => ({
+  requirePermission: (resource, action) =>
+    mockRequirePermission(resource, action),
+  requireRole: jest.fn(),
+  requireAdminOrOwner: jest.fn(),
+  requireOrgMembership: jest.fn(),
 }));
 
 const errorHandler = (await import("../middleware/errorHandler.js")).default;
@@ -19,6 +45,7 @@ const { ValidationError, ConflictError } = await import("../utils/errors.js");
 
 const buildCareersApp = () => {
   const app = express();
+  app.use(express.json());
   app.use(
     "/api/careers",
     createCareerRoutes({
@@ -151,5 +178,103 @@ describe("POST /api/careers/applications (#1790)", () => {
     expect(res.status).toBe(400);
     expect(res.body.message).toBe("Resume file is required.");
     expect(mockSubmitCareerApplication).not.toHaveBeenCalled();
+  });
+});
+
+describe("Admin Review Queue Endpoints (#2262)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe("GET /api/careers/admin/applications", () => {
+    it("returns a list of applications for admins", async () => {
+      const mockApps = [
+        {
+          _id: "app-1",
+          fullName: "Alice Smith",
+          jobId: "ai-engineer",
+          status: "received",
+        },
+      ];
+      mockFind.mockReturnValue({
+        sort: jest.fn().mockResolvedValue(mockApps),
+      });
+
+      mockUserAuth.mockImplementationOnce((req, res, next) => {
+        req.user = { _id: "admin-1", role: "admin" };
+        next();
+      });
+
+      const app = buildCareersApp();
+      const res = await request(app)
+        .get("/api/careers/admin/applications")
+        .query({ status: "received" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toEqual(mockApps);
+      expect(mockFind).toHaveBeenCalledWith({ status: "received" });
+    });
+
+    it("rejects unauthorized users with 403 Forbidden via permission check", async () => {
+      mockRequirePermission.mockImplementationOnce(
+        (_resource, _action) => (req, res, _next) => {
+          return res.status(403).json({ success: false, message: "Forbidden" });
+        },
+      );
+
+      const app = buildCareersApp();
+      const res = await request(app).get("/api/careers/admin/applications");
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe("PATCH /api/careers/admin/applications/:id/status", () => {
+    it("updates status and admin notes for admins", async () => {
+      const updatedApp = {
+        _id: "app-1",
+        status: "reviewing",
+        adminNotes: "Good CV",
+        reviewedBy: "admin-1",
+      };
+
+      mockFindByIdAndUpdate.mockResolvedValue(updatedApp);
+
+      mockUserAuth.mockImplementationOnce((req, res, next) => {
+        req.user = { _id: "admin-1", role: "admin" };
+        next();
+      });
+
+      const app = buildCareersApp();
+      const res = await request(app)
+        .patch("/api/careers/admin/applications/app-1/status")
+        .send({ status: "reviewing", adminNotes: "Good CV" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toEqual(updatedApp);
+      expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
+        "app-1",
+        expect.objectContaining({
+          status: "reviewing",
+          adminNotes: "Good CV",
+          reviewedBy: "admin-1",
+        }),
+        { new: true },
+      );
+    });
+
+    it("returns 400 Bad Request for unsupported status", async () => {
+      const app = buildCareersApp();
+      const res = await request(app)
+        .patch("/api/careers/admin/applications/app-1/status")
+        .send({ status: "INVALID_STATUS" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe("Invalid status option.");
+    });
   });
 });

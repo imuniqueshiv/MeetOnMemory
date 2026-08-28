@@ -3,6 +3,7 @@ import { useNotionIntegration } from "../../hooks/useNotionIntegration.js";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Loader2, Link, Unlink, FileText } from "lucide-react";
+import NotionSyncHistoryPanel from "./NotionSyncHistoryPanel.jsx";
 
 const NotionConnectPanel = ({ canEdit }) => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -14,9 +15,14 @@ const NotionConnectPanel = ({ canEdit }) => {
     databases,
     loadingDatabases,
     saving,
+    history,
+    loadingHistory,
+    syncingMeetingId,
     handleConnect,
     handleDisconnect,
     saveDatabaseMapping,
+    fetchHistory,
+    syncMeeting,
   } = useNotionIntegration();
 
   useEffect(() => {
@@ -52,7 +58,7 @@ const NotionConnectPanel = ({ canEdit }) => {
             type="button"
             onClick={handleConnect}
             disabled={!canEdit}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg font-medium hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg font-medium hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             <Link className="w-4 h-4" />
             Connect Notion
@@ -123,6 +129,16 @@ const NotionConnectPanel = ({ canEdit }) => {
               </div>
             </div>
           </div>
+
+          {/* Sync History Dashboard Panel */}
+          <NotionSyncHistoryPanel
+            canEdit={canEdit}
+            history={history}
+            loadingHistory={loadingHistory}
+            fetchHistory={fetchHistory}
+            syncMeeting={syncMeeting}
+            syncingMeetingId={syncingMeetingId}
+          />
         </div>
       )}
     </div>

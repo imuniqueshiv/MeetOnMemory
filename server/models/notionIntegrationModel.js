@@ -29,7 +29,7 @@ const notionSyncRecordSchema = new mongoose.Schema(
       default: null,
     },
   },
-  { _id: false },
+  { timestamps: true },
 );
 
 const notionIntegrationSchema = new mongoose.Schema(

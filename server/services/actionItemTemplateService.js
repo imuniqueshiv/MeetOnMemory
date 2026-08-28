@@ -98,7 +98,7 @@ export const applyTemplateToMeeting = async (
       sourceMeetingId: meeting._id,
       organization: meeting.organization,
       dueDate: dueDate,
-      status: "open",
+      status: "pending",
     };
   });
 

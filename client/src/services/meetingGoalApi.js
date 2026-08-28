@@ -15,6 +15,9 @@ const meetingGoalApi = {
 
   getOrgGoalStats: (orgId) =>
     apiClient.get(`/api/meeting-goals/org/${orgId}/stats`),
+
+  getSeriesGoalRollup: (meetingId) =>
+    apiClient.get(`/api/meeting-goals/meeting/${meetingId}/series-rollup`),
 };
 
 export default meetingGoalApi;

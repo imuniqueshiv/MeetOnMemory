@@ -79,6 +79,10 @@ describe("Analytics route wiring (#1532)", () => {
           path: "/team/:teamId/recent",
           methods: expect.arrayContaining(["get"]),
         }),
+        expect.objectContaining({
+          path: "/org-timeline",
+          methods: expect.arrayContaining(["get"]),
+        }),
       ]),
     );
   });

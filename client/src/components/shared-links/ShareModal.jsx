@@ -77,6 +77,13 @@ const ShareModal = ({ isOpen, onClose, resourceId, resourceType, title }) => {
   const [showForm, setShowForm] = useState(false);
   const [expirationDate, setExpirationDate] = useState("");
   const [passcode, setPasscode] = useState("");
+  const [shareSettings, setShareSettings] = useState({
+    includeTranscript: false,
+    includeAttachments: false,
+    includeClips: false,
+    redactPii: true,
+    redactParticipantNames: false,
+  });
   const titleId = useId();
   const dialogRef = useRef(null);
   const closeButtonRef = useRef(null);
@@ -88,6 +95,13 @@ const ShareModal = ({ isOpen, onClose, resourceId, resourceType, title }) => {
       setShowForm(false);
       setExpirationDate("");
       setPasscode("");
+      setShareSettings({
+        includeTranscript: false,
+        includeAttachments: false,
+        includeClips: false,
+        redactPii: true,
+        redactParticipantNames: false,
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, resourceId]);
@@ -181,6 +195,7 @@ const ShareModal = ({ isOpen, onClose, resourceId, resourceType, title }) => {
         resourceType,
         expirationDate: expirationDate || null,
         passcode: passcode || null,
+        ...(resourceType === "Meeting" ? { shareSettings } : {}),
       };
       const { data } = await sharedLinkApi.createLink(payload);
       if (data.success) {
@@ -395,6 +410,78 @@ const ShareModal = ({ isOpen, onClose, resourceId, resourceType, title }) => {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   />
                 </div>
+                {resourceType === "Meeting" && (
+                  <fieldset className="space-y-2 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                    <legend className="text-sm font-medium text-gray-700 dark:text-gray-300 px-1">
+                      Include in public view
+                    </legend>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={shareSettings.includeTranscript}
+                        onChange={(e) =>
+                          setShareSettings({
+                            ...shareSettings,
+                            includeTranscript: e.target.checked,
+                          })
+                        }
+                      />
+                      Transcript excerpt
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={shareSettings.includeAttachments}
+                        onChange={(e) =>
+                          setShareSettings({
+                            ...shareSettings,
+                            includeAttachments: e.target.checked,
+                          })
+                        }
+                      />
+                      Attachment metadata
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={shareSettings.includeClips}
+                        onChange={(e) =>
+                          setShareSettings({
+                            ...shareSettings,
+                            includeClips: e.target.checked,
+                          })
+                        }
+                      />
+                      Meeting clips
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={shareSettings.redactPii}
+                        onChange={(e) =>
+                          setShareSettings({
+                            ...shareSettings,
+                            redactPii: e.target.checked,
+                          })
+                        }
+                      />
+                      Redact sensitive fields (PII)
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={shareSettings.redactParticipantNames}
+                        onChange={(e) =>
+                          setShareSettings({
+                            ...shareSettings,
+                            redactParticipantNames: e.target.checked,
+                          })
+                        }
+                      />
+                      Hide participant/speaker names
+                    </label>
+                  </fieldset>
+                )}
                 <div className="flex justify-end gap-3 pt-4">
                   <button
                     type="button"

@@ -81,11 +81,14 @@ export const FALLBACK_DOWNLOAD_FILENAME = "download";
  */
 export const getContentDispositionHeader = (
   filename,
-  { fallback = FALLBACK_DOWNLOAD_FILENAME } = {},
+  {
+    fallback = FALLBACK_DOWNLOAD_FILENAME,
+    dispositionType = "attachment",
+  } = {},
 ) => {
   const raw = typeof filename === "string" ? filename : "";
   const safeAscii = sanitizeFilenameForHeader(raw).trim() || fallback;
   const encoded = encodeURIComponent(raw || fallback);
 
-  return `attachment; filename="${safeAscii}"; filename*=UTF-8''${encoded}`;
+  return `${dispositionType}; filename="${safeAscii}"; filename*=UTF-8''${encoded}`;
 };

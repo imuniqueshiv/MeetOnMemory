@@ -1,5 +1,12 @@
 import express from "express";
-import { generateSession } from "../controllers/sessionController.js";
+import {
+  generateSession,
+  getSessions,
+  getSessionById,
+  createSession,
+  updateSession,
+  deleteSession,
+} from "../controllers/sessionController.js";
 import userAuth from "../middleware/userAuth.js";
 import { writeLimiter } from "../middleware/rateLimiter.js";
 import { requirePermission, requireOrgMembership } from "../middleware/rbac.js";
@@ -51,7 +58,7 @@ const handleMulterUpload = (req, res, next) => {
   });
 };
 
-// Generate session card
+// Generate AI session card and persist
 router.post(
   "/generate",
   userAuth,
@@ -60,6 +67,63 @@ router.post(
   writeLimiter,
   handleMulterUpload,
   generateSession,
+);
+
+// List session cards for org
+router.get(
+  "/",
+  userAuth,
+  requireOrgMembership,
+  requirePermission("meetings", "view"),
+  getSessions,
+);
+
+// Get single session card by ID
+router.get(
+  "/:id",
+  userAuth,
+  requireOrgMembership,
+  requirePermission("meetings", "view"),
+  getSessionById,
+);
+
+// Create session card manually
+router.post(
+  "/",
+  userAuth,
+  requireOrgMembership,
+  requirePermission("meetings", "create"),
+  writeLimiter,
+  createSession,
+);
+
+// Update session card
+router.patch(
+  "/:id",
+  userAuth,
+  requireOrgMembership,
+  requirePermission("meetings", "edit"),
+  writeLimiter,
+  updateSession,
+);
+
+router.put(
+  "/:id",
+  userAuth,
+  requireOrgMembership,
+  requirePermission("meetings", "edit"),
+  writeLimiter,
+  updateSession,
+);
+
+// Delete session card
+router.delete(
+  "/:id",
+  userAuth,
+  requireOrgMembership,
+  requirePermission("meetings", "delete"),
+  writeLimiter,
+  deleteSession,
 );
 
 export default router;

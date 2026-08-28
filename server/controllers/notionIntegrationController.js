@@ -274,7 +274,7 @@ export const disconnect = async (req, res) => {
 export const syncMeeting = async (req, res) => {
   try {
     const orgId = req.user?.organization?.toString();
-    const { meetingId } = req.body;
+    const { meetingId, force } = req.body;
 
     if (!meetingId) return sendError(res, 400, "meetingId is required.");
 
@@ -302,6 +302,7 @@ export const syncMeeting = async (req, res) => {
       meeting,
       integration,
       actionItems,
+      Boolean(force),
     );
 
     return sendSuccess(
@@ -318,6 +319,69 @@ export const syncMeeting = async (req, res) => {
     );
   } catch (error) {
     logger.error("Notion syncMeeting error:", error);
-    sendError(res, 500, "Failed to sync meeting to Notion.");
+    sendError(res, 500, error.message || "Failed to sync meeting to Notion.");
+  }
+};
+
+export const getSyncHistory = async (req, res) => {
+  try {
+    const orgId = req.user?.organization?.toString();
+    const integration = await NotionIntegration.findOne({
+      organization: orgId,
+    }).populate({
+      path: "syncHistory.meetingId",
+      select: "title date meetingType status",
+    });
+
+    if (!integration) {
+      return sendSuccess(res, { history: [], total: 0 });
+    }
+
+    const { status, limit = 50, page = 1 } = req.query;
+    let history = [...(integration.syncHistory || [])];
+
+    if (status && status !== "all") {
+      history = history.filter((item) => item.status === status);
+    }
+
+    history.sort(
+      (a, b) =>
+        new Date(b.syncedAt || b.createdAt || 0) -
+        new Date(a.syncedAt || a.createdAt || 0),
+    );
+
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 50;
+    const startIndex = (pageNum - 1) * limitNum;
+    const paginated = history.slice(startIndex, startIndex + limitNum);
+
+    const formatted = paginated.map((item) => {
+      const meeting = item.meetingId;
+      const isPopulated =
+        meeting && typeof meeting === "object" && meeting.title;
+
+      return {
+        _id: item._id || item.notionPageId,
+        meetingId: isPopulated ? meeting._id : item.meetingId,
+        meetingTitle: isPopulated ? meeting.title : "Meeting Record",
+        meetingDate: isPopulated ? meeting.date : null,
+        meetingType: isPopulated ? meeting.meetingType : "conference",
+        notionPageId: item.notionPageId,
+        notionPageUrl: item.notionPageUrl,
+        status: item.status,
+        errorMessage: item.errorMessage,
+        syncedAt: item.syncedAt || item.createdAt,
+      };
+    });
+
+    return sendSuccess(res, {
+      history: formatted,
+      total: history.length,
+      page: pageNum,
+      limit: limitNum,
+    });
+  } catch (error) {
+    logger.error("Notion getSyncHistory error:", error);
+    sendError(res, 500, "Failed to fetch Notion sync history.");
   }
 };

@@ -1,7 +1,7 @@
 import api from "./apiClient";
 
 export const generateAgendaSuggestions = async (organizationId, meetingId) => {
-  const response = await api.post("/agenda-suggestions/generate", {
+  const response = await api.post("/api/agenda-suggestions/generate", {
     organizationId,
     meetingId,
   });
@@ -15,7 +15,7 @@ export const updateSuggestionItemStatus = async (
   acceptedText,
 ) => {
   const response = await api.put(
-    `/agenda-suggestions/${suggestionId}/item/${itemId}`,
+    `/api/agenda-suggestions/${suggestionId}/item/${itemId}`,
     {
       status,
       acceptedText,
@@ -25,13 +25,18 @@ export const updateSuggestionItemStatus = async (
 };
 
 export const applySuggestionToMeeting = async (suggestionId, meetingId) => {
-  const response = await api.post(`/agenda-suggestions/${suggestionId}/apply`, {
-    meetingId,
-  });
+  const response = await api.post(
+    `/api/agenda-suggestions/${suggestionId}/apply`,
+    {
+      meetingId,
+    },
+  );
   return response.data;
 };
 
 export const getMeetingSuggestions = async (meetingId) => {
-  const response = await api.get(`/agenda-suggestions/meeting/${meetingId}`);
+  const response = await api.get(
+    `/api/agenda-suggestions/meeting/${meetingId}`,
+  );
   return response.data;
 };

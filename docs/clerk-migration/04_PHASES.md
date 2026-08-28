@@ -1,5 +1,10 @@
 # Phases — Source of Truth
 
+> [!WARNING]
+> **ARCHIVED / HISTORICAL DOCUMENTATION**  
+> The Clerk authentication migration has been fully completed. Clerk is now the sole identity provider for MeetOnMemory.  
+> For current contributor setup and development instructions, please refer to [AUTH_CONTRIBUTOR_RUNBOOK.md](../AUTH_CONTRIBUTOR_RUNBOOK.md).
+
 Do **not** start Phase N+1 until Phase N exit criteria are met and signed off.
 
 Issue bodies for Phase 1 live in [`phase-1/ISSUES.md`](./phase-1/ISSUES.md).  

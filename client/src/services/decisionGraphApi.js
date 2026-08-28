@@ -47,3 +47,42 @@ export const getDecisionNeighbors = async (id) => {
   const response = await apiClient.get(`/api/decision-graph/${id}/neighbors`);
   return response.data;
 };
+
+// --- Mutations (Issue #2027) ---
+
+export const createDecision = async ({
+  text,
+  owner,
+  status,
+  sourceMeetingId,
+}) => {
+  const response = await apiClient.post("/api/decision-graph", {
+    text,
+    owner,
+    status,
+    sourceMeetingId,
+  });
+  return response.data;
+};
+
+export const linkDecisions = async (id, { targetId, confidence } = {}) => {
+  const response = await apiClient.post(`/api/decision-graph/${id}/relations`, {
+    targetId,
+    confidence,
+  });
+  return response.data;
+};
+
+export const supersedeDecision = async (id, { targetId } = {}) => {
+  const response = await apiClient.post(`/api/decision-graph/${id}/supersede`, {
+    targetId,
+  });
+  return response.data;
+};
+
+export const getDecisionDependencyMatrix = async (params = {}) => {
+  const response = await apiClient.get("/api/decision-graph/matrix", {
+    params,
+  });
+  return response.data;
+};

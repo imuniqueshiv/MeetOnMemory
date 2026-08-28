@@ -11,9 +11,11 @@ import {
   Loader2,
 } from "lucide-react";
 import useDecisionGraph from "../hooks/useDecisionGraph";
+import DecisionGraphEditor from "../components/decision-graph/DecisionGraphEditor";
 
 const DecisionGraph = () => {
   const {
+    data,
     filteredData,
     loading,
     error,
@@ -21,6 +23,7 @@ const DecisionGraph = () => {
     setKeywordFilter,
     statusFilter,
     setStatusFilter,
+    refetch,
   } = useDecisionGraph();
 
   const canvasRef = useRef(null);
@@ -263,6 +266,11 @@ const DecisionGraph = () => {
             </select>
           </div>
         </div>
+      </div>
+
+      {/* Decision editor (create / link / supersede) — RBAC-gated (#2027) */}
+      <div className="px-6 pt-4">
+        <DecisionGraphEditor nodes={data?.nodes || []} onChanged={refetch} />
       </div>
 
       {/* Main Content */}

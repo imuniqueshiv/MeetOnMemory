@@ -1,5 +1,10 @@
 # Clerk Migration Proposal
 
+> [!WARNING]
+> **ARCHIVED / HISTORICAL DOCUMENTATION**  
+> The Clerk authentication migration has been fully completed. Clerk is now the sole identity provider for MeetOnMemory.  
+> For current contributor setup and development instructions, please refer to [AUTH_CONTRIBUTOR_RUNBOOK.md](../AUTH_CONTRIBUTOR_RUNBOOK.md).
+
 ## 1. Why migrate
 
 MeetOnMemory’s identity layer is entirely custom: password hashing, OTP email verification/reset, JWT issuance, cookie session, and CSRF. That surface area is large relative to product features (meetings, AI, orgs) and competes with contributor bandwidth on security-sensitive code.

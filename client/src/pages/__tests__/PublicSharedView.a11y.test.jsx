@@ -130,4 +130,42 @@ describe("PublicSharedView passcode accessibility (#1136)", () => {
       expect(screen.getByText("Shared Standup")).toBeInTheDocument();
     });
   });
+
+  it("renders venue and map preview on public shared meeting view (#2256)", async () => {
+    publicSharedApi.getPublicResource.mockResolvedValueOnce({
+      data: {
+        success: true,
+        resourceType: "Meeting",
+        data: {
+          title: "Public Product Launch",
+          description: "Keynote presentation",
+          date: "2026-09-01T10:00:00.000Z",
+          time: "10:00",
+          location: "Convention Hall",
+          venue: "747 Howard St, San Francisco, CA",
+          venueCoordinates: { lat: 37.784, lng: -122.401 },
+          participants: [],
+        },
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/shared/launch123"]}>
+        <Routes>
+          <Route path="/shared/:hash" element={<PublicSharedView />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Public Product Launch")).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText("747 Howard St, San Francisco, CA"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTitle(/Venue map preview for 747 Howard St/i),
+    ).toBeInTheDocument();
+  });
 });

@@ -332,6 +332,8 @@ npm run server
 - Secondary **JWTs** are used only for specific features (e.g. shared links, integration tokens) — not for primary auth.
 - Legacy login/session-based auth flow has been fully removed; do not reintroduce it.
 
+For detailed setup, environment variables, local testing, and user synchronization instructions, please refer to the [Authentication Contributor Runbook](docs/AUTH_CONTRIBUTOR_RUNBOOK.md).
+
 ---
 
 ## ✨ Development

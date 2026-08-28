@@ -28,6 +28,10 @@ const userSchema = new mongoose.Schema(
       ref: "Organization", // This links to the Organization model
       default: null,
     },
+    team: {
+      type: String,
+      default: null,
+    },
     hasCompletedOnboarding: {
       type: Boolean,
       default: false,

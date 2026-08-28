@@ -68,6 +68,19 @@ class ActionItemSlaController {
       res.status(500).json({ error: "Failed to fetch SLA compliance stats" });
     }
   }
+
+  async notifyBreach(req, res) {
+    try {
+      const { breachId } = req.params;
+      const breach = await actionItemSlaService.notifyAssignee(breachId);
+      res.json({ success: true, message: "Assignee notified", breach });
+    } catch (error) {
+      console.error("Error notifying SLA breach:", error);
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to notify assignee" });
+    }
+  }
 }
 
 export default new ActionItemSlaController();

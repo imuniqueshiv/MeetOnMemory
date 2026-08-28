@@ -253,6 +253,16 @@ export default (io) => {
         // Socket.IO adapter ensures this reaches all instances
         socket.to(roomId).emit("user-joined", user);
         console.log(`User ${socket.id} joined room: ${roomId}`);
+
+        try {
+          const { checkIn } =
+            await import("../services/meetingAttendanceService.js");
+          if (user.email) {
+            await checkIn(roomId, user.email, new Date());
+          }
+        } catch (err) {
+          console.error("Auto check-in error:", err.message);
+        }
       } catch (error) {
         console.error("Error joining meeting:", error);
         socket.emit("error", { message: "Failed to join meeting" });
@@ -360,6 +370,16 @@ export default (io) => {
         // Socket.IO adapter ensures this reaches all connected clients
         socket.to(roomId).emit("user-left", socket.id);
         localSocketToRoom.delete(socket.id);
+
+        try {
+          const { checkOut } =
+            await import("../services/meetingAttendanceService.js");
+          if (socket.user?.email) {
+            await checkOut(roomId, socket.user.email, new Date());
+          }
+        } catch (err) {
+          console.error("Auto check-out error:", err.message);
+        }
       }
     });
 
@@ -508,6 +528,27 @@ export default (io) => {
 
       // Broadcast timer state to all users in room (across all instances)
       io.to(roomId).emit("timer-sync", timer);
+    });
+
+    /**
+     * Q&A Board Events
+     */
+    socket.on("qa:submit-question", (payload) => {
+      io.to(payload.roomId).emit("qa:question-added", payload.question);
+    });
+
+    socket.on("qa:upvote-question", (payload) => {
+      io.to(payload.roomId).emit("qa:question-upvoted", {
+        questionId: payload.questionId,
+        upvotes: payload.upvotes,
+      });
+    });
+
+    socket.on("qa:status-changed", (payload) => {
+      io.to(payload.roomId).emit("qa:question-status-changed", {
+        questionId: payload.questionId,
+        status: payload.status,
+      });
     });
 
     /**

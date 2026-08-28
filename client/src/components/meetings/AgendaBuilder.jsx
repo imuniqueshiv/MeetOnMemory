@@ -17,7 +17,7 @@ const AgendaBuilder = ({ meetingId, isOrganizer, userRole }) => {
   const fetchProposals = useCallback(async () => {
     try {
       const data = await agendaBuilderApi.getProposals(meetingId);
-      setProposals(data);
+      setProposals(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
       toast.error("Failed to load proposals");

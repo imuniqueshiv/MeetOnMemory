@@ -9,12 +9,14 @@ import {
   getAnalytics,
   getTeamAnalyticsSummary,
   getTeamRecentMeetings,
+  getOrgTimeline,
 } from "../controllers/meetingAnalyticsController.js";
 
 const router = express.Router();
 
-// Apply authentication to all routes (Clerk → Mongo user via userAuth)
 router.use(userAuth);
+
+router.get("/org-timeline", getOrgTimeline);
 
 // Aggregated summary analytics (Reports page)
 router.get("/", getAnalytics);

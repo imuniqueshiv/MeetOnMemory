@@ -28,12 +28,21 @@ export const useMeetingDuplicates = (meetingId) => {
     fetchDuplicates();
   }, [fetchDuplicates]);
 
-  const mergeMeetings = async ({ primaryId, secondaryId }) => {
+  const mergeMeetings = async ({
+    primaryId,
+    secondaryId,
+    fieldSelections = {},
+  }) => {
     setIsMerging(true);
     try {
-      await meetingDuplicateApi.mergeMeetings(primaryId, secondaryId);
+      const response = await meetingDuplicateApi.mergeMeetings(
+        primaryId,
+        secondaryId,
+        fieldSelections,
+      );
       toast.success("Meetings merged successfully");
       setDuplicates((prev) => prev.filter((d) => d._id !== secondaryId));
+      return response;
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to merge meetings");
       throw error;
@@ -65,5 +74,6 @@ export const useMeetingDuplicates = (meetingId) => {
     isMerging,
     dismissDuplicate,
     isDismissing,
+    refreshDuplicates: fetchDuplicates,
   };
 };

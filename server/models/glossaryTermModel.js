@@ -44,6 +44,11 @@ const glossaryTermSchema = new mongoose.Schema(
       enum: ["pending", "approved", "rejected"],
       default: "approved",
     },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      default: null,
+    },
   },
   {
     timestamps: true,

@@ -45,7 +45,7 @@ export default function useMeetingSummary({
     };
   }, [userData, backendUrl]);
 
-  const handleGenerateSummary = async () => {
+  const handleGenerateSummary = async (templateId = null) => {
     if (!transcript && !meetingId) {
       toast.error("No transcript available. Upload a meeting first.");
       return;
@@ -64,6 +64,7 @@ export default function useMeetingSummary({
         transcript: meetingId ? undefined : transcript,
         date: meetingDate,
         title: title || undefined,
+        templateId: templateId || undefined,
       };
 
       const res = await meetingApi.summarizeMeeting(payload);

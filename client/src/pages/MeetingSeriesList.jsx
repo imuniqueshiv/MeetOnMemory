@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Navbar from "../components/Navbar.jsx";
 import ConfirmModal from "../components/ConfirmModal.jsx";
+import ConvertToAsyncModal from "../components/meetings/ConvertToAsyncModal.jsx";
 import { meetingSeriesApi } from "../services/meetingSeriesApi.js";
 import { useRBAC } from "../hooks/useRBAC.js";
 
@@ -34,6 +35,8 @@ const MeetingSeriesList = () => {
   const [loadingOccurrences, setLoadingOccurrences] = useState({});
   const [confirmAction, setConfirmAction] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [isConvertToAsyncOpen, setIsConvertToAsyncOpen] = useState(false);
+  const [selectedSeriesForAsync, setSelectedSeriesForAsync] = useState(null);
 
   const fetchSeries = useCallback(async () => {
     setLoading(true);
@@ -250,6 +253,16 @@ const MeetingSeriesList = () => {
                           <>
                             <button
                               type="button"
+                              onClick={() => {
+                                setSelectedSeriesForAsync(item);
+                                setIsConvertToAsyncOpen(true);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                            >
+                              Convert to Async
+                            </button>
+                            <button
+                              type="button"
                               onClick={() =>
                                 setConfirmAction({
                                   type: "pause",
@@ -354,6 +367,16 @@ const MeetingSeriesList = () => {
           confirmAction ? confirmCopy[confirmAction.type].variant : "danger"
         }
         isLoading={actionLoading}
+      />
+
+      <ConvertToAsyncModal
+        isOpen={isConvertToAsyncOpen}
+        onClose={() => {
+          setIsConvertToAsyncOpen(false);
+          setSelectedSeriesForAsync(null);
+        }}
+        meeting={selectedSeriesForAsync}
+        isSeries={true}
       />
     </div>
   );

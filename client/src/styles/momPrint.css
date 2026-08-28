@@ -1,0 +1,141 @@
+/**
+ * Print stylesheet for Minutes of Meeting (MoM), Summaries, Decisions, and Action Items (Issue #2255).
+ * Optimized for crisp paper & PDF generation with all navigation chrome hidden.
+ */
+
+@media print {
+  /* Hide navigation, sidebar, footer, search, action toolbars, interactive buttons */
+  nav,
+  header,
+  footer,
+  aside,
+  button,
+  .no-print,
+  [role="presentation"],
+  .toast,
+  .Toastify,
+  [data-testid="navbar"],
+  .action-toolbar {
+    display: none !important;
+  }
+
+  /* Reset layout constraints and color scheme for paper */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #111827 !important;
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Container width reset */
+  .max-w-7xl,
+  .max-w-6xl,
+  .max-w-5xl,
+  .max-w-4xl,
+  .container {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 10mm !important;
+  }
+
+  /* Card and Panel resets */
+  .bg-white,
+  .dark\:bg-gray-800,
+  .dark\:bg-slate-800,
+  .dark\:bg-slate-900 {
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Ensure text is dark and legible */
+  .text-gray-900,
+  .text-slate-900,
+  .dark\:text-white,
+  .dark\:text-gray-100 {
+    color: #111827 !important;
+  }
+
+  .text-gray-600,
+  .text-gray-500,
+  .text-slate-500,
+  .dark\:text-gray-400 {
+    color: #4b5563 !important;
+  }
+
+  /* Page break rules */
+  .print-page-break {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  .print-avoid-break,
+  .decision-card,
+  .action-item-card,
+  .summary-section {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* MoM Print Header */
+  .mom-print-header {
+    display: block !important;
+    border-bottom: 2pt solid #111827 !important;
+    padding-bottom: 12pt !important;
+    margin-bottom: 16pt !important;
+  }
+
+  .mom-print-title {
+    font-size: 20pt !important;
+    font-weight: 800 !important;
+    color: #111827 !important;
+    margin: 0 0 6pt 0 !important;
+  }
+
+  .mom-print-meta {
+    font-size: 9.5pt !important;
+    color: #4b5563 !important;
+    display: flex !important;
+    gap: 16pt !important;
+    flex-wrap: wrap !important;
+  }
+
+  /* Tables & Lists */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin: 8pt 0 !important;
+  }
+
+  th,
+  td {
+    border: 1px solid #d1d5db !important;
+    padding: 6pt 8pt !important;
+    font-size: 9.5pt !important;
+  }
+
+  th {
+    background-color: #f3f4f6 !important;
+    font-weight: 700 !important;
+  }
+
+  /* Clean up links in print */
+  a {
+    text-decoration: none !important;
+    color: inherit !important;
+  }
+
+  /* Custom badges */
+  span.badge,
+  span.inline-flex {
+    border: 1px solid #9ca3af !important;
+    background: #f9fafb !important;
+    color: #111827 !important;
+  }
+}

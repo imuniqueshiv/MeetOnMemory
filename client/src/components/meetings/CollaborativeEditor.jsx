@@ -9,6 +9,8 @@ import { useCollaborativeNote } from "../../hooks/useCollaborativeNote";
 import PresenceAvatars from "./PresenceAvatars";
 import VersionHistory from "./VersionHistory";
 import NoteVersionHistory from "../NoteVersionHistory";
+import CollabSyncStatusChip from "./CollabSyncStatusChip";
+import NoteTemplateSelector from "./NoteTemplateSelector";
 
 /**
  * @desc Main collaborative editor pane (Tiptap + Yjs). Remount via `key` after
@@ -23,6 +25,7 @@ const CollaborativeEditorPane = ({
     ydoc,
     isConnected,
     isLoading,
+    syncStatus,
     activeUsers,
     userColor,
     broadcastCursor,
@@ -116,20 +119,37 @@ const CollaborativeEditorPane = ({
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar: Connection Status & Active Users */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30">
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
-            ></div>
-            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-              {isConnected
-                ? isReadOnly
-                  ? "Viewing Live"
-                  : "Connected & Syncing"
-                : "Disconnected"}
-            </span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
+                aria-hidden="true"
+              ></div>
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                {isConnected
+                  ? isReadOnly
+                    ? "Viewing Live"
+                    : "Connected"
+                  : "Disconnected"}
+              </span>
+            </div>
+            <CollabSyncStatusChip
+              syncStatus={syncStatus}
+              isReadOnly={isReadOnly}
+            />
           </div>
 
           <div className="flex items-center gap-3">
+            {!isReadOnly && editor && (
+              <NoteTemplateSelector
+                disabled={isReadOnly || !editor}
+                onApplyTemplate={(htmlContent) => {
+                  if (editor) {
+                    editor.commands.insertContent(htmlContent);
+                  }
+                }}
+              />
+            )}
             <button
               type="button"
               onClick={onOpenHistory}

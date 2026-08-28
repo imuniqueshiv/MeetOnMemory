@@ -4,6 +4,7 @@ import { requireAdminOrOwner } from "../middleware/rbac.js";
 import { testimonialSubmitLimiter } from "../middleware/rateLimiter.js";
 import {
   listApprovedTestimonials,
+  listSpotlightTestimonials,
   getTestimonialStats,
   getMyTestimonial,
   createTestimonial,
@@ -11,6 +12,8 @@ import {
   deleteOwnTestimonial,
   listAdminTestimonials,
   updateTestimonialStatus,
+  bulkModerateTestimonials,
+  updateTestimonialSpotlight,
   adminDeleteTestimonial,
 } from "../controllers/testimonialController.js";
 
@@ -18,6 +21,7 @@ const router = express.Router();
 
 // Public
 router.get("/", listApprovedTestimonials);
+router.get("/spotlight", listSpotlightTestimonials);
 router.get("/stats", getTestimonialStats);
 
 // Authenticated user
@@ -32,5 +36,7 @@ export const adminTestimonialRouter = express.Router();
 
 adminTestimonialRouter.use(userAuth, requireAdminOrOwner);
 adminTestimonialRouter.get("/", listAdminTestimonials);
+adminTestimonialRouter.post("/bulk", bulkModerateTestimonials);
 adminTestimonialRouter.patch("/:id/status", updateTestimonialStatus);
+adminTestimonialRouter.patch("/:id/spotlight", updateTestimonialSpotlight);
 adminTestimonialRouter.delete("/:id", adminDeleteTestimonial);

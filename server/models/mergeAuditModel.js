@@ -49,6 +49,21 @@ const mergeAuditSchema = new mongoose.Schema(
       reparentedDecisions: { type: Number, default: 0 },
       reparentedFollowUpTasks: { type: Number, default: 0 },
       mergedTranscriptSegmentIds: [mongoose.Schema.Types.ObjectId],
+
+      // Issue #2260: preserve primary values that were replaced by a
+      // field-level merge choice so rollback can restore them.
+      primaryFieldValues: {
+        title: { type: String, default: null },
+        time: { type: String, default: null },
+        date: { type: Date, default: null },
+        participants: [mongoose.Schema.Types.Mixed],
+        summary: { type: String, default: null },
+        tags: [String],
+      },
+      fieldSelections: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {},
+      },
     },
     rolledBack: {
       type: Boolean,

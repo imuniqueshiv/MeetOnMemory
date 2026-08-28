@@ -34,8 +34,7 @@ export const generateIcebreakers = async (
     usedPrompts = usedIcebreakers.map((ib) => ib.promptText).join("\\n");
   } else {
     // If no meetingId, try to lookup participantIds directly (useful for Create Meeting)
-    const mongoose = require("mongoose");
-    const User = mongoose.model("User");
+    const User = (await import("../models/userModel.js")).default;
     const users = await User.find({ _id: { $in: participantIds } }).select(
       "name department role",
     );

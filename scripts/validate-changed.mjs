@@ -26,6 +26,14 @@ if (has(/^server\//)) {
   runNpm("run validate:server");
 }
 
+if (
+  has(/^server\/routes\//) ||
+  has(/^scripts\/generate-openapi\.mjs$/) ||
+  has(/^docs\/openapi\.json$/)
+) {
+  runNpm("run check:openapi");
+}
+
 if (has(/^client\//)) {
   runNpm("run validate:client");
 }

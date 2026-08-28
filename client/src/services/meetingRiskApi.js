@@ -35,6 +35,22 @@ const meetingRiskApi = {
     );
     return response.data;
   },
+
+  updateRiskStatus: async (riskId, data) => {
+    const response = await api.patch(
+      `/api/meeting-risks/${riskId}/status`,
+      data,
+    );
+    return response.data;
+  },
+
+  exportRisks: async (organizationId, format = "csv") => {
+    const response = await api.get(
+      `/api/meeting-risks/organization/${organizationId}/export`,
+      { params: { format }, responseType: "blob" },
+    );
+    return response.data;
+  },
 };
 
 export default meetingRiskApi;

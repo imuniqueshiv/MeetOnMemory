@@ -265,9 +265,12 @@ export const downloadAttachment = async (req, res) => {
     // early and left CRLF unfiltered, and there was no `filename*` parameter,
     // so non-ASCII names arrived as mojibake. `getContentDispositionHeader`
     // is what the transcript and policy exporters already use (Issue #1454).
+    const isInline = req.query.inline === "true";
     res.setHeader(
       "Content-Disposition",
-      getContentDispositionHeader(attachment.fileName),
+      getContentDispositionHeader(attachment.fileName, {
+        dispositionType: isInline ? "inline" : "attachment",
+      }),
     );
     res.setHeader(
       "Content-Type",

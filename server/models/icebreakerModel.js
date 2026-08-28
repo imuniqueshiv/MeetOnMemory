@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const icebreakerSchema = new mongoose.Schema(
   {
@@ -28,4 +28,5 @@ const icebreakerSchema = new mongoose.Schema(
   },
 );
 
-module.exports = mongoose.model("Icebreaker", icebreakerSchema);
+const Icebreaker = mongoose.model("Icebreaker", icebreakerSchema);
+export default Icebreaker;

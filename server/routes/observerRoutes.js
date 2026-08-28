@@ -4,7 +4,7 @@ import {
   approveShadowRequest,
   denyShadowRequest,
 } from "../controllers/observerController.js";
-import { protect } from "../middleware/authMiddleware.js";
+import protect from "../middleware/userAuth.js";
 
 const router = express.Router();
 

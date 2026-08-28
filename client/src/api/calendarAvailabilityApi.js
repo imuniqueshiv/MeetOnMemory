@@ -9,4 +9,18 @@ export const calendarAvailabilityApi = {
     });
     return response.data;
   },
+
+  getConnectionStatus: async () => {
+    const response = await apiClient.get("/api/calendar/status");
+    return response.data;
+  },
+
+  getConnectUrl: async (provider) => {
+    const path =
+      provider === "microsoft"
+        ? "/api/calendar/microsoft/connect"
+        : "/api/calendar/google/connect";
+    const response = await apiClient.get(path);
+    return response.data;
+  },
 };

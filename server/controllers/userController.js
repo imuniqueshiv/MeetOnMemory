@@ -176,6 +176,58 @@ export const updateUserProfile = async (req, res) => {
   }
 };
 
+// @desc    Upload avatar image
+// @route   POST /api/user/avatar
+// @access  Private
+export const uploadAvatar = async (req, res) => {
+  try {
+    if (!req.user || (!req.user.id && !req.user._id)) {
+      return sendError(res, 401, "Authentication error, user ID not found.");
+    }
+    if (!req.file) {
+      return sendError(res, 400, "No avatar file provided.");
+    }
+
+    const userId = String(req.user.id || req.user._id);
+    const profilePicUrl = `/uploads/avatars/${req.file.filename}`;
+
+    const user = await userModel.findById(userId);
+    if (!user) {
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      return sendError(res, 404, "User not found.");
+    }
+
+    // Delete old local avatar file if it exists and is local
+    if (user.profilePic && user.profilePic.startsWith("/uploads/avatars/")) {
+      const oldPath = path.resolve(user.profilePic.substring(1));
+      if (fs.existsSync(oldPath)) {
+        try {
+          fs.unlinkSync(oldPath);
+        } catch (err) {
+          console.warn("Failed to delete old avatar file:", err);
+        }
+      }
+    }
+
+    user.profilePic = profilePicUrl;
+    await user.save();
+
+    return sendSuccess(
+      res,
+      { profilePic: profilePicUrl },
+      "Avatar uploaded successfully.",
+    );
+  } catch (error) {
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    console.error("Error in uploadAvatar:", error);
+    sendError(res, 500, "Server error during avatar upload.");
+  }
+};
+
 // @desc    Request data export
 // @route   POST /api/user/request-data-export
 // @access  Private

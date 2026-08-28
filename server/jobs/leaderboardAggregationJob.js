@@ -1,4 +1,4 @@
-import schedule from "node-schedule";
+import cron from "node-cron";
 import GamificationScore from "../models/gamificationScoreModel.js";
 import { getRedisClient } from "../services/redisService.js";
 import Organization from "../models/organizationModel.js";
@@ -64,7 +64,7 @@ export const calculateLeaderboards = async () => {
 
 export const startLeaderboardJob = () => {
   // Run every night at midnight
-  schedule.scheduleJob("0 0 * * *", async () => {
+  cron.schedule("0 0 * * *", async () => {
     await calculateLeaderboards();
   });
 };

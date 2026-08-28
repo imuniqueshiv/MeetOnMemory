@@ -153,6 +153,15 @@ vi.mock("../../components/meeting-details/ClipManager", () => ({
     </div>
   ),
 }));
+vi.mock("../../components/meeting-details/AttachmentPanel", () => ({
+  default: () => null,
+}));
+vi.mock("../../components/meeting-details/DigestActions", () => ({
+  default: () => null,
+}));
+vi.mock("../../components/meeting-details/TopicSummary", () => ({
+  default: () => null,
+}));
 
 const renderDetails = () =>
   render(

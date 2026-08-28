@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import Navbar from "../components/Navbar.jsx";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import { meetingApi } from "../services";
+import { meetingApi, sessionCardApi } from "../services";
 import MeetingTabs from "./CreateMeeting/components/MeetingTabs";
 import ScheduleMeeting from "./CreateMeeting/components/ScheduleMeeting/ScheduleMeeting";
 import LiveMeeting from "./CreateMeeting/components/LiveMeeting/LiveMeeting";
@@ -15,9 +15,17 @@ import { useSessionCards } from "./CreateMeeting/hooks/useSessionCards";
 
 const CreateMeeting = () => {
   const navigate = useNavigate();
-  const [activeSection, setActiveSection] = useState("live");
   const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [activeSection, setActiveSection] = useState(
+    tabParam === "session"
+      ? "session"
+      : tabParam === "schedule"
+        ? "schedule"
+        : "live",
+  );
   const duplicateFrom = searchParams.get("duplicateFrom");
+  const fromSessionCard = searchParams.get("fromSessionCard");
   const [loadingDuplicate, setLoadingDuplicate] = useState(false);
   const [showSmartScheduler, setShowSmartScheduler] = useState(false);
 
@@ -27,10 +35,66 @@ const CreateMeeting = () => {
   const sessionCardsHooks = useSessionCards();
 
   useEffect(() => {
+    if (
+      tabParam &&
+      ["live", "schedule", "smart", "session"].includes(tabParam)
+    ) {
+      setActiveSection(tabParam);
+    }
+  }, [tabParam]);
+
+  useEffect(() => {
     if (activeSection === "smart") {
       setShowSmartScheduler(true);
     }
   }, [activeSection]);
+
+  // Handle populating schedule form from a session card
+  useEffect(() => {
+    if (!fromSessionCard) return;
+
+    let cancelled = false;
+    setActiveSection("schedule");
+    setLoadingDuplicate(true);
+
+    sessionCardApi
+      .getSessionCardById(fromSessionCard)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const session = data?.data?.session || data?.session;
+        if (!session) {
+          throw new Error("Unable to load session card details");
+        }
+
+        const draftPayload = {
+          title: session.sessionTitle || "",
+          description:
+            session.summary ||
+            (session.speaker ? `Speaker: ${session.speaker}` : ""),
+          tags: Array.isArray(session.keywords) ? session.keywords : [],
+          location: session.eventName || "Conference Session",
+          venue: session.eventName || "",
+        };
+
+        hydrateDuplicateMeeting(draftPayload);
+        toast.success("✨ Session card loaded into meeting draft!");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        toast.error(
+          err.response?.data?.message ||
+            err.message ||
+            "Failed to load session card draft",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDuplicate(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fromSessionCard, hydrateDuplicateMeeting]);
 
   useEffect(() => {
     if (!duplicateFrom) return;

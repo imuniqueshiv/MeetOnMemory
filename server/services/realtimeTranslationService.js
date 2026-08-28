@@ -319,6 +319,8 @@ export const submitCorrection = async (
       throw new Error("Translation cache entry not found");
     }
 
+    cache.qualityScore = 100;
+
     await cache.addTranslation({
       language,
       text: correctedText,

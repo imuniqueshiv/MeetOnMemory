@@ -14,7 +14,7 @@ async function resolveOrganizationId(actionItem) {
   const meetingId = actionItem.sourceMeetingId || actionItem.meetingId;
   if (!meetingId) return null;
 
-  const Meeting = (await import("../models/Meeting.js")).default;
+  const Meeting = (await import("../models/meetingModel.js")).default;
   const meeting = await Meeting.findById(meetingId)
     .select("organizationId")
     .lean();

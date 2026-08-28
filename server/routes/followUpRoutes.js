@@ -10,6 +10,7 @@ import {
   getAnalytics,
   escalateTask,
   processRemindersManually,
+  snoozeTask,
 } from "../controllers/followUpController.js";
 
 const router = express.Router();
@@ -22,6 +23,7 @@ router.get("/tasks", getTasks);
 router.get("/tasks/:id", getTask);
 router.patch("/tasks/:id/status", updateStatus);
 router.post("/tasks/:id/acknowledge", acknowledgeTask);
+router.patch("/tasks/:id/snooze", snoozeTask);
 
 // Reminders
 router.get("/reminders", getReminders);

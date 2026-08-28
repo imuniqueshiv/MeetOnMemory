@@ -25,7 +25,7 @@ const issueTrackerIntegrationSchema = new mongoose.Schema(
       default: null, // used to verify incoming webhooks
     },
     config: {
-      // provider-specific config like default projectId or teamId
+      // provider-specific config like siteUrl, projectKey, teamId, fieldMappings, statusMappings
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
@@ -34,7 +34,34 @@ const issueTrackerIntegrationSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    lastSyncAt: {
+      type: Date,
+      default: null,
+    },
+    lastSyncStatus: {
+      type: String,
+      enum: ["success", "error", "idle"],
+      default: "idle",
+    },
+    lastSyncError: {
+      type: String,
+      default: null,
+    },
+    syncCount: {
+      type: Number,
+      default: 0,
+    },
+    syncLogs: [
+      {
+        timestamp: { type: Date, default: Date.now },
+        action: { type: String, required: true },
+        status: { type: String, required: true },
+        details: { type: String, default: "" },
+        error: { type: String, default: null },
+      },
+    ],
   },
+
   { timestamps: true },
 );
 

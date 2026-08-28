@@ -25,7 +25,7 @@ import {
 
 const MeetingHeader = ({ meeting, onShare, onShareInvite, onPresent }) => {
   const navigate = useNavigate();
-  const { userData } = useContext(AppContent);
+  const { userData } = useContext(AppContent) || {};
   const isViewerOrGuest =
     userData?.role === "viewer" || userData?.role === "guest";
   const [isBookmarked, setIsBookmarked] = useState(false);

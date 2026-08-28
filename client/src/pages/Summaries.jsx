@@ -20,6 +20,7 @@ import {
   Download,
   AlertCircle,
   RefreshCw,
+  Printer,
 } from "lucide-react";
 
 const FOCUSABLE_SELECTOR =
@@ -136,6 +137,15 @@ const SummaryViewModal = ({ summary, onClose }) => {
             className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
           >
             <Copy size={16} /> {t("summaries.copy")}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              window.print();
+            }}
+            className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+          >
+            <Printer size={16} /> {t("summaries.print", "Print MoM")}
           </button>
           <button
             type="button"

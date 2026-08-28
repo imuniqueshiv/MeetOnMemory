@@ -1049,6 +1049,12 @@ export const getOrganizationSettings = async (userId, orgIdOrSlug = null) => {
       createdAt: organization.createdAt,
       updatedAt: organization.updatedAt,
       metadata: organization.metadata || {},
+      e2eeSettings: organization.e2eeSettings || {
+        enabled: false,
+        enforceOrgWide: false,
+        updatedAt: null,
+        updatedBy: null,
+      },
     },
     userRole,
     canEdit,
@@ -1073,7 +1079,7 @@ export const getOrganizationById = async (idOrSlug, userId) => {
 
   const organization = await Organization.findOne(query)
     .select(
-      "name slug description about website contactEmail industry location logo bannerUrl visibility joinPolicy owner createdAt updatedAt metadata",
+      "name slug description about website contactEmail industry location logo bannerUrl visibility joinPolicy owner createdAt updatedAt metadata e2eeSettings",
     )
     .populate("owner", "name email")
     .lean();
@@ -1134,6 +1140,7 @@ export const updateOrganization = async (
     visibility,
     joinPolicy,
     metadata,
+    e2eeSettings,
   },
 ) => {
   if (!isValidObjectId(id)) {
@@ -1286,6 +1293,14 @@ export const updateOrganization = async (
   if (cleanJoinPolicy) organization.joinPolicy = cleanJoinPolicy;
   if (metadata)
     organization.metadata = typeof metadata === "object" ? metadata : {};
+  if (e2eeSettings !== undefined && e2eeSettings !== null) {
+    organization.e2eeSettings = {
+      enabled: Boolean(e2eeSettings.enabled),
+      enforceOrgWide: Boolean(e2eeSettings.enforceOrgWide),
+      updatedAt: new Date(),
+      updatedBy: userId,
+    };
+  }
 
   await organization.save();
 

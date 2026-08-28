@@ -176,7 +176,7 @@ describe("AdminPanel", () => {
     expect(screen.getByText("MEMBER INVITED")).toBeInTheDocument();
   });
 
-  it("renders live members table when switching to members module", async () => {
+  it("renders live members workspace when switching to members module", async () => {
     renderAdminPanel();
 
     const membersBtn = screen.getByRole("button", {
@@ -185,7 +185,7 @@ describe("AdminPanel", () => {
     fireEvent.click(membersBtn);
 
     await waitFor(() => {
-      expect(screen.getByText("Organization Members")).toBeInTheDocument();
+      expect(screen.getByText("Members & Roles Directory")).toBeInTheDocument();
     });
 
     expect(screen.getByText("Alice")).toBeInTheDocument();
@@ -206,7 +206,7 @@ describe("AdminPanel", () => {
     });
   });
 
-  it("renders meetings table when switching to meetings module", async () => {
+  it("renders meetings workspace when switching to meetings module", async () => {
     renderAdminPanel();
 
     const meetingsBtn = screen.getByRole("button", {
@@ -215,13 +215,15 @@ describe("AdminPanel", () => {
     fireEvent.click(meetingsBtn);
 
     await waitFor(() => {
-      expect(screen.getByText("Meeting Records")).toBeInTheDocument();
+      expect(
+        screen.getByText("Meeting Records & Intelligence Workspace"),
+      ).toBeInTheDocument();
     });
 
     expect(screen.getByText("Sprint Planning")).toBeInTheDocument();
   });
 
-  it("renders policies table when switching to policies module", async () => {
+  it("renders policies workspace when switching to policies module", async () => {
     renderAdminPanel();
 
     const policiesBtn = screen.getByRole("button", {
@@ -230,7 +232,9 @@ describe("AdminPanel", () => {
     fireEvent.click(policiesBtn);
 
     await waitFor(() => {
-      expect(screen.getByText("Compliance & Policies")).toBeInTheDocument();
+      expect(
+        screen.getByText("Compliance & Policy Repository Workspace"),
+      ).toBeInTheDocument();
     });
 
     expect(screen.getByText("Security Policy")).toBeInTheDocument();

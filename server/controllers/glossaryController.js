@@ -73,6 +73,15 @@ const extractSchema = z.object({
   }),
 });
 
+const rejectTermSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+
+/**
+ * Optional edits applied when approving a pending suggestion (#2245).
+ */
+const approveTermSchema = termFieldsSchema.partial().strict();
+
 /**
  * Looks up a term by its exact name, ignoring case (Issue #1157).
  *
@@ -292,7 +301,7 @@ export const deleteTerm = async (req, res) => {
 };
 
 /**
- * Approve a pending term
+ * Approve a pending term, optionally with corrected fields (#2245).
  */
 export const approveTerm = async (req, res) => {
   try {
@@ -303,9 +312,62 @@ export const approveTerm = async (req, res) => {
       return res.status(400).json({ message: "Invalid term ID" });
     }
 
+    const edits =
+      req.body && Object.keys(req.body).length > 0
+        ? approveTermSchema.parse(req.body)
+        : {};
+
+    if (edits.term) {
+      const existing = await findTermByName(orgId, edits.term);
+      if (existing && existing._id.toString() !== id) {
+        return res
+          .status(400)
+          .json({ message: "This term already exists in your glossary" });
+      }
+    }
+
+    const term = await GlossaryTerm.findOne({
+      _id: id,
+      organization: orgId,
+      approvalStatus: "pending",
+    });
+
+    if (!term) {
+      return res.status(404).json({ message: "Pending term not found" });
+    }
+
+    Object.assign(term, edits, {
+      approvalStatus: "approved",
+      rejectionReason: null,
+    });
+    await term.save();
+
+    res.status(200).json(term);
+  } catch (error) {
+    if (error instanceof z.ZodError) return sendZodError(res, error);
+
+    console.error("Error approving glossary term:", error);
+    res.status(500).json({ message: "Server error approving glossary term" });
+  }
+};
+
+/**
+ * Reject a pending term with a reason (#2245).
+ */
+export const rejectTerm = async (req, res) => {
+  try {
+    const orgId = resolveOrgId(req);
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid term ID" });
+    }
+
+    const { reason } = rejectTermSchema.parse(req.body);
+
     const term = await GlossaryTerm.findOneAndUpdate(
       { _id: id, organization: orgId, approvalStatus: "pending" },
-      { $set: { approvalStatus: "approved" } },
+      { $set: { approvalStatus: "rejected", rejectionReason: reason } },
       { new: true },
     );
 
@@ -313,10 +375,16 @@ export const approveTerm = async (req, res) => {
       return res.status(404).json({ message: "Pending term not found" });
     }
 
+    console.info(
+      `[Glossary] Pending term rejected: id=${term._id} term="${term.term}" reason="${reason}" org=${orgId}`,
+    );
+
     res.status(200).json(term);
   } catch (error) {
-    console.error("Error approving glossary term:", error);
-    res.status(500).json({ message: "Server error approving glossary term" });
+    if (error instanceof z.ZodError) return sendZodError(res, error);
+
+    console.error("Error rejecting glossary term:", error);
+    res.status(500).json({ message: "Server error rejecting glossary term" });
   }
 };
 

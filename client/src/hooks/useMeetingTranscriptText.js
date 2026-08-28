@@ -16,7 +16,7 @@ import apiClient from "../services/apiClient.js";
  * Resolve displayable transcript text for a meeting (Issue #1335).
  * Handles legacy plaintext and encrypted payloads.
  */
-export const useMeetingTranscriptText = (meeting) => {
+export const useMeetingTranscriptText = (meeting, refreshToken = 0) => {
   const [plaintext, setPlaintext] = useState("");
   const [isEncrypted, setIsEncrypted] = useState(false);
   const [error, setError] = useState(null);
@@ -72,7 +72,9 @@ export const useMeetingTranscriptText = (meeting) => {
     return () => {
       cancelled = true;
     };
-  }, [meeting]);
+    // refreshToken lets callers force a re-decrypt after importing a key
+    // without refetching the meeting (Issue #2030).
+  }, [meeting, refreshToken]);
 
   /**
    * Encrypt current plaintext (or provided text) and persist ciphertext to server.

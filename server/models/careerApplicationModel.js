@@ -49,8 +49,26 @@ const careerApplicationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["received"],
+      enum: [
+        "received",
+        "pending",
+        "reviewing",
+        "interview_scheduled",
+        "rejected",
+        "accepted",
+      ],
       default: "received",
+    },
+    adminNotes: {
+      type: String,
+      default: "",
+    },
+    reviewedAt: {
+      type: Date,
+    },
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
     },
   },
   { timestamps: true },

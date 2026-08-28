@@ -19,6 +19,7 @@ import {
   getMemoryLifecycleRetentionPolicy,
   updateMemoryLifecycleRetentionPolicy,
 } from "../controllers/memoryLifecycleRetentionController.js";
+import { getEnterpriseMemoryTelemetryController } from "../controllers/memoryAnalyticsTelemetryController.js";
 import {
   getArchivedMemoriesWithFacets,
   bulkRestoreArchivedMemories,
@@ -137,6 +138,14 @@ router.post(
   requireOrgMembership,
   requirePermission("knowledge", "edit"),
   recalculateImportance,
+);
+
+// --- Enterprise Memory Analytics Telemetry ---
+router.get(
+  "/analytics/telemetry",
+  requireOrgMembership,
+  requirePermission("knowledge", "view"),
+  getEnterpriseMemoryTelemetryController,
 );
 
 // --- Memory Lifecycle Management ---

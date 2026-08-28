@@ -31,9 +31,11 @@ import RoleRotationConfig from "../components/meetings/RoleRotationConfig";
 import DuplicateDetectionPanel from "../components/meeting-details/DuplicateDetectionPanel";
 import MeetingTimeline from "../components/meeting-details/MeetingTimeline";
 import RecapStoryViewer from "../components/summaries/RecapStoryViewer";
+import ReactionSummaryCard from "../components/meeting-details/ReactionSummaryCard";
 import { useUser } from "@clerk/clerk-react";
 import Navbar from "../components/Navbar.jsx";
 import BriefingBanner from "../components/meeting-details/BriefingBanner";
+import CompareButton from "../components/meeting-details/CompareButton";
 import AgendaBuilder from "../components/meetings/AgendaBuilder";
 import IcebreakerSection from "../components/meetings/IcebreakerSection";
 import { getBriefing } from "../services/briefingApi";
@@ -46,18 +48,37 @@ import FeedbackForm from "../components/meeting-details/FeedbackForm";
 import AgendaTimer from "../components/meeting-details/AgendaTimer";
 import AgendaPacingReport from "../components/meeting-details/AgendaPacingReport";
 import ClipManager from "../components/meeting-details/ClipManager";
+import TopicSummary from "../components/meeting-details/TopicSummary";
+import AttachmentPanel from "../components/meeting-details/AttachmentPanel";
+import DigestActions from "../components/meeting-details/DigestActions";
 import HealthScoreCard from "../components/meeting-details/HealthScoreCard";
 import { isMeetingEnded } from "../utils/meetingLifecycle";
+import { canManageMeetingDigest } from "../utils/digestAccess";
 import MeetingRisksPanel from "../components/meetings/MeetingRisksPanel";
-import { Award, ShieldAlert, FileText, Star } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Award, ShieldAlert, FileText, Star, ListTodo } from "lucide-react";
 import ExportDialog from "../components/export/ExportDialog";
 import RetentionQuizSection from "../components/meetings/RetentionQuizSection";
 import ResourceConflictsPanel from "../components/meeting-details/ResourceConflictsPanel";
 import SkillEndorsementModal from "../components/meetings/SkillEndorsementModal";
+import DebriefQAPanel from "../components/meetings/DebriefQAPanel";
+import LiveQAPanel from "../components/meetings/LiveQAPanel";
+import DelegationPanel from "../components/meetings/DelegationPanel";
+import MeetingNudgesTab from "../components/meeting-details/MeetingNudgesTab.jsx";
+import ConvertToAsyncModal from "../components/meetings/ConvertToAsyncModal";
+import ParticipantContributions from "../components/MeetingDetails/ParticipantContributions";
+import ContributionSummaryPanel from "../components/MeetingDetails/ContributionSummaryPanel";
+import MeetingCostCard from "../components/meeting-details/MeetingCostCard";
+import AbsenteeBriefingCard from "../components/meeting-details/AbsenteeBriefingCard";
+import PrintMomModal from "../components/meetings/PrintMomModal.jsx";
+import ActionItemsList from "../components/actionItems/ActionItemsList";
+import { Printer } from "lucide-react";
+import RetrospectiveBoard from "../components/meeting-details/RetrospectiveBoard";
 
 const MeetingDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user: currentUser } = useUser();
   const { userData } = useContext(AppContent) || {};
   const isViewerOrGuest =
@@ -72,6 +93,8 @@ const MeetingDetails = () => {
   const [isStoryViewerOpen, setIsStoryViewerOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isEndorseModalOpen, setIsEndorseModalOpen] = useState(false);
+  const [isConvertToAsyncOpen, setIsConvertToAsyncOpen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [briefingStatus, setBriefingStatus] = useState("idle");
 
   const dbUserId = currentUser?.publicMetadata?.dbUserId;
@@ -80,6 +103,39 @@ const MeetingDetails = () => {
       p.user?.toString() === dbUserId || p.user?._id?.toString() === dbUserId,
   );
   const userRole = participant?.role || null;
+  const isOrganizer =
+    userData?.role === "admin" ||
+    userData?.role === "owner" ||
+    userRole === "host" ||
+    userRole === "organizer" ||
+    (dbUserId &&
+      (meeting?.uploadedBy?._id?.toString() === dbUserId ||
+        meeting?.uploadedBy?.toString() === dbUserId)) ||
+    (userData?._id &&
+      (meeting?.uploadedBy?._id?.toString() === userData._id.toString() ||
+        meeting?.uploadedBy?.toString() === userData._id.toString()));
+
+  const handleCitationClick = (citation) => {
+    if (citation.type === "transcript" && citation.timestamp !== null) {
+      const event = new CustomEvent("seekToTimestamp", {
+        detail: citation.timestamp,
+      });
+      window.dispatchEvent(event);
+      const transcriptEl = document.querySelector(
+        `[data-start-time="${citation.timestamp}"]`,
+      );
+      if (transcriptEl) {
+        transcriptEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    } else if (citation.type === "decision") {
+      const decisionEl = document.querySelector(
+        `[data-decision-id="${citation.refId}"]`,
+      );
+      if (decisionEl) {
+        decisionEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  };
 
   const handleGenerateBriefing = async () => {
     setBriefingStatus("generating");
@@ -241,14 +297,14 @@ const MeetingDetails = () => {
                   />
                 </svg>
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                  Error Loading Meeting
+                  {t("meetingDetails.errorLoading")}
                 </h2>
                 <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
                 <button
                   onClick={handleBack}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                 >
-                  Back to Meetings
+                  {t("meetingDetails.backToMeetings")}
                 </button>
               </div>
             </div>
@@ -267,16 +323,16 @@ const MeetingDetails = () => {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
               <div className="text-center py-12">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                  Meeting Not Found
+                  {t("meetingDetails.notFound")}
                 </h2>
                 <p className="text-gray-600 dark:text-gray-400 mb-6">
-                  The meeting you're looking for doesn't exist.
+                  {t("meetingDetails.notFoundDesc")}
                 </p>
                 <button
                   onClick={handleBack}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                 >
-                  Back to Meetings
+                  {t("meetingDetails.backToMeetings")}
                 </button>
               </div>
             </div>
@@ -306,6 +362,16 @@ const MeetingDetails = () => {
           )}
 
           <div className="mb-4 flex justify-end gap-3">
+            <CompareButton meetingId={meeting._id} />
+            <button
+              onClick={() => setIsPrintModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-medium shadow-sm transition-colors text-sm"
+              title="Print formatted Minutes of Meeting"
+              data-testid="print-minutes-btn"
+            >
+              <Printer className="w-4 h-4" />
+              Print Minutes
+            </button>
             <button
               onClick={() => setIsExportDialogOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-sm transition-colors text-sm"
@@ -327,6 +393,14 @@ const MeetingDetails = () => {
               <Star className="w-4 h-4" />
               Recognize Peers
             </button>
+            {isOrganizer && (
+              <button
+                onClick={() => setIsConvertToAsyncOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium shadow-sm transition-colors text-sm"
+              >
+                Convert to Async
+              </button>
+            )}
             <button
               onClick={() => setIsStoryViewerOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium shadow-sm hover:opacity-90 transition-opacity text-sm"
@@ -350,7 +424,7 @@ const MeetingDetails = () => {
                   d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 ></path>
               </svg>
-              Play Recap Story
+              {t("meetingDetails.playRecapStory")}
             </button>
           </div>
 
@@ -387,11 +461,10 @@ const MeetingDetails = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  AI Intelligence Core
+                  {t("meetingDetails.aiIntelligenceCore")}
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Parse discussion timelines, profile histories, and open action
-                  paths.
+                  {t("meetingDetails.aiIntelligenceCoreDesc")}
                 </p>
               </div>
 
@@ -399,13 +472,13 @@ const MeetingDetails = () => {
                 {briefingStatus === "generating" && (
                   <div className="flex items-center gap-2 text-xs font-semibold text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-900/40">
                     <span className="w-3 h-3 border-2 border-amber-600/30 border-t-amber-600 rounded-full animate-spin" />
-                    Synthesizing Briefing...
+                    {t("meetingDetails.generating")}
                   </div>
                 )}
 
                 {briefingStatus === "failed" && (
                   <span className="text-xs font-semibold text-red-600 bg-red-50 dark:bg-red-950/30 px-3 py-1.5 rounded-xl border border-red-200 dark:border-red-900/40">
-                    ⚠️ Generation Failed
+                    {t("meetingDetails.generationFailed")}
                   </span>
                 )}
 
@@ -414,7 +487,7 @@ const MeetingDetails = () => {
                     onClick={() => navigate(`/meeting/${id}/briefing`)}
                     className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow transition"
                   >
-                    📖 Open Pre-Meeting Briefing
+                    {t("meetingDetails.openBriefing")}
                   </button>
                 )}
 
@@ -423,7 +496,7 @@ const MeetingDetails = () => {
                   className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow transition"
                 >
                   <Award className="w-4 h-4" />
-                  Meeting Quality
+                  {t("meetingDetails.meetingQuality")}
                 </button>
 
                 {(briefingStatus === "idle" ||
@@ -433,13 +506,25 @@ const MeetingDetails = () => {
                     onClick={handleGenerateBriefing}
                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow transition"
                   >
-                    ⚡ Generate Intelligent Brief
+                    {t("meetingDetails.generateBrief")}
                   </button>
                 )}
               </div>
             </div>
           </div>
+          <div className="mb-6">
+            <ContributionSummaryPanel meetingId={meeting._id} />
+          </div>
+          <AbsenteeBriefingCard meetingId={meeting._id} />
           <MeetingSummary meeting={meeting} />
+
+          <div className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm mt-6 mb-6">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <ListTodo className="w-5 h-5 text-indigo-600" />
+              Tasks & Action Items
+            </h2>
+            <ActionItemsList meetingId={meeting._id} />
+          </div>
 
           <RetentionQuizSection
             meeting={meeting}
@@ -449,6 +534,7 @@ const MeetingDetails = () => {
           />
 
           <div className="mt-6 mb-6">
+            <MeetingCostCard meetingId={meeting._id} />
             <HealthScoreCard
               meetingId={meeting._id}
               organizationId={
@@ -483,7 +569,26 @@ const MeetingDetails = () => {
             />
           </div>
 
-          <MeetingTranscript meeting={meeting} />
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="xl:col-span-2">
+              <MeetingTranscript meeting={meeting} />
+            </div>
+            <div className="xl:col-span-1 h-[600px]">
+              <DebriefQAPanel
+                meetingId={meeting._id}
+                onCitationClick={handleCitationClick}
+              />
+            </div>
+          </div>
+          <div className="mt-6 mb-6 h-[600px]">
+            <LiveQAPanel meetingId={meeting._id} isOrganizer={isOrganizer} />
+          </div>
+          <div className="mt-6 mb-6">
+            <TopicSummary
+              meetingId={meeting._id}
+              canExtract={!isViewerOrGuest}
+            />
+          </div>
           <div className="mt-6 mb-6">
             <ClipManager
               meetingId={meeting._id}
@@ -514,9 +619,14 @@ const MeetingDetails = () => {
             />
           </div>
 
+          <RetrospectiveBoard meetingId={meeting._id} />
+
           <div className="mt-6 mb-6">
             <SentimentTimeline meetingId={meeting._id} />
           </div>
+
+          {/* Reaction Summary Card (Issue #1993) */}
+          <ReactionSummaryCard meetingId={meeting._id} />
 
           {/* Speaking Time Analytics Section */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mt-6 mb-6 p-6">
@@ -552,6 +662,11 @@ const MeetingDetails = () => {
             {isAnalyticsExpanded && (
               <SpeakingTimeBreakdown meetingId={meeting._id} />
             )}
+          </div>
+
+          {/* Participant Contributions Profile */}
+          <div className="mb-6">
+            <ParticipantContributions meetingId={meeting._id} />
           </div>
 
           <MeetingParticipants meeting={meeting} />
@@ -616,13 +731,31 @@ const MeetingDetails = () => {
               <AgendaPacingReport meetingId={meeting._id} />
             </div>
           )}
-          <MeetingMetadata
-            meeting={meeting}
-            onUpdate={(updated) => setMeeting(updated)}
-            isReadOnly={isViewerOrGuest}
-          />
+          <MeetingMetadata meeting={meeting} />
+          <div className="mt-6 mb-6">
+            <AttachmentPanel
+              meetingId={meeting._id}
+              userRole={userData?.role}
+              currentUserId={userData?._id}
+            />
+          </div>
+          {canManageMeetingDigest({
+            meeting,
+            userData,
+            dbUserId,
+          }) && (
+            <div className="mt-6 mb-6">
+              <DigestActions meetingId={meeting._id} canManage />
+            </div>
+          )}
           {currentUser?.publicMetadata?.dbUserId === meeting.uploadedBy && (
             <GuestAccessManager meetingId={meeting._id} />
+          )}
+          {isOrganizer && (
+            <DelegationPanel
+              meetingId={meeting._id}
+              participants={meeting.participants}
+            />
           )}
           <MeetingActions
             meeting={meeting}
@@ -667,6 +800,20 @@ const MeetingDetails = () => {
         meetingId={meeting._id}
         participants={meeting.participants}
         currentUser={currentUser}
+      />
+
+      <ConvertToAsyncModal
+        isOpen={isConvertToAsyncOpen}
+        onClose={() => setIsConvertToAsyncOpen(false)}
+        meeting={meeting}
+        isSeries={false}
+      />
+
+      <PrintMomModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        meeting={meeting}
+        summary={meeting.summary || meeting.structuredMoM}
       />
     </div>
   );

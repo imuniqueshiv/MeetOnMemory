@@ -4,6 +4,8 @@
     "format:check": "prettier . --check",
     "format:check:changed": "node scripts/validate-format-changed.mjs",
     "format": "prettier . --write",
+    "generate:openapi": "node scripts/generate-openapi.mjs",
+    "check:openapi": "node scripts/check-openapi-stale.mjs",
     "lint": "npm run lint --prefix client",
     "build": "npm run build --prefix client",
     "prepare": "husky",

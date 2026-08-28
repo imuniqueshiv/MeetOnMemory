@@ -4,6 +4,7 @@ import {
   createTerm,
   deleteTerm,
   approveTerm,
+  rejectTerm,
 } from "../services/glossaryApi";
 import ConfirmModal from "../components/ConfirmModal.jsx";
 
@@ -24,6 +25,18 @@ const Glossary = () => {
   // Confirmation modal state (#1489)
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Pending moderation (#2245)
+  const [rejectTargetId, setRejectTargetId] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectLoading, setRejectLoading] = useState(false);
+  const [editTargetId, setEditTargetId] = useState(null);
+  const [editDraft, setEditDraft] = useState({
+    term: "",
+    definition: "",
+    category: "",
+  });
+  const [approveLoadingId, setApproveLoadingId] = useState(null);
 
   const loadTerms = useCallback(async () => {
     try {
@@ -92,14 +105,53 @@ const Glossary = () => {
     }
   };
 
-  const handleApprove = async (id) => {
+  const handleApprove = async (id, edits = undefined) => {
+    setApproveLoadingId(id);
     try {
-      await approveTerm(id);
+      await approveTerm(id, edits);
+      setEditTargetId(null);
       loadTerms();
     } catch (approveError) {
       console.error("Failed to approve term:", approveError);
       alert("Failed to approve term");
+    } finally {
+      setApproveLoadingId(null);
     }
+  };
+
+  const handleRejectConfirm = async (termId) => {
+    if (!rejectReason.trim()) return;
+    setRejectLoading(true);
+    try {
+      await rejectTerm(termId, rejectReason.trim());
+      setRejectTargetId(null);
+      setRejectReason("");
+      loadTerms();
+    } catch (rejectError) {
+      console.error("Failed to reject term:", rejectError);
+      alert("Failed to reject term");
+    } finally {
+      setRejectLoading(false);
+    }
+  };
+
+  const startEditAndApprove = (term) => {
+    setRejectTargetId(null);
+    setRejectReason("");
+    setEditTargetId(term._id);
+    setEditDraft({
+      term: term.term,
+      definition: term.definition,
+      category: term.category || "",
+    });
+  };
+
+  const handleEditAndApprove = async (id) => {
+    await handleApprove(id, {
+      term: editDraft.term.trim(),
+      definition: editDraft.definition.trim(),
+      category: editDraft.category.trim() || undefined,
+    });
   };
 
   const pendingTerms = terms.filter((t) => t.approvalStatus === "pending");
@@ -222,31 +274,160 @@ const Glossary = () => {
                 <div className="absolute top-2 right-2 text-xs font-bold text-amber-600 bg-amber-100 px-2 py-1 rounded">
                   AI Suggestion
                 </div>
-                <h4 className="text-lg font-bold text-gray-900 mt-2">
-                  {term.term}
-                </h4>
-                <p className="text-sm text-gray-600 mt-1">{term.definition}</p>
-                {term.category && (
-                  <span className="inline-block mt-2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                    {term.category}
-                  </span>
+                {editTargetId === term._id ? (
+                  <div className="mt-6 space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700">
+                        Term
+                      </label>
+                      <input
+                        type="text"
+                        value={editDraft.term}
+                        onChange={(e) =>
+                          setEditDraft({ ...editDraft, term: e.target.value })
+                        }
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700">
+                        Definition
+                      </label>
+                      <textarea
+                        value={editDraft.definition}
+                        onChange={(e) =>
+                          setEditDraft({
+                            ...editDraft,
+                            definition: e.target.value,
+                          })
+                        }
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border text-sm"
+                        rows={3}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700">
+                        Category
+                      </label>
+                      <input
+                        type="text"
+                        value={editDraft.category}
+                        onChange={(e) =>
+                          setEditDraft({
+                            ...editDraft,
+                            category: e.target.value,
+                          })
+                        }
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border text-sm"
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEditAndApprove(term._id)}
+                        disabled={
+                          approveLoadingId === term._id ||
+                          !editDraft.term.trim() ||
+                          !editDraft.definition.trim()
+                        }
+                        className="flex-1 bg-green-600 text-white py-1 rounded text-sm hover:bg-green-700 cursor-pointer disabled:opacity-50"
+                      >
+                        {approveLoadingId === term._id
+                          ? "Saving..."
+                          : "Save & Approve"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditTargetId(null)}
+                        className="flex-1 bg-gray-100 text-gray-700 py-1 rounded text-sm hover:bg-gray-200 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : rejectTargetId === term._id ? (
+                  <div className="mt-6 space-y-3">
+                    <p className="text-sm text-gray-700">
+                      Reject &quot;{term.term}&quot;?
+                    </p>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700">
+                        Reason for rejection
+                      </label>
+                      <textarea
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border text-sm"
+                        rows={3}
+                        placeholder="e.g. Incorrect definition or duplicate concept"
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleRejectConfirm(term._id)}
+                        disabled={rejectLoading || !rejectReason.trim()}
+                        className="flex-1 bg-red-600 text-white py-1 rounded text-sm hover:bg-red-700 cursor-pointer disabled:opacity-50"
+                      >
+                        {rejectLoading ? "Rejecting..." : "Confirm Reject"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRejectTargetId(null);
+                          setRejectReason("");
+                        }}
+                        className="flex-1 bg-gray-100 text-gray-700 py-1 rounded text-sm hover:bg-gray-200 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <h4 className="text-lg font-bold text-gray-900 mt-2">
+                      {term.term}
+                    </h4>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {term.definition}
+                    </p>
+                    {term.category && (
+                      <span className="inline-block mt-2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                        {term.category}
+                      </span>
+                    )}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleApprove(term._id)}
+                        disabled={approveLoadingId === term._id}
+                        className="flex-1 min-w-[5rem] bg-green-600 text-white py-1 rounded text-sm hover:bg-green-700 cursor-pointer disabled:opacity-50"
+                      >
+                        {approveLoadingId === term._id
+                          ? "Approving..."
+                          : "Approve"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startEditAndApprove(term)}
+                        className="flex-1 min-w-[5rem] bg-indigo-100 text-indigo-700 py-1 rounded text-sm hover:bg-indigo-200 cursor-pointer"
+                      >
+                        Edit & Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRejectTargetId(term._id);
+                          setRejectReason("");
+                          setEditTargetId(null);
+                        }}
+                        className="flex-1 min-w-[5rem] bg-red-100 text-red-700 py-1 rounded text-sm hover:bg-red-200 cursor-pointer"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </>
                 )}
-                <div className="mt-4 flex space-x-2">
-                  <button
-                    type="button"
-                    onClick={() => handleApprove(term._id)}
-                    className="flex-1 bg-green-600 text-white py-1 rounded text-sm hover:bg-green-700 cursor-pointer"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(term)}
-                    className="flex-1 bg-red-100 text-red-700 py-1 rounded text-sm hover:bg-red-200 cursor-pointer"
-                  >
-                    Reject
-                  </button>
-                </div>
               </div>
             ))}
           </div>

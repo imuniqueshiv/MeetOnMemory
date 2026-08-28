@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { STATUS_STYLES, PRIORITY_STYLES } from "../../utils/taskStyles";
 import DependencyManager from "../DependencyManager";
+import ActionItemChangeLog from "../action-items/ActionItemChangeLog";
 
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -219,6 +220,11 @@ export default function TaskDetailsModal({
 
             {/* Task Dependency Manager */}
             <DependencyManager task={selectedTask} />
+
+            {/* Audit History / Changelog */}
+            {selectedTask._id && (
+              <ActionItemChangeLog actionItemId={selectedTask._id} />
+            )}
           </div>
         </div>
       </div>

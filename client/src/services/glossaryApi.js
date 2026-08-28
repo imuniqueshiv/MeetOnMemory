@@ -38,11 +38,23 @@ export const deleteTerm = async (id) => {
 };
 
 /**
- * Approve a pending term
+ * Approve a pending term, optionally with corrected fields (#2245).
  * @param {string} id
+ * @param {Object} [edits]
  */
-export const approveTerm = async (id) => {
-  const { data } = await api.post(`/api/glossary/${id}/approve`);
+export const approveTerm = async (id, edits = undefined) => {
+  const payload = edits && Object.keys(edits).length > 0 ? edits : undefined;
+  const { data } = await api.post(`/api/glossary/${id}/approve`, payload);
+  return data;
+};
+
+/**
+ * Reject a pending term with a reason (#2245).
+ * @param {string} id
+ * @param {string} reason
+ */
+export const rejectTerm = async (id, reason) => {
+  const { data } = await api.post(`/api/glossary/${id}/reject`, { reason });
   return data;
 };
 

@@ -10,6 +10,13 @@ export const updateCostConfig = async (configData) => {
   return response.data;
 };
 
+export const getMeetingCostDetails = async (meetingId) => {
+  const response = await apiClient.get(
+    `/api/meeting-cost/meeting/${meetingId}`,
+  );
+  return response.data;
+};
+
 export const getOrgCostAnalytics = async (params) => {
   const response = await apiClient.get("/api/meeting-cost/analytics/org", {
     params,
@@ -29,5 +36,12 @@ export const exportCostReport = async (params) => {
     params,
     responseType: "blob", // Important for downloading files
   });
+  return response.data;
+};
+
+export const getEnterpriseCostResourceEngine = async (timeframe = "30d") => {
+  const response = await apiClient.get(
+    `/api/meeting-cost/enterprise-engine?timeframe=${timeframe}`,
+  );
   return response.data;
 };

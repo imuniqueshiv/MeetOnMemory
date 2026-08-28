@@ -148,6 +148,15 @@ vi.mock("../../components/meeting-details/AgendaPacingReport", () => ({
 vi.mock("../../components/meeting-details/ClipManager", () => ({
   default: () => null,
 }));
+vi.mock("../../components/meeting-details/AttachmentPanel", () => ({
+  default: () => null,
+}));
+vi.mock("../../components/meeting-details/DigestActions", () => ({
+  default: () => null,
+}));
+vi.mock("../../components/meeting-details/TopicSummary", () => ({
+  default: () => null,
+}));
 
 const renderDetails = () =>
   render(

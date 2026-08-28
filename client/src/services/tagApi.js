@@ -21,6 +21,23 @@ export const tagApi = {
     return await apiClient.delete(`/api/tags/${id}`);
   },
 
+  // Merge tags (admin only)
+  mergeTags: async (mergeData) => {
+    return await apiClient.post("/api/tags/merge", mergeData);
+  },
+
+  // Bulk retag meetings (admin only)
+  bulkRetag: async (retagData) => {
+    return await apiClient.post("/api/tags/bulk-retag", retagData);
+  },
+
+  // Export tags taxonomy CSV
+  exportTags: async () => {
+    return await apiClient.get("/api/tags/export", {
+      responseType: "blob",
+    });
+  },
+
   // Autocomplete tags based on query prefix
   autocomplete: async (query) => {
     return await apiClient.get(

@@ -18,6 +18,32 @@ export const isE2eeEnabled = () => {
 };
 
 /**
+ * Check if E2EE is enabled for a given organization or globally (Issue #2263).
+ */
+export const isOrgE2eeEnabled = (organization) => {
+  if (organization) {
+    const e2ee = organization.e2eeSettings || organization;
+    if (typeof e2ee?.enabled === "boolean") {
+      return e2ee.enabled;
+    }
+  }
+  return isE2eeEnabled();
+};
+
+/**
+ * Check if E2EE is enforced org-wide for all meetings in an organization (Issue #2263).
+ */
+export const isOrgE2eeEnforced = (organization) => {
+  if (organization) {
+    const e2ee = organization.e2eeSettings || organization;
+    if (typeof e2ee?.enforceOrgWide === "boolean") {
+      return e2ee.enforceOrgWide && isOrgE2eeEnabled(organization);
+    }
+  }
+  return false;
+};
+
+/**
  * Valid ciphertext envelope from the client.
  */
 export const isEncryptedTranscriptPayload = (value) => {

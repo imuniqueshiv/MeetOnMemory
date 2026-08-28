@@ -2,6 +2,12 @@ import apiClient from "./apiClient";
 
 export const userApi = {
   updateProfile: (data) => apiClient.put("/api/user/update", data),
+  uploadAvatar: (formData) =>
+    apiClient.post("/api/user/avatar", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }),
   getDashboardPreferences: () =>
     apiClient.get("/api/user/preferences/dashboard"),
   updateDashboardPreferences: (data) =>

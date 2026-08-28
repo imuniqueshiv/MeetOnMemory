@@ -1,6 +1,9 @@
 import { z } from "zod";
+import mongoose from "mongoose";
 import MeetingSeries from "../models/meetingSeriesModel.js";
 import Meeting from "../models/meetingModel.js";
+import ActionItem from "../models/actionItemModel.js";
+import Decision from "../models/decisionModel.js";
 import { parseISO } from "date-fns";
 import { parsePagination } from "../utils/pagination.js";
 import { normalizeAgendaItems } from "../utils/agendaOrdering.js";
@@ -44,6 +47,13 @@ const createSeriesSchema = z.object({
   duration: z.number().optional().default(60),
   location: z.string().optional(),
   venue: z.string().optional(),
+  venueCoordinates: z
+    .object({
+      lat: z.number().finite().nullable().optional(),
+      lng: z.number().finite().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
   participants: z
     .array(
       z.object({
@@ -83,6 +93,7 @@ export const createSeries = async (req, res) => {
       duration,
       location,
       venue,
+      venueCoordinates,
       participants,
       agendaItems,
       auditNote,
@@ -155,6 +166,7 @@ export const createSeries = async (req, res) => {
       duration,
       location,
       venue,
+      venueCoordinates: venueCoordinates || { lat: null, lng: null },
       participants,
       // `insertMany` bypasses the document `pre("validate")` hook that
       // normally runs `normalizeAgendaItems`, so series-created meetings had
@@ -456,6 +468,104 @@ export const cancelSeries = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error cancelling meeting series",
+    });
+  }
+};
+
+export const getSeriesDrift = async (req, res) => {
+  try {
+    const orgId = req.user?.organization || req.user?.organizationId || null;
+    const seriesId = req.params.id;
+
+    if (!mongoose.isValidObjectId(seriesId)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid series ID" });
+    }
+
+    const query = { _id: seriesId };
+    if (orgId) {
+      query.organization = orgId;
+    }
+
+    const series = await MeetingSeries.findOne(query);
+    if (!series) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Series not found" });
+    }
+
+    const meetingQuery = { series: seriesId, status: "completed" };
+    if (orgId) {
+      meetingQuery.organization = orgId;
+    }
+
+    const meetings = await Meeting.find(meetingQuery)
+      .sort({ seriesOccurrence: 1, date: 1 })
+      .select("_id seriesOccurrence date duration participants");
+
+    if (meetings.length === 0) {
+      return res.json({ success: true, drift: [], summary: null });
+    }
+
+    const meetingIds = meetings.map((m) => m._id);
+
+    // Aggregate Action Items
+    const actionItemMatch = { sourceMeetingId: { $in: meetingIds } };
+    if (orgId) actionItemMatch.organization = orgId;
+
+    const actionItemsCount = await ActionItem.aggregate([
+      { $match: actionItemMatch },
+      { $group: { _id: "$sourceMeetingId", count: { $sum: 1 } } },
+    ]);
+
+    // Aggregate Decisions
+    const decisionMatch = { sourceMeetingId: { $in: meetingIds } };
+    if (orgId) decisionMatch.organization = orgId;
+
+    const decisionsCount = await Decision.aggregate([
+      { $match: decisionMatch },
+      { $group: { _id: "$sourceMeetingId", count: { $sum: 1 } } },
+    ]);
+
+    const actionItemMap = {};
+    actionItemsCount.forEach((item) => {
+      actionItemMap[item._id.toString()] = item.count;
+    });
+
+    const decisionMap = {};
+    decisionsCount.forEach((item) => {
+      decisionMap[item._id.toString()] = item.count;
+    });
+
+    const driftData = meetings.map((m) => ({
+      meetingId: m._id,
+      occurrence: m.seriesOccurrence,
+      date: m.date,
+      duration: m.duration || 0,
+      attendanceCount: m.participants ? m.participants.length : 0,
+      actionItemCount: actionItemMap[m._id.toString()] || 0,
+      decisionCount: decisionMap[m._id.toString()] || 0,
+    }));
+
+    let summary = null;
+    if (driftData.length > 1) {
+      const first = driftData[0];
+      const last = driftData[driftData.length - 1];
+      summary = {
+        durationChange: last.duration - first.duration,
+        attendanceChange: last.attendanceCount - first.attendanceCount,
+        actionItemChange: last.actionItemCount - first.actionItemCount,
+        decisionChange: last.decisionCount - first.decisionCount,
+      };
+    }
+
+    res.json({ success: true, drift: driftData, summary });
+  } catch (error) {
+    console.error("Error calculating meeting series drift:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error calculating meeting series drift",
     });
   }
 };

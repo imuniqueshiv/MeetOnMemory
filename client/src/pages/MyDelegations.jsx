@@ -9,6 +9,7 @@ import {
   XCircle,
 } from "lucide-react";
 import api from "../services/apiClient.js";
+import ConfirmModal from "../components/ConfirmModal.jsx";
 
 const MyDelegations = () => {
   const [delegatedByMe, setDelegatedByMe] = useState([]);
@@ -19,6 +20,17 @@ const MyDelegations = () => {
   const [selectedBriefing, setSelectedBriefing] = useState(null);
   const [selectedReport, setSelectedReport] = useState(null);
 
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    id: null,
+    action: null,
+    title: "",
+    message: "",
+    variant: "warning",
+    confirmText: "",
+  });
+  const [actionLoading, setActionLoading] = useState(false);
+
   useEffect(() => {
     fetchDelegations();
   }, []);
@@ -26,8 +38,8 @@ const MyDelegations = () => {
   const fetchDelegations = async () => {
     try {
       const response = await api.get("/api/delegations/my-delegations");
-      setDelegatedByMe(response.data.delegatedByMe || []);
-      setDelegatedToMe(response.data.delegatedToMe || []);
+      setDelegatedByMe(response?.data?.delegatedByMe || []);
+      setDelegatedToMe(response?.data?.delegatedToMe || []);
     } catch (err) {
       console.error(err);
       toast.error("Failed to fetch delegations.");
@@ -36,7 +48,46 @@ const MyDelegations = () => {
     }
   };
 
-  const handleAction = async (id, action) => {
+  const promptAction = (id, action) => {
+    let title = "";
+    let message = "";
+    let variant = "warning";
+    let confirmText = "";
+
+    if (action === "approve") {
+      title = "Approve Delegation Request";
+      message =
+        "Are you sure you want to approve this delegation request? You will assume responsibility for attending and voting.";
+      variant = "warning";
+      confirmText = "Approve";
+    } else if (action === "reject") {
+      title = "Decline Delegation Request";
+      message = "Are you sure you want to decline this delegation request?";
+      variant = "danger";
+      confirmText = "Decline";
+    } else if (action === "revoke") {
+      title = "Revoke Delegation Request";
+      message = "Are you sure you want to revoke this delegation request?";
+      variant = "danger";
+      confirmText = "Revoke";
+    }
+
+    setConfirmModal({
+      isOpen: true,
+      id,
+      action,
+      title,
+      message,
+      variant,
+      confirmText,
+    });
+  };
+
+  const executeAction = async () => {
+    const { id, action } = confirmModal;
+    if (!id || !action) return;
+
+    setActionLoading(true);
     try {
       await api.post(`/api/delegations/${id}/${action}`);
       toast.success(`Delegation ${action} successfully.`);
@@ -45,6 +96,9 @@ const MyDelegations = () => {
       toast.error(
         err.response?.data?.error || `Failed to ${action} delegation.`,
       );
+    } finally {
+      setActionLoading(false);
+      setConfirmModal((prev) => ({ ...prev, isOpen: false }));
     }
   };
 
@@ -92,7 +146,7 @@ const MyDelegations = () => {
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab("byMe")}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors cursor-pointer ${
               activeTab === "byMe"
                 ? "border-blue-500 text-blue-600 dark:text-blue-400"
                 : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:border-gray-300"
@@ -102,7 +156,7 @@ const MyDelegations = () => {
           </button>
           <button
             onClick={() => setActiveTab("toMe")}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors cursor-pointer ${
               activeTab === "toMe"
                 ? "border-blue-500 text-blue-600 dark:text-blue-400"
                 : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:border-gray-300"
@@ -167,15 +221,15 @@ const MyDelegations = () => {
                           {activeTab === "toMe" && del.status === "pending" && (
                             <>
                               <button
-                                onClick={() => handleAction(del._id, "approve")}
-                                className="text-green-600 hover:text-green-900"
+                                onClick={() => promptAction(del._id, "approve")}
+                                className="text-green-600 hover:text-green-900 cursor-pointer p-1"
                                 title="Accept"
                               >
                                 <CheckCircle className="w-5 h-5" />
                               </button>
                               <button
-                                onClick={() => handleAction(del._id, "reject")}
-                                className="text-red-600 hover:text-red-900"
+                                onClick={() => promptAction(del._id, "reject")}
+                                className="text-red-600 hover:text-red-900 cursor-pointer p-1"
                                 title="Reject"
                               >
                                 <XCircle className="w-5 h-5" />
@@ -188,8 +242,8 @@ const MyDelegations = () => {
                             (del.status === "pending" ||
                               del.status === "approved") && (
                               <button
-                                onClick={() => handleAction(del._id, "revoke")}
-                                className="text-xs text-red-600 hover:text-red-900 font-medium"
+                                onClick={() => promptAction(del._id, "revoke")}
+                                className="text-xs text-red-600 hover:text-red-900 font-medium cursor-pointer"
                               >
                                 Revoke
                               </button>
@@ -201,7 +255,7 @@ const MyDelegations = () => {
                               onClick={() =>
                                 setSelectedBriefing(del.contextBriefing)
                               }
-                              className="text-xs text-blue-600 hover:text-blue-900 font-medium flex items-center gap-1"
+                              className="text-xs text-blue-600 hover:text-blue-900 font-medium flex items-center gap-1 cursor-pointer"
                             >
                               <FileText className="w-4 h-4" /> Briefing
                             </button>
@@ -211,7 +265,7 @@ const MyDelegations = () => {
                               onClick={() =>
                                 setSelectedReport(del.postMeetingReport)
                               }
-                              className="text-xs text-purple-600 hover:text-purple-900 font-medium flex items-center gap-1"
+                              className="text-xs text-purple-600 hover:text-purple-900 font-medium flex items-center gap-1 cursor-pointer"
                             >
                               <FileText className="w-4 h-4" /> Report
                             </button>
@@ -227,6 +281,19 @@ const MyDelegations = () => {
         </div>
       )}
 
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={executeAction}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText="Cancel"
+        isLoading={actionLoading}
+        loadingText="Processing..."
+        variant={confirmModal.variant}
+      />
+
       {/* Briefing Modal */}
       {selectedBriefing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
@@ -240,7 +307,7 @@ const MyDelegations = () => {
             <div className="mt-6 flex justify-end">
               <button
                 onClick={() => setSelectedBriefing(null)}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors cursor-pointer"
               >
                 Close
               </button>
@@ -262,7 +329,7 @@ const MyDelegations = () => {
             <div className="mt-6 flex justify-end">
               <button
                 onClick={() => setSelectedReport(null)}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors cursor-pointer"
               >
                 Close
               </button>

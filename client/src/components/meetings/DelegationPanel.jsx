@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { Search, Send, User, Shield, Briefcase, Eye } from "lucide-react";
 import api from "../../services/apiClient.js";
+import ConfirmModal from "../ConfirmModal.jsx";
 
 const SCOPES = [
   {
@@ -36,6 +37,7 @@ const DelegationPanel = ({ meetingId, participants }) => {
   const [delegateeId, setDelegateeId] = useState("");
   const [selectedScopes, setSelectedScopes] = useState(["full"]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showRevokeModal, setShowRevokeModal] = useState(false);
 
   useEffect(() => {
     fetchDelegation();
@@ -45,7 +47,7 @@ const DelegationPanel = ({ meetingId, participants }) => {
   const fetchDelegation = async () => {
     try {
       const response = await api.get(`/api/delegations/meeting/${meetingId}`);
-      if (response.data.delegation) {
+      if (response?.data?.delegation) {
         setDelegation(response.data.delegation);
       }
     } catch (err) {
@@ -96,14 +98,8 @@ const DelegationPanel = ({ meetingId, participants }) => {
     }
   };
 
-  const handleRevoke = async () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to revoke this delegation request?",
-      )
-    )
-      return;
-
+  const confirmRevoke = async () => {
+    if (!delegation?._id) return;
     setIsSubmitting(true);
     try {
       const response = await api.post(
@@ -115,6 +111,7 @@ const DelegationPanel = ({ meetingId, participants }) => {
       toast.error(err.response?.data?.error || "Failed to revoke delegation");
     } finally {
       setIsSubmitting(false);
+      setShowRevokeModal(false);
     }
   };
 
@@ -126,45 +123,61 @@ const DelegationPanel = ({ meetingId, participants }) => {
 
   if (delegation) {
     return (
-      <div className="p-4 border border-blue-200 rounded-lg bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800 mb-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-2">
-              <Shield className="w-5 h-5" />
-              Active Delegation
-            </h3>
-            <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-              Status:{" "}
-              <span className="font-medium capitalize">
-                {delegation.status}
-              </span>
-            </p>
-            <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
-              Delegatee: {delegation.delegateeId?.name || "Unknown"}
-            </p>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {delegation.scope.map((s) => (
-                <span
-                  key={s}
-                  className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full dark:bg-blue-800 dark:text-blue-200 capitalize"
-                >
-                  {s.replace("_", " ")}
+      <>
+        <div className="p-4 border border-blue-200 rounded-lg bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800 mb-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-2">
+                <Shield className="w-5 h-5" />
+                Active Delegation
+              </h3>
+              <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                Status:{" "}
+                <span className="font-medium capitalize">
+                  {delegation.status}
                 </span>
-              ))}
+              </p>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+                Delegatee: {delegation.delegateeId?.name || "Unknown"}
+              </p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {delegation.scope.map((s) => (
+                  <span
+                    key={s}
+                    className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full dark:bg-blue-800 dark:text-blue-200 capitalize"
+                  >
+                    {s.replace("_", " ")}
+                  </span>
+                ))}
+              </div>
             </div>
+            {delegation.status === "pending" ||
+            delegation.status === "approved" ? (
+              <button
+                type="button"
+                onClick={() => setShowRevokeModal(true)}
+                disabled={isSubmitting}
+                className="text-sm text-red-600 hover:text-red-700 font-medium cursor-pointer disabled:opacity-50"
+              >
+                Revoke
+              </button>
+            ) : null}
           </div>
-          {delegation.status === "pending" ||
-          delegation.status === "approved" ? (
-            <button
-              onClick={handleRevoke}
-              disabled={isSubmitting}
-              className="text-sm text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
-            >
-              Revoke
-            </button>
-          ) : null}
         </div>
-      </div>
+
+        <ConfirmModal
+          isOpen={showRevokeModal}
+          onClose={() => setShowRevokeModal(false)}
+          onConfirm={confirmRevoke}
+          title="Revoke Delegation"
+          message="Are you sure you want to revoke this delegation request?"
+          confirmText="Revoke"
+          cancelText="Cancel"
+          isLoading={isSubmitting}
+          loadingText="Revoking..."
+          variant="danger"
+        />
+      </>
     );
   }
 
@@ -250,7 +263,7 @@ const DelegationPanel = ({ meetingId, participants }) => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 cursor-pointer"
           >
             {isSubmitting ? "Sending..." : "Request Delegation"}
             <Send className="w-4 h-4" />

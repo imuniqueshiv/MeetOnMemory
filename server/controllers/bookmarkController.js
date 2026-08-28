@@ -81,7 +81,7 @@ export const toggleBookmark = async (req, res) => {
 export const getBookmarks = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { collectionName } = req.query;
+    const { collectionName, search } = req.query;
 
     const query = { user: userId };
     if (collectionName) {
@@ -103,7 +103,18 @@ export const getBookmarks = async (req, res) => {
       select: "title date time duration _id",
     });
 
-    const responseData = bookmarks.map((b) => {
+    let filteredBookmarks = bookmarks;
+    if (search && typeof search === "string") {
+      const regex = new RegExp(search, "i");
+      filteredBookmarks = bookmarks.filter(
+        (b) =>
+          regex.test(b.notes || "") ||
+          regex.test(b.collectionName || "") ||
+          (b.meeting && regex.test(b.meeting.title || "")),
+      );
+    }
+
+    const responseData = filteredBookmarks.map((b) => {
       const obj = b.toObject();
       obj.rawMeetingId = rawMeetingIds.get(b._id.toString()) || null;
       return obj;
@@ -365,5 +376,65 @@ export const getBookmarkedMeetings = async (req, res) => {
     res
       .status(500)
       .json({ message: "Server error fetching bookmarked meetings" });
+  }
+};
+
+// @desc    Share a collection with org members
+// @route   POST /api/bookmarks/collections/:name/share
+// @access  Private
+export const shareCollection = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const collectionName = String(req.params.name);
+    const { emails } = req.body;
+
+    if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Emails array is required to share collection" });
+    }
+
+    const User = (await import("../models/userModel.js")).default;
+    // Find users in the same organization
+    const targetUsers = await User.find({
+      email: { $in: emails },
+      organization: req.user.organization,
+    });
+
+    if (targetUsers.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No valid users found in your organization." });
+    }
+
+    const bookmarks = await Bookmark.find({ user: userId, collectionName });
+    if (bookmarks.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Collection is empty or does not exist." });
+    }
+
+    const newBookmarks = [];
+    for (const targetUser of targetUsers) {
+      for (const b of bookmarks) {
+        newBookmarks.push({
+          user: targetUser._id,
+          meeting: b.meeting,
+          collectionName: `Shared: ${collectionName}`,
+          notes: b.notes,
+          color: b.color,
+        });
+      }
+    }
+
+    // Insert ignoring duplicates (if target user already bookmarked the meeting)
+    await Bookmark.insertMany(newBookmarks, { ordered: false }).catch(() => {
+      // Ignore bulk write errors from unique index constraint
+    });
+
+    res.status(200).json({ message: "Collection shared successfully." });
+  } catch (error) {
+    console.error("Error in shareCollection:", error);
+    res.status(500).json({ message: "Server error sharing collection" });
   }
 };

@@ -15,9 +15,19 @@ export const toggleBookmarkAPI = async (
   return response.data;
 };
 
-export const getBookmarksAPI = async (collectionName) => {
-  const params = collectionName ? { collectionName } : {};
+export const getBookmarksAPI = async (collectionName, search) => {
+  const params = {};
+  if (collectionName) params.collectionName = collectionName;
+  if (search) params.search = search;
   const response = await apiClient.get("/api/bookmarks", { params });
+  return response.data;
+};
+
+export const shareCollectionAPI = async (name, emails) => {
+  const response = await apiClient.post(
+    `/api/bookmarks/collections/${encodeURIComponent(name)}/share`,
+    { emails },
+  );
   return response.data;
 };
 

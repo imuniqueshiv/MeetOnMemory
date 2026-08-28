@@ -1,5 +1,7 @@
 import React from "react";
 import RecurrenceSelector from "../../../../components/meetings/RecurrenceSelector";
+import VenueMapPreview from "../../../../components/meetings/VenueMapPreview";
+import TagAutocomplete from "../../../../components/meetings/TagAutocomplete.jsx";
 
 const MeetingInformationForm = ({
   scheduleData,
@@ -61,6 +63,22 @@ const MeetingInformationForm = ({
           rows="3"
           className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
         ></textarea>
+      </div>
+
+      {/* Meeting Tags */}
+      <div className="mb-6">
+        <label className="block mb-2 font-semibold text-gray-700 dark:text-gray-300">
+          Meeting Tags
+        </label>
+        <TagAutocomplete
+          selectedTags={scheduleData.tags || []}
+          setSelectedTags={(tags) =>
+            setScheduleData((prev) => ({
+              ...prev,
+              tags: typeof tags === "function" ? tags(prev.tags || []) : tags,
+            }))
+          }
+        />
       </div>
 
       {/* Date & Time */}
@@ -135,6 +153,25 @@ const MeetingInformationForm = ({
           />
         </div>
       </div>
+
+      {/* Venue Map Preview for physical venues or virtual links */}
+      {scheduleData.venue && (
+        <div className="mb-6">
+          <label className="block mb-2 font-semibold text-gray-700 dark:text-gray-300 text-sm">
+            Venue Preview
+          </label>
+          <VenueMapPreview
+            venue={scheduleData.venue}
+            coordinates={scheduleData.venueCoordinates}
+            onCoordinatesResolved={(coords) => {
+              setScheduleData((prev) => ({
+                ...prev,
+                venueCoordinates: coords,
+              }));
+            }}
+          />
+        </div>
+      )}
 
       {/* Recurrence Selector */}
       <RecurrenceSelector

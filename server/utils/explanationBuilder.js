@@ -1,24 +1,11 @@
 // ==============================================
 // explanationBuilder.js
-// Implements FEATURE #270: Explainable AI Memory Retrieval.
-//
-// Turns the raw signals already computed during retrieval (semantic
-// similarity, graph traversal hops, access history, relationship
-// confidence) into a human-readable "why was this returned?" explanation
-// object, without exposing internal implementation details (embeddings,
-// raw DB documents, etc).
-//
-// Deliberately reuses the existing importance-scoring primitives
-// (utils/importanceScoring.js) instead of re-deriving recency/confidence
-// logic, so the two features stay consistent with each other.
+// Implements FEATURE #270: Explainable AI Memory Retrieval and
+// FEATURE #2173: Meeting Search Explainability Panel.
 // ==============================================
 
 import { scoreRecency, scoreAiConfidence } from "./importanceScoring.js";
 
-// A memory is considered "recently accessed" once its recency score
-// (0-100, exponential decay - see importanceScoring.js) crosses this
-// threshold. With the 14-day half-life used there, ~60 corresponds to
-// roughly the last week.
 const RECENTLY_ACCESSED_THRESHOLD = 60;
 
 export function confidenceLabel(score) {
@@ -28,23 +15,10 @@ export function confidenceLabel(score) {
 }
 
 /**
- * Builds an explanation object for a single retrieval result.
+ * Builds the human-readable retrieval explanation.
  *
- * @param {object} params
- * @param {"meeting"|"decision"|"actionItem"} params.type
- * @param {number} [params.semanticScore=0] - 0-1 cosine similarity / vector match
- * @param {number} [params.graphScore=0] - 0-1 graph-connectivity score (0 for direct semantic hits)
- * @param {number} [params.hops=0] - knowledge-graph hops from a semantic seed (0 = direct match)
- * @param {number|null} [params.vectorRank=null] - 1-based rank in the semantic search results
- * @param {object|null} [params.memory=null] - decision/action-item metadata (relatesTo,
- *   accessCount, lastAccessedAt, feedbackScore, feedbackCount, organization). null for
- *   meetings, which don't carry this data today.
- * @param {string|null} [params.organization=null] - the requesting user's organization,
- *   for the "organization relevance" check.
- * @param {object|null} [params.workspace=null] - workspace metadata for federated results,
- *   e.g. { id, name, slug }. When present, overrides the simple boolean match in
- *   organizationRelevance with full workspace details.
- * @param {Date} [params.now=new Date()] - injection point for deterministic tests.
+ * `searchEvidence` is intentionally a separate, sanitized payload. It is
+ * produced only after the caller has applied tenant/authorization filtering.
  */
 export function buildExplanation({
   type,
@@ -55,6 +29,7 @@ export function buildExplanation({
   memory = null,
   organization = null,
   workspace = null,
+  searchEvidence = null,
   now = new Date(),
 }) {
   const relatesTo = memory?.relatesTo || [];
@@ -67,9 +42,6 @@ export function buildExplanation({
     ? scoreAiConfidence(relatesTo)
     : null;
 
-  // Blend the two retrieval-time signals (0-1 each) into a single 0-100
-  // confidence figure, then fold in relationship confidence (if this memory
-  // has graph relationships to draw on) as a smaller, stabilizing factor.
   const blendedRetrievalConfidence = Math.round(
     (semanticScore * 0.6 + graphScore * 0.4) * 100,
   );
@@ -122,6 +94,7 @@ export function buildExplanation({
             matches: String(memory.organization || "") === String(organization),
           }
         : null,
+    searchEvidence,
     retrievalMetadata: {
       type,
       retrievedAt: now.toISOString(),

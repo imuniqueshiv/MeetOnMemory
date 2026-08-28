@@ -10,7 +10,7 @@ import {
   deleteAttachment,
 } from "../controllers/attachmentController.js";
 import userAuth from "../middleware/userAuth.js";
-import { requireOrgAccess } from "../middleware/rbac.js";
+import { requireOrgAccess, requirePermission } from "../middleware/rbac.js";
 import Meeting from "../models/meetingModel.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -100,7 +100,16 @@ router.use(userAuth);
 router.use(requireOrgAccess(Meeting));
 
 // Route: /api/meetings/:meetingId/attachments
-router.post("/", upload.single("file"), uploadAttachment);
+//
+// Org access is established above. Upload is restricted to roles that may
+// mutate attachments; delete stays in the controller so the original uploader
+// (including members) can still remove their own file.
+router.post(
+  "/",
+  requirePermission("attachments", "upload"),
+  upload.single("file"),
+  uploadAttachment,
+);
 router.get("/", listAttachments);
 router.get("/:id/download", downloadAttachment);
 router.delete("/:id", deleteAttachment);

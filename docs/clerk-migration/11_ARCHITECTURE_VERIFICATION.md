@@ -1,5 +1,10 @@
 # Architecture Verification Report
 
+> [!WARNING]
+> **ARCHIVED / HISTORICAL DOCUMENTATION**  
+> The Clerk authentication migration has been fully completed. Clerk is now the sole identity provider for MeetOnMemory.  
+> For current contributor setup and development instructions, please refer to [AUTH_CONTRIBUTOR_RUNBOOK.md](../AUTH_CONTRIBUTOR_RUNBOOK.md).
+
 > **Historical snapshot** (pre–Clerk cutover inventory). Last reconciled for Issue #1139 on **2026-08-06**. Several rows below describe the former JWT + CSRF stack; where status has changed since planning time, that is noted in the Status / Evidence columns.
 
 Evidence-based checklist for the current auth system.

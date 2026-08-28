@@ -1,5 +1,10 @@
 # Migration Checklist
 
+> [!WARNING]
+> **ARCHIVED / HISTORICAL DOCUMENTATION**  
+> The Clerk authentication migration has been fully completed. Clerk is now the sole identity provider for MeetOnMemory.  
+> For current contributor setup and development instructions, please refer to [AUTH_CONTRIBUTOR_RUNBOOK.md](../AUTH_CONTRIBUTOR_RUNBOOK.md).
+
 Use this at the end of **every** phase before authorizing the next.
 
 Copy into the phase tracking issue and check boxes in comments.

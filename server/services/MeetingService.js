@@ -173,6 +173,7 @@ export const buildDuplicateMeetingData = (meeting) => {
     duration: plain.duration ?? null,
     location: plain.location || "",
     venue: plain.venue || "",
+    venueCoordinates: plain.venueCoordinates || { lat: null, lng: null },
     participants: (plain.participants || []).map((participant) => ({
       name: participant.name || "",
       email: participant.email || "",
@@ -208,16 +209,29 @@ export const createMeeting = async (uploaderId, orgId, data) => {
     duration: data.duration || null,
     location: data.location || "",
     venue: data.venue || "",
+    venueCoordinates: data.venueCoordinates || { lat: null, lng: null },
     participants: data.participants || [],
     agendaItems: normalizeAgendaItems(data.agendaItems),
     policyDetails: data.policyDetails || null,
     recordingType: data.recordingType || "upload",
+    tags: data.tags || (data.metadata && data.metadata.tags) || [],
     transcript: "",
     summary: "",
     structuredMoM: null,
     status: "uploaded",
     auditNote: data.auditNote || "",
   });
+
+  try {
+    const { initializeAttendance } =
+      await import("./meetingAttendanceService.js");
+    await initializeAttendance(meeting._id, meeting.participants);
+  } catch (err) {
+    console.error(
+      "⚠️ Attendance initialization error (continuing):",
+      err.message,
+    );
+  }
 
   scheduleIndexMeeting(meeting);
 
@@ -367,6 +381,7 @@ export const generateMeetingMoM = async (
   transcript,
   date,
   title,
+  templateId = null,
 ) => {
   const user = await User.findById(userId);
   if (!user) throw new ForbiddenError("User not found");
@@ -415,7 +430,16 @@ export const generateMeetingMoM = async (
 
   let customInstructions = null;
   try {
-    if (meeting) {
+    if (templateId && isValidObjectId(templateId)) {
+      const template = await AiSummaryTemplate.findById(templateId);
+      if (template) {
+        customInstructions = template.customInstructions;
+        if (meeting) {
+          meeting.aiSummaryTemplate = template._id;
+          await meeting.save();
+        }
+      }
+    } else if (meeting) {
       if (meeting.aiSummaryTemplate) {
         const template = await AiSummaryTemplate.findById(
           meeting.aiSummaryTemplate,
@@ -658,6 +682,7 @@ export const updateMeeting = async (userId, meetingId, data, doc = null) => {
     duration,
     location,
     venue,
+    venueCoordinates,
     tags,
     agendaItems,
   } = data;
@@ -670,6 +695,8 @@ export const updateMeeting = async (userId, meetingId, data, doc = null) => {
   if (duration !== undefined) meeting.duration = duration;
   if (location !== undefined) meeting.location = location;
   if (venue !== undefined) meeting.venue = venue;
+  if (venueCoordinates !== undefined)
+    meeting.venueCoordinates = venueCoordinates;
   if (tags) meeting.tags = tags;
   if (agendaItems !== undefined) {
     meeting.agendaItems = normalizeAgendaItems(agendaItems);

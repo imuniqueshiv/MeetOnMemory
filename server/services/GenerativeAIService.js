@@ -944,3 +944,62 @@ Return ONLY a valid JSON object matching this structure (no markdown formatting,
 
   return parsed.summary;
 };
+
+export const generateAbsenteeCatchUpAI = async (
+  meetingTitle,
+  absenteeName,
+  meetingSummary,
+  actionItems,
+  decisions,
+  mentions,
+) => {
+  if (!GEMINI_API_KEY) {
+    throw new Error(
+      "Absentee catch-up generation is unavailable: GEMINI_API_KEY is not configured.",
+    );
+  }
+
+  const prompt = `
+You are an AI assistant helping to prepare a personalized meeting catch-up digest for an absent participant.
+The participant's name is ${absenteeName}, and they missed the meeting: "${meetingTitle}".
+
+Here is the general summary of the meeting:
+${JSON.stringify(meetingSummary, null, 2)}
+
+Here are the decisions made during the meeting:
+${JSON.stringify(decisions, null, 2)}
+
+Here are the action items resulting from the meeting:
+${JSON.stringify(actionItems, null, 2)}
+
+Here are specific moments they were mentioned:
+${JSON.stringify(mentions, null, 2)}
+
+Based on this information, generate a concise, professional personalized catch-up report tailored specifically for ${absenteeName}. 
+The report should summarize what they missed, clearly state any decisions that affect them, highlight any action items assigned to them, and explain context around when they were mentioned.
+
+Return ONLY a valid JSON object matching this structure (no markdown formatting, no commentary):
+{
+  "catchUpReport": "A comprehensive 2-3 paragraph personalized catch-up report.",
+  "actionItemsAssigned": ["...", "..."],
+  "keyTakeaways": ["...", "..."]
+}
+`;
+
+  let outputText;
+  try {
+    outputText = await generateText(prompt, "Gemini absentee catch-up");
+  } catch (err) {
+    console.error("❌ Absentee catch-up generation failed:", err.message);
+    throw new Error(
+      `Absentee catch-up generation failed (${err.kind ?? AI_ERROR_KIND.UNKNOWN}): ${err.message}`,
+    );
+  }
+
+  const parsed = parseJsonOutput(outputText);
+  if (!parsed || !parsed.catchUpReport) {
+    throw new Error("Failed to parse Gemini JSON output for absentee catch-up");
+  }
+
+  return parsed;
+};

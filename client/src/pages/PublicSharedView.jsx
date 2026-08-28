@@ -10,9 +10,12 @@ import {
   MapPin,
   Clock,
   Users,
+  Paperclip,
+  Scissors,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import VenueMapPreview from "../components/meetings/VenueMapPreview";
 
 const PublicSharedView = () => {
   const { hash } = useParams();
@@ -25,6 +28,7 @@ const PublicSharedView = () => {
   const [passcodeError, setPasscodeError] = useState("");
 
   const [resource, setResource] = useState(null);
+  const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
     fetchResource();
@@ -38,6 +42,7 @@ const PublicSharedView = () => {
       const { data } = await publicSharedApi.getPublicResource(hash);
       if (data.success) {
         setResource(data);
+        setActiveTab("overview");
       }
     } catch (err) {
       if (
@@ -185,6 +190,19 @@ const PublicSharedView = () => {
 
   const { resourceType, data } = resource;
 
+  const meetingTabs = [
+    { id: "overview", label: "Overview" },
+    ...(data.includedSections?.transcript && data.transcriptExcerpt?.length
+      ? [{ id: "transcript", label: "Transcript" }]
+      : []),
+    ...(data.includedSections?.attachments && data.attachments?.length
+      ? [{ id: "attachments", label: "Attachments" }]
+      : []),
+    ...(data.includedSections?.clips && data.clips?.length
+      ? [{ id: "clips", label: "Clips" }]
+      : []),
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
@@ -198,6 +216,31 @@ const PublicSharedView = () => {
 
         {resourceType === "Meeting" ? (
           <div className="space-y-6">
+            {meetingTabs.length > 1 && (
+              <div
+                className="flex flex-wrap gap-2"
+                role="tablist"
+                aria-label="Shared meeting sections"
+              >
+                {meetingTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium cursor-pointer ${
+                      activeTab === tab.id
+                        ? "bg-indigo-600 text-white"
+                        : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8">
               <div className="flex items-start gap-4 mb-6">
                 <div className="p-3 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-lg shrink-0">
@@ -240,60 +283,150 @@ const PublicSharedView = () => {
                 </div>
               </div>
 
-              {data.summary && (
-                <div className="mt-8">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                    Meeting Summary
-                  </h3>
-                  <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {data.summary}
-                    </ReactMarkdown>
-                  </div>
+              {activeTab === "overview" && (
+                <>
+                  {(data.venue || data.venueCoordinates) && (
+                    <div className="mb-6">
+                      <VenueMapPreview
+                        venue={data.venue || data.location}
+                        coordinates={data.venueCoordinates}
+                      />
+                    </div>
+                  )}
+
+                  {data.summary && (
+                    <div className="mt-8">
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                        Meeting Summary
+                      </h3>
+                      <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {data.summary}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
+
+                  {data.structuredMoM && (
+                    <div className="mt-8 space-y-6">
+                      {data.structuredMoM.decisions &&
+                        data.structuredMoM.decisions.length > 0 && (
+                          <div className="bg-green-50 dark:bg-green-950/30 rounded-xl p-6 border border-green-100 dark:border-green-800/40">
+                            <h3 className="text-lg font-semibold text-green-900 dark:text-green-300 mb-4">
+                              Key Decisions
+                            </h3>
+                            <ul className="list-disc pl-5 space-y-2 text-green-800 dark:text-green-200">
+                              {data.structuredMoM.decisions.map((desc, idx) => (
+                                <li key={idx}>{desc}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                      {data.structuredMoM.action_items &&
+                        data.structuredMoM.action_items.length > 0 && (
+                          <div className="bg-amber-50 dark:bg-amber-950/30 rounded-xl p-6 border border-amber-100 dark:border-amber-800/40">
+                            <h3 className="text-lg font-semibold text-amber-900 dark:text-amber-300 mb-4">
+                              Action Items
+                            </h3>
+                            <ul className="space-y-3">
+                              {data.structuredMoM.action_items.map(
+                                (item, idx) => (
+                                  <li
+                                    key={idx}
+                                    className="flex items-start gap-3 bg-white dark:bg-gray-800 p-3 rounded-lg border border-amber-200 dark:border-amber-800/60"
+                                  >
+                                    <div className="flex-1 text-gray-800 dark:text-gray-200">
+                                      {item.task}
+                                    </div>
+                                    {item.assignee && (
+                                      <div className="text-xs font-medium bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 px-2 py-1 rounded">
+                                        {item.assignee}
+                                      </div>
+                                    )}
+                                  </li>
+                                ),
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {activeTab === "transcript" && data.transcriptExcerpt && (
+                <div
+                  className="mt-4 space-y-3"
+                  data-testid="shared-transcript-section"
+                >
+                  {data.transcriptExcerpt.map((segment, idx) => (
+                    <div
+                      key={idx}
+                      className="border border-gray-100 dark:border-gray-700 rounded-lg p-3"
+                    >
+                      <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 mb-1">
+                        {segment.speaker}
+                      </p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        {segment.text}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               )}
 
-              {data.structuredMoM && (
-                <div className="mt-8 space-y-6">
-                  {data.structuredMoM.decisions &&
-                    data.structuredMoM.decisions.length > 0 && (
-                      <div className="bg-green-50 dark:bg-green-950/30 rounded-xl p-6 border border-green-100 dark:border-green-800/40">
-                        <h3 className="text-lg font-semibold text-green-900 dark:text-green-300 mb-4">
-                          Key Decisions
-                        </h3>
-                        <ul className="list-disc pl-5 space-y-2 text-green-800 dark:text-green-200">
-                          {data.structuredMoM.decisions.map((desc, idx) => (
-                            <li key={idx}>{desc}</li>
-                          ))}
-                        </ul>
+              {activeTab === "attachments" && data.attachments && (
+                <ul
+                  className="mt-4 space-y-3"
+                  data-testid="shared-attachments-section"
+                >
+                  {data.attachments.map((file) => (
+                    <li
+                      key={file._id}
+                      className="flex items-center gap-3 border border-gray-100 dark:border-gray-700 rounded-lg p-3"
+                    >
+                      <Paperclip className="w-4 h-4 text-gray-500" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {file.fileName}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {file.mimeType} · {Math.round(file.fileSize / 1024)}{" "}
+                          KB
+                        </p>
                       </div>
-                    )}
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-                  {data.structuredMoM.action_items &&
-                    data.structuredMoM.action_items.length > 0 && (
-                      <div className="bg-amber-50 dark:bg-amber-950/30 rounded-xl p-6 border border-amber-100 dark:border-amber-800/40">
-                        <h3 className="text-lg font-semibold text-amber-900 dark:text-amber-300 mb-4">
-                          Action Items
-                        </h3>
-                        <ul className="space-y-3">
-                          {data.structuredMoM.action_items.map((item, idx) => (
-                            <li
-                              key={idx}
-                              className="flex items-start gap-3 bg-white dark:bg-gray-800 p-3 rounded-lg border border-amber-200 dark:border-amber-800/60"
-                            >
-                              <div className="flex-1 text-gray-800 dark:text-gray-200">
-                                {item.task}
-                              </div>
-                              {item.assignee && (
-                                <div className="text-xs font-medium bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 px-2 py-1 rounded">
-                                  {item.assignee}
-                                </div>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
+              {activeTab === "clips" && data.clips && (
+                <div
+                  className="mt-4 space-y-4"
+                  data-testid="shared-clips-section"
+                >
+                  {data.clips.map((clip) => (
+                    <div
+                      key={clip._id}
+                      className="border border-gray-100 dark:border-gray-700 rounded-lg p-4"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <Scissors className="w-4 h-4 text-indigo-500" />
+                        <h4 className="font-semibold text-gray-900 dark:text-white">
+                          {clip.title}
+                        </h4>
                       </div>
-                    )}
+                      {clip.description && (
+                        <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                          {clip.description}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {clip.startTime}s – {clip.endTime}s
+                      </p>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

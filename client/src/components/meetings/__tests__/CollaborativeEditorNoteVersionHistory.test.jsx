@@ -8,11 +8,19 @@ vi.mock("../../../hooks/useCollaborativeNote", () => ({
     ydoc: { getText: () => ({}) },
     isConnected: true,
     isLoading: false,
+    syncStatus: "synced",
     activeUsers: [],
     userColor: "#3366ff",
     broadcastCursor: vi.fn(),
     saveSnapshot: vi.fn().mockResolvedValue({ success: true }),
   }),
+  COLLAB_SYNC_STATUS: {
+    CONNECTING: "connecting",
+    SYNCED: "synced",
+    SAVING: "saving",
+    OFFLINE: "offline",
+    ERROR: "error",
+  },
 }));
 
 vi.mock("@tiptap/react", () => ({
