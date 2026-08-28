@@ -8,7 +8,7 @@ import { resolveAccessibleMeeting } from "../utils/resolveAccessibleMeeting.js";
 const router = express.Router();
 router.use(userAuth);
 
-const VALID_FORMATS = ["pdf", "docx", "html"];
+const VALID_FORMATS = ["pdf", "docx", "html", "md"];
 
 /**
  * Helper to get active user organization ID
@@ -193,7 +193,7 @@ const exportMeetingWithTemplate = async (req, res) => {
     if (!VALID_FORMATS.includes(format)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid export format. Must be pdf, docx, or html.",
+        error: "Invalid export format. Must be pdf, docx, html, or md.",
       });
     }
 
@@ -239,6 +239,29 @@ const exportMeetingWithTemplate = async (req, res) => {
       contentType =
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
       extension = "docx";
+    } else if (format === "md") {
+      // Convert rendered HTML to plain Markdown text
+      const mdContent = htmlContent
+        .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
+        .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
+        .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
+        .replace(/<h4[^>]*>(.*?)<\/h4>/gi, '#### $1\n\n')
+        .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**')
+        .replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*')
+        .replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+      buffer = Buffer.from(mdContent, 'utf-8');
+      contentType = "text/markdown";
+      extension = "md";
     } else {
       buffer = Buffer.from(fullHTML);
       contentType = "text/html";

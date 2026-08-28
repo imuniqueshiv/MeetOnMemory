@@ -103,7 +103,7 @@ const ExportDialog = ({ meetingId, onClose }) => {
               Export Meeting Minutes
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Generate custom branded PDF, DOCX, or HTML export files
+              Generate custom branded PDF, DOCX, HTML, or Markdown export files
             </p>
           </div>
           <button
@@ -221,7 +221,7 @@ const ExportDialog = ({ meetingId, onClose }) => {
               Export Format
             </label>
             <div className="flex gap-3">
-              {["pdf", "docx", "html"].map((fmt) => (
+              {["pdf", "docx", "html", "md"].map((fmt) => (
                 <button
                   key={fmt}
                   type="button"

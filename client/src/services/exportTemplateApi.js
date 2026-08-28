@@ -56,7 +56,7 @@ export const exportTemplateApi = {
   },
 
   /**
-   * Generate and download meeting export (PDF, DOCX, HTML) using a template
+   * Generate and download meeting export (PDF, DOCX, HTML, MD) using a template
    */
   exportMeeting: async (meetingId, payload) => {
     const response = await apiClient.post(
