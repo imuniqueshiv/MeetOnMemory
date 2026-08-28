@@ -45,6 +45,8 @@ import {
   createClerkSocketOptions,
   getClerkBearerToken,
 } from "../services/apiClient.js";
+import ConsentModal from "../components/meetings/ConsentModal.jsx";
+import useRecordingConsent from "../hooks/useRecordingConsent.js";
 
 /** Build join/signaling identity from authenticated AppContext user (Issue #1211). */
 const buildLocalUserInfo = (userData) => ({
@@ -127,6 +129,18 @@ const MeetingRoom = () => {
   // Device permission setup
   const [deviceSetupDone, setDeviceSetupDone] = useState(false);
   const permission = useDevicePermission();
+
+  // ── Recording Consent (Issue #2247) ──────────────────────────────────
+  const {
+    hasConsent: hasRoomConsent,
+    showModal: showRoomConsentModal,
+    handleAccept: handleRoomConsentAccept,
+    handleDecline: handleRoomConsentDecline,
+  } = useRecordingConsent({
+    meetingId: roomId,
+    context: "room",
+    persistToServer: true,
+  });
 
   // WebRTC
   const { socketRef, userVideoRef, streamRef } = useWebRTC(roomId, {
@@ -536,8 +550,12 @@ const MeetingRoom = () => {
     toast.success("Meeting link copied!");
   };
 
+  // ── Consent-gated join handlers (Issue #2247) ──────────────────────
   const handleJoinWithStream = (stream) => {
-    // Hand off ownership so Device Setup unmount cleanup does not stop tracks.
+    if (!hasRoomConsent) {
+      showRoomConsentModal();
+      return;
+    }
     permission.releaseStream();
     setDeviceSetupDone(true);
     joinMeeting(stream);
@@ -549,8 +567,25 @@ const MeetingRoom = () => {
     joinMeeting(null, { mode });
   };
 
+  const handleRoomConsentAccepted = async () => {
+    await handleRoomConsentAccept();
+  };
+
+  const handleRoomConsentDeclined = () => {
+    handleRoomConsentDecline();
+    toast.info("Room access cancelled — consent declined.");
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-900 relative overflow-hidden font-sans">
+      {/* Recording Consent Modal (Issue #2247) */}
+      <ConsentModal
+        isOpen={showRoomConsentModal}
+        onAccept={handleRoomConsentAccepted}
+        onDecline={handleRoomConsentDeclined}
+        context="room"
+        isRequired={true}
+      />
       {/* ---------- DEVICE SETUP / INTRO SCREEN ---------- */}
       {!joined && !meetingEnded && !deviceSetupDone && (
         <DeviceSetupModal

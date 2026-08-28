@@ -66,6 +66,7 @@ import { getMeetingRoles } from "../controllers/roleRotationController.js";
 
 import path from "path";
 import { ValidationError } from "../utils/errors.js";
+import { requireRecordingConsent } from "../middleware/recordingConsent.js";
 
 const ALLOWED_RECORDING_MIME_TYPES = [
   "audio/mpeg",
@@ -151,6 +152,7 @@ router.post(
   uploadLimiter,
   requireOrgMembership,
   requirePermission("meetings", "create"),
+  requireRecordingConsent({ context: "record" }),
   startRecording,
 );
 
@@ -234,6 +236,7 @@ router.post(
   uploadLimiter,
   requireOrgMembership,
   requirePermission("meetings", "create"),
+  requireRecordingConsent({ context: "upload" }),
   upload.single("file"),
   uploadMeeting,
 );

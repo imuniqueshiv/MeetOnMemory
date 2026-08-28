@@ -5,10 +5,12 @@ import membershipRoutes from "./membershipRoutes.js";
 import membershipRequestRoutes from "./membershipRequestRoutes.js";
 import invitationRoutes from "./invitationRoutes.js";
 import meetingRoutes from "./meetingRoutes.js";
+import consentRoutes from "./consentRoutes.js";
 import searchRoutes from "./searchRoutes.js";
 import aiRoutes from "./aiRoutes.js";
 import policyRoutes from "./policyRoutes.js";
 import analyticsRoutes from "./analyticsRoutes.js";
+import sprintRoutes from "./sprintRoutes.js";
 import actionItemAnalyticsRoutes from "./actionItemAnalyticsRoutes.js";
 import geminiRoutes from "./geminiRoutes.js";
 import notesRoutes from "./notes.routes.js";
@@ -103,6 +105,7 @@ const router = express.Router();
 // ALL PROTECTED ROUTES (CSRF Enforced globally in express.js)
 // ==========================================
 router.use("/api/auth", authRoutes);
+router.use("/api/consent", consentRoutes);
 router.use(["/api/organization", "/api/organizations"], organizationRoutes);
 router.use(["/api/membership", "/api/memberships"], membershipRoutes);
 router.use(
@@ -124,6 +127,7 @@ router.use("/api/search", searchRoutes);
 router.use("/api/ai", aiRoutes);
 router.use("/api/policies", policyRoutes);
 router.use("/api/analytics", analyticsRoutes);
+router.use("/api/sprints", sprintRoutes);
 router.use("/api/action-item-analytics", actionItemAnalyticsRoutes);
 router.use("/api/gemini", geminiRoutes);
 router.use("/api/notes", notesRoutes);

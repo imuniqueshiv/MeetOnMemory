@@ -281,6 +281,58 @@ const meetingSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+
+    // ── Recording Consent (Issue #2247) ─────────────────────────────────
+    // Tracks explicit consent for recording/upload/live room AV capture.
+    // Stored for audit trail and compliance. Org policy can require consent.
+    recordingConsent: {
+      required: { type: Boolean, default: false },
+      granted: { type: Boolean, default: false },
+      timestamp: { type: Date, default: null },
+      version: { type: String, default: "" },
+      context: {
+        type: String,
+        enum: ["record", "upload", "room", null],
+        default: null,
+      },
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
+      method: {
+        type: String,
+        enum: ["explicit_click", "org_policy", "admin_override", null],
+        default: null,
+      },
+      revokedAt: { type: Date, default: null },
+      revokeReason: { type: String, default: null },
+    },
+    // Per-participant consent records (for live rooms with multiple participants)
+    participantConsents: [
+      {
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        name: { type: String, default: "" },
+        email: { type: String, default: "" },
+        granted: { type: Boolean, default: false },
+        timestamp: { type: Date, default: null },
+        version: { type: String, default: "" },
+        context: {
+          type: String,
+          enum: ["record", "upload", "room"],
+          default: "room",
+        },
+        method: {
+          type: String,
+          enum: ["explicit_click", "org_policy", "admin_override"],
+          default: "explicit_click",
+        },
+        revokedAt: { type: Date, default: null },
+      },
+    ],
   },
   { timestamps: true },
 );

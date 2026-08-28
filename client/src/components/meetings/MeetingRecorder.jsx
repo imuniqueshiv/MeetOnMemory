@@ -14,6 +14,8 @@ import {
 import apiClient from "../../services/apiClient";
 import { toast } from "react-toastify";
 import { meetingApi } from "../../services";
+import ConsentModal from "./ConsentModal.jsx";
+import useRecordingConsent from "../../hooks/useRecordingConsent.js";
 
 const LOCAL_STORAGE_KEY = "meetonmemory_meeting_recorder_draft";
 
@@ -28,6 +30,19 @@ const MeetingRecorder = ({
 }) => {
   const [recordingState, setRecordingState] = useState("idle"); // 'idle' | 'recording' | 'paused' | 'stopped'
   const [error, setError] = useState(null);
+
+  // ── Recording Consent (Issue #2247) ──────────────────────────────────
+  const {
+    hasConsent,
+    showModal: showConsentModal,
+    handleAccept: handleConsentAccept,
+    handleDecline: handleConsentDecline,
+  } = useRecordingConsent({
+    meetingId,
+    context: "record",
+    persistToServer: true,
+  });
+  const [pendingStartRecording, setPendingStartRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const [liveTranscript, setLiveTranscript] = useState("");
   const [hasDraft, setHasDraft] = useState(false);
@@ -180,8 +195,20 @@ const MeetingRecorder = ({
     }
   };
 
-  // Start Recording
+  // Start Recording — Issue #2247: consent gate before media capture
   const startRecording = async () => {
+    // If consent not yet granted, show consent modal and wait for user response
+    if (!hasConsent) {
+      setPendingStartRecording(true);
+      showConsentModal();
+      return;
+    }
+    // Proceed with actual recording
+    return _startRecordingInternal();
+  };
+
+  // Internal recording start — called after consent is confirmed
+  const _startRecordingInternal = async () => {
     try {
       setError(null);
       let activeMeetingId = meetingId;
@@ -460,8 +487,34 @@ const MeetingRecorder = ({
     return `${m}:${s}`;
   };
 
+  // Handle consent acceptance — resume pending recording
+  const handleConsentAccepted = async () => {
+    await handleConsentAccept();
+    // If user clicked "Start Recording" while consent modal was shown, proceed
+    if (pendingStartRecording) {
+      setPendingStartRecording(false);
+      // Small delay to allow state to update
+      setTimeout(() => _startRecordingInternal(), 100);
+    }
+  };
+
+  // Handle consent decline
+  const handleConsentDeclined = () => {
+    setPendingStartRecording(false);
+    handleConsentDecline();
+    toast.info("Recording cancelled — consent declined.");
+  };
+
   return (
     <div className="flex flex-col items-center justify-between p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-xl w-full h-full min-h-[460px]">
+      {/* Recording Consent Modal (Issue #2247) */}
+      <ConsentModal
+        isOpen={showConsentModal}
+        onAccept={handleConsentAccepted}
+        onDecline={handleConsentDeclined}
+        context="record"
+        isRequired={true}
+      />
       <div className="w-full">
         {/* Header & Status */}
         <div className="flex items-center justify-between mb-4">

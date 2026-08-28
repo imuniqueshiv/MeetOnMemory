@@ -27,6 +27,8 @@ import Dropzone from "../components/meetings/Dropzone.jsx";
 import MeetingRecorder from "../components/meetings/MeetingRecorder.jsx";
 import TagAutocomplete from "../components/meetings/TagAutocomplete.jsx";
 import { createClerkSocketOptions } from "../services/apiClient.js";
+import ConsentModal from "../components/meetings/ConsentModal.jsx";
+import useRecordingConsent from "../hooks/useRecordingConsent.js";
 
 import { hasPermission } from "../utils/rbacPermissions.js";
 
@@ -57,7 +59,47 @@ const UploadMeeting = () => {
   } = useMeetingUpload();
 
   const [isSummarizing, setIsSummarizing] = useState(false);
+
+  // ── Recording Consent (Issue #2247) ──────────────────────────────────
+  const {
+    hasConsent: hasUploadConsent,
+    showModal: showUploadConsentModal,
+    handleAccept: handleUploadConsentAccept,
+    handleDecline: handleUploadConsentDecline,
+  } = useRecordingConsent({
+    meetingId,
+    context: "upload",
+    persistToServer: true,
+  });
+  const [pendingUpload, setPendingUpload] = useState(false);
   const [summary, setSummary] = useState("");
+
+  // ── Upload with consent gate (Issue #2247) ─────────────────────────
+  const handleUploadWithConsent = () => {
+    if (!hasUploadConsent) {
+      setPendingUpload(true);
+      return; // consent modal will show
+    }
+    setProcessingStep(1);
+    handleUpload(title, setTitle, tags);
+  };
+
+  const handleConsentAccepted = async () => {
+    await handleUploadConsentAccept();
+    if (pendingUpload) {
+      setPendingUpload(false);
+      setTimeout(() => {
+        setProcessingStep(1);
+        handleUpload(title, setTitle, tags);
+      }, 100);
+    }
+  };
+
+  const handleConsentDeclined = () => {
+    setPendingUpload(false);
+    handleUploadConsentDecline();
+    toast.info("Upload cancelled — consent declined.");
+  };
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [processingStep, setProcessingStep] = useState(0); // 0: Idle, 1: Uploading, 2: Transcribing, 3: MoM Generation, 4: Complete
   const { exportMeeting, isExporting } = useExport();
@@ -259,6 +301,14 @@ const UploadMeeting = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-slate-50 to-blue-50/50 dark:from-gray-900 dark:via-slate-900 dark:to-blue-900/20 flex flex-col font-sans">
+      {/* Upload Recording Consent Modal (Issue #2247) */}
+      <ConsentModal
+        isOpen={showUploadConsentModal}
+        onAccept={handleConsentAccepted}
+        onDecline={handleConsentDeclined}
+        context="upload"
+        isRequired={true}
+      />
       <Navbar />
       <div className="flex-grow pt-28 pb-16 px-4 sm:px-6 lg:px-8 animate-fade-in">
         <div className="max-w-5xl mx-auto">
@@ -441,10 +491,7 @@ const UploadMeeting = () => {
               <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-3 w-full sm:w-auto justify-start order-2 sm:order-1">
                   <button
-                    onClick={() => {
-                      setProcessingStep(1);
-                      handleUpload(title, setTitle, tags);
-                    }}
+                    onClick={handleUploadWithConsent}
                     disabled={isUploading || !file}
                     className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
                       isUploading || !file
