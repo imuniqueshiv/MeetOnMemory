@@ -2,9 +2,11 @@ import React from "react";
 import { format } from "date-fns";
 import CustomFieldsEditor from "../meetings/CustomFieldsEditor";
 import { customFieldApi } from "../../api/customFieldApi";
+import { meetingApi } from "../../services";
 import { toast } from "react-toastify";
+import TagInput from "./TagInput";
 
-const MeetingMetadata = ({ meeting }) => {
+const MeetingMetadata = ({ meeting, onUpdate, isReadOnly = false }) => {
   if (!meeting) return null;
 
   const formatDate = (dateString) => {
@@ -201,23 +203,20 @@ const MeetingMetadata = ({ meeting }) => {
         ))}
       </div>
 
-      {tags.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">
-            Tags
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {tags.map((tag, index) => (
-              <span
-                key={index}
-                className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
+      <TagInput
+        tags={tags}
+        readOnly={isReadOnly}
+        onTagsChange={async (newTags) => {
+          try {
+            await meetingApi.updateMeeting(meeting._id, { tags: newTags });
+            if (onUpdate) onUpdate({ ...meeting, tags: newTags });
+            toast.success("Tags updated successfully");
+          } catch (err) {
+            console.error("Error updating tags:", err);
+            toast.error("Failed to update tags");
+          }
+        }}
+      />
 
       {meeting.organization && (
         <div className="mt-6 pt-4 border-t border-gray-200">

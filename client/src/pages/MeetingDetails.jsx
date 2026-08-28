@@ -616,7 +616,11 @@ const MeetingDetails = () => {
               <AgendaPacingReport meetingId={meeting._id} />
             </div>
           )}
-          <MeetingMetadata meeting={meeting} />
+          <MeetingMetadata
+            meeting={meeting}
+            onUpdate={(updated) => setMeeting(updated)}
+            isReadOnly={isViewerOrGuest}
+          />
           {currentUser?.publicMetadata?.dbUserId === meeting.uploadedBy && (
             <GuestAccessManager meetingId={meeting._id} />
           )}
