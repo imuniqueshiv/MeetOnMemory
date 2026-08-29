@@ -8,6 +8,8 @@ export const useMeetingDuplicates = (meetingId) => {
   const [isError, setIsError] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
+  const [isRollingBack, setIsRollingBack] = useState(false);
+  const [lastMergeAudit, setLastMergeAudit] = useState(null);
 
   const fetchDuplicates = useCallback(async () => {
     if (!meetingId) return;
@@ -41,6 +43,15 @@ export const useMeetingDuplicates = (meetingId) => {
         fieldSelections,
       );
       toast.success("Meetings merged successfully");
+      const auditId =
+        response.data?.data?.mergeAuditId || response.data?.mergeAuditId;
+      if (auditId) {
+        setLastMergeAudit({
+          mergeAuditId: auditId,
+          secondaryId,
+          fieldSelections,
+        });
+      }
       setDuplicates((prev) => prev.filter((d) => d._id !== secondaryId));
       return response;
     } catch (error) {
@@ -66,6 +77,25 @@ export const useMeetingDuplicates = (meetingId) => {
     }
   };
 
+  const rollbackMerge = async ({ primaryId, mergeAuditId }) => {
+    setIsRollingBack(true);
+    try {
+      const response = await meetingDuplicateApi.rollbackMerge(
+        primaryId,
+        mergeAuditId,
+      );
+      toast.success("Merge rolled back successfully");
+      setLastMergeAudit(null);
+      await fetchDuplicates();
+      return response;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to rollback merge");
+      throw error;
+    } finally {
+      setIsRollingBack(false);
+    }
+  };
+
   return {
     duplicates,
     isLoading,
@@ -74,6 +104,10 @@ export const useMeetingDuplicates = (meetingId) => {
     isMerging,
     dismissDuplicate,
     isDismissing,
+    rollbackMerge,
+    isRollingBack,
+    lastMergeAudit,
+    setLastMergeAudit,
     refreshDuplicates: fetchDuplicates,
   };
 };

@@ -19,7 +19,7 @@ vi.mock("react-toastify", () => ({
   },
 }));
 
-describe("DuplicateDetectionPanel & useMeetingDuplicates (#2260)", () => {
+describe("DuplicateDetectionPanel & useMeetingDuplicates (#2260, #2647)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -41,7 +41,9 @@ describe("DuplicateDetectionPanel & useMeetingDuplicates (#2260)", () => {
         ],
       },
     });
-    apiClient.post.mockResolvedValue({ data: { success: true } });
+    apiClient.post.mockResolvedValue({
+      data: { success: true, data: { mergeAuditId: "audit-999" } },
+    });
 
     render(
       <DuplicateDetectionPanel
@@ -96,6 +98,35 @@ describe("DuplicateDetectionPanel & useMeetingDuplicates (#2260)", () => {
     });
   });
 
+  it("renders rollback banner and triggers rollback merge API with confirmation modal (#2647)", async () => {
+    apiClient.get.mockResolvedValue({ data: { duplicates: [] } });
+    apiClient.post.mockResolvedValue({ data: { success: true } });
+
+    render(
+      <DuplicateDetectionPanel
+        meetingId="meeting-123"
+        initialMergeAuditId="audit-999"
+        meeting={{ _id: "meeting-123", title: "Primary Meeting" }}
+      />,
+    );
+
+    expect(screen.getByTestId("rollback-banner")).toBeInTheDocument();
+    expect(screen.getByTestId("trigger-rollback-btn")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("trigger-rollback-btn"));
+
+    expect(screen.getByTestId("rollback-modal")).toBeInTheDocument();
+    expect(screen.getByText("Confirm Merge Rollback")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("confirm-rollback-btn"));
+
+    await waitFor(() => {
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/api/meetings/meeting-123/duplicates/rollback/audit-999",
+      );
+    });
+  });
+
   it("updates the panel without reloading the page after a successful merge", async () => {
     const mockDuplicates = [
       {
@@ -108,10 +139,6 @@ describe("DuplicateDetectionPanel & useMeetingDuplicates (#2260)", () => {
 
     apiClient.get.mockResolvedValue({ data: { duplicates: mockDuplicates } });
     apiClient.post.mockResolvedValue({ data: { success: true } });
-
-    const reloadSpy = vi
-      .spyOn(window.location, "reload")
-      .mockImplementation(() => {});
 
     render(
       <DuplicateDetectionPanel
@@ -130,12 +157,9 @@ describe("DuplicateDetectionPanel & useMeetingDuplicates (#2260)", () => {
     await waitFor(() => {
       expect(screen.queryByText("Duplicate Meeting")).not.toBeInTheDocument();
     });
-
-    expect(reloadSpy).not.toHaveBeenCalled();
-    reloadSpy.mockRestore();
   });
 
-  it("uses apiClient for duplicate detection and dismissal", async () => {
+  it("uses apiClient for duplicate detection, dismissal, and rollback", async () => {
     apiClient.get.mockResolvedValue({ data: { duplicates: [] } });
     await meetingDuplicateApi.detectDuplicates("meeting-123");
     expect(apiClient.get).toHaveBeenCalledWith(
@@ -149,6 +173,11 @@ describe("DuplicateDetectionPanel & useMeetingDuplicates (#2260)", () => {
       {
         secondaryId: "meeting-456",
       },
+    );
+
+    await meetingDuplicateApi.rollbackMerge("meeting-123", "audit-789");
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/api/meetings/meeting-123/duplicates/rollback/audit-789",
     );
   });
 });

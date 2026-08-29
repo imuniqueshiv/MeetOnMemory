@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useMeetingDuplicates } from "../../hooks/useMeetingDuplicates";
 import { format } from "date-fns";
+import { RotateCcw, AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
 
 const FIELD_DEFINITIONS = [
   { key: "title", label: "Title" },
@@ -40,18 +41,12 @@ const getFieldValue = (meeting, field) => {
   }
 };
 
-const getRawFieldValue = (meeting, field) => {
-  if (!meeting) return null;
-  if (field === "time") {
-    return { date: meeting.date ?? null, time: meeting.time ?? "" };
-  }
-  return meeting[field] ?? null;
-};
-
-const valuesEqual = (left, right) =>
-  JSON.stringify(left) === JSON.stringify(right);
-
-const DuplicateDetectionPanel = ({ meetingId, meeting, onMergeSuccess }) => {
+const DuplicateDetectionPanel = ({
+  meetingId,
+  meeting,
+  onMergeSuccess,
+  initialMergeAuditId,
+}) => {
   const {
     duplicates,
     isLoading,
@@ -60,11 +55,20 @@ const DuplicateDetectionPanel = ({ meetingId, meeting, onMergeSuccess }) => {
     isMerging,
     dismissDuplicate,
     isDismissing,
+    rollbackMerge,
+    isRollingBack,
+    lastMergeAudit,
+    setLastMergeAudit,
   } = useMeetingDuplicates(meetingId);
 
   const [selectedSecondary, setSelectedSecondary] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showRollbackConfirm, setShowRollbackConfirm] = useState(false);
   const [fieldSelections, setFieldSelections] = useState({});
+
+  const activeAudit =
+    lastMergeAudit ||
+    (initialMergeAuditId ? { mergeAuditId: initialMergeAuditId } : null);
 
   const diffFields = useMemo(
     () =>
@@ -80,10 +84,6 @@ const DuplicateDetectionPanel = ({ meetingId, meeting, onMergeSuccess }) => {
         : [],
     [selectedSecondary, meeting],
   );
-
-  if (isLoading || isError || !duplicates || duplicates.length === 0) {
-    return null;
-  }
 
   const handleMergeClick = (duplicate) => {
     setSelectedSecondary(duplicate);
@@ -136,185 +136,281 @@ const DuplicateDetectionPanel = ({ meetingId, meeting, onMergeSuccess }) => {
     }
   };
 
+  const confirmRollback = async () => {
+    if (!activeAudit?.mergeAuditId) return;
+
+    try {
+      await rollbackMerge({
+        primaryId: meetingId,
+        mergeAuditId: activeAudit.mergeAuditId,
+      });
+      setShowRollbackConfirm(false);
+      if (onMergeSuccess) {
+        await onMergeSuccess();
+      } else {
+        window.dispatchEvent(
+          new CustomEvent("meetingMergeRolledBack", {
+            detail: {
+              primaryId: meetingId,
+              mergeAuditId: activeAudit.mergeAuditId,
+            },
+          }),
+        );
+      }
+    } catch {
+      // Error handled by hook.
+    }
+  };
+
+  // If no duplicates and no active rollback, don't render
+  if (
+    (isLoading || isError || !duplicates || duplicates.length === 0) &&
+    !activeAudit
+  ) {
+    return null;
+  }
+
   return (
-    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r-lg">
-      <div className="flex items-start">
-        <div className="flex-shrink-0">
-          <svg
-            className="h-5 w-5 text-yellow-400"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            aria-hidden="true"
+    <div className="space-y-4 mb-6">
+      {/* Rollback Prompt Banner */}
+      {activeAudit && (
+        <div
+          data-testid="rollback-banner"
+          className="bg-blue-50 dark:bg-blue-950/40 border-l-4 border-blue-500 p-4 rounded-r-xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+              <RotateCcw className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-blue-900 dark:text-blue-200">
+                Meeting Merged Recently
+              </p>
+              <p className="text-[11px] text-blue-700 dark:text-blue-300">
+                You can undo the duplicate merge and restore the original field
+                values.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            data-testid="trigger-rollback-btn"
+            onClick={() => setShowRollbackConfirm(true)}
+            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
           >
-            <path
-              fillRule="evenodd"
-              d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
-              clipRule="evenodd"
-            />
-          </svg>
+            <RotateCcw className="w-3.5 h-3.5" />
+            Undo / Rollback Merge
+          </button>
         </div>
-        <div className="ml-3 flex-1">
-          <h3 className="text-sm font-medium text-yellow-800">
-            Potential Duplicate Meetings Detected
-          </h3>
-          <div className="mt-2 text-sm text-yellow-700">
-            <ul role="list" className="space-y-3">
-              {duplicates.map((dup) => (
-                <li
-                  key={dup._id}
-                  className="bg-white bg-opacity-50 p-3 rounded flex justify-between items-center"
-                >
-                  <div>
-                    <div className="font-medium">{dup.title}</div>
-                    <div className="text-xs opacity-75">
-                      {dup.date
-                        ? format(new Date(dup.date), "PPP p")
-                        : "Unknown Date"}{" "}
-                      • Similarity:{" "}
-                      {Math.round(
-                        (dup.scores?.composite ?? dup.similarity ?? 0) * 100,
-                      )}
-                      %
+      )}
+
+      {/* Duplicate Candidates Card */}
+      {duplicates && duplicates.length > 0 && (
+        <div className="bg-yellow-50 dark:bg-yellow-950/30 border-l-4 border-yellow-400 p-4 rounded-r-lg">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+            </div>
+            <div className="ml-3 flex-1">
+              <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                Potential duplicate meetings detected ({duplicates.length})
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                <p>
+                  We found other meetings with similar titles, dates, or
+                  participants. Review them below to avoid duplicates.
+                </p>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {duplicates.map((dup) => (
+                  <div
+                    key={dup._id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 rounded-md border border-yellow-200 dark:border-yellow-900/50 shadow-2xs"
+                  >
+                    <div>
+                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                        {dup.title}
+                      </h4>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {dup.date
+                          ? format(new Date(dup.date), "PPP p")
+                          : "No date"}
+                        {dup.similarity && (
+                          <span className="ml-2 font-medium text-yellow-600 dark:text-yellow-400">
+                            ({Math.round(dup.similarity * 100)}% match)
+                          </span>
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleMergeClick(dup)}
+                        disabled={isMerging}
+                        className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-xs font-semibold shadow-2xs disabled:opacity-50 cursor-pointer"
+                      >
+                        Merge Data
+                      </button>
+                      <button
+                        onClick={() => handleDismiss(dup._id)}
+                        disabled={isDismissing}
+                        className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 disabled:opacity-50 cursor-pointer"
+                      >
+                        Dismiss
+                      </button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleMergeClick(dup)}
-                      disabled={isMerging}
-                      className="px-3 py-1 bg-yellow-600 text-white rounded text-xs font-medium hover:bg-yellow-700 disabled:opacity-50 transition-colors"
-                    >
-                      {isMerging ? "Merging..." : "Merge Data"}
-                    </button>
-                    <button
-                      onClick={() => handleDismiss(dup._id)}
-                      disabled={isDismissing}
-                      className="px-3 py-1 bg-white text-yellow-800 border border-yellow-300 rounded text-xs font-medium hover:bg-yellow-50 disabled:opacity-50 transition-colors"
-                    >
-                      Dismiss
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
+      {/* Merge Confirmation Modal */}
       {showConfirm && selectedSecondary && (
-        <div
-          className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="duplicate-merge-title"
-        >
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <h3
-              id="duplicate-merge-title"
-              className="text-lg font-semibold text-gray-900 mb-2"
-            >
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full p-6 space-y-6 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
               Review merge before confirming
             </h3>
-            <p className="text-sm text-gray-500 mb-5">
-              Choose which meeting wins for each field. Related transcript,
-              comments, action items, attachments, decisions, and key moments
-              are still merged into the primary meeting.
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Select which field values to keep from each meeting. The primary
+              meeting record will be updated.
             </p>
 
-            <div className="overflow-x-auto border border-gray-200 rounded-lg">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Field
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Current meeting
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Duplicate
-                    </th>
-                    <th className="text-center px-4 py-3 font-semibold text-gray-700">
-                      Survivor
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {diffFields.map((field) => {
-                    const primaryRaw = getRawFieldValue(
-                      meeting || { title: "Current meeting" },
-                      field.key,
-                    );
-                    const secondaryRaw = getRawFieldValue(
-                      selectedSecondary,
-                      field.key,
-                    );
-                    const isDifferent = !valuesEqual(primaryRaw, secondaryRaw);
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              {diffFields.map((field) => (
+                <div
+                  key={field.key}
+                  className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 space-y-2"
+                >
+                  <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                    {field.label}
+                  </span>
 
-                    return (
-                      <tr key={field.key}>
-                        <td className="px-4 py-3 font-medium text-gray-900 align-top">
-                          {field.label}
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 align-top max-w-[260px] break-words">
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <label className="flex items-start gap-2 p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`field-${field.key}`}
+                        value="primary"
+                        checked={fieldSelections[field.key] === "primary"}
+                        onChange={() =>
+                          setFieldSelections((prev) => ({
+                            ...prev,
+                            [field.key]: "primary",
+                          }))
+                        }
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="font-semibold text-gray-900 dark:text-white block">
+                          Keep Current
+                        </span>
+                        <span className="text-gray-500 dark:text-gray-400">
                           {field.primaryValue}
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 align-top max-w-[260px] break-words">
+                        </span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-2 p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`field-${field.key}`}
+                        value="secondary"
+                        checked={fieldSelections[field.key] === "secondary"}
+                        onChange={() =>
+                          setFieldSelections((prev) => ({
+                            ...prev,
+                            [field.key]: "secondary",
+                          }))
+                        }
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="font-semibold text-gray-900 dark:text-white block">
+                          Take Duplicate
+                        </span>
+                        <span className="text-gray-500 dark:text-gray-400">
                           {field.secondaryValue}
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <div className="flex flex-col gap-2">
-                            {["primary", "secondary"].map((winner) => (
-                              <label
-                                key={winner}
-                                className="flex items-center gap-2 whitespace-nowrap"
-                              >
-                                <input
-                                  type="radio"
-                                  name={`merge-field-${field.key}`}
-                                  value={winner}
-                                  checked={
-                                    fieldSelections[field.key] === winner
-                                  }
-                                  onChange={() =>
-                                    setFieldSelections((current) => ({
-                                      ...current,
-                                      [field.key]: winner,
-                                    }))
-                                  }
-                                />
-                                {winner === "primary" ? "Current" : "Duplicate"}
-                              </label>
-                            ))}
-                            {!isDifferent && (
-                              <span className="text-xs text-gray-400">
-                                Identical
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
               <button
-                onClick={() => {
-                  setShowConfirm(false);
-                  setSelectedSecondary(null);
-                }}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                type="button"
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-lg cursor-pointer"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={confirmMerge}
                 disabled={isMerging}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 flex items-center gap-2 disabled:opacity-50"
+                className="px-4 py-2 text-xs font-bold text-white bg-yellow-600 hover:bg-yellow-700 rounded-lg inline-flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
               >
-                {isMerging ? "Merging..." : "Confirm Merge"}
+                {isMerging && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Confirm Merge
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rollback Confirmation Modal */}
+      {showRollbackConfirm && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div
+            data-testid="rollback-modal"
+            className="bg-white dark:bg-gray-800 rounded-xl max-w-lg w-full p-6 space-y-4 shadow-xl"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                  Confirm Merge Rollback
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Undo the merged state and restore pre-merge field values
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-600 dark:text-gray-300">
+              Rolling back will revert the primary meeting's fields to their
+              state before the merge occurred and reactivate the secondary
+              record.
+            </p>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => setShowRollbackConfirm(false)}
+                className="px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-lg cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                data-testid="confirm-rollback-btn"
+                onClick={confirmRollback}
+                disabled={isRollingBack}
+                className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg inline-flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                {isRollingBack && (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                )}
+                Confirm Rollback
               </button>
             </div>
           </div>

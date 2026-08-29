@@ -17,8 +17,15 @@ const dismissDuplicate = async (primaryId, secondaryId) => {
   });
 };
 
+const rollbackMerge = async (primaryId, mergeAuditId) => {
+  return apiClient.post(
+    `/api/meetings/${primaryId}/duplicates/rollback/${mergeAuditId}`,
+  );
+};
+
 export const meetingDuplicateApi = {
   detectDuplicates,
   mergeMeetings,
   dismissDuplicate,
+  rollbackMerge,
 };
