@@ -1,6 +1,5 @@
-import axios from "axios";
+import apiClient from "./apiClient";
 
-// Base API URL for action item SLA (mapped to our route in server)
 const API_URL = "/api/action-item-sla";
 
 /**
@@ -9,7 +8,7 @@ const API_URL = "/api/action-item-sla";
  * @returns {Promise<Object>}
  */
 export const getSlaConfig = async (organizationId) => {
-  const response = await axios.get(`${API_URL}/config/${organizationId}`);
+  const response = await apiClient.get(`${API_URL}/config/${organizationId}`);
   return response.data;
 };
 
@@ -20,7 +19,7 @@ export const getSlaConfig = async (organizationId) => {
  * @returns {Promise<Object>}
  */
 export const updateSlaConfig = async (organizationId, updates) => {
-  const response = await axios.put(
+  const response = await apiClient.put(
     `${API_URL}/config/${organizationId}`,
     updates,
   );
@@ -34,7 +33,7 @@ export const updateSlaConfig = async (organizationId, updates) => {
  * @returns {Promise<Array>}
  */
 export const getSlaBreaches = async (organizationId, params = {}) => {
-  const response = await axios.get(`${API_URL}/breaches/${organizationId}`, {
+  const response = await apiClient.get(`${API_URL}/breaches/${organizationId}`, {
     params,
   });
   return response.data;
@@ -46,7 +45,7 @@ export const getSlaBreaches = async (organizationId, params = {}) => {
  * @returns {Promise<Object>}
  */
 export const getSlaComplianceStats = async (organizationId) => {
-  const response = await axios.get(`${API_URL}/stats/${organizationId}`);
+  const response = await apiClient.get(`${API_URL}/stats/${organizationId}`);
   return response.data;
 };
 
@@ -56,7 +55,7 @@ export const getSlaComplianceStats = async (organizationId) => {
  * @returns {Promise<Object>}
  */
 export const acknowledgeBreach = async (breachId) => {
-  const response = await axios.post(
+  const response = await apiClient.post(
     `${API_URL}/breach/${breachId}/acknowledge`,
   );
   return response.data;

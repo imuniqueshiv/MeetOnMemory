@@ -1,34 +1,34 @@
-import axios from "axios";
+import apiClient from "./apiClient";
 
 const API_URL = "/api/action-item-templates";
 
 export const getTemplates = async () => {
-  const response = await axios.get(API_URL);
+  const response = await apiClient.get(API_URL);
   return response.data;
 };
 
 export const getTemplateById = async (id) => {
-  const response = await axios.get(`${API_URL}/${id}`);
+  const response = await apiClient.get(`${API_URL}/${id}`);
   return response.data;
 };
 
 export const createTemplate = async (templateData) => {
-  const response = await axios.post(API_URL, templateData);
+  const response = await apiClient.post(API_URL, templateData);
   return response.data;
 };
 
 export const updateTemplate = async (id, templateData) => {
-  const response = await axios.put(`${API_URL}/${id}`, templateData);
+  const response = await apiClient.put(`${API_URL}/${id}`, templateData);
   return response.data;
 };
 
 export const deleteTemplate = async (id) => {
-  const response = await axios.delete(`${API_URL}/${id}`);
+  const response = await apiClient.delete(`${API_URL}/${id}`);
   return response.data;
 };
 
 export const applyTemplateToMeeting = async (templateId, meetingId) => {
-  const response = await axios.post(`${API_URL}/apply`, {
+  const response = await apiClient.post(`${API_URL}/apply`, {
     templateId,
     meetingId,
   });
