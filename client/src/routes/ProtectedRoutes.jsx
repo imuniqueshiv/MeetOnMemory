@@ -85,6 +85,7 @@ import StandupReports from "../pages/StandupReports.jsx";
 import SlaCompliance from "../pages/SlaCompliance.jsx";
 import TeamAvailability from "../pages/TeamAvailability.jsx";
 import ActionItemTemplates from "../pages/ActionItemTemplates.jsx";
+import StakeholderRelationshipHub from "../pages/StakeholderRelationshipHub.jsx";
 
 const ProtectedRoutes = (
   <React.Fragment>
@@ -765,6 +766,14 @@ const ProtectedRoutes = (
           forbiddenFallback={<AccessDenied />}
         >
           <AdminPanel />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/stakeholder-hub"
+      element={
+        <ProtectedRoute resource="reports" action="view">
+          <StakeholderRelationshipHub />
         </ProtectedRoute>
       }
     />
