@@ -8,8 +8,8 @@ import {
   getComplianceFlags,
   updateFlagStatus,
   reEvaluateCompliance,
-} from "../controllers/policyComplianceController.js";
-import {
+  getPolicyComplianceWorkerStatus,
+} from "../controllers/policyComplianceController.js";import {
   exportComplianceEvidence,
   getPolicyVersionDeepLink,
 } from "../controllers/policyComplianceEvidenceController.js";
@@ -52,5 +52,5 @@ router.post(
   requirePermission("policies", "edit"),
   reEvaluateCompliance,
 );
-
+router.get("/worker-status", getPolicyComplianceWorkerStatus);
 export default router;

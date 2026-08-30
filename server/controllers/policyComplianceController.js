@@ -3,8 +3,7 @@ import PolicyCompliance from "../models/policyComplianceModel.js";
 import Decision from "../models/decisionModel.js";
 import Policy from "../models/policyModel.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
-import { policyComplianceRetryQueue } from "../services/queueService.js";
-
+import { policyComplianceRetryQueue, getQueueInstance } from "../services/queueService.js";
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 // ─────────────────────────────────────────────────────────────
@@ -231,7 +230,11 @@ export const reEvaluateCompliance = async (req, res) => {
       return sendError(
         res,
         503,
-        "Background retry processing is unavailable. Please try again later.",
+        "Policy compliance re-evaluation worker is temporarily unavailable. This is a background service issue, not a data problem. Please contact your administrator or try again in a few moments.",
+        {
+          workerStatus: "inactive",
+          retryable: true,
+        },
       );
     }
 
@@ -243,9 +246,50 @@ export const reEvaluateCompliance = async (req, res) => {
     return sendSuccess(res, {
       queued: true,
       jobId: job?.id || null,
+      workerStatus: "active",
     });
   } catch (error) {
     console.error("reEvaluateCompliance error:", error);
     return sendError(res, 500, "Failed to queue compliance re-evaluation");
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/policy-compliance/worker-status
+// Check if the policy compliance retry worker is active.
+// Used by the UI to display worker availability and guide admins.
+// ─────────────────────────────────────────────────────────────
+export const getPolicyComplianceWorkerStatus = async (req, res) => {
+  try {
+    const isActive = policyComplianceRetryQueue.isActive;
+    const queue = getQueueInstance("policy-compliance-retry-queue");
+
+    let jobCounts = {
+      waiting: 0,
+      active: 0,
+      completed: 0,
+      failed: 0,
+      delayed: 0,
+    };
+
+    if (queue) {
+      try {
+        jobCounts = await queue.getJobCounts();
+      } catch (err) {
+        console.warn("Failed to fetch policy compliance queue stats:", err);
+      }
+    }
+
+    return sendSuccess(res, {
+      workerActive: isActive,
+      status: isActive ? "active" : "inactive",
+      jobCounts,
+      message: isActive
+        ? "Policy compliance worker is operational."
+        : "Policy compliance worker is unavailable (likely due to Redis unavailability). Re-evaluation requests will be queued and processed when the worker recovers.",
+    });
+  } catch (error) {
+    console.error("getPolicyComplianceWorkerStatus error:", error);
+    return sendError(res, 500, "Failed to fetch worker status");
   }
 };

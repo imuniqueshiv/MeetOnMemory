@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "../components/Navbar.jsx";
-import { policyComplianceApi } from "../services";
-import { toast } from "react-toastify";
+import * as policyComplianceApi from "../services/policyComplianceApi";
+import { useEffect as useEffectCallback } from "react";import { toast } from "react-toastify";
 import {
   ArrowRight,
   CheckCircle2,
@@ -105,16 +105,17 @@ const PolicyCompliance = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [flags, setFlags] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [statusTab, setStatusTab] = useState(() =>
+const [error, setError] = useState(null);
+const [loading, setLoading] = useState(false);
+const [retryQueuedIds, setRetryQueuedIds] = useState(() => new Set());
+const [workerStatus, setWorkerStatus] = useState(null);
+const [workerLoading, setWorkerLoading] = useState(true);  const [statusTab, setStatusTab] = useState(() =>
     getInitialFilter(searchParams, "status", "unresolved"),
   );
   const [classificationTab, setClassificationTab] = useState(() =>
     getInitialFilter(searchParams, "classification", "all"),
   );
   const [actioningId, setActioningId] = useState(null);
-  const [retryQueuedIds, setRetryQueuedIds] = useState(() => new Set());
   const [exportingId, setExportingId] = useState(null);
   const [selectedDecisionId, setSelectedDecisionId] = useState(null);
   const [decisionDetails, setDecisionDetails] = useState(null);
@@ -144,7 +145,25 @@ const PolicyCompliance = () => {
   useEffect(() => {
     fetchFlags(statusTab, classificationTab);
   }, [statusTab, classificationTab, fetchFlags]);
+ // Check policy compliance worker status on component mount
+  useEffect(() => {
+    const checkWorkerStatus = async () => {
+      try {
+        setWorkerLoading(true);
+        const res = await policyComplianceApi.getWorkerStatus();
+        if (res.status === 200) {
+          setWorkerStatus(res.data?.data || null);
+        }
+      } catch (err) {
+        console.error("Error checking worker status:", err);
+        // Don't fail the page if status check fails; just don't display status
+      } finally {
+        setWorkerLoading(false);
+      }
+    };
 
+    checkWorkerStatus();
+  }, []);
   useEffect(() => {
     const policyId = searchParams.get("policyId");
     const version = searchParams.get("version");
@@ -290,12 +309,28 @@ const PolicyCompliance = () => {
       if (res.data?.success) {
         setRetryQueuedIds((prev) => new Set(prev).add(flagId));
         toast.success("Re-evaluation queued.");
-      } else toast.error(res.data?.message || "Failed to queue re-evaluation");
+      } else {
+        const msg = res.data?.message || "Failed to queue re-evaluation";
+        // Show more contextual error for worker unavailable
+        if (res.status === 503) {
+          toast.error(msg);
+          setWorkerStatus({ workerActive: false, message: msg });
+        } else {
+          toast.error(msg);
+        }
+      }
     } catch (err) {
       console.error("Error queueing re-evaluation:", err);
-      toast.error("Failed to queue policy re-evaluation");
-    }
-  };
+      // Check if it's a 503 worker unavailable error
+      if (err.response?.status === 503) {
+        toast.error(
+          err.response?.data?.message ||
+            "Policy compliance worker is temporarily unavailable",
+        );
+      } else {
+        toast.error("Failed to queue policy re-evaluation");
+      }
+    }  };
 
   const countsByClassification = useMemo(() => {
     const counts = {
@@ -433,10 +468,27 @@ const PolicyCompliance = () => {
             flags...
           </div>
         )}
+        {/* Worker status banner */}
+        {!workerLoading && workerStatus && !workerStatus.workerActive && (
+          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-yellow-800 text-sm font-semibold">
+              ⚠️ Policy Compliance Worker Unavailable
+            </p>
+            <p className="text-yellow-700 text-sm mt-2">
+              {workerStatus.message}
+            </p>
+            {workerStatus.jobCounts?.waiting > 0 && (
+              <p className="text-yellow-700 text-xs mt-1">
+                ({workerStatus.jobCounts.waiting} re-evaluation(s) queued for
+                processing)
+              </p>
+            )}
+          </div>
+        )}
+
         {!loading && error && (
           <p className="text-red-500 text-sm py-8 text-center">{error}</p>
-        )}
-        {!loading && !error && flags.length === 0 && (
+        )}        {!loading && !error && flags.length === 0 && (
           <div className="text-center py-16 text-slate-400">
             <ShieldCheck className="w-10 h-10 mx-auto mb-3 text-emerald-400" />
             No compliance records found.

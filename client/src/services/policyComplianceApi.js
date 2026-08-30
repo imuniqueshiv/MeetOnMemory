@@ -1,5 +1,6 @@
 import apiClient from "./apiClient.js";
-
+export const getWorkerStatus = () =>
+  api.get("/policy-compliance/worker-status");
 export const policyComplianceApi = {
   getFlags: (status = "unresolved", classification = "all") =>
     apiClient.get(
