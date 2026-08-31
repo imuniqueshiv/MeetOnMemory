@@ -4,7 +4,12 @@
 // All business logic lives in server/services/OrganizationService.js.
 
 import * as OrganizationService from "../services/OrganizationService.js";
-import { sendSuccess, sendError } from "../utils/responseHandler.js";
+import { sendSuccess } from "../utils/responseHandler.js";
+import {
+  UnauthorizedError,
+  ValidationError,
+  ConflictError,
+} from "../utils/errors.js";
 
 /**
  * ✅ Create or Join Organization
@@ -12,21 +17,18 @@ import { sendSuccess, sendError } from "../utils/responseHandler.js";
  * - If not → create new org as Admin
  * - Returns updated user with populated org
  */
-export const createOrJoinOrganization = async (req, res) => {
+export const createOrJoinOrganization = async (req, res, next) => {
   try {
     const { name } = req.body;
 
     // Validate authentication
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     // Validate org name
     if (!name || !name.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Please provide an organization name.",
-      });
+      return next(new ValidationError("Please provide an organization name."));
     }
 
     const result = await OrganizationService.createOrJoinOrganization(
@@ -36,8 +38,7 @@ export const createOrJoinOrganization = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error creating/joining organization:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -45,13 +46,12 @@ export const createOrJoinOrganization = async (req, res) => {
  * ✅ Get All Organizations (For listing)
  * Returns: { success: true, organizations: [...] }
  */
-export const getAllOrganizations = async (req, res) => {
+export const getAllOrganizations = async (req, res, next) => {
   try {
     const result = await OrganizationService.getAllOrganizations();
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error fetching organizations:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -59,10 +59,10 @@ export const getAllOrganizations = async (req, res) => {
  * ✅ Join organization by ID (member flow)
  * Body: { organizationId: "<org id>" }
  */
-export const joinOrganization = async (req, res) => {
+export const joinOrganization = async (req, res, next) => {
   try {
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const result = await OrganizationService.joinOrganizationById(
@@ -72,8 +72,7 @@ export const joinOrganization = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error joining organization by ID:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -81,10 +80,10 @@ export const joinOrganization = async (req, res) => {
  * ✅ Select organization (for users with multiple orgs)
  * Body: { organizationId: "<org id>" }
  */
-export const selectOrganization = async (req, res) => {
+export const selectOrganization = async (req, res, next) => {
   try {
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const result = await OrganizationService.selectOrganization(
@@ -94,8 +93,7 @@ export const selectOrganization = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error selecting organization:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -103,10 +101,10 @@ export const selectOrganization = async (req, res) => {
  * ✅ Get organization members
  * Returns: { success: true, members: [...] }
  */
-export const getOrganizationMembers = async (req, res) => {
+export const getOrganizationMembers = async (req, res, next) => {
   try {
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const result = await OrganizationService.getOrganizationMembers(
@@ -115,8 +113,7 @@ export const getOrganizationMembers = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error fetching organization members:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -125,7 +122,7 @@ export const getOrganizationMembers = async (req, res) => {
  * Returns only public information, no private data
  * Route: GET /api/organizations/public/:slug
  */
-export const getPublicOrganizationBySlug = async (req, res) => {
+export const getPublicOrganizationBySlug = async (req, res, next) => {
   try {
     const result = await OrganizationService.getPublicOrganizationBySlug(
       req.params.slug,
@@ -133,19 +130,14 @@ export const getPublicOrganizationBySlug = async (req, res) => {
 
     return sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error fetching public organization:", error);
-    return sendError(
-      res,
-      error.statusCode || 500,
-      error.message || "Server error",
-    );
+    return next(error);
   }
 };
 
 /**
  * ✅ Browse public organizations with pagination and filters
  */
-export const browsePublicOrganizations = async (req, res) => {
+export const browsePublicOrganizations = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 12;
@@ -155,11 +147,11 @@ export const browsePublicOrganizations = async (req, res) => {
 
     // Validate pagination parameters
     if (page < 1 || limit < 1 || limit > 50) {
-      return res.status(400).json({
-        success: false,
-        message:
+      return next(
+        new ValidationError(
           "Invalid pagination parameters. Page must be >= 1 and limit must be between 1 and 50.",
-      });
+        ),
+      );
     }
 
     const userId = req.user?.id || req.user?._id || null;
@@ -175,12 +167,7 @@ export const browsePublicOrganizations = async (req, res) => {
 
     return sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error browsing public organizations:", error);
-    return sendError(
-      res,
-      error.statusCode || 500,
-      error.message || "Server error",
-    );
+    return next(error);
   }
 };
 
@@ -189,7 +176,7 @@ export const browsePublicOrganizations = async (req, res) => {
  * Query params: q (search query), page, limit
  * Returns: { success: true, organizations: [...], pagination: {...} }
  */
-export const searchOrganizations = async (req, res) => {
+export const searchOrganizations = async (req, res, next) => {
   try {
     const { q } = req.query;
     const page = parseInt(req.query.page) || 1;
@@ -197,25 +184,18 @@ export const searchOrganizations = async (req, res) => {
     const userId = req.user?.id || req.user?._id || null;
 
     if (!q || !q.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Search query is required.",
-      });
+      return next(new ValidationError("Search query is required."));
     }
 
     if (q.trim().length < 2) {
-      return res.status(400).json({
-        success: false,
-        message: "Search query must be at least 2 characters.",
-      });
+      return next(
+        new ValidationError("Search query must be at least 2 characters."),
+      );
     }
 
     // Validate pagination parameters
     if (page < 1 || limit < 1 || limit > 50) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid pagination parameters.",
-      });
+      return next(new ValidationError("Invalid pagination parameters."));
     }
 
     const result = await OrganizationService.searchOrganizations(
@@ -227,8 +207,7 @@ export const searchOrganizations = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error searching organizations:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -236,18 +215,17 @@ export const searchOrganizations = async (req, res) => {
  * ✅ Get user's joined organizations
  * GET /api/organizations/user
  */
-export const getUserOrganizations = async (req, res) => {
+export const getUserOrganizations = async (req, res, next) => {
   try {
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const result = await OrganizationService.getUserOrganizations(req.user.id);
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error fetching user organizations:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -255,10 +233,10 @@ export const getUserOrganizations = async (req, res) => {
  * ✅ Create Organization (New version)
  * POST /api/organizations
  */
-export const createOrganization = async (req, res) => {
+export const createOrganization = async (req, res, next) => {
   try {
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const result = await OrganizationService.createOrganization(
@@ -268,11 +246,10 @@ export const createOrganization = async (req, res) => {
 
     sendSuccess(res, result, null, 201);
   } catch (error) {
-    console.error("❌ Error creating organization:", error);
     if (error.code === 11000) {
-      return sendError(res, 409, "Organization slug already exists.");
+      return next(new ConflictError("Organization slug already exists."));
     }
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -280,12 +257,12 @@ export const createOrganization = async (req, res) => {
  * ✅ Get All Organizations (Paginated)
  * GET /api/organizations
  */
-export const getOrganizations = async (req, res) => {
+export const getOrganizations = async (req, res, next) => {
   try {
     const { visibility, page = 1, limit = 20 } = req.query;
 
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const result = await OrganizationService.getOrganizations(
@@ -297,8 +274,7 @@ export const getOrganizations = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error fetching organizations:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -306,10 +282,10 @@ export const getOrganizations = async (req, res) => {
  * ✅ Get Organization by ID or Slug
  * GET /api/organizations/:idOrSlug
  */
-export const getOrganizationById = async (req, res) => {
+export const getOrganizationById = async (req, res, next) => {
   try {
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const result = await OrganizationService.getOrganizationById(
@@ -319,8 +295,7 @@ export const getOrganizationById = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error fetching organization:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -328,10 +303,10 @@ export const getOrganizationById = async (req, res) => {
  * ✅ Get Organization Settings
  * GET /api/organizations/current/settings
  */
-export const getOrganizationSettings = async (req, res) => {
+export const getOrganizationSettings = async (req, res, next) => {
   try {
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const orgIdOrSlug = req.query.orgId || req.params.id || null;
@@ -342,8 +317,7 @@ export const getOrganizationSettings = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error fetching organization settings:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -351,10 +325,10 @@ export const getOrganizationSettings = async (req, res) => {
  * ✅ Update Organization
  * PUT /api/organizations/:id
  */
-export const updateOrganization = async (req, res) => {
+export const updateOrganization = async (req, res, next) => {
   try {
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const result = await OrganizationService.updateOrganization(
@@ -365,8 +339,7 @@ export const updateOrganization = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error updating organization:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -374,10 +347,10 @@ export const updateOrganization = async (req, res) => {
  * ✅ Delete Organization
  * DELETE /api/organizations/:id
  */
-export const deleteOrganization = async (req, res) => {
+export const deleteOrganization = async (req, res, next) => {
   try {
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const result = await OrganizationService.deleteOrganization(
@@ -387,8 +360,7 @@ export const deleteOrganization = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error deleting organization:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -396,10 +368,10 @@ export const deleteOrganization = async (req, res) => {
  * ✅ Get Organization Members by ID
  * GET /api/organizations/:id/members
  */
-export const getOrganizationMembersById = async (req, res) => {
+export const getOrganizationMembersById = async (req, res, next) => {
   try {
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const result = await OrganizationService.getOrganizationMembersById(
@@ -409,8 +381,7 @@ export const getOrganizationMembersById = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error fetching organization members:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -418,17 +389,17 @@ export const getOrganizationMembersById = async (req, res) => {
  * ✅ Get Organization Leaderboard
  * GET /api/organizations/:id/leaderboard
  */
-export const getOrganizationLeaderboard = async (req, res) => {
+export const getOrganizationLeaderboard = async (req, res, next) => {
   try {
     if (!req.user || !req.user.id) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const orgId =
       req.params.id ||
       (req.user.organization ? req.user.organization.toString() : null);
     if (!orgId) {
-      return sendError(res, 400, "Organization ID is required.");
+      return next(new ValidationError("Organization ID is required."));
     }
 
     const result = await OrganizationService.getOrganizationLeaderboard(
@@ -438,8 +409,7 @@ export const getOrganizationLeaderboard = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error fetching organization leaderboard:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -447,10 +417,10 @@ export const getOrganizationLeaderboard = async (req, res) => {
  * ✅ Invite Member to Organization
  * POST /api/organizations/:id/invite
  */
-export const inviteMember = async (req, res) => {
+export const inviteMember = async (req, res, next) => {
   try {
     if (!req.user || (!req.user.id && !req.user._id)) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const userId = req.user.id || req.user._id;
@@ -458,7 +428,7 @@ export const inviteMember = async (req, res) => {
     const { email, role, message } = req.body;
 
     if (!email) {
-      return sendError(res, 400, "Email address is required.");
+      return next(new ValidationError("Email address is required."));
     }
 
     const result = await OrganizationService.inviteMemberToOrganization(
@@ -469,8 +439,7 @@ export const inviteMember = async (req, res) => {
 
     sendSuccess(res, result, null, 201);
   } catch (error) {
-    console.error("❌ Error inviting member:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -478,10 +447,10 @@ export const inviteMember = async (req, res) => {
  * ✅ Accept Invite Token
  * POST /api/organizations/invite/:token/accept
  */
-export const acceptInviteToken = async (req, res) => {
+export const acceptInviteToken = async (req, res, next) => {
   try {
     if (!req.user || (!req.user.id && !req.user._id)) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const userId = req.user.id || req.user._id;
@@ -494,8 +463,7 @@ export const acceptInviteToken = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error accepting invite:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -503,10 +471,10 @@ export const acceptInviteToken = async (req, res) => {
  * ✅ Update Member Role
  * PATCH /api/organizations/:id/members/:userId/role
  */
-export const updateMemberRole = async (req, res) => {
+export const updateMemberRole = async (req, res, next) => {
   try {
     if (!req.user || (!req.user.id && !req.user._id)) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const actorId = req.user.id || req.user._id;
@@ -515,7 +483,7 @@ export const updateMemberRole = async (req, res) => {
     const { role, reason } = req.body;
 
     if (!role) {
-      return sendError(res, 400, "Role is required.");
+      return next(new ValidationError("Role is required."));
     }
 
     const result = await OrganizationService.updateMemberRole(
@@ -528,8 +496,7 @@ export const updateMemberRole = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error updating member role:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -537,10 +504,10 @@ export const updateMemberRole = async (req, res) => {
  * ✅ Deactivate Member
  * PATCH /api/organizations/:id/members/:userId/deactivate
  */
-export const deactivateMember = async (req, res) => {
+export const deactivateMember = async (req, res, next) => {
   try {
     if (!req.user || (!req.user.id && !req.user._id)) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const actorId = req.user.id || req.user._id;
@@ -557,8 +524,7 @@ export const deactivateMember = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error deactivating member:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -566,10 +532,10 @@ export const deactivateMember = async (req, res) => {
  * ✅ Reactivate Member
  * PATCH /api/organizations/:id/members/:userId/reactivate
  */
-export const reactivateMember = async (req, res) => {
+export const reactivateMember = async (req, res, next) => {
   try {
     if (!req.user || (!req.user.id && !req.user._id)) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const actorId = req.user.id || req.user._id;
@@ -584,8 +550,7 @@ export const reactivateMember = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error reactivating member:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -593,10 +558,10 @@ export const reactivateMember = async (req, res) => {
  * ✅ Update Member Capacity
  * PATCH /api/organizations/:id/members/:userId/capacity
  */
-export const updateMemberCapacity = async (req, res) => {
+export const updateMemberCapacity = async (req, res, next) => {
   try {
     if (!req.user || (!req.user.id && !req.user._id)) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const actorId = req.user.id || req.user._id;
@@ -612,8 +577,7 @@ export const updateMemberCapacity = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error updating member capacity:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -621,10 +585,10 @@ export const updateMemberCapacity = async (req, res) => {
  * ✅ Get Member Role History
  * GET /api/organizations/:id/members/:userId/role-history
  */
-export const getMemberRoleHistory = async (req, res) => {
+export const getMemberRoleHistory = async (req, res, next) => {
   try {
     if (!req.user || (!req.user.id && !req.user._id)) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const actorId = req.user.id || req.user._id;
@@ -639,8 +603,7 @@ export const getMemberRoleHistory = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error fetching role history:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -648,10 +611,10 @@ export const getMemberRoleHistory = async (req, res) => {
  * ✅ Remove Member from Organization
  * DELETE /api/organizations/:id/members/:userId
  */
-export const removeMember = async (req, res) => {
+export const removeMember = async (req, res, next) => {
   try {
     if (!req.user || (!req.user.id && !req.user._id)) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const actorId = req.user.id || req.user._id;
@@ -666,8 +629,7 @@ export const removeMember = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error removing member:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };
 
@@ -675,10 +637,10 @@ export const removeMember = async (req, res) => {
  * ✅ Get Paginated Audit Logs
  * GET /api/organizations/:id/audit-log
  */
-export const getPaginatedAuditLogs = async (req, res) => {
+export const getPaginatedAuditLogs = async (req, res, next) => {
   try {
     if (!req.user || (!req.user.id && !req.user._id)) {
-      return sendError(res, 401, "Authentication failed.");
+      return next(new UnauthorizedError("Authentication failed."));
     }
 
     const actorId = req.user.id || req.user._id;
@@ -692,7 +654,6 @@ export const getPaginatedAuditLogs = async (req, res) => {
 
     sendSuccess(res, result);
   } catch (error) {
-    console.error("❌ Error fetching audit logs:", error);
-    sendError(res, error.statusCode || 500, error.message || "Server error");
+    return next(error);
   }
 };

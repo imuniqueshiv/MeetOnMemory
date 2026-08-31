@@ -18,14 +18,98 @@ export const getPlaybookById = async (id) => {
   return playbook;
 };
 
-export const updatePlaybook = async (id, data) => {
-  const playbook = await MeetingPlaybook.findByIdAndUpdate(id, data, {
+export const updatePlaybook = async (id, data, userId = null) => {
+  const existing = await MeetingPlaybook.findById(id);
+  if (!existing) {
+    throw new Error("Playbook not found");
+  }
+
+  // Create version snapshot of previous state before updating
+  const currentVersion = existing.version || 1;
+  const snapshot = {
+    version: currentVersion,
+    name: existing.name,
+    description: existing.description || "",
+    steps: existing.steps
+      ? existing.steps.map((s) => (s.toObject ? s.toObject() : s))
+      : [],
+    savedAt: new Date(),
+    savedBy: userId || existing.createdBy,
+  };
+
+  const nextVersion = currentVersion + 1;
+  const updatePayload = {
+    ...data,
+    version: nextVersion,
+    $push: { versions: snapshot },
+  };
+
+  const playbook = await MeetingPlaybook.findByIdAndUpdate(id, updatePayload, {
     new: true,
   });
+  return playbook;
+};
+
+export const restorePlaybookVersion = async (
+  id,
+  targetVersion,
+  userId = null,
+) => {
+  const existing = await MeetingPlaybook.findById(id);
+  if (!existing) {
+    throw new Error("Playbook not found");
+  }
+
+  const target = (existing.versions || []).find(
+    (v) => Number(v.version) === Number(targetVersion),
+  );
+  if (!target) {
+    throw new Error(`Version ${targetVersion} not found for this playbook`);
+  }
+
+  // Snapshot current state before restoring
+  const currentVersion = existing.version || 1;
+  const snapshot = {
+    version: currentVersion,
+    name: existing.name,
+    description: existing.description || "",
+    steps: existing.steps
+      ? existing.steps.map((s) => (s.toObject ? s.toObject() : s))
+      : [],
+    savedAt: new Date(),
+    savedBy: userId || existing.createdBy,
+  };
+
+  const nextVersion = currentVersion + 1;
+  existing.name = target.name;
+  existing.description = target.description;
+  existing.steps = target.steps;
+  existing.version = nextVersion;
+  existing.versions.push(snapshot);
+
+  return await existing.save();
+};
+
+export const applyPlaybookToMeeting = async (playbookId, meetingId) => {
+  const playbook = await MeetingPlaybook.findById(playbookId);
   if (!playbook) {
     throw new Error("Playbook not found");
   }
-  return playbook;
+
+  const Meeting = (await import("../models/meetingModel.js")).default;
+  const meeting = await Meeting.findById(meetingId);
+  if (!meeting) {
+    throw new Error("Meeting not found");
+  }
+
+  meeting.playbook = playbook._id;
+  await meeting.save();
+
+  // Increment usage count
+  playbook.usageCount = (playbook.usageCount || 0) + 1;
+  await playbook.save();
+
+  return { meeting, playbook };
 };
 
 export const deletePlaybook = async (id) => {

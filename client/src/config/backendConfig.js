@@ -13,16 +13,19 @@ export const DEFAULT_BACKEND_URL = "http://localhost:4000";
 let hasWarned = false;
 
 /**
- * Resolves the backend API base URL.
- * Emits a console warning in development mode when falling back to default URL.
+ * Resolves the backend API base URL based on environment variables and fallback rules.
  *
+ * @param {Object} [customEnv] - Optional custom environment mapping (useful for testing or SSR).
  * @returns {string} Clean backend URL without trailing slashes.
  */
-export const getBackendUrl = () => {
-  const envUrl =
+export const getBackendUrl = (customEnv) => {
+  const env =
+    customEnv ||
     (typeof import.meta !== "undefined" && import.meta.env
-      ? import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL
-      : null) || "";
+      ? import.meta.env
+      : {});
+
+  const envUrl = env.VITE_BACKEND_URL || env.VITE_API_URL || "";
 
   if (envUrl && typeof envUrl === "string" && envUrl.trim() !== "") {
     return envUrl.trim().replace(/\/+$/, "");
@@ -42,6 +45,15 @@ export const getBackendUrl = () => {
   }
 
   return DEFAULT_BACKEND_URL;
+};
+
+/**
+ * Backend service configuration object.
+ */
+export const backendConfig = {
+  get apiUrl() {
+    return getBackendUrl();
+  },
 };
 
 export const BACKEND_URL = getBackendUrl();

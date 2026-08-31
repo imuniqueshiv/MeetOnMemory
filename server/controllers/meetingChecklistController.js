@@ -20,6 +20,28 @@ const createChecklistSchema = z.object({
         text: z.string().min(1, "Item text is required"),
         description: z.string().optional(),
         required: z.boolean().optional(),
+        assignee: z
+          .string()
+          .nullable()
+          .optional()
+          .refine(
+            (val) => {
+              if (!val) return true;
+              return mongoose.isValidObjectId(val);
+            },
+            { message: "Invalid assignee User ID" },
+          ),
+        dueDate: z
+          .string()
+          .nullable()
+          .optional()
+          .refine(
+            (val) => {
+              if (!val) return true;
+              return !isNaN(Date.parse(val));
+            },
+            { message: "Invalid due date format" },
+          ),
       }),
     )
     .min(1, "At least one item is required"),
@@ -107,7 +129,17 @@ export const createChecklist = async (req, res, next) => {
       completions: [],
     });
 
-    sendSuccess(res, { checklist }, "Checklist created successfully", 201);
+    const populatedChecklist = await checklist.populate(
+      "items.assignee",
+      "name email profilePic",
+    );
+
+    sendSuccess(
+      res,
+      { checklist: populatedChecklist },
+      "Checklist created successfully",
+      201,
+    );
   } catch (error) {
     next(error);
   }
@@ -120,7 +152,7 @@ export const getChecklist = async (req, res, next) => {
     const checklist = await MeetingChecklist.findOne({
       meetingId: meeting._id,
       organization: meeting.organization,
-    });
+    }).populate("items.assignee", "name email profilePic");
 
     if (!checklist) {
       return sendSuccess(res, { checklist: null }, "No checklist found");
@@ -168,7 +200,7 @@ export const toggleItem = async (req, res, next) => {
       },
       update,
       { new: true },
-    );
+    ).populate("items.assignee", "name email profilePic");
 
     if (!updatedChecklist) {
       throw new NotFoundError("Checklist not found");
@@ -178,6 +210,45 @@ export const toggleItem = async (req, res, next) => {
       res,
       { checklist: updatedChecklist },
       "Item toggled successfully",
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateChecklist = async (req, res, next) => {
+  try {
+    const { items } = createChecklistSchema.parse(req.body);
+    const { meeting } = await resolveAuthorizedMeeting(req, "edit");
+
+    requireChecklistManager(req.user, meeting);
+
+    let checklist = await MeetingChecklist.findOne({
+      meetingId: meeting._id,
+      organization: meeting.organization,
+    });
+
+    if (!checklist) {
+      throw new NotFoundError("Checklist not found");
+    }
+
+    checklist.items = items;
+    // Remove completions of indices that are now out of bounds
+    checklist.completions = checklist.completions.filter(
+      (comp) => comp.itemIndex < items.length,
+    );
+
+    await checklist.save();
+
+    const populatedChecklist = await checklist.populate(
+      "items.assignee",
+      "name email profilePic",
+    );
+
+    sendSuccess(
+      res,
+      { checklist: populatedChecklist },
+      "Checklist updated successfully",
     );
   } catch (error) {
     next(error);

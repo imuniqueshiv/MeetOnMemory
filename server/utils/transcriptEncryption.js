@@ -95,3 +95,23 @@ export const isMeetingTranscriptEncrypted = (meeting) =>
  */
 export const meetingSupportsServerAi = (meeting) =>
   !isMeetingTranscriptEncrypted(meeting);
+
+/**
+ * Check if the organization associated with the meeting enforces E2EE.
+ */
+export const isOrgE2eeEnforcedForMeeting = async (meeting) => {
+  if (!meeting || !meeting.organization) return false;
+
+  let org = meeting.organization;
+  if (typeof org === "string" || org.constructor?.name === "ObjectId") {
+    try {
+      const Organization = (await import("../models/organizationModel.js"))
+        .default;
+      org = await Organization.findById(org).lean();
+    } catch {
+      return false;
+    }
+  }
+
+  return isOrgE2eeEnforced(org);
+};

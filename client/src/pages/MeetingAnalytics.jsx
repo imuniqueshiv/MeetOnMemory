@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { usePolling } from "../hooks/usePolling.js";
 import apiClient from "../services/apiClient.js";
@@ -48,6 +48,8 @@ const MeetingAnalytics = () => {
   const [goalStats, setGoalStats] = useState([]);
   const [activeTab, setActiveTab] = useState("overview");
 
+  const pollAbortController = useRef(null);
+
   // Owns the completion poll below, including its teardown on unmount (#1455).
   const { startPolling } = usePolling();
 
@@ -96,49 +98,62 @@ const MeetingAnalytics = () => {
     }
   }, [analytics]);
 
+  const startPoll = useCallback(() => {
+    if (pollAbortController.current) {
+      pollAbortController.current.abort();
+    }
+    pollAbortController.current = new AbortController();
+    const signal = pollAbortController.current.signal;
+
+    startPolling(
+      async () => {
+        try {
+          const { data } = await apiClient.get(
+            `/api/analytics/meetings/${meetingId}`,
+            { signal },
+          );
+
+          if (data.status === "completed") {
+            setAnalytics(data);
+            setAnalyzing(false);
+            toast.success("Analysis completed!");
+            return true;
+          }
+
+          if (data.status === "failed") {
+            setAnalyzing(false);
+            toast.error("Analysis failed");
+            return true;
+          }
+
+          return false;
+        } catch {
+          return false;
+        }
+      },
+      {
+        intervalMs: 5000,
+        timeoutMs: 120000,
+        onTimeout: () => setAnalyzing(false),
+        onError: (err) => console.error("Error polling:", err),
+      },
+    );
+  }, [meetingId, startPolling]);
+
+  useEffect(() => {
+    if (analytics?.status === "analyzing" && !analyzing) {
+      setAnalyzing(true);
+      startPoll();
+    }
+  }, [analytics, analyzing, startPoll]);
+
   const triggerAnalysis = async () => {
     try {
       setAnalyzing(true);
       await apiClient.post(`/api/analytics/analyze/${meetingId}`);
 
       toast.info("Analysis started. This may take up to 60 seconds.");
-
-      // Poll for completion. The interval and its 2-minute deadline used to be
-      // plain `const`s inside this handler, so nothing on the unmount path
-      // could clear them and navigating away left the poll running (#1455).
-      startPolling(
-        async ({ signal }) => {
-          try {
-            const { data } = await apiClient.get(
-              `/api/analytics/meetings/${meetingId}`,
-              { signal },
-            );
-
-            if (data.status === "completed") {
-              setAnalytics(data);
-              setAnalyzing(false);
-              toast.success("Analysis completed!");
-              return true;
-            }
-
-            if (data.status === "failed") {
-              setAnalyzing(false);
-              toast.error("Analysis failed");
-              return true;
-            }
-
-            return false;
-          } catch {
-            return false;
-          }
-        },
-        {
-          intervalMs: 5000,
-          timeoutMs: 120000,
-          onTimeout: () => setAnalyzing(false),
-          onError: (err) => console.error("Error polling:", err),
-        },
-      );
+      startPoll();
     } catch (err) {
       console.error("Error triggering analysis:", err);
       toast.error("Failed to start analysis");

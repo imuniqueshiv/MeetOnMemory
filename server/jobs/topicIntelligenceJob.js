@@ -4,7 +4,7 @@ import {
   detectOrphanedTopics,
   buildCoOccurrenceGraph,
 } from "../services/topicIntelligenceService.js";
-import { queueRegistry } from "../services/queueRegistry.js";
+import queueRegistry from "../services/queueRegistry.js";
 import logger from "../utils/logger.js"; // Assume there's a logger
 
 /**

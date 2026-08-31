@@ -4,10 +4,12 @@ import { toast } from "react-toastify";
 
 export const useMeetingDuplicates = (meetingId) => {
   const [duplicates, setDuplicates] = useState([]);
+  const [recentMerges, setRecentMerges] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
+  const [isRollingBack, setIsRollingBack] = useState(false);
 
   const fetchDuplicates = useCallback(async () => {
     if (!meetingId) return;
@@ -35,12 +37,31 @@ export const useMeetingDuplicates = (meetingId) => {
   }) => {
     setIsMerging(true);
     try {
+      const secondaryObj = duplicates.find((d) => d._id === secondaryId);
       const response = await meetingDuplicateApi.mergeMeetings(
         primaryId,
         secondaryId,
         fieldSelections,
       );
       toast.success("Meetings merged successfully");
+
+      const mergeResult = response.data?.data || response.data || {};
+      const auditId = mergeResult.mergeAuditId || mergeResult._id;
+      if (auditId) {
+        setRecentMerges((prev) => [
+          {
+            mergeAuditId: auditId,
+            secondaryMeeting: secondaryObj || {
+              _id: secondaryId,
+              title: "Secondary Meeting",
+            },
+            fieldSelections,
+            mergedAt: new Date(),
+          },
+          ...prev,
+        ]);
+      }
+
       setDuplicates((prev) => prev.filter((d) => d._id !== secondaryId));
       return response;
     } catch (error) {
@@ -48,6 +69,27 @@ export const useMeetingDuplicates = (meetingId) => {
       throw error;
     } finally {
       setIsMerging(false);
+    }
+  };
+
+  const rollbackMerge = async ({ primaryId, mergeAuditId }) => {
+    setIsRollingBack(true);
+    try {
+      const response = await meetingDuplicateApi.rollbackMerge(
+        primaryId,
+        mergeAuditId,
+      );
+      toast.success("Merge rolled back successfully");
+      setRecentMerges((prev) =>
+        prev.filter((m) => m.mergeAuditId !== mergeAuditId),
+      );
+      await fetchDuplicates();
+      return response;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to rollback merge");
+      throw error;
+    } finally {
+      setIsRollingBack(false);
     }
   };
 
@@ -68,10 +110,13 @@ export const useMeetingDuplicates = (meetingId) => {
 
   return {
     duplicates,
+    recentMerges,
     isLoading,
     isError,
     mergeMeetings,
     isMerging,
+    rollbackMerge,
+    isRollingBack,
     dismissDuplicate,
     isDismissing,
     refreshDuplicates: fetchDuplicates,

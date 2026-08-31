@@ -5,6 +5,8 @@ import Transcript from "../models/transcriptModel.js";
 import Decision from "../models/decisionModel.js";
 import ActionItem from "../models/actionItemModel.js";
 import { groupByPeriod } from "../utils/periodBucket.js";
+import mongoose from "mongoose";
+
 /**
  * Audio Analytics Service
  * Provides comprehensive meeting analytics including speaker tracking,
@@ -282,10 +284,13 @@ export const analyzeMeeting = async (meetingId) => {
       // Find or create speaker analytics
       const speakerId = segment.speaker.toString();
       if (!speakerMap.has(speakerId)) {
-        const user = await User.findById(speakerId);
+        let user = null;
+        if (mongoose.isValidObjectId(speakerId)) {
+          user = await User.findById(speakerId);
+        }
         speakerMap.set(speakerId, {
           userId: speakerId,
-          name: user?.name || segment.speakerName || "Unknown",
+          name: user?.name || segment.speakerName || "Guest",
           email: user?.email || "",
           totalTime: 0,
           interventionCount: 0,

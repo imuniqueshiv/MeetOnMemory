@@ -3,7 +3,7 @@ import MeetingChecklist from "../models/meetingChecklistModel.js";
 import Meeting from "../models/meetingModel.js";
 import eventBus from "../services/eventBus.js";
 
-const processChecklistReminders = async () => {
+export const processChecklistReminders = async () => {
   try {
     const now = new Date();
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -24,23 +24,38 @@ const processChecklistReminders = async () => {
       });
       if (!checklist || checklist.items.length === 0) continue;
 
-      // Group completions to find who hasn't completed everything
-      const totalItems = checklist.items.length;
-
-      const userCompletions = checklist.completions.reduce((acc, comp) => {
-        const uid = comp.userId.toString();
-        if (!acc[uid]) acc[uid] = 0;
-        acc[uid]++;
+      // Map completions: itemIndex -> Set of userIds who completed it
+      const itemCompletions = checklist.completions.reduce((acc, comp) => {
+        const idx = comp.itemIndex;
+        if (!acc[idx]) acc[idx] = new Set();
+        acc[idx].add(comp.userId.toString());
         return acc;
       }, {});
 
       for (const participant of meeting.participants) {
-        const uid = participant.userId?.toString();
+        const uid =
+          participant.user?.toString() || participant.userId?.toString();
         if (!uid) continue;
 
-        const completedCount = userCompletions[uid] || 0;
+        let hasIncompleteTask = false;
 
-        if (completedCount < totalItems) {
+        checklist.items.forEach((item, index) => {
+          const completedBySet = itemCompletions[index] || new Set();
+          const isCompleted = completedBySet.has(uid);
+
+          if (!isCompleted) {
+            if (item.assignee) {
+              if (item.assignee.toString() === uid) {
+                hasIncompleteTask = true;
+              }
+            } else {
+              // Unassigned task is responsibility of all participants
+              hasIncompleteTask = true;
+            }
+          }
+        });
+
+        if (hasIncompleteTask) {
           eventBus.emit("notification:created", {
             type: "checklist_reminder",
             userId: uid,

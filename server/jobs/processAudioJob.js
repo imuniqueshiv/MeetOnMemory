@@ -1,5 +1,6 @@
 import { aiResultsQueue } from "../services/queueService.js";
 import { generateMoMDetailed } from "../services/GenerativeAIService.js";
+import TranscriptChapter from "../models/transcriptChapterModel.js";
 
 export default async function processAudioJob(job) {
   const { meetingId, transcript, date, title, customInstructions, userId } =
@@ -14,12 +15,32 @@ export default async function processAudioJob(job) {
     throw new Error("No transcript provided.");
   }
 
+  // Fetch visual frames
+  let visualFramesText = null;
+  if (meetingId) {
+    const tc = await TranscriptChapter.findOne({ meeting: meetingId });
+    if (tc && tc.chapters && tc.chapters.length > 0) {
+      const visualChapters = tc.chapters.filter(
+        (c) => c.imageUrl || c.extractedText || c.summary,
+      );
+      if (visualChapters.length > 0) {
+        visualFramesText = visualChapters
+          .map(
+            (c) =>
+              `[${new Date(c.startTime).toLocaleTimeString()}] Slide Description: ${c.summary}\nExtracted Text: ${c.extractedText}`,
+          )
+          .join("\n\n");
+      }
+    }
+  }
+
   // Generate MoM
   const { mom: generated, generation } = await generateMoMDetailed(
     textToSummarize,
     date,
     title,
     customInstructions,
+    visualFramesText,
   );
 
   // Publish result back to the main server results queue

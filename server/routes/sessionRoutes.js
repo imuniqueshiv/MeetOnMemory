@@ -33,8 +33,93 @@ const storage = multer.diskStorage({
   },
 });
 
+export const ALLOWED_SLIDE_MIME_TYPES = [
+  "application/pdf",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.apple.keynote",
+  "application/x-iwork-keynote-sffkey",
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+];
+
+export const ALLOWED_SLIDE_EXTENSIONS = [
+  ".pdf",
+  ".ppt",
+  ".pptx",
+  ".key",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+];
+
+export const ALLOWED_VIDEO_MIME_TYPES = [
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-matroska",
+  "video/x-msvideo",
+  "video/mp4v-es",
+];
+
+export const ALLOWED_VIDEO_EXTENSIONS = [
+  ".mp4",
+  ".webm",
+  ".mov",
+  ".mkv",
+  ".avi",
+  ".m4v",
+];
+
+export const sessionFileFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname || "").toLowerCase();
+  const mimetype = (file.mimetype || "").toLowerCase();
+
+  if (file.fieldname === "slides") {
+    const isMimeValid = ALLOWED_SLIDE_MIME_TYPES.includes(mimetype);
+    const isExtValid = ALLOWED_SLIDE_EXTENSIONS.includes(ext);
+
+    if (!isMimeValid || !isExtValid) {
+      return cb(
+        new Error(
+          `Invalid slide file format (${file.originalname}). Allowed extensions: ${ALLOWED_SLIDE_EXTENSIONS.join(
+            ", ",
+          )}`,
+        ),
+        false,
+      );
+    }
+    return cb(null, true);
+  }
+
+  if (file.fieldname === "video") {
+    const isMimeValid =
+      ALLOWED_VIDEO_MIME_TYPES.includes(mimetype) ||
+      mimetype.startsWith("video/");
+    const isExtValid = ALLOWED_VIDEO_EXTENSIONS.includes(ext);
+
+    if (!isMimeValid || !isExtValid) {
+      return cb(
+        new Error(
+          `Invalid video file format (${file.originalname}). Allowed extensions: ${ALLOWED_VIDEO_EXTENSIONS.join(
+            ", ",
+          )}`,
+        ),
+        false,
+      );
+    }
+    return cb(null, true);
+  }
+
+  return cb(new Error(`Unexpected field for upload: ${file.fieldname}`), false);
+};
+
 const upload = multer({
   storage: storage,
+  fileFilter: sessionFileFilter,
   limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
 });
 

@@ -10,7 +10,7 @@ import Meeting from "../models/meetingModel.js";
 const ORG_ID = new mongoose.Types.ObjectId();
 
 describe("customFieldController facets & meeting fields persistence", () => {
-  let meeting1, meeting2, defProject;
+  let meeting1, _meeting2, defProject;
 
   beforeAll(async () => {
     if (mongoose.connection.readyState !== 1) {
@@ -48,7 +48,7 @@ describe("customFieldController facets & meeting fields persistence", () => {
       ],
     });
 
-    meeting2 = await Meeting.create({
+    _meeting2 = await Meeting.create({
       title: "Project Beta Sync",
       date: new Date(),
       uploadedBy: new mongoose.Types.ObjectId(),

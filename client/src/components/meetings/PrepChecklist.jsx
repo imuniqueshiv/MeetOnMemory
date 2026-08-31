@@ -28,6 +28,8 @@ const PrepChecklist = ({ meeting, currentUser }) => {
   // Organizer state
   const [newItemText, setNewItemText] = useState("");
   const [newItemDesc, setNewItemDesc] = useState("");
+  const [newItemAssignee, setNewItemAssignee] = useState("");
+  const [newItemDueDate, setNewItemDueDate] = useState("");
   const [itemsToCreate, setItemsToCreate] = useState([]);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -73,16 +75,120 @@ const PrepChecklist = ({ meeting, currentUser }) => {
     e.preventDefault();
     if (!newItemText.trim()) return;
 
+    let assigneeObj = null;
+    if (newItemAssignee) {
+      const p = meeting.participants?.find(
+        (part) =>
+          String(part.user || part.userId || part._id || part.id) ===
+          String(newItemAssignee),
+      );
+      if (p) {
+        assigneeObj = { _id: newItemAssignee, name: p.name || p.email };
+      }
+    }
+
     setItemsToCreate([
       ...itemsToCreate,
-      { text: newItemText, description: newItemDesc, required: false },
+      {
+        text: newItemText,
+        description: newItemDesc,
+        required: false,
+        assignee: newItemAssignee || null,
+        dueDate: newItemDueDate || null,
+        localAssignee: assigneeObj,
+      },
     ]);
     setNewItemText("");
     setNewItemDesc("");
+    setNewItemAssignee("");
+    setNewItemDueDate("");
   };
 
   const handleRemoveItemToCreate = (index) => {
     setItemsToCreate(itemsToCreate.filter((_, i) => i !== index));
+  };
+
+  const handleDeleteExistingItem = async (index) => {
+    try {
+      const updatedItems = checklist.items.filter((_, i) => i !== index);
+      if (updatedItems.length === 0) {
+        await meetingChecklistApi.deleteChecklist(meeting._id);
+        setChecklist(null);
+        toast.success("Checklist deleted");
+      } else {
+        const res = await meetingChecklistApi.updateChecklist(meeting._id, {
+          items: updatedItems.map((item) => ({
+            text: item.text,
+            description: item.description,
+            required: item.required,
+            assignee: item.assignee?._id || item.assignee || null,
+            dueDate: item.dueDate || null,
+          })),
+        });
+        setChecklist(res.data.data.checklist);
+        toast.success("Checklist updated");
+        // Also update readiness if possible
+        if (isUserOrganizer(meeting, currentUser)) {
+          const readinessRes = await meetingChecklistApi.getReadiness(
+            meeting._id,
+          );
+          if (readinessRes.data?.data?.readiness) {
+            setReadiness(readinessRes.data.data.readiness);
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update checklist");
+    }
+  };
+
+  const handleAddNewItemToExisting = async (e) => {
+    e.preventDefault();
+    if (!newItemText.trim()) return;
+
+    try {
+      const newItem = {
+        text: newItemText,
+        description: newItemDesc,
+        required: false,
+        assignee: newItemAssignee || null,
+        dueDate: newItemDueDate || null,
+      };
+
+      const existingItemsMapped = checklist.items.map((item) => ({
+        text: item.text,
+        description: item.description,
+        required: item.required,
+        assignee: item.assignee?._id || item.assignee || null,
+        dueDate: item.dueDate || null,
+      }));
+
+      const updatedItems = [...existingItemsMapped, newItem];
+      const res = await meetingChecklistApi.updateChecklist(meeting._id, {
+        items: updatedItems,
+      });
+      setChecklist(res.data.data.checklist);
+      toast.success("Task added successfully");
+
+      setNewItemText("");
+      setNewItemDesc("");
+      setNewItemAssignee("");
+      setNewItemDueDate("");
+
+      // Update readiness since checklist structure changed
+      if (isUserOrganizer(meeting, currentUser)) {
+        const readinessRes = await meetingChecklistApi.getReadiness(
+          meeting._id,
+        );
+        if (readinessRes.data?.data?.readiness) {
+          setReadiness(readinessRes.data.data.readiness);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add task");
+    }
   };
 
   const handleSaveChecklist = async () => {
@@ -184,13 +290,38 @@ const PrepChecklist = ({ meeting, currentUser }) => {
                 value={newItemText}
                 onChange={(e) => setNewItemText(e.target.value)}
               />
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Optional details..."
+              <input
+                type="text"
+                placeholder="Optional details..."
+                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                value={newItemDesc}
+                onChange={(e) => setNewItemDesc(e.target.value)}
+              />
+              <div className="flex flex-col sm:flex-row gap-2">
+                <select
                   className="flex-1 px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
-                  value={newItemDesc}
-                  onChange={(e) => setNewItemDesc(e.target.value)}
+                  value={newItemAssignee}
+                  onChange={(e) => setNewItemAssignee(e.target.value)}
+                >
+                  <option value="">Unassigned</option>
+                  {meeting.participants?.map((p) => {
+                    const pid =
+                      p.user?.toString() ||
+                      p.userId?.toString() ||
+                      p._id?.toString() ||
+                      p.id?.toString();
+                    return (
+                      <option key={pid} value={pid}>
+                        {p.name || p.email}
+                      </option>
+                    );
+                  })}
+                </select>
+                <input
+                  type="datetime-local"
+                  className="flex-1 px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                  value={newItemDueDate}
+                  onChange={(e) => setNewItemDueDate(e.target.value)}
                 />
                 <button
                   type="submit"
@@ -219,6 +350,19 @@ const PrepChecklist = ({ meeting, currentUser }) => {
                             {item.description}
                           </p>
                         )}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {item.localAssignee && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                              <Users className="w-3 h-3" />
+                              {item.localAssignee.name}
+                            </span>
+                          )}
+                          {item.dueDate && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                              Due: {new Date(item.dueDate).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <button
                         onClick={() => handleRemoveItemToCreate(index)}
@@ -306,43 +450,149 @@ const PrepChecklist = ({ meeting, currentUser }) => {
         >
           {checklist.items.map((item, index) => {
             const completed = isItemCompleted(index);
+            const isOverdue =
+              item.dueDate && !completed && new Date(item.dueDate) < new Date();
+
             return (
               <div
                 key={index}
-                className={`p-4 border rounded-lg transition-colors flex gap-3 ${
+                className={`p-4 border rounded-lg transition-colors flex gap-3 items-center justify-between ${
                   completed
                     ? "bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700"
-                    : "bg-white border-gray-300 dark:bg-gray-800 dark:border-gray-600"
+                    : isOverdue
+                      ? "bg-red-50/50 border-red-300 dark:bg-red-900/10 dark:border-red-950"
+                      : "bg-white border-gray-300 dark:bg-gray-800 dark:border-gray-600"
                 }`}
               >
-                <button
-                  onClick={() => handleToggleItem(index)}
-                  disabled={isPastMeeting}
-                  className={`mt-0.5 flex-shrink-0 focus:outline-none ${isPastMeeting ? "cursor-not-allowed opacity-50" : ""}`}
-                >
-                  {completed ? (
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                  ) : (
-                    <Circle className="w-5 h-5 text-gray-400 hover:text-blue-500" />
-                  )}
-                </button>
-                <div
-                  className={`${completed ? "line-through text-gray-500 dark:text-gray-400" : "text-gray-900 dark:text-gray-100"}`}
-                >
-                  <p className="text-sm font-medium leading-relaxed">
-                    {item.text}
-                  </p>
-                  {item.description && (
-                    <p
-                      className={`text-xs mt-1 ${completed ? "text-gray-400" : "text-gray-500 dark:text-gray-400"}`}
-                    >
-                      {item.description}
+                <div className="flex gap-3 items-start">
+                  <button
+                    onClick={() => handleToggleItem(index)}
+                    disabled={isPastMeeting}
+                    className={`mt-0.5 flex-shrink-0 focus:outline-none ${isPastMeeting ? "cursor-not-allowed opacity-50" : ""}`}
+                  >
+                    {completed ? (
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                    ) : (
+                      <Circle className="w-5 h-5 text-gray-400 hover:text-blue-500" />
+                    )}
+                  </button>
+                  <div
+                    className={`${completed ? "line-through text-gray-500 dark:text-gray-400" : "text-gray-900 dark:text-gray-100"}`}
+                  >
+                    <p className="text-sm font-medium leading-relaxed">
+                      {item.text}
                     </p>
-                  )}
+                    {item.description && (
+                      <p
+                        className={`text-xs mt-1 ${completed ? "text-gray-400" : "text-gray-500 dark:text-gray-400"}`}
+                      >
+                        {item.description}
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {item.assignee && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                          <Users className="w-3 h-3" />
+                          {item.assignee.name ||
+                            item.assignee.email ||
+                            "Assigned"}
+                        </span>
+                      )}
+                      {item.dueDate && (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                            isOverdue
+                              ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border border-red-200"
+                              : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
+                          }`}
+                        >
+                          {isOverdue && <AlertCircle className="w-3 h-3" />}
+                          Due: {new Date(
+                            item.dueDate,
+                          ).toLocaleDateString()}{" "}
+                          {new Date(item.dueDate).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}{" "}
+                          {isOverdue && "(Overdue)"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
+
+                {isOrganizer && (
+                  <button
+                    onClick={() => handleDeleteExistingItem(index)}
+                    className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                    title="Remove Task"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             );
           })}
+
+          {/* Organizer Add Task inline view */}
+          {isOrganizer && (
+            <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-6">
+              <h4 className="font-semibold text-sm text-gray-900 dark:text-white mb-3">
+                Add Task to Checklist
+              </h4>
+              <form onSubmit={handleAddNewItemToExisting} className="space-y-3">
+                <input
+                  type="text"
+                  placeholder="Task description (e.g., Review Q2 report)"
+                  className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                  value={newItemText}
+                  onChange={(e) => setNewItemText(e.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="Optional details..."
+                  className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                  value={newItemDesc}
+                  onChange={(e) => setNewItemDesc(e.target.value)}
+                />
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    className="flex-1 px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                    value={newItemAssignee}
+                    onChange={(e) => setNewItemAssignee(e.target.value)}
+                  >
+                    <option value="">Unassigned</option>
+                    {meeting.participants?.map((p) => {
+                      const pid =
+                        p.user?.toString() ||
+                        p.userId?.toString() ||
+                        p._id?.toString() ||
+                        p.id?.toString();
+                      return (
+                        <option key={pid} value={pid}>
+                          {p.name || p.email}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <input
+                    type="datetime-local"
+                    className="flex-1 px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                    value={newItemDueDate}
+                    onChange={(e) => setNewItemDueDate(e.target.value)}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newItemText.trim()}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-4 h-4" /> Add Task
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Readiness (Organizer Only) */}

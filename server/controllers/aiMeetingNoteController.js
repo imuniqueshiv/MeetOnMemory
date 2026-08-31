@@ -1,4 +1,5 @@
 import AiMeetingNote from "../models/aiMeetingNoteModel.js";
+import { escapeRegExp } from "../utils/regexUtils.js";
 
 /**
  * Built-in reusable note templates
@@ -303,7 +304,7 @@ export const getNotes = async (req, res) => {
     const query = { organization: organizationId };
 
     if (search && search.trim()) {
-      const regex = new RegExp(search.trim(), "i");
+      const regex = new RegExp(escapeRegExp(search.trim()), "i");
       query.$or = [{ title: regex }, { summary: regex }, { tags: regex }];
     }
 

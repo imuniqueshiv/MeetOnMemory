@@ -1,5 +1,6 @@
 import express from "express";
 import authRoutes from "./authRoutes.js";
+import auditRoutes from "./auditRoutes.js";
 import organizationRoutes from "./organizationRoutes.js";
 import membershipRoutes from "./membershipRoutes.js";
 import membershipRequestRoutes from "./membershipRequestRoutes.js";
@@ -11,6 +12,7 @@ import policyRoutes from "./policyRoutes.js";
 import analyticsRoutes from "./analyticsRoutes.js";
 import actionItemAnalyticsRoutes from "./actionItemAnalyticsRoutes.js";
 import standupRoutes from "./standupRoutes.js";
+import meetingBudgetRoutes from "./meetingBudgetRoutes.js";
 import geminiRoutes from "./geminiRoutes.js";
 import notesRoutes from "./notes.routes.js";
 import userRoutes from "./userRoutes.js";
@@ -93,6 +95,7 @@ import asyncMeetingRoutes from "./asyncMeetingRoutes.js";
 
 import calendarRoutes from "./calendarRoutes.js";
 import assistantRoutes from "./assistantRoutes.js";
+import voiceSearchRoutes from "./voiceSearchRoutes.js";
 import savedFilterRoutes from "./savedFilterRoutes.js";
 import meetingChecklistRoutes from "./meetingChecklistRoutes.js";
 import speakingTimeRoutes from "./speakingTimeRoutes.js";
@@ -123,6 +126,7 @@ const router = express.Router();
 // ALL PROTECTED ROUTES (CSRF Enforced globally in express.js)
 // ==========================================
 router.use("/api/auth", authRoutes);
+router.use("/api", auditRoutes);
 router.use(["/api/organization", "/api/organizations"], organizationRoutes);
 router.use(["/api/membership", "/api/memberships"], membershipRoutes);
 router.use(
@@ -148,7 +152,8 @@ router.use("/api/ai", aiRoutes);
 router.use("/api/policies", policyRoutes);
 router.use("/api/analytics", analyticsRoutes);
 router.use("/api/action-item-analytics", actionItemAnalyticsRoutes);
-router.use("/api/standup", standupRoutes);
+router.use(["/api/standups", "/api/standup"], standupRoutes);
+router.use("/api/meeting-budgets", meetingBudgetRoutes);
 router.use("/api/gemini", geminiRoutes);
 router.use("/api/notes", notesRoutes);
 router.use("/api/favorites", favoriteRoutes);
@@ -161,6 +166,7 @@ router.use("/api/policy-compliance", policyComplianceRoutes);
 router.use("/api/sessions", sessionRoutes);
 router.use("/api/recording-sessions", recordingSessionRoutes);
 router.use("/api/assistant", assistantRoutes);
+router.use("/api/voice-search", voiceSearchRoutes);
 router.use("/api/transcripts", transcriptRoutes);
 router.use("/api/meetings/:meetingId/chapters", transcriptChapterRoutes);
 router.use("/api/meetings/:meetingId/attendance", meetingAttendanceRoutes);
@@ -300,8 +306,6 @@ import dataRetentionRoutes from "./dataRetentionRoutes.js";
 router.use("/api/data-retention", dataRetentionRoutes);
 import weeklyInsightRoutes from "./weeklyInsightRoutes.js";
 router.use("/api/weekly-insights", weeklyInsightRoutes);
-import standupReportRoutes from "./standupReportRoutes.js";
-router.use("/api/standups", standupReportRoutes);
 import meetingRiskRoutes from "./meetingRiskRoutes.js";
 router.use("/api/meeting-risks", meetingRiskRoutes);
 

@@ -452,25 +452,60 @@ const DangerZone = ({
 
   const isOwner = userRole === "owner";
 
+  const recordAuditEvent = useCallback(
+    async (actionType, summaryText) => {
+      if (!organization?._id) return false;
+      const currentUserId =
+        currentUser?.id || currentUser?._id || "unknown_user";
+      try {
+        const response = await fetch(
+          `/api/organizations/${organization._id}/audit`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: actionType,
+              userId: currentUserId,
+              details: summaryText,
+            }),
+          },
+        );
+
+        if (!response.ok) throw new Error("Audit trail storage failed.");
+        return true;
+      } catch (error) {
+        console.error("[CRITICAL] Audit logging broken:", error);
+        toast.error(
+          "Security boundary error: Action blocked because audit trail could not be saved.",
+        );
+        return false;
+      }
+    },
+    [organization?._id, currentUser],
+  );
+
   // Leave Organization
   const handleLeave = useCallback(async () => {
     if (!organization?._id) return;
 
     setLoading(true);
     try {
+      const logged = await recordAuditEvent(
+        "ORG_LEAVE",
+        "User left organization",
+      );
+      if (!logged) {
+        setLoading(false);
+        setShowLeaveConfirm(false);
+        return;
+      }
+
       const response = await organizationApi.leaveOrganization(
         organization._id,
       );
 
       if (response.data.success) {
         toast.success("You have left the organization successfully");
-
-        // Audit log
-        console.log("Audit: User left organization", {
-          userId: currentUser?.id,
-          organizationId: organization._id,
-          timestamp: new Date(),
-        });
 
         // Redirect to dashboard
         setTimeout(() => {
@@ -490,7 +525,7 @@ const DangerZone = ({
       setLoading(false);
       setShowLeaveConfirm(false);
     }
-  }, [organization, navigate, currentUser]);
+  }, [organization, navigate, recordAuditEvent]);
 
   // Delete Organization
   const handleDelete = useCallback(async () => {
@@ -502,20 +537,22 @@ const DangerZone = ({
 
     setLoading(true);
     try {
+      const logged = await recordAuditEvent(
+        "ORG_DELETION",
+        "User initiated permanent organization deletion",
+      );
+      if (!logged) {
+        setLoading(false);
+        setShowDeleteConfirm(false);
+        return;
+      }
+
       const response = await organizationApi.deleteOrganization(
         organization._id,
       );
 
       if (response.data.success) {
         toast.success("Organization has been permanently deleted");
-
-        // Audit log
-        console.log("Audit: Organization deleted", {
-          userId: currentUser?.id,
-          organizationId: organization._id,
-          organizationName: organization.name,
-          timestamp: new Date(),
-        });
 
         // Redirect to dashboard
         setTimeout(() => {
@@ -536,7 +573,7 @@ const DangerZone = ({
       setShowDeleteConfirm(false);
       setOrganizationName("");
     }
-  }, [organization, navigate, currentUser, organizationName]);
+  }, [organization, navigate, organizationName, recordAuditEvent]);
 
   // Transfer Ownership
   const handleTransfer = useCallback(
@@ -545,6 +582,16 @@ const DangerZone = ({
 
       setLoading(true);
       try {
+        const logged = await recordAuditEvent(
+          "ORG_OWNERSHIP_TRANSFER",
+          `Transferred ownership to ${newOwnerId}`,
+        );
+        if (!logged) {
+          setLoading(false);
+          setShowTransferModal(false);
+          return;
+        }
+
         const response = await organizationApi.transferOwnership(
           organization._id,
           {
@@ -556,15 +603,6 @@ const DangerZone = ({
           toast.success(
             `Ownership transferred to ${response.data.newOwner?.name || "new owner"}`,
           );
-
-          // Audit log
-          console.log("Audit: Ownership transferred", {
-            userId: currentUser?.id,
-            organizationId: organization._id,
-            previousOwner: currentUser?.id,
-            newOwner: newOwnerId,
-            timestamp: new Date(),
-          });
 
           // Refresh organization data
           if (onRefresh) {
@@ -585,7 +623,7 @@ const DangerZone = ({
         setShowTransferModal(false);
       }
     },
-    [organization, currentUser, onRefresh],
+    [organization, onRefresh, recordAuditEvent],
   );
 
   // Get eligible members for transfer

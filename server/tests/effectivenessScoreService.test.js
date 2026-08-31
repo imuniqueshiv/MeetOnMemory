@@ -1,70 +1,74 @@
 import { jest } from "@jest/globals";
-import effectivenessScoreService from "../services/effectivenessScoreService.js";
-import EffectivenessScore from "../models/effectivenessScoreModel.js";
-import MeetingGoal from "../models/meetingGoalModel.js";
-import ActionItem from "../models/actionItemModel.js";
-import MeetingFeedback from "../models/meetingFeedbackModel.js";
-import Decision from "../models/decisionModel.js";
-import MeetingAnalytics from "../models/MeetingAnalytics.js";
 
-jest.mock("../models/effectivenessScoreModel.js");
-jest.mock("../models/meetingGoalModel.js");
-jest.mock("../models/actionItemModel.js");
-jest.mock("../models/meetingFeedbackModel.js");
-jest.mock("../models/decisionModel.js");
-jest.mock("../models/MeetingAnalytics.js");
+const { default: effectivenessScoreService } =
+  await import("../services/effectivenessScoreService.js");
+const { default: EffectivenessScore } =
+  await import("../models/effectivenessScoreModel.js");
+const { default: MeetingGoal } = await import("../models/meetingGoalModel.js");
+const { default: ActionItem } = await import("../models/actionItemModel.js");
+const { default: MeetingFeedback } =
+  await import("../models/meetingFeedbackModel.js");
+const { default: Decision } = await import("../models/decisionModel.js");
+const { default: MeetingAnalytics } =
+  await import("../models/MeetingAnalytics.js");
 
 describe("Effectiveness Score Service", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   describe("calculateMeetingScore", () => {
     it("should correctly calculate and save score", async () => {
       // Mock data
-      MeetingGoal.findOne.mockResolvedValue({
-        goals: [
-          { status: "achieved" },
-          { status: "achieved" },
-          { status: "partially_achieved" },
-          { status: "not_achieved" },
-        ],
-      }); // Score: (2*1 + 1*0.5) / 4 = 2.5 / 4 = 62.5% -> 63
+      const findOneGoalSpy = jest
+        .spyOn(MeetingGoal, "findOne")
+        .mockResolvedValue({
+          goals: [
+            { status: "achieved" },
+            { status: "achieved" },
+            { status: "partially_achieved" },
+            { status: "not_achieved" },
+          ],
+        }); // Score: (2*1 + 1*0.5) / 4 = 2.5 / 4 = 62.5% -> 63
 
-      ActionItem.find.mockResolvedValue([
-        { status: "completed" },
-        { status: "completed" },
-        { status: "completed" },
-        { status: "pending" },
-      ]); // Score: 3/4 = 75% -> 75
+      jest
+        .spyOn(ActionItem, "find")
+        .mockResolvedValue([
+          { status: "completed" },
+          { status: "completed" },
+          { status: "completed" },
+          { status: "pending" },
+        ]); // Score: 3/4 = 75% -> 75
 
-      MeetingFeedback.find.mockResolvedValue([{ rating: 4 }, { rating: 5 }]); // Score: 4.5/5 = 90% -> 90
+      jest
+        .spyOn(MeetingFeedback, "find")
+        .mockResolvedValue([{ rating: 4 }, { rating: 5 }]); // Score: 4.5/5 = 90% -> 90
 
-      Decision.find.mockResolvedValue([
-        { status: "final" },
-        { status: "draft" },
-      ]); // Score: 1/2 = 50% -> 50
+      jest
+        .spyOn(Decision, "find")
+        .mockResolvedValue([{ status: "final" }, { status: "draft" }]); // Score: 1/2 = 50% -> 50
 
-      MeetingAnalytics.findOne.mockResolvedValue({
+      jest.spyOn(MeetingAnalytics, "findOne").mockResolvedValue({
         durationMetrics: {
           scheduledDuration: 60,
           actualDuration: 60,
         },
       }); // Score: 100% -> 100
 
-      EffectivenessScore.findOneAndUpdate.mockImplementation(
-        (query, update) => update,
-      );
+      const findOneAndUpdateScoreSpy = jest
+        .spyOn(EffectivenessScore, "findOneAndUpdate")
+        .mockImplementation((query, update) => update);
 
       const result = await effectivenessScoreService.calculateMeetingScore(
         "meetingId",
         "orgId",
       );
 
-      expect(MeetingGoal.findOne).toHaveBeenCalledWith({
+      expect(findOneGoalSpy).toHaveBeenCalledWith({
         meetingId: "meetingId",
       });
-      expect(EffectivenessScore.findOneAndUpdate).toHaveBeenCalled();
+      expect(findOneAndUpdateScoreSpy).toHaveBeenCalled();
 
       const { dimensions } = result;
       expect(dimensions.goalCompletionRate).toBe(63);

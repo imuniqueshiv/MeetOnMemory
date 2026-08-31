@@ -711,6 +711,7 @@ const MeetingRoom = () => {
           />
           <FacilitatorDashboard
             meeting={meeting}
+            socket={socketRef?.current || socket}
             onAdvanceAgenda={() => {
               // emit socket event to advance agenda
             }}

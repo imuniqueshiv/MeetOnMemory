@@ -1,7 +1,7 @@
 import api from "./apiClient"; // Ensure we use the pre-configured axios instance
 
 export const generateIcebreakers = async (meetingId, participantIds = []) => {
-  const response = await api.post("/icebreakers/generate", {
+  const response = await api.post("/api/icebreakers/generate", {
     meetingId,
     participantIds,
   });
@@ -9,7 +9,7 @@ export const generateIcebreakers = async (meetingId, participantIds = []) => {
 };
 
 export const selectIcebreaker = async (meetingId, category, promptText) => {
-  const response = await api.post("/icebreakers/select", {
+  const response = await api.post("/api/icebreakers/select", {
     meetingId,
     category,
     promptText,

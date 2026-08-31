@@ -7,10 +7,16 @@ jest.unstable_mockModule("../services/GenerativeAIService.js", () => ({
   parseJsonOutput: jest.fn(),
 }));
 
-const { generatePlaybookFromAI, createPlaybook } =
-  await import("../services/meetingPlaybookService.js");
+const {
+  generatePlaybookFromAI,
+  createPlaybook,
+  updatePlaybook,
+  restorePlaybookVersion,
+  applyPlaybookToMeeting,
+} = await import("../services/meetingPlaybookService.js");
 const { default: MeetingPlaybook } =
   await import("../models/meetingPlaybookModel.js");
+const { default: Meeting } = await import("../models/meetingModel.js");
 const GenerativeAIService = await import("../services/GenerativeAIService.js");
 
 describe("meetingPlaybookService", () => {
@@ -27,6 +33,7 @@ describe("meetingPlaybookService", () => {
 
   beforeEach(async () => {
     await MeetingPlaybook.deleteMany({});
+    await Meeting.deleteMany({});
     jest.clearAllMocks();
   });
 
@@ -49,6 +56,8 @@ describe("meetingPlaybookService", () => {
     expect(playbook).toBeDefined();
     expect(playbook.name).toBe("Test Playbook");
     expect(playbook.steps.length).toBe(1);
+    expect(playbook.version).toBe(1);
+    expect(playbook.versions.length).toBe(0);
   });
 
   it("should generate a playbook from AI", async () => {
@@ -97,5 +106,113 @@ describe("meetingPlaybookService", () => {
     await expect(
       generatePlaybookFromAI("Make a retro", "Sprint Retrospective", userId),
     ).rejects.toThrow("AI generated an invalid playbook structure");
+  });
+
+  it("should update playbook steps, bump version, and save snapshot to versions history", async () => {
+    const userId = new mongoose.Types.ObjectId();
+    const playbook = await createPlaybook({
+      name: "Initial Retro",
+      description: "Initial description",
+      steps: [
+        {
+          title: "Step 1",
+          durationMinutes: 5,
+          facilitatorPrompts: ["Icebreaker"],
+          expectedOutputs: ["Warmup done"],
+        },
+      ],
+      createdBy: userId,
+    });
+
+    const updated = await updatePlaybook(
+      playbook._id,
+      {
+        name: "Updated Retro",
+        steps: [
+          {
+            title: "Step 1 Reordered",
+            durationMinutes: 10,
+            facilitatorPrompts: ["Ask questions"],
+            expectedOutputs: ["Feedback collected"],
+          },
+          {
+            title: "Step 2 Added",
+            durationMinutes: 15,
+            facilitatorPrompts: ["Wrap up"],
+            expectedOutputs: ["Action items"],
+          },
+        ],
+      },
+      userId,
+    );
+
+    expect(updated.version).toBe(2);
+    expect(updated.name).toBe("Updated Retro");
+    expect(updated.steps.length).toBe(2);
+    expect(updated.versions.length).toBe(1);
+    expect(updated.versions[0].version).toBe(1);
+    expect(updated.versions[0].name).toBe("Initial Retro");
+    expect(updated.versions[0].steps[0].title).toBe("Step 1");
+  });
+
+  it("should restore a prior version snapshot", async () => {
+    const userId = new mongoose.Types.ObjectId();
+    const playbook = await createPlaybook({
+      name: "Version 1 Title",
+      description: "Version 1 Desc",
+      steps: [
+        {
+          title: "Step V1",
+          durationMinutes: 5,
+          facilitatorPrompts: [],
+          expectedOutputs: [],
+        },
+      ],
+      createdBy: userId,
+    });
+
+    await updatePlaybook(
+      playbook._id,
+      {
+        name: "Version 2 Title",
+        steps: [
+          {
+            title: "Step V2",
+            durationMinutes: 10,
+            facilitatorPrompts: [],
+            expectedOutputs: [],
+          },
+        ],
+      },
+      userId,
+    );
+
+    const restored = await restorePlaybookVersion(playbook._id, 1, userId);
+    expect(restored.version).toBe(3);
+    expect(restored.name).toBe("Version 1 Title");
+    expect(restored.steps[0].title).toBe("Step V1");
+    expect(restored.versions.length).toBe(2);
+  });
+
+  it("should apply playbook to a meeting and increment playbook usageCount", async () => {
+    const userId = new mongoose.Types.ObjectId();
+    const playbook = await createPlaybook({
+      name: "Engineering Weekly Sync",
+      steps: [{ title: "Agenda Review", durationMinutes: 5 }],
+      createdBy: userId,
+    });
+
+    const meeting = await Meeting.create({
+      uploadedBy: userId,
+      title: "Sprint Planning Meeting",
+      date: new Date(),
+    });
+
+    const result = await applyPlaybookToMeeting(playbook._id, meeting._id);
+    expect(result.meeting.playbook.toString()).toBe(playbook._id.toString());
+    expect(result.playbook.usageCount).toBe(1);
+
+    const updatedMeeting = await Meeting.findById(meeting._id);
+    expect(updatedMeeting.playbook.toString()).toBe(playbook._id.toString());
   });
 });

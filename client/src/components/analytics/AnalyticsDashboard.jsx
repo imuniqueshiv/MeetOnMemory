@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import apiClient from "../../services/apiClient";
 import MeetingAnalyticsDetail from "./MeetingAnalyticsDetail";
 
@@ -11,29 +11,37 @@ const AnalyticsDashboard = ({ teamId }) => {
   const [recentMeetings, setRecentMeetings] = useState([]);
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchData = useCallback(async () => {
+    if (!teamId) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { data: summaryData } = await apiClient.get(
+        `/api/analytics/team/${teamId}/summary`,
+      );
+      setSummary(summaryData.data);
+
+      const { data: meetingsData } = await apiClient.get(
+        `/api/analytics/team/${teamId}/recent?limit=10`,
+      );
+      setRecentMeetings(meetingsData.data.meetings || []);
+    } catch (err) {
+      console.error("Failed to fetch analytics:", err);
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to fetch analytics",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [teamId]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const { data: summaryData } = await apiClient.get(
-          `/api/analytics/team/${teamId}/summary`,
-        );
-        setSummary(summaryData.data);
-
-        const { data: meetingsData } = await apiClient.get(
-          `/api/analytics/team/${teamId}/recent?limit=10`,
-        );
-        setRecentMeetings(meetingsData.data.meetings || []);
-      } catch (error) {
-        console.error("Failed to fetch analytics:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (teamId) fetchData();
-  }, [teamId]);
+    fetchData();
+  }, [fetchData]);
 
   if (isLoading) {
     return (
@@ -44,6 +52,21 @@ const AnalyticsDashboard = ({ teamId }) => {
             className="h-32 bg-gray-200 dark:bg-gray-700 rounded-xl"
           ></div>
         ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 text-center text-red-500 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl flex flex-col items-center justify-center">
+        <p className="font-semibold text-lg">Error Loading Analytics</p>
+        <p className="text-sm mt-1 text-red-600 dark:text-red-400">{error}</p>
+        <button
+          onClick={fetchData}
+          className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition"
+        >
+          Try Again
+        </button>
       </div>
     );
   }

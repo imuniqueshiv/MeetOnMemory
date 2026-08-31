@@ -304,7 +304,11 @@ cd client
 npm install
 ```
 
-Configure Clerk keys (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`) in `client/.env`.
+Configure `client/.env` (see `client/.env.example`):
+
+- `VITE_BACKEND_URL` (Primary backend base URL, defaults to `http://localhost:4000`)
+- `VITE_API_URL` (Fallback backend base URL if `VITE_BACKEND_URL` is unset)
+- `VITE_CLERK_PUBLISHABLE_KEY` (Clerk publishable key)
 
 ```bash
 npm run dev

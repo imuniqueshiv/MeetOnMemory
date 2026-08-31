@@ -22,6 +22,7 @@ import {
   summarizeMeeting, // EXISTING: Generate AI summary/MOM
   getAllMeetings,
   getMeetingById, // NEW: Get single meeting details
+  exportMeetingNotes, // Export meeting notes as Markdown (#2543)
   updateMeeting, // NEW: Update meeting (rename)
   deleteMeeting, // Soft-delete meeting
   getDeletedMeetings,
@@ -452,6 +453,15 @@ router.get(
   requireOrgAccess(Meeting),
   requirePermission("meetings", "view"),
   getMeetingById,
+);
+
+// ✅ Export Meeting Notes as Markdown (Download button on Meeting Details)
+router.get(
+  "/:id/export",
+  userAuth,
+  requireOrgAccess(Meeting),
+  requirePermission("meetings", "view"),
+  exportMeetingNotes,
 );
 
 // ✅ Update Meeting (for Meeting Details Page - rename)

@@ -13,6 +13,7 @@ import {
   ForbiddenError,
   ValidationError,
 } from "../utils/errors.js";
+import { isSameOrganization } from "../utils/organizationScope.js";
 
 class MembershipRequestService {
   /**
@@ -85,7 +86,7 @@ class MembershipRequestService {
   /**
    * Add a comment to a membership request
    */
-  static async addComment(userId, requestId, text) {
+  static async addComment(userId, requestId, text, userOrgId = null) {
     if (!this._isValidObjectId(requestId)) {
       throw new ValidationError("Invalid membership request ID.");
     }
@@ -99,6 +100,10 @@ class MembershipRequestService {
 
     if (!request) {
       throw new NotFoundError("Membership request not found.");
+    }
+
+    if (userOrgId && !isSameOrganization(request.organization, userOrgId)) {
+      throw new ForbiddenError("Not authorized to comment on this request.");
     }
 
     const isRequester = request.user.toString() === userId.toString();

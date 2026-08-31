@@ -7,7 +7,6 @@ import {
   resolveConflictSet,
 } from "../services/conflictDetection/conflictDetectionService.js";
 import AuditLog from "../models/auditLogModel.js";
-import mongoose from "mongoose";
 
 jest.mock("../services/conflictDetection/conflictDetectionService.js", () => ({
   getConflictSetById: jest.fn(),

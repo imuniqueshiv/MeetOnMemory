@@ -36,7 +36,7 @@ export const getMarketplaceStatusAggregation = async (req, res) => {
         recommendationOrder: 1,
         isConnected: !!(slack && slack.isActive),
         lastSyncedAt: slack?.lastSyncHeartbeat || null,
-        configurationRoute: "/admin/settings/organization/slack",
+        configurationRoute: "/organization/settings#slack",
       },
       {
         id: "notion",
@@ -47,7 +47,7 @@ export const getMarketplaceStatusAggregation = async (req, res) => {
         recommendationOrder: 2,
         isConnected: !!(notion && notion.accessToken),
         lastSyncedAt: notion?.lastSyncHeartbeat || null,
-        configurationRoute: "/admin/settings/organization/notion",
+        configurationRoute: "/organization/settings#notion",
       },
       {
         id: "github",
@@ -58,7 +58,7 @@ export const getMarketplaceStatusAggregation = async (req, res) => {
         recommendationOrder: 3,
         isConnected: !!(github && github.installationId),
         lastSyncedAt: github?.lastSyncHeartbeat || null,
-        configurationRoute: "/admin/settings/organization/github",
+        configurationRoute: "/organization/settings#github",
       },
       {
         id: "jira",
@@ -69,7 +69,7 @@ export const getMarketplaceStatusAggregation = async (req, res) => {
         recommendationOrder: 4,
         isConnected: !!(jira && jira.apiToken),
         lastSyncedAt: jira?.lastSyncHeartbeat || null,
-        configurationRoute: "/admin/settings/organization/jira",
+        configurationRoute: "/organization/settings#jira",
       },
       {
         id: "calendar",
@@ -80,7 +80,7 @@ export const getMarketplaceStatusAggregation = async (req, res) => {
         recommendationOrder: 5,
         isConnected: !!(calendar && calendar.isAuthorized),
         lastSyncedAt: calendar?.lastSyncHeartbeat || null,
-        configurationRoute: "/admin/settings/organization/calendar",
+        configurationRoute: "/organization/settings#calendar",
       },
     ];
 

@@ -35,17 +35,33 @@ vi.mock("../utils/transcriptEmbeddingUtils.js", () => ({
   indexTranscriptChunks: vi.fn().mockResolvedValue(),
 }));
 
+vi.mock("../utils/transcriptEncryption.js", async (importOriginal) => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    isOrgE2eeEnforcedForMeeting: vi.fn().mockResolvedValue(false),
+  };
+});
+
 vi.mock("../utils/responseHandler.js", () => ({
   sendSuccess: vi.fn(),
   sendError: vi.fn(),
 }));
 
-const { updateSpeakers, updateTranscriptSegment, persistCaptionSegments } =
-  await import("../controllers/transcriptController.js");
+const {
+  updateSpeakers,
+  updateTranscriptSegment,
+  persistCaptionSegments,
+  uploadTranscriptAudio,
+  uploadTranscriptChunk,
+  finalizeTranscript,
+} = await import("../controllers/transcriptController.js");
 const Transcript = (await import("../models/transcriptModel.js")).default;
 const Meeting = (await import("../models/meetingModel.js")).default;
 const AuditLog = (await import("../models/auditLogModel.js")).default;
 const { sendSuccess, sendError } = await import("../utils/responseHandler.js");
+const { isOrgE2eeEnforcedForMeeting } =
+  await import("../utils/transcriptEncryption.js");
 
 describe("transcriptController - updateSpeakers", () => {
   let req;
@@ -612,6 +628,115 @@ describe("transcriptController - persistCaptionSegments", () => {
         fullText: "Existing transcript. New live caption.",
       }),
       "Caption segments persisted successfully",
+    );
+  });
+
+  it("should return 400 if organization enforces E2EE", async () => {
+    isOrgE2eeEnforcedForMeeting.mockResolvedValueOnce(true);
+    Meeting.findById.mockResolvedValue({
+      _id: "meeting_123",
+      uploadedBy: "user_1",
+      organization: "org_1",
+    });
+
+    await persistCaptionSegments(req, res);
+
+    expect(sendError).toHaveBeenCalledWith(
+      res,
+      400,
+      expect.stringContaining("enforces End-to-End Encryption"),
+    );
+  });
+});
+
+describe("transcriptController - E2EE write paths enforcement", () => {
+  let req;
+  let res;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    };
+  });
+
+  it("uploadTranscriptAudio should return 400 if organization enforces E2EE", async () => {
+    isOrgE2eeEnforcedForMeeting.mockResolvedValueOnce(true);
+    Meeting.findById.mockResolvedValue({
+      _id: "meeting_123",
+      uploadedBy: "user_1",
+      organization: "org_1",
+    });
+
+    req = {
+      params: { meetingId: "meeting_123" },
+      user: { id: "user_1", organization: "org_1" },
+      file: {
+        path: "dummy_path",
+        originalname: "audio.mp3",
+        mimetype: "audio/mpeg",
+      },
+    };
+
+    await uploadTranscriptAudio(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        message: expect.stringContaining("enforces End-to-End Encryption"),
+      }),
+    );
+  });
+
+  it("uploadTranscriptChunk should return 400 if organization enforces E2EE", async () => {
+    isOrgE2eeEnforcedForMeeting.mockResolvedValueOnce(true);
+    Meeting.findById.mockResolvedValue({
+      _id: "meeting_123",
+      uploadedBy: "user_1",
+      organization: "org_1",
+    });
+
+    req = {
+      params: { meetingId: "meeting_123" },
+      user: { id: "user_1", organization: "org_1" },
+      file: { buffer: Buffer.from("dummy") },
+    };
+
+    await uploadTranscriptChunk(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        message: expect.stringContaining("enforces End-to-End Encryption"),
+      }),
+    );
+  });
+
+  it("finalizeTranscript should return 400 if organization enforces E2EE", async () => {
+    isOrgE2eeEnforcedForMeeting.mockResolvedValueOnce(true);
+    Meeting.findById.mockResolvedValue({
+      _id: "meeting_123",
+      uploadedBy: "user_1",
+      organization: "org_1",
+    });
+    Transcript.findOne.mockResolvedValue({
+      _id: "transcript_123",
+      meeting: "meeting_123",
+    });
+
+    req = {
+      params: { meetingId: "meeting_123" },
+    };
+
+    await finalizeTranscript(req, res);
+
+    expect(sendError).toHaveBeenCalledWith(
+      res,
+      400,
+      expect.stringContaining("enforces End-to-End Encryption"),
     );
   });
 });

@@ -14,6 +14,15 @@ const checklistItemSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  assignee: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null,
+  },
+  dueDate: {
+    type: Date,
+    default: null,
+  },
 });
 
 const itemCompletionSchema = new mongoose.Schema({

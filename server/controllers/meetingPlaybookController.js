@@ -38,10 +38,53 @@ export const updatePlaybook = async (req, res) => {
     const playbook = await playbookService.updatePlaybook(
       req.params.id,
       req.body,
+      req.user?._id,
     );
     res.status(200).json(playbook);
   } catch (error) {
     if (error.message === "Playbook not found") {
+      return res.status(404).json({ error: error.message });
+    }
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const restorePlaybookVersion = async (req, res) => {
+  try {
+    const { version } = req.params;
+    const playbook = await playbookService.restorePlaybookVersion(
+      req.params.id,
+      version,
+      req.user?._id,
+    );
+    res.status(200).json(playbook);
+  } catch (error) {
+    if (
+      error.message === "Playbook not found" ||
+      error.message.includes("not found")
+    ) {
+      return res.status(404).json({ error: error.message });
+    }
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const applyPlaybookToMeeting = async (req, res) => {
+  try {
+    const { meetingId } = req.body;
+    if (!meetingId) {
+      return res.status(400).json({ error: "meetingId is required" });
+    }
+    const result = await playbookService.applyPlaybookToMeeting(
+      req.params.id,
+      meetingId,
+    );
+    res.status(200).json(result);
+  } catch (error) {
+    if (
+      error.message === "Playbook not found" ||
+      error.message === "Meeting not found"
+    ) {
       return res.status(404).json({ error: error.message });
     }
     res.status(400).json({ error: error.message });

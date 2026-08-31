@@ -30,6 +30,7 @@ import CarryForwardConfig from "../components/meetings/CarryForwardConfig";
 import RoleRotationConfig from "../components/meetings/RoleRotationConfig";
 import DuplicateDetectionPanel from "../components/meeting-details/DuplicateDetectionPanel";
 import MeetingTimeline from "../components/meeting-details/MeetingTimeline";
+import MeetingPresentationTimeline from "../components/MeetingPresentationTimeline";
 import RecapStoryViewer from "../components/summaries/RecapStoryViewer";
 import ReactionSummaryCard from "../components/meeting-details/ReactionSummaryCard";
 import { useUser } from "@clerk/clerk-react";
@@ -39,6 +40,7 @@ import CompareButton from "../components/meeting-details/CompareButton";
 import AgendaBuilder from "../components/meetings/AgendaBuilder";
 import IcebreakerSection from "../components/meetings/IcebreakerSection";
 import { getBriefing } from "../services/briefingApi";
+import { downloadMeetingNotesMarkdown } from "../services/meetingNotesExportApi";
 import GuestAccessManager from "../components/meetings/GuestAccessManager";
 import MeetingReadiness from "../components/MeetingReadiness";
 import FollowUpThreads from "../components/meeting-details/FollowUpThreads";
@@ -386,6 +388,31 @@ const MeetingDetails = () => {
               Export Minutes
             </button>
             <button
+              onClick={async () => {
+                try {
+                  const blob = await downloadMeetingNotesMarkdown(meeting._id);
+                  const url = window.URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.setAttribute(
+                    "download",
+                    `meeting-notes-${meeting._id}.md`,
+                  );
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                  window.URL.revokeObjectURL(url);
+                } catch (err) {
+                  console.error("Failed to download meeting notes:", err);
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium shadow-sm transition-colors text-sm"
+              data-testid="download-notes-md-btn"
+            >
+              <FileText className="w-4 h-4" />
+              Download Notes
+            </button>
+            <button
               onClick={() => setIsEndorseModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium shadow-sm transition-colors text-sm"
               disabled={isViewerOrGuest}
@@ -599,6 +626,7 @@ const MeetingDetails = () => {
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <div className="xl:col-span-2">
+              <MeetingPresentationTimeline meetingId={meeting._id} />
               <MeetingTranscript meeting={meeting} />
             </div>
             <div className="xl:col-span-1 h-[600px]">

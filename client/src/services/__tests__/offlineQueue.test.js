@@ -60,7 +60,7 @@ globalThis.indexedDB = {
   },
 };
 
-describe("Offline Mutation Queue & Background Sync Tests (#1902)", () => {
+describe("Offline Mutation Queue & Background Sync Tests (#1902, #2645)", () => {
   beforeEach(async () => {
     dbStore = {};
     vi.clearAllMocks();
@@ -258,5 +258,83 @@ describe("Offline Mutation Queue & Background Sync Tests (#1902)", () => {
     await clearQueue();
     queued = await getQueuedMutations();
     expect(queued.length).toBe(0);
+  });
+
+  it("should request fresh Clerk session token and append it to authorization header (#2645)", async () => {
+    const { queueMutation, replayAuthenticatedMutations, getQueuedMutations } =
+      await import("../offlineQueue.js");
+
+    const mockToken = "clerk_jwt_token_payload";
+    const mockClerkSession = {
+      getToken: vi.fn().mockResolvedValue(mockToken),
+    };
+
+    await queueMutation({
+      url: "https://api.test/v1/sync-notes",
+      method: "POST",
+      body: { text: "Exam Study Note" },
+    });
+
+    const globalFetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true }),
+    });
+    globalThis.fetch = globalFetchMock;
+
+    const successHandler = vi.fn();
+    window.addEventListener("offline-sync-success", successHandler);
+
+    await replayAuthenticatedMutations(mockClerkSession);
+
+    expect(mockClerkSession.getToken).toHaveBeenCalled();
+    expect(globalFetchMock).toHaveBeenCalledWith(
+      "https://api.test/v1/sync-notes",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer clerk_jwt_token_payload",
+        }),
+      }),
+    );
+    expect(successHandler).toHaveBeenCalled();
+
+    const queued = await getQueuedMutations();
+    expect(queued.length).toBe(0);
+    window.removeEventListener("offline-sync-success", successHandler);
+  });
+
+  it("dispatches offline-sync-failure event when mutation replay fails (#2645)", async () => {
+    const { queueMutation, replayAuthenticatedMutations } =
+      await import("../offlineQueue.js");
+
+    const mockClerkSession = {
+      getToken: vi.fn().mockResolvedValue("mock_token"),
+    };
+
+    await queueMutation({
+      url: "https://api.test/v1/fail-notes",
+      method: "POST",
+      body: { text: "Failing Note" },
+    });
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: "Unauthorized token" }),
+    });
+
+    const failureHandler = vi.fn();
+    window.addEventListener("offline-sync-failure", failureHandler);
+
+    await replayAuthenticatedMutations(mockClerkSession);
+
+    expect(failureHandler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: expect.objectContaining({
+          error: "Unauthorized token",
+        }),
+      }),
+    );
+    window.removeEventListener("offline-sync-failure", failureHandler);
   });
 });

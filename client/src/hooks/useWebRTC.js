@@ -41,6 +41,7 @@ export default function useWebRTC(roomId, callbacks) {
   const userVideoRef = useRef(null);
   const streamRef = useRef(null);
   const screenTrackRef = useRef(null);
+  const screenIntervalRef = useRef(null);
   const peersRef = useRef([]);
 
   const joinMeeting = async (providedStream = null, joinOptions = {}) => {
@@ -232,6 +233,10 @@ export default function useWebRTC(roomId, callbacks) {
 
     streamRef.current?.getTracks().forEach((track) => track.stop());
     screenTrackRef.current?.getTracks().forEach((track) => track.stop());
+    if (screenIntervalRef.current) {
+      clearInterval(screenIntervalRef.current);
+      screenIntervalRef.current = null;
+    }
 
     socketRef.current?.disconnect();
 
@@ -281,6 +286,35 @@ export default function useWebRTC(roomId, callbacks) {
         if (userVideoRef.current) userVideoRef.current.srcObject = screenStream;
         screenTrackRef.current = screenStream;
         setIsScreenSharing(true);
+
+        // Start capturing frames
+        screenIntervalRef.current = setInterval(() => {
+          if (!userVideoRef.current || userVideoRef.current.readyState < 2)
+            return;
+          const canvas = document.createElement("canvas");
+          canvas.width = 640;
+          canvas.height =
+            Math.floor(
+              640 *
+                (userVideoRef.current.videoHeight /
+                  userVideoRef.current.videoWidth),
+            ) || 360;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(
+            userVideoRef.current,
+            0,
+            0,
+            canvas.width,
+            canvas.height,
+          );
+          const base64Frame = canvas.toDataURL("image/jpeg", 0.5);
+
+          socketRef.current?.emit("screen-frame", {
+            roomId,
+            frame: base64Frame,
+            timestamp: Date.now(),
+          });
+        }, 10000);
       } catch (err) {
         console.error("Screen share failed", err);
       }
@@ -299,6 +333,10 @@ export default function useWebRTC(roomId, callbacks) {
     });
 
     screenTrackRef.current?.getTracks().forEach((t) => t.stop());
+    if (screenIntervalRef.current) {
+      clearInterval(screenIntervalRef.current);
+      screenIntervalRef.current = null;
+    }
     if (userVideoRef.current)
       userVideoRef.current.srcObject = streamRef.current;
     setIsScreenSharing(false);

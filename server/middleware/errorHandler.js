@@ -42,7 +42,9 @@ const errorHandler = (err, req, res, next) => {
     return res.status(400).json(
       withRequestId(req, {
         success: false,
+        error: "MalformedJsonError",
         message: "Invalid JSON payload.",
+        code: "INVALID_JSON",
       }),
     );
   }
@@ -52,7 +54,9 @@ const errorHandler = (err, req, res, next) => {
     return res.status(413).json(
       withRequestId(req, {
         success: false,
+        error: "PayloadTooLargeError",
         message: "Request payload is too large.",
+        code: "PAYLOAD_TOO_LARGE",
       }),
     );
   }
@@ -66,14 +70,33 @@ const errorHandler = (err, req, res, next) => {
     return res.status(400).json(
       withRequestId(req, {
         success: false,
+        error: "ValidationError",
         message: "Validation failed.",
+        code: "VALIDATION_ERROR",
         details,
       }),
     );
   }
 
   if (err instanceof AppError) {
-    const payload = { success: false, message: err.message };
+    const payload = {
+      success: false,
+      error: err.name || "AppError",
+      message: err.message,
+      code:
+        err.code ||
+        (err.statusCode === 404
+          ? "NOT_FOUND"
+          : err.statusCode === 400
+            ? "VALIDATION_ERROR"
+            : err.statusCode === 401
+              ? "UNAUTHORIZED"
+              : err.statusCode === 403
+                ? "FORBIDDEN"
+                : err.statusCode === 409
+                  ? "CONFLICT"
+                  : "APP_ERROR"),
+    };
     if (err.details) payload.details = err.details;
     requestLog.warn("Handled application error", {
       statusCode: err.statusCode,
@@ -91,7 +114,9 @@ const errorHandler = (err, req, res, next) => {
     return res.status(400).json(
       withRequestId(req, {
         success: false,
+        error: "ValidationError",
         message: "Invalid data provided.",
+        code: "VALIDATION_ERROR",
         details,
       }),
     );
@@ -105,7 +130,9 @@ const errorHandler = (err, req, res, next) => {
     return res.status(400).json(
       withRequestId(req, {
         success: false,
+        error: "CastError",
         message: `Invalid value for field '${err.path}'.`,
+        code: "INVALID_ID",
       }),
     );
   }
@@ -116,9 +143,11 @@ const errorHandler = (err, req, res, next) => {
   return res.status(500).json(
     withRequestId(req, {
       success: false,
+      error: err?.name || "InternalServerError",
       message: isProd
         ? "Internal Server Error"
         : err?.message || "Internal Server Error",
+      code: err?.code || "INTERNAL_SERVER_ERROR",
       ...(isProd ? {} : { stack: err?.stack }),
     }),
   );

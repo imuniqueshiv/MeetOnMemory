@@ -76,6 +76,9 @@
       "name": "Automation Rules"
     },
     {
+      "name": "Bookings"
+    },
+    {
       "name": "Bookmarks"
     },
     {
@@ -238,6 +241,9 @@
       "name": "Memberships"
     },
     {
+      "name": "Mindmap"
+    },
+    {
       "name": "Note Templates"
     },
     {
@@ -302,6 +308,9 @@
     },
     {
       "name": "Reports"
+    },
+    {
+      "name": "Resources"
     },
     {
       "name": "Rsvps"
@@ -5532,6 +5541,273 @@
         }
       }
     },
+    "/api/standups/my": {
+      "get": {
+        "tags": ["Standups"],
+        "summary": "GET /api/standups/my",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/standups/team": {
+      "get": {
+        "tags": ["Standups"],
+        "summary": "GET /api/standups/team",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/standups/generate": {
+      "post": {
+        "tags": ["Standups"],
+        "summary": "POST /api/standups/generate",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/standups/preferences": {
+      "get": {
+        "tags": ["Standups"],
+        "summary": "GET /api/standups/preferences",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Standups"],
+        "summary": "PUT /api/standups/preferences",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/standups/report": {
+      "get": {
+        "tags": ["Standups"],
+        "summary": "GET /api/standups/report",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Standups"],
+        "summary": "POST /api/standups/report",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/standup/my": {
+      "get": {
+        "tags": ["Standup"],
+        "summary": "GET /api/standup/my",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/standup/team": {
+      "get": {
+        "tags": ["Standup"],
+        "summary": "GET /api/standup/team",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/standup/generate": {
+      "post": {
+        "tags": ["Standup"],
+        "summary": "POST /api/standup/generate",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/standup/preferences": {
+      "get": {
+        "tags": ["Standup"],
+        "summary": "GET /api/standup/preferences",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Standup"],
+        "summary": "PUT /api/standup/preferences",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/standup/report": {
       "get": {
         "tags": ["Standup"],
@@ -5547,6 +5823,32 @@
           },
           "401": {
             "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Standup"],
+        "summary": "POST /api/standup/report",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
           }
         }
       }
@@ -9850,6 +10152,89 @@
         }
       }
     },
+    "/api/physical-resources/organization/{organizationId}/resources": {
+      "get": {
+        "tags": ["Physical Resources"],
+        "summary": "GET /api/physical-resources/organization/{organizationId}/resources",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Physical Resources"],
+        "summary": "POST /api/physical-resources/organization/{organizationId}/resources",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/physical-resources/organization/{organizationId}/resource/{resourceId}": {
+      "delete": {
+        "tags": ["Physical Resources"],
+        "summary": "DELETE /api/physical-resources/organization/{organizationId}/resource/{resourceId}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/physical-resources/{resourceId}": {
+      "delete": {
+        "tags": ["Physical Resources"],
+        "summary": "DELETE /api/physical-resources/{resourceId}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/api/physical-resources/organization/{organizationId}/available": {
       "get": {
         "tags": ["Physical Resources"],
@@ -9870,9 +10255,120 @@
       }
     },
     "/api/physical-resources/organization/{organizationId}/bookings": {
+      "get": {
+        "tags": ["Physical Resources"],
+        "summary": "GET /api/physical-resources/organization/{organizationId}/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
       "post": {
         "tags": ["Physical Resources"],
         "summary": "POST /api/physical-resources/organization/{organizationId}/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/physical-resources/resource/{resourceId}/bookings": {
+      "get": {
+        "tags": ["Physical Resources"],
+        "summary": "GET /api/physical-resources/resource/{resourceId}/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/physical-resources/{resourceId}/bookings": {
+      "get": {
+        "tags": ["Physical Resources"],
+        "summary": "GET /api/physical-resources/{resourceId}/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/physical-resources/bookings/create": {
+      "post": {
+        "tags": ["Physical Resources"],
+        "summary": "POST /api/physical-resources/bookings/create",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/physical-resources/bookings": {
+      "post": {
+        "tags": ["Physical Resources"],
+        "summary": "POST /api/physical-resources/bookings",
         "security": [
           {
             "bearerAuth": []
@@ -9916,10 +10412,846 @@
         }
       }
     },
+    "/api/physical-resources/bookings/{bookingId}/cancel": {
+      "post": {
+        "tags": ["Physical Resources"],
+        "summary": "POST /api/physical-resources/bookings/{bookingId}/cancel",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/physical-resources/{bookingId}/cancel": {
+      "delete": {
+        "tags": ["Physical Resources"],
+        "summary": "DELETE /api/physical-resources/{bookingId}/cancel",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/api/physical-resources/meetings/{meetingId}/bookings": {
       "get": {
         "tags": ["Physical Resources"],
         "summary": "GET /api/physical-resources/meetings/{meetingId}/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/meetings/rollover/preview": {
+      "get": {
+        "tags": ["Meetings"],
+        "summary": "GET /api/meetings/rollover/preview",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/meetings/{meetingId}/rollover": {
+      "post": {
+        "tags": ["Meetings"],
+        "summary": "POST /api/meetings/{meetingId}/rollover",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resources/organization/{organizationId}": {
+      "get": {
+        "tags": ["Resources"],
+        "summary": "GET /api/resources/organization/{organizationId}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Resources"],
+        "summary": "POST /api/resources/organization/{organizationId}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resources/organization/{organizationId}/resources": {
+      "get": {
+        "tags": ["Resources"],
+        "summary": "GET /api/resources/organization/{organizationId}/resources",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Resources"],
+        "summary": "POST /api/resources/organization/{organizationId}/resources",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resources/organization/{organizationId}/resource/{resourceId}": {
+      "delete": {
+        "tags": ["Resources"],
+        "summary": "DELETE /api/resources/organization/{organizationId}/resource/{resourceId}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/resources/{resourceId}": {
+      "delete": {
+        "tags": ["Resources"],
+        "summary": "DELETE /api/resources/{resourceId}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/resources/organization/{organizationId}/available": {
+      "get": {
+        "tags": ["Resources"],
+        "summary": "GET /api/resources/organization/{organizationId}/available",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/resources/organization/{organizationId}/bookings": {
+      "get": {
+        "tags": ["Resources"],
+        "summary": "GET /api/resources/organization/{organizationId}/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Resources"],
+        "summary": "POST /api/resources/organization/{organizationId}/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resources/resource/{resourceId}/bookings": {
+      "get": {
+        "tags": ["Resources"],
+        "summary": "GET /api/resources/resource/{resourceId}/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/resources/{resourceId}/bookings": {
+      "get": {
+        "tags": ["Resources"],
+        "summary": "GET /api/resources/{resourceId}/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/resources/bookings/create": {
+      "post": {
+        "tags": ["Resources"],
+        "summary": "POST /api/resources/bookings/create",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resources/bookings": {
+      "post": {
+        "tags": ["Resources"],
+        "summary": "POST /api/resources/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resources/bookings/{bookingId}": {
+      "delete": {
+        "tags": ["Resources"],
+        "summary": "DELETE /api/resources/bookings/{bookingId}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/resources/bookings/{bookingId}/cancel": {
+      "post": {
+        "tags": ["Resources"],
+        "summary": "POST /api/resources/bookings/{bookingId}/cancel",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resources/{bookingId}/cancel": {
+      "delete": {
+        "tags": ["Resources"],
+        "summary": "DELETE /api/resources/{bookingId}/cancel",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/resources/meetings/{meetingId}/bookings": {
+      "get": {
+        "tags": ["Resources"],
+        "summary": "GET /api/resources/meetings/{meetingId}/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bookings/organization/{organizationId}": {
+      "get": {
+        "tags": ["Bookings"],
+        "summary": "GET /api/bookings/organization/{organizationId}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Bookings"],
+        "summary": "POST /api/bookings/organization/{organizationId}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bookings/organization/{organizationId}/resources": {
+      "get": {
+        "tags": ["Bookings"],
+        "summary": "GET /api/bookings/organization/{organizationId}/resources",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Bookings"],
+        "summary": "POST /api/bookings/organization/{organizationId}/resources",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bookings/organization/{organizationId}/resource/{resourceId}": {
+      "delete": {
+        "tags": ["Bookings"],
+        "summary": "DELETE /api/bookings/organization/{organizationId}/resource/{resourceId}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bookings/{resourceId}": {
+      "delete": {
+        "tags": ["Bookings"],
+        "summary": "DELETE /api/bookings/{resourceId}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bookings/organization/{organizationId}/available": {
+      "get": {
+        "tags": ["Bookings"],
+        "summary": "GET /api/bookings/organization/{organizationId}/available",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bookings/organization/{organizationId}/bookings": {
+      "get": {
+        "tags": ["Bookings"],
+        "summary": "GET /api/bookings/organization/{organizationId}/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Bookings"],
+        "summary": "POST /api/bookings/organization/{organizationId}/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bookings/resource/{resourceId}/bookings": {
+      "get": {
+        "tags": ["Bookings"],
+        "summary": "GET /api/bookings/resource/{resourceId}/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bookings/{resourceId}/bookings": {
+      "get": {
+        "tags": ["Bookings"],
+        "summary": "GET /api/bookings/{resourceId}/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bookings/bookings/create": {
+      "post": {
+        "tags": ["Bookings"],
+        "summary": "POST /api/bookings/bookings/create",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bookings/bookings": {
+      "post": {
+        "tags": ["Bookings"],
+        "summary": "POST /api/bookings/bookings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bookings/bookings/{bookingId}": {
+      "delete": {
+        "tags": ["Bookings"],
+        "summary": "DELETE /api/bookings/bookings/{bookingId}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bookings/bookings/{bookingId}/cancel": {
+      "post": {
+        "tags": ["Bookings"],
+        "summary": "POST /api/bookings/bookings/{bookingId}/cancel",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bookings/{bookingId}/cancel": {
+      "delete": {
+        "tags": ["Bookings"],
+        "summary": "DELETE /api/bookings/{bookingId}/cancel",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bookings/meetings/{meetingId}/bookings": {
+      "get": {
+        "tags": ["Bookings"],
+        "summary": "GET /api/bookings/meetings/{meetingId}/bookings",
         "security": [
           {
             "bearerAuth": []
@@ -11153,6 +12485,79 @@
         }
       }
     },
+    "/api/mindmap/{meetingId}": {
+      "get": {
+        "tags": ["Mindmap"],
+        "summary": "GET /api/mindmap/{meetingId}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Mindmap"],
+        "summary": "POST /api/mindmap/{meetingId}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mindmap/{meetingId}/convert-node": {
+      "post": {
+        "tags": ["Mindmap"],
+        "summary": "POST /api/mindmap/{meetingId}/convert-node",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/attendance-analytics/stats": {
       "get": {
         "tags": ["Attendance Analytics"],
@@ -12222,10 +13627,10 @@
         }
       }
     },
-    "/api/clips": {
+    "/api/clips/{clipId}/trim": {
       "post": {
         "tags": ["Clips"],
-        "summary": "POST /api/clips",
+        "summary": "POST /api/clips/{clipId}/trim",
         "security": [
           {
             "bearerAuth": []
@@ -12250,74 +13655,10 @@
         }
       }
     },
-    "/api/clips/meeting/{meetingId}": {
-      "get": {
-        "tags": ["Clips"],
-        "summary": "GET /api/clips/meeting/{meetingId}",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        }
-      }
-    },
-    "/api/clips/{clipId}": {
-      "put": {
-        "tags": ["Clips"],
-        "summary": "PUT /api/clips/{clipId}",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": ["Clips"],
-        "summary": "DELETE /api/clips/{clipId}",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        }
-      }
-    },
-    "/api/clips/{clipId}/annotations": {
+    "/api/clips/merge": {
       "post": {
         "tags": ["Clips"],
-        "summary": "POST /api/clips/{clipId}/annotations",
+        "summary": "POST /api/clips/merge",
         "security": [
           {
             "bearerAuth": []
@@ -15684,6 +17025,44 @@
         }
       }
     },
+    "/api/key-moments/export": {
+      "get": {
+        "tags": ["Key Moments"],
+        "summary": "GET /api/key-moments/export",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/key-moments/meeting/{meetingId}/export": {
+      "get": {
+        "tags": ["Key Moments"],
+        "summary": "GET /api/key-moments/meeting/{meetingId}/export",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/api/key-moments/meeting/{meetingId}": {
       "get": {
         "tags": ["Key Moments"],
@@ -15707,6 +17086,32 @@
       "patch": {
         "tags": ["Key Moments"],
         "summary": "PATCH /api/key-moments/{id}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Key Moments"],
+        "summary": "PUT /api/key-moments/{id}",
         "security": [
           {
             "bearerAuth": []
@@ -17618,6 +19023,34 @@
           },
           "401": {
             "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/issue-tracker/{provider}/sync": {
+      "post": {
+        "tags": ["Issue Tracker"],
+        "summary": "POST /api/issue-tracker/{provider}/sync",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
           }
         }
       }
@@ -19722,117 +21155,6 @@
       "post": {
         "tags": ["Weekly Insights"],
         "summary": "POST /api/weekly-insights/{orgId}/generate",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/standups/my": {
-      "get": {
-        "tags": ["Standups"],
-        "summary": "GET /api/standups/my",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        }
-      }
-    },
-    "/api/standups/team": {
-      "get": {
-        "tags": ["Standups"],
-        "summary": "GET /api/standups/team",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        }
-      }
-    },
-    "/api/standups/generate": {
-      "post": {
-        "tags": ["Standups"],
-        "summary": "POST /api/standups/generate",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/standups/preferences": {
-      "get": {
-        "tags": ["Standups"],
-        "summary": "GET /api/standups/preferences",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        }
-      },
-      "put": {
-        "tags": ["Standups"],
-        "summary": "PUT /api/standups/preferences",
         "security": [
           {
             "bearerAuth": []

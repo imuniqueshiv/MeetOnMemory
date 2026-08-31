@@ -227,6 +227,7 @@ export const addCommentToMembershipRequest = async (req, res, next) => {
       req.user.id,
       id,
       text,
+      req.user.organization,
     );
 
     sendSuccess(res, { request }, "Comment added successfully.", 201);

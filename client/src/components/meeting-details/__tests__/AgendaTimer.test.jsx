@@ -1,5 +1,11 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { io } from "socket.io-client";
 import AppContent from "../../../context/AppContent";
@@ -218,7 +224,7 @@ describe("AgendaTimer (#1985)", () => {
     );
   });
 
-  it("updates the current item when the existing socket emits a timer event", () => {
+  it("updates the current item when the existing socket emits a timer event", async () => {
     const listeners = {};
     const socket = {
       on: (event, handler) => {
@@ -238,13 +244,15 @@ describe("AgendaTimer (#1985)", () => {
 
     expect(screen.getByText(/no agenda item running/i)).toBeInTheDocument();
 
-    listeners.agenda_timer_updated({
-      action: "start",
-      item: {
-        ...PENDING_ITEM,
-        status: "active",
-        startedAt: new Date().toISOString(),
-      },
+    await act(async () => {
+      listeners.agenda_timer_updated({
+        action: "start",
+        item: {
+          ...PENDING_ITEM,
+          status: "active",
+          startedAt: new Date().toISOString(),
+        },
+      });
     });
 
     expect(screen.getByText("Review design")).toBeInTheDocument();

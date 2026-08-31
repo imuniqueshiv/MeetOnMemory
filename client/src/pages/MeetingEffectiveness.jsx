@@ -29,6 +29,7 @@ import {
   FileCheck,
 } from "lucide-react";
 import { useEffectivenessScore } from "../hooks/useEffectivenessScore";
+import apiClient from "../services/apiClient.js";
 
 const MeetingEffectiveness = () => {
   const { meetingId } = useParams();
@@ -48,6 +49,89 @@ const MeetingEffectiveness = () => {
     clearError,
   } = useEffectivenessScore();
 
+  const [actionedRecs, setActionedRecs] = React.useState({});
+  const [actioningRec, setActioningRec] = React.useState(null);
+
+  const handleCreateAction = async (recKey, text, description) => {
+    setActioningRec(recKey);
+    try {
+      await apiClient.post(`/api/action-items/meetings/${meetingId}`, {
+        text,
+        description,
+        priority: "medium",
+      });
+      setActionedRecs((prev) => ({ ...prev, [recKey]: true }));
+    } catch (err) {
+      console.error("Failed to create action item from recommendation:", err);
+    } finally {
+      setActioningRec(null);
+    }
+  };
+
+  const getRecommendations = () => {
+    if (!meetingScore || !meetingScore.dimensions) return [];
+    const { dimensions } = meetingScore;
+    const list = [];
+
+    if ((dimensions.goalCompletionRate ?? 0) < 80) {
+      list.push({
+        key: "goals",
+        title: "Improve Goal Alignment",
+        description:
+          "Define clearer goals at the start of meetings to improve alignment.",
+        actionText:
+          "Define SMART goals for the next recurring meeting and list them in the agenda.",
+        icon: <Target className="text-blue-500" size={20} />,
+      });
+    }
+    if ((dimensions.actionItemFollowThrough ?? 0) < 80) {
+      list.push({
+        key: "actions",
+        title: "Follow up on Action Items",
+        description:
+          "Set explicit due dates and assignees for all action items.",
+        actionText:
+          "Review and assign clear due dates and owners to all open action items.",
+        icon: <FileCheck className="text-indigo-500" size={20} />,
+      });
+    }
+    if ((dimensions.participantSatisfaction ?? 0) < 80) {
+      list.push({
+        key: "satisfaction",
+        title: "Boost Participant Satisfaction",
+        description:
+          "Collect feedback to improve attendee engagement and address concerns.",
+        actionText:
+          "Send a post-meeting engagement feedback survey to all attendees.",
+        icon: <ThumbsUp className="text-emerald-500" size={20} />,
+      });
+    }
+    if ((dimensions.decisionClarity ?? 0) < 80) {
+      list.push({
+        key: "clarity",
+        title: "Enhance Meeting Clarity",
+        description:
+          "Summarize key decisions before ending the meeting to ensure agreement.",
+        actionText:
+          "Summarize decisions and update the decision log before the next meeting ends.",
+        icon: <CheckCircle className="text-purple-500" size={20} />,
+      });
+    }
+    if ((dimensions.timeEfficiency ?? 0) < 80) {
+      list.push({
+        key: "time",
+        title: "Optimize Time Efficiency",
+        description:
+          "Strictly adhere to the agenda and assign a timekeeper to prevent going over time.",
+        actionText:
+          "Time-box each agenda item for the next meeting and assign a timekeeper.",
+        icon: <Clock className="text-amber-500" size={20} />,
+      });
+    }
+
+    return list;
+  };
+
   const handleRefresh = () => {
     clearError();
     if (meetingId) {
@@ -56,8 +140,9 @@ const MeetingEffectiveness = () => {
     if (organizationId) {
       fetchOrgTrends(organizationId);
     }
-    if (seriesId) {
-      fetchSeriesTrends(seriesId);
+    const activeSeriesId = seriesId || meetingScore?.seriesId;
+    if (activeSeriesId) {
+      fetchSeriesTrends(activeSeriesId);
     }
   };
 
@@ -68,17 +153,14 @@ const MeetingEffectiveness = () => {
     if (organizationId) {
       fetchOrgTrends(organizationId);
     }
-    if (seriesId) {
-      fetchSeriesTrends(seriesId);
+  }, [meetingId, organizationId, fetchMeetingScore, fetchOrgTrends]);
+
+  useEffect(() => {
+    const activeSeriesId = seriesId || meetingScore?.seriesId;
+    if (activeSeriesId) {
+      fetchSeriesTrends(activeSeriesId);
     }
-  }, [
-    meetingId,
-    organizationId,
-    seriesId,
-    fetchMeetingScore,
-    fetchOrgTrends,
-    fetchSeriesTrends,
-  ]);
+  }, [seriesId, meetingScore?.seriesId, fetchSeriesTrends]);
 
   const getScoreBadge = (score) => {
     if (score >= 80) {
@@ -371,6 +453,90 @@ const MeetingEffectiveness = () => {
               </div>
             </div>
           )}
+
+          {/* Actionable Recommendations */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-1 flex items-center gap-2">
+              <ShieldAlert className="text-blue-600" size={20} />
+              Actionable Recommendations
+            </h2>
+            <p className="text-xs text-gray-500 mb-4">
+              Turn diagnostic findings into tracked improvement tasks.
+            </p>
+
+            {getRecommendations().length > 0 ? (
+              <div className="space-y-4">
+                {getRecommendations().map((rec) => {
+                  const isActioned = actionedRecs[rec.key];
+                  const isLoading = actioningRec === rec.key;
+
+                  return (
+                    <div
+                      key={rec.key}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-xl border border-gray-150 transition-all hover:bg-gray-100/50"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-white rounded-lg border border-gray-100 shadow-sm shrink-0">
+                          {rec.icon}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-900 text-sm">
+                            {rec.title}
+                          </h4>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {rec.description}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() =>
+                          handleCreateAction(
+                            rec.key,
+                            rec.actionText,
+                            rec.description,
+                          )
+                        }
+                        disabled={isActioned || isLoading}
+                        className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold shadow-sm transition-all shrink-0 ${
+                          isActioned
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : isLoading
+                              ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                              : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md active:scale-95"
+                        }`}
+                      >
+                        {isActioned ? (
+                          <>
+                            <CheckCircle size={14} />
+                            Actioned
+                          </>
+                        ) : isLoading ? (
+                          <>
+                            <RefreshCw size={14} className="animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          "Create Action Item"
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-8 text-center bg-emerald-50/50 rounded-lg border border-dashed border-emerald-200 text-emerald-800">
+                <CheckCircle
+                  className="mx-auto mb-2 text-emerald-600"
+                  size={32}
+                />
+                <h4 className="font-semibold text-sm">All Metrics Healthy</h4>
+                <p className="text-xs text-emerald-600 mt-0.5">
+                  Great job! All meeting effectiveness dimensions are currently
+                  scored above 80.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

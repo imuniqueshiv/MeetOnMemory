@@ -10,6 +10,7 @@ const router = express.Router({ mergeParams: true });
 router.use(userAuth);
 
 router.post("/", meetingChecklistController.createChecklist);
+router.put("/", meetingChecklistController.updateChecklist);
 router.get("/", meetingChecklistController.getChecklist);
 router.patch("/toggle", meetingChecklistController.toggleItem);
 router.delete("/", meetingChecklistController.deleteChecklist);

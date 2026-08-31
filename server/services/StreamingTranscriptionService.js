@@ -172,9 +172,6 @@ class StreamingTranscriptionService {
     });
   }
 
-  /**
-   * Process audio data from a client
-   */
   processAudio(meetingId, audioData) {
     const session = this.sessions.get(meetingId);
     if (!session || !session.isActive) {
@@ -183,7 +180,12 @@ class StreamingTranscriptionService {
     }
 
     if (session.ws.readyState === WebSocket.OPEN) {
-      session.ws.send(audioData);
+      try {
+        const base64Audio = Buffer.from(audioData).toString("base64");
+        session.ws.send(JSON.stringify({ audio_data: base64Audio }));
+      } catch (error) {
+        console.error("Error processing audio data for STT provider:", error);
+      }
     }
   }
 

@@ -4,7 +4,6 @@ import QuizResponse from "../models/quizResponseModel.js";
 import Meeting from "../models/meetingModel.js";
 import GamificationScore from "../models/gamificationScoreModel.js";
 import OpenAI from "openai";
-import { sendSuccess } from "../utils/responseHandler.js";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "dummy-key-for-tests",

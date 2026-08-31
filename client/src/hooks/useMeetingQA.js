@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { meetingQuestionApi } from "../services/meetingQuestionApi";
 import { io } from "socket.io-client";
 import { createClerkSocketOptions } from "../services/apiClient";
@@ -11,24 +11,50 @@ export const useMeetingQA = (meetingId) => {
   const backendUrl =
     import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
-  const fetchQuestions = useCallback(async () => {
-    try {
-      setLoading(true);
-      const { data } = await meetingQuestionApi.getQuestions(meetingId);
-      if (data.success) {
-        setQuestions(data.questions);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  const fetchQuestions = useCallback(
+    async (signal) => {
+      try {
+        setLoading(true);
+        const { data } = await meetingQuestionApi.getQuestions(meetingId, {
+          signal,
+        });
+        if (data.success && isMounted.current) {
+          setQuestions(data.questions);
+        }
+      } catch (err) {
+        if (err.name === "CanceledError" || err.name === "AbortError") {
+          console.log("Fetch aborted");
+          return;
+        }
+        if (isMounted.current) {
+          console.error(err);
+          setError("Failed to load questions");
+        }
+      } finally {
+        if (isMounted.current) {
+          setLoading(false);
+        }
       }
-    } catch (err) {
-      console.error(err);
-      setError("Failed to load questions");
-    } finally {
-      setLoading(false);
-    }
-  }, [meetingId]);
+    },
+    [meetingId],
+  );
 
   useEffect(() => {
     if (meetingId) {
-      fetchQuestions();
+      const abortController = new AbortController();
+      fetchQuestions(abortController.signal);
+      return () => {
+        abortController.abort();
+      };
     }
   }, [meetingId, fetchQuestions]);
 
@@ -91,6 +117,7 @@ export const useMeetingQA = (meetingId) => {
         text,
         isAnonymous,
       });
+      if (!isMounted.current) return data;
       if (data.success && socket) {
         socket.emit("qa:submit-question", {
           roomId: meetingId,
@@ -112,6 +139,7 @@ export const useMeetingQA = (meetingId) => {
   const toggleUpvote = async (questionId) => {
     try {
       const { data } = await meetingQuestionApi.toggleUpvote(questionId);
+      if (!isMounted.current) return;
       if (data.success && socket) {
         socket.emit("qa:upvote-question", {
           roomId: meetingId,
@@ -131,6 +159,7 @@ export const useMeetingQA = (meetingId) => {
         questionId,
         status,
       );
+      if (!isMounted.current) return;
       if (data.success && socket) {
         socket.emit("qa:status-changed", {
           roomId: meetingId,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useContext } from "react";
 import Navbar from "../components/Navbar.jsx";
 import {
   Users,
@@ -22,9 +22,13 @@ import { useTeamManagement } from "../hooks/useTeamManagement";
 import InviteMemberForm from "../components/team/InviteMemberForm";
 import BulkInviteModal from "../components/team/BulkInviteModal";
 import TeamMemberTable from "../components/team/TeamMemberTable";
+import AppContent from "../context/AppContent";
+import AnalyticsDashboard from "../components/analytics/AnalyticsDashboard";
 
 const TeamMembers = () => {
-  const [activeTab, setActiveTab] = useState("members"); // "members" | "invitations"
+  const [activeTab, setActiveTab] = useState("members"); // "members" | "invitations" | "analytics"
+  const { userData } = useContext(AppContent);
+  const teamId = userData?.organization?._id || userData?.organization;
 
   const {
     members,
@@ -200,18 +204,18 @@ const TeamMembers = () => {
         </div>
 
         {/* Tabs */}
-        {isAdmin && (
-          <div className="flex border-b border-slate-200 dark:border-slate-800 mb-6">
-            <button
-              onClick={() => setActiveTab("members")}
-              className={`pb-3 px-4 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
-                activeTab === "members"
-                  ? "border-blue-600 text-blue-600 dark:text-blue-400"
-                  : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-              }`}
-            >
-              Members
-            </button>
+        <div className="flex border-b border-slate-200 dark:border-slate-800 mb-6">
+          <button
+            onClick={() => setActiveTab("members")}
+            className={`pb-3 px-4 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+              activeTab === "members"
+                ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+            }`}
+          >
+            Members
+          </button>
+          {isAdmin && (
             <button
               onClick={() => setActiveTab("invitations")}
               className={`pb-3 px-4 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
@@ -222,8 +226,18 @@ const TeamMembers = () => {
             >
               Invitations
             </button>
-          </div>
-        )}
+          )}
+          <button
+            onClick={() => setActiveTab("analytics")}
+            className={`pb-3 px-4 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+              activeTab === "analytics"
+                ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+            }`}
+          >
+            Analytics
+          </button>
+        </div>
 
         {activeTab === "members" ? (
           <>
@@ -291,7 +305,7 @@ const TeamMembers = () => {
               onUpdateCapacity={handleUpdateCapacity}
             />
           </>
-        ) : (
+        ) : activeTab === "invitations" ? (
           <>
             {/* Invitations List */}
             {invitesLoading ? (
@@ -340,7 +354,7 @@ const TeamMembers = () => {
                           {invite.email}
                         </span>
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                          className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                             invite.role === "admin"
                               ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-400 dark:border-violet-800"
                               : "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-400 dark:border-sky-800"
@@ -429,6 +443,8 @@ const TeamMembers = () => {
               </div>
             )}
           </>
+        ) : (
+          <AnalyticsDashboard teamId={teamId} />
         )}
       </div>
 

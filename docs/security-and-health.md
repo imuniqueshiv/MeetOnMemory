@@ -128,6 +128,50 @@ An oversized body now returns **413** rather than 500 — it previously fell
 through to the catch-all, telling the client "we broke" when in fact they sent
 too much.
 
+## Encryption keys
+
+Added in response to
+[#2659](https://github.com/imuniqueshiv/MeetOnMemory/issues/2659).
+
+`TOKEN_ENCRYPTION_KEY` and `CALENDAR_ENCRYPTION_KEY` read as interchangeable and
+are not. They protect different secrets, are consumed by three separate code
+paths, and disagree on what happens when the key is missing.
+
+| Variable                                               | Protects                                                                    | Consumer                                 | When unset                                                                                    |
+| ------------------------------------------------------ | --------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `TOKEN_ENCRYPTION_KEY`                                 | Slack / GitHub / Notion tokens on the organization document                 | `server/utils/crypto.js`                 | **Falls back** to `default_dev_token_encryption_key_32`, a value committed to this repository |
+| `TOKEN_ENCRYPTION_KEY`                                 | calendar-sync AES-256-GCM helpers (`encrypt` / `decrypt`, test-facing)      | `server/services/calendarSyncService.js` | **Fails closed** — `TOKEN_ENCRYPTION_KEY is not configured`                                   |
+| `CALENDAR_ENCRYPTION_KEY`, else `TOKEN_ENCRYPTION_KEY` | Google / Microsoft OAuth access and refresh tokens — the live calendar path | `server/services/calendarService.js`     | **Fails closed** — `Calendar encryption key is not configured`                                |
+
+Both are effectively required in production. Only the calendar paths enforce it.
+
+### Failure modes
+
+- **Neither key set.** Connecting a calendar and every sync tick fail closed, so
+  the outage is loud. Slack, GitHub and Notion tokens keep being written — under
+  the default key that ships in the repo, which makes them recoverable by anyone
+  holding a database copy. Nothing is logged. That asymmetry is the reason this
+  section exists.
+- **`TOKEN_ENCRYPTION_KEY` not exactly 32 bytes.** `calendarSyncService` passes
+  it to `createCipheriv("aes-256-gcm", Buffer.from(key), …)` as a raw key, which
+  throws `Invalid key length`. The other two paths derive a key instead —
+  SHA-256 in `crypto.js`, a passphrase KDF in `calendarService.js` — and accept
+  any length, so a wrong-length key can look healthy until the GCM helpers run.
+  Generate with `openssl rand -base64 24` (32 characters). The 64-character hex
+  string from `randomBytes(32).toString("hex")` is 64 bytes and throws.
+- **Key changed while ciphertext exists.** Neither path raises to its caller:
+  `calendarService.decryptToken` yields an empty string or `null`, and
+  `utils/crypto.js decryptToken` logs `Failed to decrypt Slack token` and then
+  returns the ciphertext unchanged. The symptom reaching the user is an "invalid
+  token" rejection from Slack or Google, several layers away from the cause.
+  Rotation therefore requires affected users to reconnect the integration.
+
+Nothing validates these variables at boot today — the only startup env check is
+a warning for a missing `JWT_SECRET` — so `server/.env.example` is the contract.
+Startup validation is tracked separately.
+
+`CALENDAR_SYNC_SETUP.md` covers the OAuth setup that consumes these keys.
+
 ## Configuration
 
 | Variable                  | Default | Effect                                             |

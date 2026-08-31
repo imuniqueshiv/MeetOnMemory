@@ -1,10 +1,9 @@
 import React, { useState, useContext, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import axios from "axios";
 import Navbar from "../components/Navbar.jsx";
 import { toast } from "react-toastify";
-import { userApi } from "../services";
+import { userApi, apiClient } from "../services";
 import AppContent from "../context/AppContent";
 import { useSkillEndorsements } from "../hooks/useSkillEndorsements";
 import {
@@ -40,7 +39,7 @@ const Profile = () => {
 
   useEffect(() => {
     if (userData) {
-      axios
+      apiClient
         .get("/api/gamification/score", { withCredentials: true })
         .then((res) => {
           if (res.data.success) {

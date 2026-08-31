@@ -43,10 +43,9 @@ describe("Ownership Transfer Client Service Integration Tests (#2666)", () => {
 
       const res = await transferApi.initiateTransfer("m-100", "u-200");
 
-      expect(apiClient.post).toHaveBeenCalledWith(
-        "/meetings/m-100/transfers",
-        { targetUserId: "u-200" },
-      );
+      expect(apiClient.post).toHaveBeenCalledWith("/meetings/m-100/transfers", {
+        targetUserId: "u-200",
+      });
       expect(res).toEqual(mockResponse);
     });
 
@@ -98,13 +97,15 @@ describe("Ownership Transfer Client Service Integration Tests (#2666)", () => {
       };
       apiClient.post.mockRejectedValueOnce(notFoundError);
 
-      await expect(transferApi.acceptTransfer("nonexistent-id")).rejects.toThrow(
-        "resource was not found",
-      );
+      await expect(
+        transferApi.acceptTransfer("nonexistent-id"),
+      ).rejects.toThrow("resource was not found");
     });
 
     it("handles 400 validation error when initiating transfer to self", async () => {
-      const validationError = new Error("Cannot transfer ownership to yourself");
+      const validationError = new Error(
+        "Cannot transfer ownership to yourself",
+      );
       validationError.response = {
         status: 400,
         data: { error: "Cannot transfer ownership to yourself" },

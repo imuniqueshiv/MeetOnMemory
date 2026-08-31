@@ -32,3 +32,17 @@ export const generateAIPlaybook = async (prompt, meetingType) => {
   });
   return data;
 };
+
+export const restorePlaybookVersion = async (id, version) => {
+  const { data } = await apiClient.put(
+    `/api/playbooks/${id}/restore/${version}`,
+  );
+  return data;
+};
+
+export const applyPlaybookToMeeting = async (playbookId, meetingId) => {
+  const { data } = await apiClient.post(`/api/playbooks/${playbookId}/apply`, {
+    meetingId,
+  });
+  return data;
+};

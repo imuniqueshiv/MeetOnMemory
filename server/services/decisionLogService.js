@@ -134,6 +134,99 @@ class DecisionLogService {
 
     return entries;
   }
+
+  async editEntry(entryId, data) {
+    const { text, outcome, reviewDate, tags, decidedBy, meetingId } = data;
+
+    const entry = await DecisionLogEntry.findById(entryId);
+    if (!entry) {
+      throw new Error("Decision Log Entry not found");
+    }
+
+    if (outcome) entry.outcome = outcome;
+    if (reviewDate !== undefined) entry.reviewDate = reviewDate;
+    if (tags !== undefined) entry.tags = tags;
+    if (decidedBy) entry.decidedBy = decidedBy;
+    if (meetingId) entry.meetingId = meetingId;
+
+    await entry.save();
+
+    if (entry.decisionId) {
+      const decisionUpdate = {};
+      if (text) decisionUpdate.text = text;
+      if (outcome) {
+        if (outcome === "implemented") decisionUpdate.status = "resolved";
+        else if (outcome === "superseded") decisionUpdate.status = "superseded";
+        else if (outcome === "reversed") decisionUpdate.status = "failed";
+        else if (outcome === "deferred") decisionUpdate.status = "in-progress";
+        else decisionUpdate.status = "open";
+      }
+      if (Object.keys(decisionUpdate).length > 0) {
+        const Decision = (await import("../models/decisionModel.js")).default;
+        await Decision.findByIdAndUpdate(entry.decisionId, {
+          $set: decisionUpdate,
+        });
+      }
+    }
+
+    return await DecisionLogEntry.findById(entryId)
+      .populate("decisionId")
+      .populate("meetingId")
+      .populate("decidedBy")
+      .populate("linkedActionItems");
+  }
+
+  async deleteEntry(entryId) {
+    const entry = await DecisionLogEntry.findById(entryId);
+    if (!entry) {
+      throw new Error("Decision Log Entry not found");
+    }
+
+    if (entry.decisionId) {
+      const Decision = (await import("../models/decisionModel.js")).default;
+      await Decision.findByIdAndDelete(entry.decisionId);
+    }
+
+    await DecisionLogEntry.findByIdAndDelete(entryId);
+    return true;
+  }
+
+  async exportLog(organizationId, format = "json") {
+    const entries = await DecisionLogEntry.find({
+      organizationId: new mongoose.Types.ObjectId(organizationId),
+    })
+      .populate("decisionId")
+      .populate("meetingId")
+      .populate("decidedBy");
+
+    if (format === "csv") {
+      const headers =
+        "Decision ID,Title/Text,Outcome,Meeting,Decided By,Review Date,Tags\n";
+      const rows = entries
+        .map((e) => {
+          const id = e._id ? e._id.toString() : "";
+          const text = e.decisionId?.text
+            ? e.decisionId.text.replace(/"/g, '""')
+            : "";
+          const outcome = e.outcome || "";
+          const meeting = e.meetingId?.title
+            ? e.meetingId.title.replace(/"/g, '""')
+            : "";
+          const decidedBy = e.decidedBy?.name
+            ? e.decidedBy.name.replace(/"/g, '""')
+            : "";
+          const reviewDate = e.reviewDate
+            ? new Date(e.reviewDate).toISOString()
+            : "";
+          const tags = (e.tags || []).join(";");
+          return `"${id}","${text}","${outcome}","${meeting}","${decidedBy}","${reviewDate}","${tags}"`;
+        })
+        .join("\n");
+      return headers + rows;
+    }
+
+    return entries;
+  }
 }
 
 export default new DecisionLogService();

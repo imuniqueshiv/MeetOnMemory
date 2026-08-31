@@ -1,4 +1,4 @@
-import apiClient from "./apiClient";
+import apiClient from "../services/apiClient";
 
 export const getRecurringActionItems = async () => {
   const response = await apiClient.get("/api/recurring-action-items");

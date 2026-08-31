@@ -68,4 +68,6 @@ export const organizationApi = {
       `/api/organizations/${orgId}/audit-log-exports/${exportId}/download`,
       { responseType: "blob" },
     ),
+  recordAuditEvent: (orgId, data) =>
+    apiClient.post(`/api/organizations/${orgId}/audit`, data),
 };

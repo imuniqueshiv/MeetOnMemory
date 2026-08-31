@@ -6,26 +6,44 @@ export const useDecisionImpact = (decisionId) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchImpact = useCallback(async () => {
-    if (!decisionId) return;
+  const fetchImpact = useCallback(
+    async (options = {}) => {
+      if (!decisionId) return;
 
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.get(`/api/decisions/${decisionId}/impact`);
-      setImpactData(response.data);
-    } catch (err) {
-      if (err.response?.status !== 404) {
-        setError(err.response?.data?.message || err.message);
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await api.get(
+          `/api/decisions/${decisionId}/impact`,
+          options,
+        );
+        setImpactData(response.data);
+      } catch (err) {
+        if (
+          api.isCancel?.(err) ||
+          err.name === "CanceledError" ||
+          err.name === "AbortError" ||
+          err.code === "ERR_CANCELED"
+        ) {
+          return;
+        }
+        if (err.response?.status !== 404) {
+          setError(err.response?.data?.message || err.message);
+        }
+        setImpactData(null);
+      } finally {
+        if (!options.signal?.aborted) {
+          setLoading(false);
+        }
       }
-      setImpactData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [decisionId]);
+    },
+    [decisionId],
+  );
 
   useEffect(() => {
-    fetchImpact();
+    const controller = new AbortController();
+    fetchImpact({ signal: controller.signal });
+    return () => controller.abort();
   }, [fetchImpact]);
 
   const updateImpact = async (updates) => {

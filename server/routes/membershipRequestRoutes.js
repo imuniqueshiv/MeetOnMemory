@@ -45,7 +45,13 @@ router.get(
 );
 
 // Comments on request
-router.post("/:id/comments", writeLimiter, addCommentToMembershipRequest);
+router.post(
+  "/:id/comments",
+  writeLimiter,
+  requireOrgMembership,
+  requirePermission("team_members", "view"),
+  addCommentToMembershipRequest,
+);
 
 // Manage requests
 router.patch(

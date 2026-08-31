@@ -44,3 +44,21 @@ export const linkActionItemsToDecision = async (id, actionItemIds) => {
   );
   return response.data;
 };
+
+export const updateDecisionLogEntry = async (id, data) => {
+  const response = await apiClient.put(`/api/decision-log/${id}`, data);
+  return response.data;
+};
+
+export const deleteDecisionLogEntry = async (id) => {
+  const response = await apiClient.delete(`/api/decision-log/${id}`);
+  return response.data;
+};
+
+export const exportDecisionLog = async (format = "json") => {
+  const response = await apiClient.get(`/api/decision-log/export`, {
+    params: { format },
+    responseType: format === "csv" ? "blob" : "json",
+  });
+  return response.data;
+};

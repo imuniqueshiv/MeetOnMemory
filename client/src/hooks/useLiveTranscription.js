@@ -47,29 +47,23 @@ export default function useLiveTranscription(roomId, socketRef, streamRef) {
       const context = new (window.AudioContext || window.webkitAudioContext)();
       setAudioContext(context);
 
+      await context.audioWorklet.addModule("/audio-processor.js");
+
       const source = context.createMediaStreamSource(streamRef.current);
-      const processor = context.createScriptProcessor(4096, 1, 1);
+      const workletNode = new AudioWorkletNode(context, "audio-processor");
 
-      processor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
-        const audioData = new Float32Array(inputData);
-        const pcmData = new Int16Array(audioData.length);
-
-        for (let i = 0; i < audioData.length; i++) {
-          pcmData[i] = Math.max(-1, Math.min(1, audioData[i])) * 0x7fff;
-        }
-
+      workletNode.port.onmessage = (event) => {
         if (socketRef.current) {
           socketRef.current.emit("audio-data", {
             roomId,
-            audioData: pcmData.buffer,
+            audioData: event.data,
           });
         }
       };
 
-      source.connect(processor);
-      processor.connect(context.destination);
-      setAudioProcessor(processor);
+      source.connect(workletNode);
+      workletNode.connect(context.destination);
+      setAudioProcessor(workletNode);
     } catch (error) {
       console.error("Error setting up audio processing:", error);
     }

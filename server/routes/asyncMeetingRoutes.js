@@ -4,6 +4,8 @@ import {
   getAsyncMeetings,
   getAsyncMeetingById,
   submitUpdate,
+  convertToAsync,
+  submitAsyncResponse,
 } from "../controllers/asyncMeetingController.js";
 import userAuth from "../middleware/userAuth.js";
 import { apiLimiter, writeLimiter } from "../middleware/rateLimiter.js";
@@ -17,5 +19,7 @@ router.post("/", writeLimiter, createAsyncMeeting);
 router.get("/", getAsyncMeetings);
 router.get("/:id", getAsyncMeetingById);
 router.post("/:id/submit", writeLimiter, submitUpdate);
+router.post("/:meetingId/convert", writeLimiter, convertToAsync);
+router.post("/:meetingId/response", writeLimiter, submitAsyncResponse);
 
 export default router;

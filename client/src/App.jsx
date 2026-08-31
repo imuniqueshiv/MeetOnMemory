@@ -8,6 +8,7 @@ import ProtectedRoutes from "./routes/ProtectedRoutes.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import ScrollNavigator from "./components/ScrollNavigator";
 import FloatingAssistant from "./components/FloatingAssistant.jsx";
+import GlobalVoiceAssistant from "./components/GlobalVoiceAssistant.jsx";
 import BadgeNotification from "./components/gamification/BadgeNotification.jsx";
 import OfflineBanner from "./components/OfflineBanner.jsx";
 import Footer from "./components/Footer.jsx";
@@ -72,6 +73,9 @@ const App = () => {
 
         {/* Global AI Assistant floating workspace */}
         {isLoggedin && <FloatingAssistant />}
+
+        {/* Global Voice Assistant (Hey Memory) */}
+        {isLoggedin && <GlobalVoiceAssistant />}
 
         {/* Gamification Badge Notifications */}
         {isLoggedin && <BadgeNotification />}

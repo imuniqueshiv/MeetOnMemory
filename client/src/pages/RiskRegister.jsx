@@ -5,6 +5,7 @@ import meetingRiskApi from "../services/meetingRiskApi";
 import { organizationApi } from "../services/organizationApi";
 import AppContent from "../context/AppContent";
 import Navbar from "../components/Navbar.jsx";
+import { useRBAC } from "../hooks/useRBAC.js";
 import {
   AlertTriangle,
   ShieldAlert,
@@ -41,8 +42,8 @@ const RiskRegister = () => {
   const [usersList, setUsersList] = useState([]);
   const [mitigationLoadingSubmit, setMitigationLoadingSubmit] = useState(false);
 
-  const isAdminOrOwner =
-    userData?.role === "admin" || userData?.role === "owner";
+  const { hasPermission } = useRBAC();
+  const isAdminOrOwner = hasPermission("admin_panel", "manage");
 
   const effectiveOrgId =
     orgId ||

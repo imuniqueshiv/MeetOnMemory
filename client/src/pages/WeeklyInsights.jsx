@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import AppContent from "../context/AppContent";
 import Navbar from "../components/Navbar.jsx";
@@ -6,7 +6,11 @@ import { toast } from "react-toastify";
 import {
   getLatestInsight,
   triggerManualGeneration,
+  getInsightHistory,
+  shareWeeklyInsight,
+  emailWeeklyInsight,
 } from "../services/weeklyInsightApi.js";
+import { useRBAC } from "../hooks/useRBAC.js";
 import {
   Loader2,
   Zap,
@@ -15,44 +19,79 @@ import {
   RefreshCw,
   Briefcase,
   Sparkles,
+  Share2,
+  Mail,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const WeeklyInsights = () => {
   const { t } = useTranslation();
   const { activeOrganization } = useContext(AppContent);
+  const { userRole } = useRBAC();
+  const isAdmin = userRole === "admin" || userRole === "owner";
 
   const [insight, setInsight] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [selectedInsightId, setSelectedInsightId] = useState("");
+  const [sharing, setSharing] = useState(false);
+  const [emailing, setEmailing] = useState(false);
 
-  useEffect(() => {
-    const fetchInsight = async () => {
-      setLoading(true);
-      try {
-        const data = await getLatestInsight(activeOrganization._id);
-        setInsight(data);
-      } catch (error) {
-        console.error("Failed to fetch latest insight:", error);
-        toast.error(t("weeklyInsights.fetchError", "Failed to load insights."));
-      } finally {
-        setLoading(false);
+  const fetchHistory = useCallback(async () => {
+    if (!activeOrganization) return;
+    try {
+      const data = await getInsightHistory(activeOrganization._id, 1, 50);
+      setHistory(data.insights || []);
+    } catch (error) {
+      console.error("Failed to fetch history:", error);
+    }
+  }, [activeOrganization]);
+
+  const fetchInsight = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getLatestInsight(activeOrganization._id);
+      setInsight(data);
+      if (data) {
+        setSelectedInsightId(data._id);
       }
-    };
-
-    if (activeOrganization) {
-      fetchInsight();
+    } catch (error) {
+      console.error("Failed to fetch latest insight:", error);
+      toast.error(t("weeklyInsights.fetchError", "Failed to load insights."));
+    } finally {
+      setLoading(false);
     }
   }, [activeOrganization, t]);
+
+  useEffect(() => {
+    if (activeOrganization) {
+      fetchInsight();
+      fetchHistory();
+    }
+  }, [activeOrganization, fetchInsight, fetchHistory]);
+
+  const handleSelectInsight = (e) => {
+    const id = e.target.value;
+    setSelectedInsightId(id);
+    const selected = history.find((h) => h._id === id);
+    if (selected) {
+      setInsight(selected);
+    }
+  };
 
   const handleGenerate = async () => {
     setGenerating(true);
     try {
       const data = await triggerManualGeneration(activeOrganization._id);
       setInsight(data);
+      if (data) {
+        setSelectedInsightId(data._id);
+      }
       toast.success(
         t("weeklyInsights.generated", "Weekly insight generated successfully."),
       );
+      await fetchHistory();
     } catch (error) {
       console.error("Failed to generate insight:", error);
       toast.error(
@@ -63,11 +102,56 @@ const WeeklyInsights = () => {
     }
   };
 
+  const handleShare = async () => {
+    if (!insight) return;
+    setSharing(true);
+    try {
+      const response = await shareWeeklyInsight(
+        activeOrganization._id,
+        insight._id,
+      );
+      if (response && response.shareLink) {
+        await navigator.clipboard.writeText(response.shareLink);
+        toast.success(
+          t("weeklyInsights.shared", "Share link copied to clipboard!"),
+        );
+      }
+    } catch (error) {
+      console.error("Failed to share insight:", error);
+      toast.error(
+        t("weeklyInsights.shareError", "Failed to generate share link."),
+      );
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const handleEmail = async () => {
+    if (!insight) return;
+    setEmailing(true);
+    try {
+      await emailWeeklyInsight(activeOrganization._id, insight._id);
+      toast.success(
+        t(
+          "weeklyInsights.emailed",
+          "Weekly digest emailed to all active members successfully!",
+        ),
+      );
+    } catch (error) {
+      console.error("Failed to email insight:", error);
+      toast.error(
+        t("weeklyInsights.emailError", "Failed to send email digest."),
+      );
+    } finally {
+      setEmailing(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <Navbar />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               Weekly Insights Digest
@@ -77,18 +161,76 @@ const WeeklyInsights = () => {
               7 days.
             </p>
           </div>
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {generating ? (
-              <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-            ) : (
-              <Zap className="w-5 h-5 mr-2" />
+
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            {/* History Selector */}
+            {history.length > 0 && (
+              <select
+                value={selectedInsightId || ""}
+                onChange={handleSelectInsight}
+                className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                {history.map((h) => {
+                  const dateLabel = `${new Date(
+                    h.startDate,
+                  ).toLocaleDateString()} - ${new Date(
+                    h.endDate,
+                  ).toLocaleDateString()}`;
+                  return (
+                    <option key={h._id} value={h._id}>
+                      {dateLabel}
+                    </option>
+                  );
+                })}
+              </select>
             )}
-            Generate Now
-          </button>
+
+            {/* Share CTA */}
+            {insight && (
+              <button
+                onClick={handleShare}
+                disabled={sharing}
+                className="flex items-center justify-center p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700 transition-colors disabled:opacity-50"
+                title={t("weeklyInsights.share", "Copy share link")}
+              >
+                {sharing ? (
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Share2 className="w-5 h-5" />
+                )}
+              </button>
+            )}
+
+            {/* Email Digest CTA (Admin Only) */}
+            {insight && isAdmin && (
+              <button
+                onClick={handleEmail}
+                disabled={emailing}
+                className="flex items-center justify-center p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700 transition-colors disabled:opacity-50"
+                title={t("weeklyInsights.emailDigest", "Send email digest")}
+              >
+                {emailing ? (
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Mail className="w-5 h-5" />
+                )}
+              </button>
+            )}
+
+            {/* Generate CTA */}
+            <button
+              onClick={handleGenerate}
+              disabled={generating}
+              className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium text-sm transition-colors"
+            >
+              {generating ? (
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Zap className="w-4 h-4 mr-2" />
+              )}
+              Generate Now
+            </button>
+          </div>
         </div>
 
         {loading ? (

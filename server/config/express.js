@@ -63,8 +63,8 @@ export function configureExpress(app) {
   app.use("/api/webhooks", webhookRoutes);
   app.use("/api/public/shared", publicSharedRoutes);
 
-  // Serve static uploads
-  app.use("/uploads", express.static(path.resolve("uploads")));
+  // Serve only avatars publicly, ensuring attachments and recordings remain private
+  app.use("/uploads/avatars", express.static(path.resolve("uploads/avatars")));
 
   app.use(globalLimiter);
 }

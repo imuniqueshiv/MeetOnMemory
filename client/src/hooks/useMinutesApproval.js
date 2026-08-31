@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 
 const useMinutesApproval = (meetingId) => {
   const [approvalDoc, setApprovalDoc] = useState(null);
+  const [approvalStatus, setApprovalStatus] = useState("not_submitted");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -11,13 +12,13 @@ const useMinutesApproval = (meetingId) => {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await minutesApprovalApi.getApprovalStatus(meetingId);
-      if (data.success) {
-        setApprovalDoc(data.approval);
+      const res = await minutesApprovalApi.getApprovalStatus(meetingId);
+      if (res && res.data && res.data.success) {
+        setApprovalDoc(res.data.data || null);
+        setApprovalStatus(res.data.status || "not_submitted");
       }
     } catch (err) {
       console.error("Failed to fetch approval status:", err);
-      // It's okay if it doesn't exist (404), but for other errors set it
       setError("Failed to load approval status");
     } finally {
       setLoading(false);
@@ -30,21 +31,24 @@ const useMinutesApproval = (meetingId) => {
     }
   }, [meetingId, fetchApprovalStatus]);
 
-  const submitApproval = async (summary, approverIds) => {
+  const submitApproval = async (snapshotSummary, approvers) => {
     try {
-      const { data } = await minutesApprovalApi.submitApproval(
+      const res = await minutesApprovalApi.submitApproval(
         meetingId,
-        summary,
-        approverIds,
+        snapshotSummary,
+        approvers,
       );
-      if (data.success) {
-        setApprovalDoc(data.approval);
+      if (res && res.data && res.data.success) {
+        setApprovalDoc(res.data.data);
+        setApprovalStatus(res.data.data?.status || "pending");
         toast.success("Minutes submitted for approval");
         return true;
       }
     } catch (err) {
       toast.error(
-        err.response?.data?.message || "Failed to submit for approval",
+        err.response?.data?.error ||
+          err.response?.data?.message ||
+          "Failed to submit for approval",
       );
       return false;
     }
@@ -52,19 +56,22 @@ const useMinutesApproval = (meetingId) => {
 
   const respondApproval = async (status, comment) => {
     try {
-      const { data } = await minutesApprovalApi.respondApproval(
+      const res = await minutesApprovalApi.respondApproval(
         meetingId,
         status,
         comment,
       );
-      if (data.success) {
-        setApprovalDoc(data.approval);
+      if (res && res.data && res.data.success) {
+        setApprovalDoc(res.data.data);
+        setApprovalStatus(res.data.data?.status || status);
         toast.success(`Minutes ${status} successfully`);
         return true;
       }
     } catch (err) {
       toast.error(
-        err.response?.data?.message || "Failed to respond to approval",
+        err.response?.data?.error ||
+          err.response?.data?.message ||
+          "Failed to respond to approval",
       );
       return false;
     }
@@ -72,6 +79,7 @@ const useMinutesApproval = (meetingId) => {
 
   return {
     approvalDoc,
+    approvalStatus,
     loading,
     error,
     submitApproval,

@@ -4,7 +4,6 @@ import {
   getDefinitions,
   updateDefinition,
   deleteDefinition,
-  setMeetingFields,
   getMeetingFields,
   getMeetingsWithFacets,
   updateMeetingCustomFields,

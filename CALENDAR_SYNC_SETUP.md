@@ -107,17 +107,28 @@ MICROSOFT_CLIENT_SECRET=your_microsoft_client_secret
 MICROSOFT_REDIRECT_URI=http://localhost:4000/api/calendar/microsoft/callback
 MICROSOFT_TENANT_ID=common
 
-# Token Encryption (generate a secure random string, minimum 32 characters)
+# Token Encryption — see docs/security-and-health.md#encryption-keys
+# TOKEN_ENCRYPTION_KEY must be exactly 32 bytes; it also protects Slack, GitHub
+# and Notion tokens, and is the fallback when CALENDAR_ENCRYPTION_KEY is unset.
+TOKEN_ENCRYPTION_KEY=exactly_32_characters_long_value
+# Optional override used only for Google/Microsoft calendar tokens (any length).
 CALENDAR_ENCRYPTION_KEY=your_secure_encryption_key_minimum_32_characters_long
 ```
 
+With neither key set, connecting a calendar and every sync fail closed with
+`Calendar encryption key is not configured`.
+
 ### Generate Encryption Key
 
-You can generate a secure encryption key using Node.js:
+`TOKEN_ENCRYPTION_KEY` is used as a raw AES-256-GCM key, so it must be exactly
+32 bytes — a longer value throws `Invalid key length`:
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+openssl rand -base64 24
 ```
+
+Changing the key leaves tokens already stored in MongoDB undecryptable, and the
+affected users have to reconnect their calendar.
 
 ## Step 4: Install Dependencies
 

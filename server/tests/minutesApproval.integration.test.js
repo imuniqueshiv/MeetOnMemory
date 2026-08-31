@@ -23,9 +23,8 @@ jest.unstable_mockModule("@clerk/express", () => ({
   },
 }));
 
-const { default: minutesApprovalRoutes } = await import(
-  "../routes/minutesApprovalRoutes.js"
-);
+const { default: minutesApprovalRoutes } =
+  await import("../routes/minutesApprovalRoutes.js");
 
 describe("Minutes Approval Server Integration Tests (#2666)", () => {
   let app;
@@ -44,10 +43,7 @@ describe("Minutes Approval Server Integration Tests (#2666)", () => {
       req.user = mockUser;
       next();
     });
-    app.use(
-      "/api/meetings/:meetingId/minutes-approval",
-      minutesApprovalRoutes,
-    );
+    app.use("/api/meetings/:meetingId/minutes-approval", minutesApprovalRoutes);
 
     unauthApp = express();
     unauthApp.use(express.json());

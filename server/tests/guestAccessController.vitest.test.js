@@ -51,13 +51,14 @@ const GuestAccessToken = (await import("../models/guestAccessTokenModel.js"))
 const GuestFeedback = (await import("../models/guestFeedbackModel.js")).default;
 
 describe("guestAccessController (#2454)", () => {
-  let req, res;
+  let req, res, next;
   const mockUserId = "507f1f77bcf86cd799439011";
   const mockOrgId = "507f1f77bcf86cd799439022";
   const mockMeetingId = "507f1f77bcf86cd799439033";
 
   beforeEach(() => {
     vi.clearAllMocks();
+    next = vi.fn();
     req = {
       user: {
         _id: mockUserId,
@@ -183,12 +184,14 @@ describe("guestAccessController (#2454)", () => {
         organization: mockOrgId,
       });
 
-      await getHostAnalytics(req, res);
+      await getHostAnalytics(req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({
-        error: "Unauthorized to view analytics for this meeting",
-      });
+      expect(next).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statusCode: 403,
+          message: "Unauthorized to view analytics for this meeting",
+        }),
+      );
     });
   });
 

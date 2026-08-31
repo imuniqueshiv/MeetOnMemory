@@ -4,10 +4,21 @@ import {
   requestToShadow,
   approveShadowRequest,
   denyShadowRequest,
+  getPendingShadowRequests,
 } from "../services/observerApi.js";
 
 export const useObservers = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState([]);
+
+  const fetchPendingRequests = useCallback(async (meetingId) => {
+    try {
+      const data = await getPendingShadowRequests(meetingId);
+      setPendingRequests(data.pendingObservers || []);
+    } catch (error) {
+      console.error("Failed to fetch pending requests:", error);
+    }
+  }, []);
 
   const shadowRequest = useCallback(async (meetingId) => {
     setIsLoading(true);
@@ -46,6 +57,8 @@ export const useObservers = () => {
 
   return {
     isLoading,
+    pendingRequests,
+    fetchPendingRequests,
     shadowRequest,
     handleShadowRequest,
   };

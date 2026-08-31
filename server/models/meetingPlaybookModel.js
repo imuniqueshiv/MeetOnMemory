@@ -20,6 +20,33 @@ const playbookStepSchema = new mongoose.Schema({
   },
 });
 
+const playbookVersionSchema = new mongoose.Schema({
+  version: {
+    type: Number,
+    required: true,
+  },
+  name: {
+    type: String,
+    required: true,
+  },
+  description: {
+    type: String,
+    default: "",
+  },
+  steps: {
+    type: [playbookStepSchema],
+    default: [],
+  },
+  savedAt: {
+    type: Date,
+    default: Date.now,
+  },
+  savedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+  },
+});
+
 const meetingPlaybookSchema = new mongoose.Schema(
   {
     name: {
@@ -31,8 +58,16 @@ const meetingPlaybookSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    version: {
+      type: Number,
+      default: 1,
+    },
     steps: {
       type: [playbookStepSchema],
+      default: [],
+    },
+    versions: {
+      type: [playbookVersionSchema],
       default: [],
     },
     usageCount: {

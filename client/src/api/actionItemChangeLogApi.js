@@ -6,9 +6,12 @@ import api from "../services/apiClient.js";
  * @param {object} params - Query parameters (page, limit, type, userId)
  */
 export const fetchChangeLogs = async (actionItemId, params = {}) => {
-  const { data } = await api.get(`/action-items/${actionItemId}/changelog`, {
-    params,
-  });
+  const { data } = await api.get(
+    `/api/action-items/${actionItemId}/changelog`,
+    {
+      params,
+    },
+  );
   return data;
 };
 
@@ -18,7 +21,7 @@ export const fetchChangeLogs = async (actionItemId, params = {}) => {
  */
 export const fetchChangeLogStats = async (actionItemId) => {
   const { data } = await api.get(
-    `/action-items/${actionItemId}/changelog/stats`,
+    `/api/action-items/${actionItemId}/changelog/stats`,
   );
   return data;
 };

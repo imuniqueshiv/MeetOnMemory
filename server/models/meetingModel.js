@@ -350,6 +350,12 @@ const meetingSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // Assigned playbook for facilitation guidance (Issue #2448)
+    playbook: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "MeetingPlaybook",
+      default: null,
+    },
   },
   { timestamps: true },
 );

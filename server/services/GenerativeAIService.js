@@ -467,6 +467,61 @@ const chunkTextByBudget = (text, { maxChars, overlapChars }) => {
   return chunks;
 };
 
+export const describeVisualFrame = async (base64Data) => {
+  if (!GEMINI_API_KEY) return null;
+
+  const base64Content = base64Data.startsWith("data:")
+    ? base64Data.split(",")[1]
+    : base64Data;
+
+  const prompt = `
+Extract all legible text from this image and provide a concise description of any key visual diagrams, charts, or slides shown.
+Return ONLY a valid JSON object matching this structure:
+{
+  "extractedText": "...",
+  "description": "..."
+}
+`;
+
+  try {
+    const result = await callWithResilience(
+      async (signal) => {
+        const model = getGenerativeModel();
+        return await model.generateContent(
+          [
+            prompt,
+            {
+              inlineData: {
+                data: base64Content,
+                mimeType: "image/jpeg",
+              },
+            },
+          ],
+          { signal },
+        );
+      },
+      {
+        label: "Gemini vision frame",
+        timeoutMs: GEMINI_TIMEOUT_MS(),
+        retries: GEMINI_MAX_RETRIES(),
+        baseDelayMs: GEMINI_RETRY_BASE_MS(),
+        maxDelayMs: GEMINI_RETRY_MAX_MS(),
+        breaker: geminiBreaker,
+        onRetry: ({ attempt, delayMs, classification: _classification }) =>
+          console.warn(
+            `↻ Gemini vision: attempt ${attempt} failed, retrying in ${delayMs}ms`,
+          ),
+      },
+    );
+
+    const outputText = result.response.text();
+    return parseJsonOutput(outputText);
+  } catch (err) {
+    console.error("❌ Vision API failed:", err.message);
+    return null;
+  }
+};
+
 const buildMoMPrompt = (
   transcriptSegment,
   date,
@@ -482,6 +537,9 @@ const buildMoMPrompt = (
   const customInstructionsNotice = customInstructions
     ? `\n⚠️ CUSTOM INSTRUCTIONS: ${customInstructions}\n`
     : "";
+  const visualContextNotice = context.visualFramesText
+    ? `\n🖼️ VISUAL CONTEXT (Slides/Diagrams shown during the meeting):\n${context.visualFramesText}\nInclude references to these visual diagrams in the summary where relevant.\n`
+    : "";
 
   return `
 You are an advanced AI meeting assistant responsible for preparing *formal, well-structured Minutes of Meeting (MoM)*
@@ -490,6 +548,7 @@ The MoM should be factual, concise, and formatted for professional use in organi
 Avoid repetition, filler words, and unnecessary phrases. Capture key insights, outcomes, and responsibilities accurately.
 ${chunkNotice}
 ${customInstructionsNotice}
+${visualContextNotice}
 🎯 Your goal is to return a clean JSON object with the following fields:
 {
   "title": "A clear, professional meeting title (e.g., 'AI Integration Strategy Discussion')",
@@ -560,6 +619,7 @@ export const generateMoMDetailed = async (
   date,
   title,
   customInstructions = null,
+  visualFramesText = null,
 ) => {
   const source = String(textToSummarize ?? "");
   const startedAt = Date.now();
@@ -586,7 +646,7 @@ export const generateMoMDetailed = async (
         usedChunks[index],
         date,
         title,
-        { part: index + 1, totalParts: usedChunks.length },
+        { part: index + 1, totalParts: usedChunks.length, visualFramesText },
         customInstructions,
       );
 

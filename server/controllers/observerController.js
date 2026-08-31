@@ -31,6 +31,15 @@ export const requestToShadow = async (req, res) => {
         .json({ message: "You are already a participant." });
     }
 
+    if (!meeting.pendingObservers) meeting.pendingObservers = [];
+    if (meeting.pendingObservers.includes(userId)) {
+      return res
+        .status(400)
+        .json({ message: "Shadow request already pending." });
+    }
+    meeting.pendingObservers.push(userId);
+    await meeting.save();
+
     const user = await User.findById(userId);
 
     // Send notification to the meeting owner/organizer
@@ -89,6 +98,9 @@ export const approveShadowRequest = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    meeting.pendingObservers = meeting.pendingObservers.filter(
+      (id) => id.toString() !== userId.toString(),
+    );
     meeting.participants.push({
       user: user._id,
       name: user.name,
@@ -133,6 +145,11 @@ export const denyShadowRequest = async (req, res) => {
       return res.status(403).json({ message: "Not authorized" });
     }
 
+    meeting.pendingObservers = meeting.pendingObservers.filter(
+      (id) => id.toString() !== userId.toString(),
+    );
+    await meeting.save();
+
     // Notify the user that they have been denied
     await createNotification({
       recipient: userId,
@@ -148,6 +165,29 @@ export const denyShadowRequest = async (req, res) => {
     res.status(200).json({ message: "Shadow request denied." });
   } catch (error) {
     console.error("Error in denyShadowRequest:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/**
+ * Get pending shadow requests
+ */
+export const getPendingShadowRequests = async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const meeting = await Meeting.findById(meetingId).populate(
+      "pendingObservers",
+      "name email avatar",
+    );
+    if (!meeting) {
+      return res.status(404).json({ message: "Meeting not found" });
+    }
+    if (meeting.uploadedBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+    res.status(200).json({ pendingObservers: meeting.pendingObservers });
+  } catch (error) {
+    console.error("Error in getPendingShadowRequests:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

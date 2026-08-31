@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { Search, Loader2, Calendar, User, Clock, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/apiClient.js";
@@ -20,31 +20,48 @@ const TranscriptSearchPanel = () => {
     return () => clearTimeout(handler);
   }, [query]);
 
-  const fetchResults = useCallback(async () => {
-    if (!debouncedQuery.trim()) {
-      setResults([]);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const { data } = await api.get("/api/transcripts/search/global", {
-        params: { q: debouncedQuery, speaker },
-      });
-      if (data.success) {
-        setResults(data.data.results || []);
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Failed to search transcripts.");
-    } finally {
-      setLoading(false);
-    }
-  }, [debouncedQuery, speaker]);
-
   useEffect(() => {
+    const controller = new AbortController();
+
+    const fetchResults = async () => {
+      if (!debouncedQuery.trim()) {
+        setResults([]);
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const { data } = await api.get("/api/transcripts/search/global", {
+          params: { q: debouncedQuery, speaker },
+          signal: controller.signal,
+        });
+        if (data.success) {
+          setResults(data.data.results || []);
+        }
+      } catch (err) {
+        if (
+          api.isCancel?.(err) ||
+          err.name === "CanceledError" ||
+          err.name === "AbortError" ||
+          err.code === "ERR_CANCELED"
+        ) {
+          return;
+        }
+        console.error(err);
+        setError("Failed to search transcripts.");
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    };
+
     fetchResults();
-  }, [fetchResults]);
+
+    return () => {
+      controller.abort();
+    };
+  }, [debouncedQuery, speaker]);
 
   const highlightText = (text) => {
     if (!debouncedQuery) return text;

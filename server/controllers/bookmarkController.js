@@ -1,6 +1,7 @@
 import Bookmark from "../models/bookmarkModel.js";
 import Meeting from "../models/meetingModel.js";
 import mongoose from "mongoose";
+import { escapeRegExp } from "../utils/regexUtils.js";
 import { isSameOrganization } from "../utils/authUtils.js";
 
 // @desc    Toggle bookmark (add if missing, remove if exists)
@@ -105,7 +106,7 @@ export const getBookmarks = async (req, res) => {
 
     let filteredBookmarks = bookmarks;
     if (search && typeof search === "string") {
-      const regex = new RegExp(search, "i");
+      const regex = new RegExp(escapeRegExp(search), "i");
       filteredBookmarks = bookmarks.filter(
         (b) =>
           regex.test(b.notes || "") ||

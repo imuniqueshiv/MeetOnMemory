@@ -60,10 +60,7 @@ describe("Async Meetings Client Service Integration Tests (#2666)", () => {
       const answers = [
         { question: "What did you complete?", answer: "Implemented feature X" },
       ];
-      const res = await asyncMeetingApi.submitAsyncUpdate(
-        "async-100",
-        answers,
-      );
+      const res = await asyncMeetingApi.submitAsyncUpdate("async-100", answers);
 
       expect(apiClient.post).toHaveBeenCalledWith(
         "/async-meetings/async-100/submit",

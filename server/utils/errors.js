@@ -19,12 +19,26 @@ export class AppError extends Error {
    * @param {number} statusCode    - HTTP status code to send back
    * @param {boolean} isOperational - true = expected failure (bad input, not found);
    *                                  false = programming bug (should never happen)
+   * @param {string} [code]        - Machine-readable error code
    */
-  constructor(message, statusCode, isOperational = true) {
+  constructor(message, statusCode, isOperational = true, code = null) {
     super(message);
     this.name = this.constructor.name;
     this.statusCode = statusCode;
     this.isOperational = isOperational;
+    this.code =
+      code ||
+      (statusCode === 404
+        ? "NOT_FOUND"
+        : statusCode === 400
+          ? "VALIDATION_ERROR"
+          : statusCode === 401
+            ? "UNAUTHORIZED"
+            : statusCode === 403
+              ? "FORBIDDEN"
+              : statusCode === 409
+                ? "CONFLICT"
+                : "APP_ERROR");
 
     // Maintains proper prototype chain for instanceof checks
     Object.setPrototypeOf(this, new.target.prototype);
@@ -43,9 +57,14 @@ export class ValidationError extends AppError {
   /**
    * @param {string}  message - Readable error message
    * @param {Array}   details - Optional array of field-level issues (e.g. from Zod)
+   * @param {string}  code    - Optional error code
    */
-  constructor(message = "Validation failed", details = null) {
-    super(message, 400);
+  constructor(
+    message = "Validation failed",
+    details = null,
+    code = "VALIDATION_ERROR",
+  ) {
+    super(message, 400, true, code);
     this.details = details;
   }
 }
@@ -54,8 +73,11 @@ export class ValidationError extends AppError {
 // 401 Unauthorized — request missing valid authentication
 // ──────────────────────────────────────────────────────────────
 export class UnauthorizedError extends AppError {
-  constructor(message = "Unauthorized. Login required.") {
-    super(message, 401);
+  constructor(
+    message = "Unauthorized. Login required.",
+    code = "UNAUTHORIZED",
+  ) {
+    super(message, 401, true, code);
   }
 }
 
@@ -63,8 +85,11 @@ export class UnauthorizedError extends AppError {
 // 403 Forbidden — authenticated but lacks permission
 // ──────────────────────────────────────────────────────────────
 export class ForbiddenError extends AppError {
-  constructor(message = "You do not have permission to perform this action.") {
-    super(message, 403);
+  constructor(
+    message = "You do not have permission to perform this action.",
+    code = "FORBIDDEN",
+  ) {
+    super(message, 403, true, code);
   }
 }
 
@@ -72,8 +97,8 @@ export class ForbiddenError extends AppError {
 // 409 Conflict — resource already exists or state conflict
 // ──────────────────────────────────────────────────────────────
 export class ConflictError extends AppError {
-  constructor(message = "Resource already exists.") {
-    super(message, 409);
+  constructor(message = "Resource already exists.", code = "CONFLICT") {
+    super(message, 409, true, code);
   }
 }
 
@@ -81,7 +106,7 @@ export class ConflictError extends AppError {
 // 404 Not Found — requested resource does not exist
 // ──────────────────────────────────────────────────────────────
 export class NotFoundError extends AppError {
-  constructor(message = "Resource not found.") {
-    super(message, 404);
+  constructor(message = "Resource not found.", code = "NOT_FOUND") {
+    super(message, 404, true, code);
   }
 }

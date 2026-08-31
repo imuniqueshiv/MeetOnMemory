@@ -4,6 +4,8 @@ import {
   getPlaybooks,
   getPlaybook,
   updatePlaybook,
+  restorePlaybookVersion,
+  applyPlaybookToMeeting,
   deletePlaybook,
   generateAIPlaybook,
 } from "../controllers/meetingPlaybookController.js";
@@ -19,6 +21,8 @@ router.get("/", getPlaybooks);
 router.post("/generate", generateAIPlaybook);
 router.get("/:id", getPlaybook);
 router.put("/:id", updatePlaybook);
+router.put("/:id/restore/:version", restorePlaybookVersion);
+router.post("/:id/apply", applyPlaybookToMeeting);
 router.delete("/:id", deletePlaybook);
 
 export default router;

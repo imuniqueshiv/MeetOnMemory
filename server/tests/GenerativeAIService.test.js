@@ -19,8 +19,13 @@ jest.unstable_mockModule("@xenova/transformers", () => ({
 
 const { pipeline } = await import("@xenova/transformers");
 const { GoogleGenerativeAI } = await import("@google/generative-ai"); // eslint-disable-line no-unused-vars
-const { generateMoMWithAI, buildHumanReadableMoM, normalizeMoM } =
-  await import("../services/GenerativeAIService.js");
+process.env.GEMINI_API_KEY = "test";
+const {
+  generateMoMWithAI,
+  buildHumanReadableMoM,
+  normalizeMoM,
+  describeVisualFrame,
+} = await import("../services/GenerativeAIService.js");
 
 describe("GenerativeAIService", () => {
   beforeEach(() => {
@@ -111,6 +116,38 @@ describe("GenerativeAIService", () => {
       expect(result).toContain("1. Agenda 1");
       expect(result).toContain("1. Do this");
       expect(result).toContain("Alice, Bob");
+    });
+  });
+
+  describe("describeVisualFrame", () => {
+    it("should extract text and describe visual frames", async () => {
+      const mockResult = {
+        extractedText: "Revenue went up by 20%",
+        description: "A bar chart showing revenue growth",
+      };
+
+      mockGenerateContent.mockResolvedValueOnce({
+        response: {
+          text: () => JSON.stringify(mockResult),
+        },
+      });
+
+      const result = await describeVisualFrame(
+        "data:image/jpeg;base64,mockbase64",
+      );
+
+      expect(result).toEqual(mockResult);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    });
+
+    it("should return null on API failure", async () => {
+      mockGenerateContent.mockRejectedValueOnce(new Error("Vision API failed"));
+
+      const result = await describeVisualFrame(
+        "data:image/jpeg;base64,mockbase64",
+      );
+
+      expect(result).toBeNull();
     });
   });
 });

@@ -1,5 +1,7 @@
 import React from "react";
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -45,10 +47,11 @@ describe("AI Summary Templates route protection (#1657)", () => {
   });
 
   it("registers the route behind the admin_panel view permission", () => {
-    const source = readFileSync(
-      new URL("../ProtectedRoutes.jsx", import.meta.url),
-      "utf8",
+    const filePath = resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "../ProtectedRoutes.jsx",
     );
+    const source = readFileSync(filePath, "utf8");
 
     expect(source).toMatch(
       /path="\/ai-summary-templates"[\s\S]*?resource="admin_panel"[\s\S]*?action="view"[\s\S]*?AiSummaryTemplates/,

@@ -4,13 +4,13 @@ import {
   submitApproval,
   respondApproval,
 } from "../controllers/minutesApprovalController.js";
-import { requireAuth } from "@clerk/express";
+import userAuth from "../middleware/userAuth.js";
 
 const router = express.Router({ mergeParams: true }); // mergeParams needed because meetingId is in the prefix
 
 // /api/meetings/:meetingId/minutes-approval
-router.get("/", requireAuth(), getApprovalStatus);
-router.post("/submit", requireAuth(), submitApproval);
-router.put("/respond", requireAuth(), respondApproval);
+router.get("/", userAuth, getApprovalStatus);
+router.post("/submit", userAuth, submitApproval);
+router.put("/respond", userAuth, respondApproval);
 
 export default router;

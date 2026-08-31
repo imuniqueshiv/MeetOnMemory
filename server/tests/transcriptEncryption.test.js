@@ -2,6 +2,7 @@
  * Issue #1335 — server transcript encryption helper tests.
  */
 
+import { describe, it, expect, afterEach } from "vitest";
 import {
   isE2eeEnabled,
   isEncryptedTranscriptPayload,
@@ -66,5 +67,44 @@ describe("transcriptEncryption helpers (#1335)", () => {
     const legacy = { transcript: "hello", isTranscriptEncrypted: false };
     expect(isMeetingTranscriptEncrypted(legacy)).toBe(false);
     expect(meetingSupportsServerAi(legacy)).toBe(true);
+  });
+
+  describe("isOrgE2eeEnforcedForMeeting", () => {
+    it("returns false if meeting has no organization", async () => {
+      const { isOrgE2eeEnforcedForMeeting } =
+        await import("../utils/transcriptEncryption.js");
+      const res = await isOrgE2eeEnforcedForMeeting({ title: "No Org" });
+      expect(res).toBe(false);
+    });
+
+    it("returns false if organization does not enforce E2EE", async () => {
+      const { isOrgE2eeEnforcedForMeeting } =
+        await import("../utils/transcriptEncryption.js");
+      const meeting = {
+        organization: {
+          e2eeSettings: {
+            enabled: true,
+            enforceOrgWide: false,
+          },
+        },
+      };
+      const res = await isOrgE2eeEnforcedForMeeting(meeting);
+      expect(res).toBe(false);
+    });
+
+    it("returns true if organization enforces E2EE", async () => {
+      const { isOrgE2eeEnforcedForMeeting } =
+        await import("../utils/transcriptEncryption.js");
+      const meeting = {
+        organization: {
+          e2eeSettings: {
+            enabled: true,
+            enforceOrgWide: true,
+          },
+        },
+      };
+      const res = await isOrgE2eeEnforcedForMeeting(meeting);
+      expect(res).toBe(true);
+    });
   });
 });

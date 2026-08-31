@@ -2,6 +2,11 @@ import Meeting from "../models/meetingModel.js";
 import { hasPermission } from "../utils/rbacPermissions.js";
 import streamingTranscriptionService from "../services/StreamingTranscriptionService.js";
 import { getRedisClient } from "../services/redisService.js";
+import TranscriptChapter from "../models/transcriptChapterModel.js";
+import { describeVisualFrame } from "../services/GenerativeAIService.js";
+import crypto from "crypto";
+import fs from "fs/promises";
+import path from "path";
 
 /**
  * Meeting Socket Handler with Multi-Instance Presence Support
@@ -440,6 +445,69 @@ export default (io) => {
         streamingTranscriptionService.processAudio(roomId, audioData);
       } catch (error) {
         console.error("Error processing audio data:", error);
+      }
+    });
+
+    /**
+     * Process visual frame data from screen shares
+     */
+    socket.on("screen-frame", async ({ roomId, frame, timestamp }) => {
+      try {
+        if (!(await canAccessMeeting(roomId))) return;
+
+        // Hash the base64 string to detect significant changes
+        const hash = crypto.createHash("sha256").update(frame).digest("hex");
+
+        // Simple deduplication using memory (per instance). In a multi-instance setup,
+        // this might process identical frames once per instance, which is acceptable
+        // since we check the latest hash. Or we can use redis. For simplicity, use a local Map.
+        if (!roomTimers[roomId]) roomTimers[roomId] = { lastFrameHash: null };
+        if (roomTimers[roomId].lastFrameHash === hash) return; // No change
+
+        roomTimers[roomId].lastFrameHash = hash;
+
+        // Ensure upload directory exists
+        const framesDir = path.resolve("uploads", "frames");
+        await fs.mkdir(framesDir, { recursive: true });
+
+        // Save image to disk
+        const filename = `${roomId}-${timestamp}.jpg`;
+        const filepath = path.join(framesDir, filename);
+
+        const base64Data = frame.replace(/^data:image\/\w+;base64,/, "");
+        await fs.writeFile(filepath, base64Data, "base64");
+        const imageUrl = `/uploads/frames/${filename}`;
+
+        // Process with Gemini Vision
+        const visionResult = await describeVisualFrame(frame);
+
+        if (visionResult) {
+          // Find or create TranscriptChapter document for the meeting
+          let tc = await TranscriptChapter.findOne({ meeting: roomId });
+          if (!tc) {
+            const meeting = await Meeting.findById(roomId);
+            if (!meeting) return;
+            tc = new TranscriptChapter({
+              meeting: roomId,
+              organization: meeting.organization,
+              chapters: [],
+            });
+          }
+
+          tc.chapters.push({
+            title: `Slide at ${new Date(timestamp).toLocaleTimeString()}`,
+            startTime: timestamp,
+            endTime: timestamp + 10000, // approximate 10s
+            imageUrl,
+            extractedText: visionResult.extractedText || "",
+            summary: visionResult.description || "",
+            isManual: false,
+          });
+
+          await tc.save();
+        }
+      } catch (error) {
+        console.error("Error processing screen frame:", error);
       }
     });
 

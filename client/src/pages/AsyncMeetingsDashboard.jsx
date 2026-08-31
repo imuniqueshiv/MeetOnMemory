@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Clock, CheckCircle, FileText, Calendar, Loader } from "lucide-react";
 import Navbar from "../components/Navbar.jsx";
-import apiClient from "../services/apiClient";
+import asyncMeetingApi from "../services/asyncMeetingApi";
 import AsyncSubmissionModal from "../components/meetings/AsyncSubmissionModal";
 
 const AsyncMeetingsDashboard = () => {
@@ -19,19 +19,25 @@ const AsyncMeetingsDashboard = () => {
   const fetchMeetings = async () => {
     try {
       setLoading(true);
-      const res = await apiClient.get("/async-meetings");
-      setMeetings(res.data);
+      const res = await asyncMeetingApi.getAsyncMeetings();
+      const meetingsData = Array.isArray(res.data)
+        ? res.data
+        : res.data?.data || res.data?.meetings || [];
+      setMeetings(meetingsData);
     } catch (err) {
       console.error("Error fetching async meetings:", err);
+      setMeetings([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const pendingMeetings = meetings.filter((m) => m.status === "pending");
-  const completedMeetings = meetings.filter(
-    (m) => m.status === "completed" || m.status === "locked",
-  );
+  const pendingMeetings = Array.isArray(meetings)
+    ? meetings.filter((m) => m.status === "pending")
+    : [];
+  const completedMeetings = Array.isArray(meetings)
+    ? meetings.filter((m) => m.status === "completed" || m.status === "locked")
+    : [];
 
   const handleOpenSubmit = (meeting) => {
     setSelectedMeeting(meeting);

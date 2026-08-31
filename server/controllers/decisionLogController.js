@@ -89,3 +89,51 @@ export const getOverdueReviews = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch overdue reviews" });
   }
 };
+
+export const editEntry = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const entry = await decisionLogService.editEntry(id, req.body);
+    res.status(200).json(entry);
+  } catch (error) {
+    console.error("Error in editEntry:", error);
+    res.status(500).json({ error: "Failed to update decision log entry" });
+  }
+};
+
+export const deleteEntry = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await decisionLogService.deleteEntry(id);
+    res
+      .status(200)
+      .json({ success: true, message: "Decision log entry deleted" });
+  } catch (error) {
+    console.error("Error in deleteEntry:", error);
+    res.status(500).json({ error: "Failed to delete decision log entry" });
+  }
+};
+
+export const exportLog = async (req, res) => {
+  try {
+    const { format } = req.query;
+    const data = await decisionLogService.exportLog(
+      req.organization._id,
+      format,
+    );
+
+    if (format === "csv") {
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader(
+        "Content-Disposition",
+        "attachment; filename=decision-log.csv",
+      );
+      return res.status(200).send(data);
+    }
+
+    res.status(200).json(data);
+  } catch (error) {
+    console.error("Error in exportLog:", error);
+    res.status(500).json({ error: "Failed to export decision log" });
+  }
+};

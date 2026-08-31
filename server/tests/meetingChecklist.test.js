@@ -35,6 +35,17 @@ jest.unstable_mockModule("../middleware/userAuth.js", () => {
   };
 });
 
+jest.unstable_mockModule("../services/documentGenerator.js", () => {
+  return {
+    default: {
+      renderHTML: () => "",
+      generatePDF: async () => Buffer.from(""),
+      generateDOCX: async () => Buffer.from(""),
+      sanitizeHTML: () => "",
+    },
+  };
+});
+
 // Since unstable_mockModule is used, we must use dynamic import for the app
 const { app } = await import("../server.js");
 
@@ -172,5 +183,116 @@ describe("Meeting Checklist API", () => {
       (r) => r.userId.toString() === otherUser._id.toString(),
     );
     expect(otherUserReadiness.percentage).toBe(50); // 1 out of 2 tasks completed
+  });
+
+  it("should allow creating a checklist with assignee and dueDate", async () => {
+    const res = await request(app)
+      .post(`/api/meetings/${meeting._id}/checklist`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        items: [
+          {
+            text: "Read spec",
+            assignee: otherUser._id.toString(),
+            dueDate: new Date().toISOString(),
+          },
+        ],
+      });
+
+    expect(res.statusCode).toEqual(201);
+    expect(res.body.checklist.items[0].assignee._id.toString()).toEqual(
+      otherUser._id.toString(),
+    );
+    expect(res.body.checklist.items[0].assignee.name).toEqual(otherUser.name);
+    expect(res.body.checklist.items[0].dueDate).toBeDefined();
+  });
+
+  it("should allow updating a checklist with assignee and dueDate", async () => {
+    // First create
+    await MeetingChecklist.create({
+      meetingId: meeting._id,
+      organization: organization._id,
+      createdBy: user._id,
+      items: [{ text: "Task 1" }],
+      completions: [],
+    });
+
+    const res = await request(app)
+      .put(`/api/meetings/${meeting._id}/checklist`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        items: [
+          {
+            text: "Updated Task 1",
+            assignee: otherUser._id.toString(),
+            dueDate: new Date().toISOString(),
+          },
+          { text: "Task 2" },
+        ],
+      });
+
+    expect(res.statusCode).toEqual(200);
+    expect(res.body.checklist.items.length).toBe(2);
+    expect(res.body.checklist.items[0].text).toEqual("Updated Task 1");
+    expect(res.body.checklist.items[0].assignee._id.toString()).toEqual(
+      otherUser._id.toString(),
+    );
+  });
+
+  it("should trigger reminder notifications targeting assignees", async () => {
+    // Create a meeting happening in ~24h
+    const tomorrow = new Date(
+      Date.now() + 24 * 60 * 60 * 1000 + 30 * 60 * 1000,
+    ); // 24h 30m from now
+    const upcomingMeeting = await Meeting.create({
+      title: "Upcoming Sync",
+      owner: user._id,
+      uploadedBy: user._id,
+      organization: organization._id,
+      participants: [
+        { user: user._id, name: "Test User" },
+        { user: otherUser._id, name: "Other User" },
+      ],
+      date: tomorrow.toISOString(),
+    });
+
+    await MeetingChecklist.create({
+      meetingId: upcomingMeeting._id,
+      organization: organization._id,
+      createdBy: user._id,
+      items: [
+        {
+          text: "Assigned Task",
+          assignee: otherUser._id,
+          dueDate: tomorrow,
+        },
+      ],
+      completions: [],
+    });
+
+    // Import job and eventBus
+    const { processChecklistReminders } =
+      await import("../jobs/checklistReminderJob.js");
+    const { default: eventBus } = await import("../services/eventBus.js");
+
+    const emittedNotifications = [];
+    const listener = (event) => {
+      emittedNotifications.push(event);
+    };
+
+    eventBus.on("notification:created", listener);
+
+    await processChecklistReminders();
+
+    eventBus.off("notification:created", listener);
+
+    const reminder = emittedNotifications.find(
+      (n) => n.userId === otherUser._id.toString(),
+    );
+    expect(reminder).toBeDefined();
+    expect(reminder.type).toEqual("checklist_reminder");
+    expect(reminder.data.meetingId.toString()).toEqual(
+      upcomingMeeting._id.toString(),
+    );
   });
 });

@@ -8,7 +8,7 @@ import { createClerkTestToken, authHeader } from "./helpers/clerkTestAuth.js";
 
 let meeting1, meeting2;
 let testUser, otherOrgUser;
-let userToken, otherUserToken;
+let userToken, _otherUserToken;
 
 const orgId = new mongoose.Types.ObjectId().toString();
 const otherOrgId = new mongoose.Types.ObjectId().toString();
@@ -43,7 +43,7 @@ beforeEach(async () => {
     email: testUser.email,
   });
 
-  otherUserToken = createClerkTestToken({
+  _otherUserToken = createClerkTestToken({
     clerkUserId: otherOrgUser.clerkUserId,
     email: otherOrgUser.email,
   });

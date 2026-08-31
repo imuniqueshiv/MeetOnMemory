@@ -16,7 +16,9 @@ import fs from "fs";
 import path from "path";
 import { z } from "zod";
 import mongoose from "mongoose";
-import Meeting from "../models/meetingModel.js"; // eslint-disable-line no-unused-vars
+import Meeting from "../models/meetingModel.js";
+import ActionItem from "../models/actionItemModel.js";
+import { renderMeetingNotesMarkdown } from "../utils/meetingNotesExport.js";
 import * as MeetingService from "../services/MeetingService.js";
 import * as MeetingInviteService from "../services/MeetingInviteService.js";
 import * as MeetingCloneService from "../services/meetingCloneService.js";
@@ -554,6 +556,42 @@ export const getMeetingById = async (req, res, next) => {
     getUserId(req); // ensure authenticated
     const meeting = await MeetingService.getMeetingById(req.params.id);
     return sendSuccess(res, { meeting });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────
+   EXPORT MEETING NOTES (Markdown) — Issue #2543
+   Lets users download a shareable Markdown file of the summary and
+   action items for stakeholders who lack platform access.
+   ───────────────────────────────────────────────────────────── */
+export const exportMeetingNotes = async (req, res, next) => {
+  try {
+    getUserId(req); // ensure authenticated
+    const meeting = await MeetingService.getMeetingById(req.params.id);
+
+    const actionItems = await ActionItem.find({
+      sourceMeetingId: req.params.id,
+    })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    const markdown = renderMeetingNotesMarkdown(meeting, actionItems, {
+      includeTranscript: req.query.transcript === "true",
+    });
+
+    const safeTitle = (meeting?.title || "meeting")
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase();
+
+    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${safeTitle || "meeting"}-notes.md"`,
+    );
+    return res.status(200).send(markdown);
   } catch (err) {
     next(err);
   }

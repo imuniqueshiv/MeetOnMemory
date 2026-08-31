@@ -1,7 +1,8 @@
 import api from "./apiClient";
 
 export const meetingQuestionApi = {
-  getQuestions: (meetingId) => api.get(`/api/meetings/${meetingId}/questions`),
+  getQuestions: (meetingId, config = {}) =>
+    api.get(`/api/meetings/${meetingId}/questions`, config),
   submitQuestion: (meetingId, data) =>
     api.post(`/api/meetings/${meetingId}/questions`, data),
   toggleUpvote: (questionId) => api.post(`/api/questions/${questionId}/upvote`),

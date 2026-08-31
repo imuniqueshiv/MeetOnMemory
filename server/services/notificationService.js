@@ -88,10 +88,25 @@ export const createNotifications = async (recipients, payload) => {
 
   const createdLogs = [];
   try {
+    const users = await User.find({ _id: { $in: uniqueIds } });
+    const prefs = await NotificationPreference.find({
+      user: { $in: uniqueIds },
+    });
+
+    const userMap = users.reduce((acc, user) => {
+      acc[user._id.toString()] = user;
+      return acc;
+    }, {});
+
+    const prefMap = prefs.reduce((acc, pref) => {
+      acc[pref.user.toString()] = pref;
+      return acc;
+    }, {});
+
     for (const userId of uniqueIds) {
-      const prefs = await NotificationPreference.findOne({ user: userId });
+      const userPrefs = prefMap[userId];
       const routingCat = getRoutingCategory(category, title, description);
-      const routing = prefs?.routingPreferences?.[routingCat] || {
+      const routing = userPrefs?.routingPreferences?.[routingCat] || {
         slack: true,
         email: true,
         inApp: true,
@@ -107,11 +122,11 @@ export const createNotifications = async (recipients, payload) => {
 
       const threshold = forceImmediate
         ? 0
-        : (prefs?.batchThresholdMinutes ?? 5);
+        : (userPrefs?.batchThresholdMinutes ?? 5);
 
       if (threshold === 0) {
         // Dispatch immediately
-        const user = await User.findById(userId);
+        const user = userMap[userId];
         if (routing.inApp) {
           const log = await notificationModel.create({
             user: userId,
@@ -185,76 +200,108 @@ export const processNotificationQueue = async () => {
       groups[key].push(item);
     }
 
+    const processedIds = [];
+    const failedIds = [];
+
     for (const key in groups) {
       const items = groups[key];
       const firstItem = items[0];
       const userId = firstItem.userId;
       const category = firstItem.category;
+      const itemIds = items.map((it) => it._id);
 
-      const user = await User.findById(userId);
-      if (!user) continue;
+      try {
+        const user = await User.findById(userId);
+        if (!user) {
+          failedIds.push(...itemIds);
+          continue;
+        }
 
-      const prefs = await NotificationPreference.findOne({ user: userId });
-      const routingCat = getRoutingCategory(
-        category,
-        firstItem.title,
-        firstItem.description,
-      );
-      const routing = prefs?.routingPreferences?.[routingCat] || {
-        slack: true,
-        email: true,
-        inApp: true,
-      };
-
-      let finalTitle = firstItem.title;
-      let finalDescription = firstItem.description;
-      let finalActionUrl = firstItem.actionUrl;
-
-      if (items.length > 1) {
-        finalTitle = `[Digest] You have ${items.length} new updates in ${
-          routingCat === "slaAlerts"
-            ? "SLAs"
-            : routingCat === "comments"
-              ? "Comments"
-              : "Recaps"
-        }`;
-        finalDescription = items
-          .map((it, idx) => `${idx + 1}. ${it.title}: ${it.description}`)
-          .join("\n");
-      }
-
-      if (routing.inApp) {
-        await notificationModel.create({
-          user: userId,
-          title: finalTitle,
-          description: finalDescription,
+        const prefs = await NotificationPreference.findOne({ user: userId });
+        const routingCat = getRoutingCategory(
           category,
-          actionUrl: finalActionUrl,
-          actionLabel: firstItem.actionLabel,
-          metadata: firstItem.metadata,
+          firstItem.title,
+          firstItem.description,
+        );
+        const routing = prefs?.routingPreferences?.[routingCat] || {
+          slack: true,
+          email: true,
+          inApp: true,
+        };
+
+        let finalTitle = firstItem.title;
+        let finalDescription = firstItem.description;
+        let finalActionUrl = firstItem.actionUrl;
+
+        if (items.length > 1) {
+          finalTitle = `[Digest] You have ${items.length} new updates in ${
+            routingCat === "slaAlerts"
+              ? "SLAs"
+              : routingCat === "comments"
+                ? "Comments"
+                : "Recaps"
+          }`;
+          finalDescription = items
+            .map((it, idx) => `${idx + 1}. ${it.title}: ${it.description}`)
+            .join("\n");
+        }
+
+        if (routing.inApp) {
+          await notificationModel.create({
+            user: userId,
+            title: finalTitle,
+            description: finalDescription,
+            category,
+            actionUrl: finalActionUrl,
+            actionLabel: firstItem.actionLabel,
+            metadata: firstItem.metadata,
+          });
+        }
+
+        if (routing.email && user.email) {
+          await EmailService.sendNotificationEmail(
+            user.email,
+            finalTitle,
+            finalDescription,
+          );
+        }
+
+        if (routing.slack && user.organization) {
+          await sendSlackNotification(
+            user.organization,
+            `*${finalTitle}*\n${finalDescription}`,
+          );
+        }
+
+        processedIds.push(...itemIds);
+      } catch (err) {
+        console.error(
+          `❌ Failed to dispatch notifications for user ${userId}:`,
+          err,
+        );
+        failedIds.push(...itemIds);
+      }
+    }
+
+    if (processedIds.length > 0 || failedIds.length > 0) {
+      const bulkOps = [];
+      if (processedIds.length > 0) {
+        bulkOps.push({
+          updateMany: {
+            filter: { _id: { $in: processedIds } },
+            update: { $set: { status: "processed" } },
+          },
         });
       }
-
-      if (routing.email && user.email) {
-        await EmailService.sendNotificationEmail(
-          user.email,
-          finalTitle,
-          finalDescription,
-        );
+      if (failedIds.length > 0) {
+        bulkOps.push({
+          updateMany: {
+            filter: { _id: { $in: failedIds } },
+            update: { $set: { status: "failed" } },
+          },
+        });
       }
-
-      if (routing.slack && user.organization) {
-        await sendSlackNotification(
-          user.organization,
-          `*${finalTitle}*\n${finalDescription}`,
-        );
-      }
-
-      const ids = items.map((it) => it._id);
-      await QueuedNotification.updateMany(
-        { _id: { $in: ids } },
-        { $set: { status: "processed" } },
-      );
+      await QueuedNotification.bulkWrite(bulkOps);
     }
   } catch (error) {
     console.error("❌ Error in processNotificationQueue:", error);

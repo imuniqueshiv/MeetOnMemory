@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { toast } from "react-toastify";
-import apiClient from "../../services/apiClient";
+import { createAsyncMeeting } from "../../services/asyncMeetingApi";
 
 const ConvertToAsyncModal = ({ isOpen, onClose, meeting }) => {
   const [templateText, setTemplateText] = useState(
@@ -30,9 +30,9 @@ const ConvertToAsyncModal = ({ isOpen, onClose, meeting }) => {
         deadline,
       };
 
-      const res = await apiClient.post("/async-meetings", payload);
+      const res = await createAsyncMeeting(payload);
 
-      if (res.status === 201) {
+      if (res.status === 201 || res.data?.success) {
         toast.success("Successfully converted to an Async Meeting!");
         onClose();
       } else {

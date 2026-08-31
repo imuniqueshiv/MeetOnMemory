@@ -14,6 +14,7 @@ import { authorizeCollaborativeDocAccess } from "../utils/collaborativeDocAccess
 //       saveTimer : NodeJS.Timeout, — debounce handle
 //     }
 const docRegistry = new Map();
+const pendingLoads = new Map();
 
 // Per-room presence registry: roomName -> Map<socketId, { userId, name, email }>
 const presenceRegistry = new Map();
@@ -162,13 +163,28 @@ const scheduleSave = (meetingId, ydoc) => {
   }
 
   entry.saveTimer = setTimeout(async () => {
-    const stateVector = Y.encodeStateAsUpdate(ydoc);
+    if (entry.isSaving) {
+      entry.pendingSave = true;
+      return;
+    }
 
-    // Extract plain-text from the shared "notes" Y.Text instance
-    const yText = ydoc.getText("notes");
-    const plainText = yText.toString();
+    const performSave = async () => {
+      entry.isSaving = true;
+      entry.pendingSave = false;
+      try {
+        const stateVector = Y.encodeStateAsUpdate(ydoc);
+        const yText = ydoc.getText("notes");
+        const plainText = yText.toString();
+        await saveDocumentState(meetingId, stateVector, plainText);
+      } finally {
+        entry.isSaving = false;
+        if (entry.pendingSave) {
+          performSave();
+        }
+      }
+    };
 
-    await saveDocumentState(meetingId, stateVector, plainText);
+    performSave();
   }, SAVE_DEBOUNCE_MS);
 };
 
@@ -178,59 +194,84 @@ const getOrCreateDoc = async (meetingId) => {
     return docRegistry.get(meetingId).ydoc;
   }
 
-  const ydoc = new Y.Doc();
-
-  // Register first so concurrent calls don't create duplicates
-  docRegistry.set(meetingId, { ydoc, saveTimer: null });
-
-  // Restore persisted state from MongoDB (if any)
-  const savedState = await loadDocumentState(meetingId);
-  if (savedState) {
-    try {
-      Y.applyUpdate(ydoc, savedState);
-      console.log(
-        `[documentSync] Restored Yjs state for meeting: ${meetingId}`,
-      );
-    } catch (err) {
-      console.error(
-        `[documentSync] Failed to apply saved state for ${meetingId}:`,
-        err.message,
-      );
-    }
+  if (pendingLoads.has(meetingId)) {
+    return pendingLoads.get(meetingId);
   }
 
-  return ydoc;
+  const loadPromise = (async () => {
+    const ydoc = new Y.Doc();
+
+    // Register first so concurrent calls don't create duplicates
+    docRegistry.set(meetingId, {
+      ydoc,
+      saveTimer: null,
+      cleanupTimer: null,
+      isSaving: false,
+      pendingSave: false,
+      activeConnections: 0,
+    });
+
+    // Restore persisted state from MongoDB (if any)
+    const savedState = await loadDocumentState(meetingId);
+    if (savedState) {
+      try {
+        Y.applyUpdate(ydoc, savedState);
+        console.log(
+          `[documentSync] Restored Yjs state for meeting: ${meetingId}`,
+        );
+      } catch (err) {
+        console.error(
+          `[documentSync] Failed to apply saved state for ${meetingId}:`,
+          err.message,
+        );
+      }
+    }
+
+    pendingLoads.delete(meetingId);
+    return ydoc;
+  })();
+
+  pendingLoads.set(meetingId, loadPromise);
+  return loadPromise;
 };
 
 // Clean up a document from memory when no clients remain (with race-safety checks)
-const cleanupDoc = async (meetingId, syncNs) => {
-  const roomName = `doc:${meetingId}`;
-  const room = syncNs.adapter.rooms.get(roomName);
-  const clientCount = room ? room.size : 0;
+const cleanupDoc = (meetingId, _syncNs) => {
+  const entry = docRegistry.get(meetingId);
+  if (!entry) return;
 
-  if (clientCount === 0 && docRegistry.has(meetingId)) {
-    const entry = docRegistry.get(meetingId);
+  entry.activeConnections--;
 
-    // Flush any pending save immediately before releasing from memory
-    if (entry.saveTimer) {
-      clearTimeout(entry.saveTimer);
-      const stateVector = Y.encodeStateAsUpdate(entry.ydoc);
-      const plainText = entry.ydoc.getText("notes").toString();
-      await saveDocumentState(meetingId, stateVector, plainText);
+  if (entry.activeConnections <= 0) {
+    entry.activeConnections = 0;
+
+    if (entry.cleanupTimer) {
+      clearTimeout(entry.cleanupTimer);
     }
 
-    // Re-check room size to ensure no new client joined while we were awaiting the DB write
-    const currentRoom = syncNs.adapter.rooms.get(roomName);
-    const currentClientCount = currentRoom ? currentRoom.size : 0;
+    entry.cleanupTimer = setTimeout(async () => {
+      if (entry.activeConnections === 0 && docRegistry.has(meetingId)) {
+        if (entry.saveTimer) {
+          clearTimeout(entry.saveTimer);
+        }
 
-    if (currentClientCount === 0) {
-      docRegistry.delete(meetingId);
-      console.log(`[documentSync] Released Yjs doc from memory: ${meetingId}`);
-    } else {
-      console.log(
-        `[documentSync] Aborted release for ${meetingId} because client joined during save`,
-      );
-    }
+        try {
+          const stateVector = Y.encodeStateAsUpdate(entry.ydoc);
+          const plainText = entry.ydoc.getText("notes").toString();
+          await saveDocumentState(meetingId, stateVector, plainText);
+        } catch (err) {
+          console.error(
+            `[documentSync] Failed to save state before cleanup for ${meetingId}:`,
+            err,
+          );
+        }
+
+        docRegistry.delete(meetingId);
+        console.log(
+          `[documentSync] Released Yjs doc from memory: ${meetingId}`,
+        );
+      }
+    }, 30000); // 30 seconds
   }
 };
 
@@ -380,6 +421,15 @@ export default (io) => {
 
       try {
         const ydoc = await getOrCreateDoc(authorizedMeetingId);
+
+        const entry = docRegistry.get(authorizedMeetingId);
+        if (entry) {
+          entry.activeConnections++;
+          if (entry.cleanupTimer) {
+            clearTimeout(entry.cleanupTimer);
+            entry.cleanupTimer = null;
+          }
+        }
 
         // Send the full current document state to the newly joined client
         const currentState = Y.encodeStateAsUpdate(ydoc);

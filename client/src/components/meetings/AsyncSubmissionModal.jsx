@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { toast } from "react-toastify";
-import apiClient from "../../services/apiClient";
+import { submitAsyncUpdate } from "../../services/asyncMeetingApi";
 
 const AsyncSubmissionModal = ({ isOpen, onClose, meeting, onSubmitted }) => {
   const [answers, setAnswers] = useState(
@@ -23,11 +23,8 @@ const AsyncSubmissionModal = ({ isOpen, onClose, meeting, onSubmitted }) => {
     setLoading(true);
 
     try {
-      const res = await apiClient.post(
-        `/async-meetings/${meeting._id}/submit`,
-        { answers },
-      );
-      if (res.status === 200) {
+      const res = await submitAsyncUpdate(meeting._id, answers);
+      if (res.status === 200 || res.data?.success) {
         toast.success("Update submitted successfully!");
         if (onSubmitted) onSubmitted(res.data);
         onClose();

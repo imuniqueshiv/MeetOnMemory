@@ -61,6 +61,21 @@ services:
       - server
     restart: unless-stopped
 
+  sfu-worker:
+    build:
+      context: ./microservices/sfu-worker
+      dockerfile: Dockerfile
+    container_name: meetonmemory-sfu-worker
+    ports:
+      - "4001:4001"
+      # Expose Mediasoup ports (udp & tcp)
+      - "2000-2020:2000-2020/udp"
+      - "2000-2020:2000-2020/tcp"
+    environment:
+      - PORT=4001
+      - MEDIASOUP_ANNOUNCED_IP=127.0.0.1
+    restart: unless-stopped
+
 volumes:
   mongodb_data:
   redis_data:

@@ -21,6 +21,14 @@ const chapterSchema = new mongoose.Schema({
     type: [String],
     default: [],
   },
+  imageUrl: {
+    type: String,
+    default: "",
+  },
+  extractedText: {
+    type: String,
+    default: "",
+  },
   sentiment: {
     type: String,
     enum: ["POSITIVE", "NEUTRAL", "NEGATIVE"],

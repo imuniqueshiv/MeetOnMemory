@@ -1,6 +1,16 @@
 import apiClient from "./apiClient.js";
 
 /**
+ * Get pending shadow requests for a meeting
+ * @param {string} meetingId
+ * @returns {Promise<Object>} Response data containing pending observers
+ */
+export const getPendingShadowRequests = async (meetingId) => {
+  const response = await apiClient.get(`/api/observers/${meetingId}/pending`);
+  return response.data;
+};
+
+/**
  * Requests to shadow a meeting as an observer
  * @param {string} meetingId
  * @returns {Promise<Object>} Response data

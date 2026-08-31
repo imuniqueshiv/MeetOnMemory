@@ -1,5 +1,6 @@
 import * as agendaVoteService from "../services/agendaVoteService.js";
 import { resolveAccessibleMeeting } from "../utils/resolveAccessibleMeeting.js";
+import { ValidationError, ForbiddenError, AppError } from "../utils/errors.js";
 
 /**
  * Helper to determine if a user is a host or admin for a meeting.
@@ -51,23 +52,23 @@ const isHostOrAdmin = (meeting, user) => {
  * Cast or update a vote
  * POST /api/meetings/:meetingId/agenda-votes/:agendaItemId
  */
-export const castVote = async (req, res) => {
+export const castVote = async (req, res, next) => {
   try {
     const { meetingId, agendaItemId } = req.params;
     const { vote } = req.body;
     const userId = req.user._id || req.user.id;
 
     if (![1, -1].includes(Number(vote))) {
-      return res
-        .status(400)
-        .json({ error: "Vote must be 1 (upvote) or -1 (downvote)" });
+      return next(
+        new ValidationError("Vote must be 1 (upvote) or -1 (downvote)"),
+      );
     }
 
     const access = await resolveAccessibleMeeting(meetingId, req.user);
     if (access.error) {
-      return res
-        .status(access.error.status)
-        .json({ error: access.error.message });
+      return next(
+        new AppError(access.error.message, access.error.status || 400),
+      );
     }
 
     const newVote = await agendaVoteService.castVote(
@@ -88,8 +89,7 @@ export const castVote = async (req, res) => {
 
     res.status(200).json({ vote: newVote, tally: updatedTally });
   } catch (error) {
-    console.error("Error casting vote:", error);
-    res.status(500).json({ error: "Failed to cast vote" });
+    return next(error);
   }
 };
 
@@ -97,16 +97,16 @@ export const castVote = async (req, res) => {
  * Remove a vote
  * DELETE /api/meetings/:meetingId/agenda-votes/:agendaItemId
  */
-export const removeVote = async (req, res) => {
+export const removeVote = async (req, res, next) => {
   try {
     const { meetingId, agendaItemId } = req.params;
     const userId = req.user._id || req.user.id;
 
     const access = await resolveAccessibleMeeting(meetingId, req.user);
     if (access.error) {
-      return res
-        .status(access.error.status)
-        .json({ error: access.error.message });
+      return next(
+        new AppError(access.error.message, access.error.status || 400),
+      );
     }
 
     await agendaVoteService.removeVote(meetingId, agendaItemId, userId);
@@ -122,8 +122,7 @@ export const removeVote = async (req, res) => {
 
     res.status(200).json({ message: "Vote removed", tally: updatedTally });
   } catch (error) {
-    console.error("Error removing vote:", error);
-    res.status(500).json({ error: "Failed to remove vote" });
+    return next(error);
   }
 };
 
@@ -131,24 +130,23 @@ export const removeVote = async (req, res) => {
  * Get all vote tallies for a meeting
  * GET /api/meetings/:meetingId/agenda-votes
  */
-export const getVoteTally = async (req, res) => {
+export const getVoteTally = async (req, res, next) => {
   try {
     const { meetingId } = req.params;
     const userId = req.user._id || req.user.id;
 
     const access = await resolveAccessibleMeeting(meetingId, req.user);
     if (access.error) {
-      return res
-        .status(access.error.status)
-        .json({ error: access.error.message });
+      return next(
+        new AppError(access.error.message, access.error.status || 400),
+      );
     }
 
     const tally = await agendaVoteService.getVoteTally(meetingId);
     const userVotes = await agendaVoteService.getUserVotes(meetingId, userId);
     res.status(200).json({ tally, userVotes });
   } catch (error) {
-    console.error("Error fetching vote tally:", error);
-    res.status(500).json({ error: "Failed to fetch vote tally" });
+    return next(error);
   }
 };
 
@@ -156,24 +154,25 @@ export const getVoteTally = async (req, res) => {
  * Auto-sort agenda by votes
  * POST /api/meetings/:meetingId/agenda-votes/auto-sort
  */
-export const autoSortByVotes = async (req, res) => {
+export const autoSortByVotes = async (req, res, next) => {
   try {
     const { meetingId } = req.params;
 
     const access = await resolveAccessibleMeeting(meetingId, req.user);
     if (access.error) {
-      return res
-        .status(access.error.status)
-        .json({ error: access.error.message });
+      return next(
+        new AppError(access.error.message, access.error.status || 400),
+      );
     }
 
     const meeting = access.meeting;
 
     if (!isHostOrAdmin(meeting, req.user)) {
-      return res.status(403).json({
-        error:
+      return next(
+        new ForbiddenError(
           "Forbidden: Only meeting hosts or admins can auto-sort the agenda",
-      });
+        ),
+      );
     }
 
     const updatedAgenda = await agendaVoteService.autoSortByVotes(meetingId);
@@ -191,9 +190,6 @@ export const autoSortByVotes = async (req, res) => {
       agendaItems: updatedAgenda,
     });
   } catch (error) {
-    console.error("Error auto-sorting agenda:", error);
-    res
-      .status(400)
-      .json({ error: error.message || "Failed to auto-sort agenda" });
+    return next(error);
   }
 };

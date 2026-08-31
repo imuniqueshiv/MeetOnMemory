@@ -392,10 +392,22 @@ export const createQueueRegistry = ({ logger = console } = {}) => {
     closePromise = null;
   };
 
+  /** Schedules or adds a job to a registered queue if available. */
+  const scheduleJob = (name, data = {}, opts = {}) => {
+    const entry = queues.get(name);
+    if (!entry) return null;
+    const q = entry.queue;
+    if (q && typeof q.add === "function") {
+      return q.add(name, data, opts);
+    }
+    return null;
+  };
+
   return {
     registerQueue,
     registerWorker,
     registerConnection,
+    scheduleJob,
     listQueues,
     listWorkers,
     isClosing,

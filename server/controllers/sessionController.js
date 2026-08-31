@@ -1,6 +1,7 @@
 import SessionCard from "../models/sessionCardModel.js";
 import { generateSessionCardAI } from "../services/GenerativeAIService.js";
 import { sendSuccess, sendError } from "../utils/responseHandler.js";
+import { literalRegExp } from "../utils/regexUtils.js";
 
 // @desc    Generate AI Session Card & Persist to Org Library
 // @route   POST /api/sessions/generate
@@ -119,14 +120,14 @@ export const getSessions = async (req, res) => {
     }
 
     if (event && event.trim()) {
-      filter.eventName = new RegExp(`^${event.trim()}$`, "i");
+      filter.eventName = literalRegExp(event.trim());
     }
 
     if (tag && tag.trim()) {
       filter.$or = filter.$or || [];
       filter.$or.push(
-        { keywords: new RegExp(`^${tag.trim()}$`, "i") },
-        { tags: new RegExp(`^${tag.trim()}$`, "i") },
+        { keywords: literalRegExp(tag.trim()) },
+        { tags: literalRegExp(tag.trim()) },
       );
     }
 

@@ -17,7 +17,9 @@ describe("Meeting Attendance Client Service Integration Tests (#2666)", () => {
 
   describe("Contract Assertions", () => {
     it("should call GET /meetings/:meetingId/attendance when fetching attendance", async () => {
-      const mockResponse = { data: [{ email: "user@example.com", status: "invited" }] };
+      const mockResponse = {
+        data: [{ email: "user@example.com", status: "invited" }],
+      };
       apiClient.get.mockResolvedValueOnce(mockResponse);
 
       const res = await meetingAttendanceApi.getMeetingAttendance("m-100");
@@ -124,9 +126,9 @@ describe("Meeting Attendance Client Service Integration Tests (#2666)", () => {
       };
       apiClient.post.mockRejectedValueOnce(valError);
 
-      await expect(
-        meetingAttendanceApi.checkIn("m-100", null),
-      ).rejects.toThrow("Email is required for check-in");
+      await expect(meetingAttendanceApi.checkIn("m-100", null)).rejects.toThrow(
+        "Email is required for check-in",
+      );
     });
 
     it("handles 400 validation error when check-out email is missing", async () => {
@@ -137,9 +139,9 @@ describe("Meeting Attendance Client Service Integration Tests (#2666)", () => {
       };
       apiClient.post.mockRejectedValueOnce(valError);
 
-      await expect(
-        meetingAttendanceApi.checkOut("m-100", ""),
-      ).rejects.toThrow("Email is required for check-out");
+      await expect(meetingAttendanceApi.checkOut("m-100", "")).rejects.toThrow(
+        "Email is required for check-out",
+      );
     });
   });
 });

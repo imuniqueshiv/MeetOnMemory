@@ -13,6 +13,9 @@ import {
   initMeetingQuizWorker,
   initTranscriptionWorker,
 } from "../services/queueService.js";import { initWebhookWorker } from "../services/webhookDispatcherService.js";
+} from "../services/queueService.js";
+import { initWebhookWorker } from "../services/webhookDispatcherService.js";
+import { registerTopicIntelligenceJob } from "../jobs/topicIntelligenceJob.js";
 import { describeRateLimitBacking } from "../middleware/rateLimitStore.js";
 
 /**
@@ -84,6 +87,9 @@ export async function startWorkers(app) {
     initEmbeddingReindexWorker(),
   );
   await safeInit("Transcription Worker", () => initTranscriptionWorker(app));
+  await safeInit("Topic Intelligence Worker", () =>
+    registerTopicIntelligenceJob(),
+  );
 
   // Pinecone pre-warm is best-effort and independent of the queue layer.  try {
     const { preWarmPinecone } = await import("../utils/embeddingUtils.js");

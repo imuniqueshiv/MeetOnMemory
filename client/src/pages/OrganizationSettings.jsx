@@ -5,7 +5,7 @@ import React, {
   useRef,
   useCallback,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
   Building2,
@@ -786,7 +786,38 @@ const ImagePreview = ({
 // Main component
 const OrganizationSettings = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { getUserData, setUserData } = useContext(AppContent);
+
+  useEffect(() => {
+    if (location.hash && !loading) {
+      const id = location.hash.replace("#", "");
+      const element = document.getElementById(id);
+      if (element) {
+        setTimeout(() => {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+          // Highlight it temporarily
+          element.classList.add(
+            "ring-2",
+            "ring-indigo-500",
+            "ring-offset-2",
+            "dark:ring-offset-slate-900",
+            "rounded-xl",
+            "transition-all",
+            "duration-1000",
+          );
+          setTimeout(() => {
+            element.classList.remove(
+              "ring-2",
+              "ring-indigo-500",
+              "ring-offset-2",
+              "dark:ring-offset-slate-900",
+            );
+          }, 3000);
+        }, 100);
+      }
+    }
+  }, [location.hash, loading]);
 
   // Loading & state management
   const [loading, setLoading] = useState(true);
@@ -2210,7 +2241,10 @@ const OrganizationSettings = () => {
           </div>
 
           {/* SECTION 4: INTEGRATIONS */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+          <div
+            id="integrations"
+            className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm"
+          >
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div className="p-2 bg-orange-50 dark:bg-orange-900/30 rounded-xl text-orange-600 dark:text-orange-400">
                 <Blocks className="w-5 h-5" />
@@ -2226,25 +2260,35 @@ const OrganizationSettings = () => {
             </div>
 
             <div className="space-y-4">
-              <NotionConnectPanel canEdit={canEdit} />
-              <GitHubConnectPanel organizationId={metadata._id} />
-              <SlackConnectPanel
-                organizationId={metadata._id}
-                canEdit={canEdit}
-              />
-              <IssueTrackerConfig
-                provider="jira"
-                title="Jira Integration"
-                description="Automatically sync Action Items to Jira issues."
-                icon={<Blocks className="w-6 h-6 text-blue-600" />}
-              />
+              <div id="notion">
+                <NotionConnectPanel canEdit={canEdit} />
+              </div>
+              <div id="github">
+                <GitHubConnectPanel organizationId={metadata._id} />
+              </div>
+              <div id="slack">
+                <SlackConnectPanel
+                  organizationId={metadata._id}
+                  canEdit={canEdit}
+                />
+              </div>
+              <div id="jira">
+                <IssueTrackerConfig
+                  provider="jira"
+                  title="Jira Integration"
+                  description="Automatically sync Action Items to Jira issues."
+                  icon={<Blocks className="w-6 h-6 text-blue-600" />}
+                />
+              </div>
 
-              <IssueTrackerConfig
-                provider="linear"
-                title="Linear Integration"
-                description="Automatically sync Action Items to Linear issues."
-                icon={<Blocks className="w-6 h-6 text-indigo-600" />}
-              />
+              <div id="linear">
+                <IssueTrackerConfig
+                  provider="linear"
+                  title="Linear Integration"
+                  description="Automatically sync Action Items to Linear issues."
+                  icon={<Blocks className="w-6 h-6 text-indigo-600" />}
+                />
+              </div>
             </div>
           </div>
 

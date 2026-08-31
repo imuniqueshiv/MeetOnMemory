@@ -16,6 +16,12 @@ router.get(
 );
 
 router.get(
+  "/export",
+  requirePermission("knowledge", "view"),
+  decisionLogController.exportLog,
+);
+
+router.get(
   "/timeline",
   requirePermission("knowledge", "view"),
   decisionLogController.getDecisionTimeline,
@@ -44,6 +50,18 @@ router.put(
   "/:id/link-action-items",
   requirePermission("knowledge", "edit"),
   decisionLogController.linkActionItems,
+);
+
+router.put(
+  "/:id",
+  requirePermission("knowledge", "edit"),
+  decisionLogController.editEntry,
+);
+
+router.delete(
+  "/:id",
+  requirePermission("knowledge", "edit"),
+  decisionLogController.deleteEntry,
 );
 
 export default router;

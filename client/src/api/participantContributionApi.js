@@ -1,17 +1,12 @@
-import axios from "axios";
-
-const API_BASE_URL = "/api";
+import apiClient from "../services/apiClient";
 
 /**
  * Fetch participant contributions for a given meeting
  * @param {string} meetingId
  */
 export const getMeetingContributions = async (meetingId) => {
-  const response = await axios.get(
-    `${API_BASE_URL}/meetings/${meetingId}/contributions`,
-    {
-      withCredentials: true,
-    },
+  const response = await apiClient.get(
+    `/api/meetings/${meetingId}/contributions`,
   );
   return response.data;
 };
@@ -21,12 +16,10 @@ export const getMeetingContributions = async (meetingId) => {
  * @param {string} meetingId
  */
 export const calculateMeetingContributions = async (meetingId) => {
-  const response = await axios.post(
-    `${API_BASE_URL}/meetings/${meetingId}/contributions/calculate`,
+  const response = await apiClient.post(
+    `/api/meetings/${meetingId}/contributions/calculate`,
     {},
-    {
-      withCredentials: true,
-    },
+    
   );
   return response.data;
 };

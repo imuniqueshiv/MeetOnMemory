@@ -272,11 +272,12 @@ export const clearQueue = async () => {
 };
 
 /**
- * Replay an individual queued mutation.
+ * Replay an individual queued mutation with dynamic Clerk Bearer token injection.
  * @param {number|string} id
+ * @param {Object} [clerkSession] Active Clerk session instance
  * @returns {Promise<{success: boolean, id: any, error?: string}>}
  */
-export const replayMutation = async (id) => {
+export const replayMutation = async (id, clerkSession = null) => {
   const item = await getMutation(id);
   if (!item) {
     return { success: false, id, error: "Mutation not found in queue" };
@@ -285,11 +286,39 @@ export const replayMutation = async (id) => {
   await updateMutationStatus(id, "syncing");
 
   try {
+    let token = null;
+    if (clerkSession && typeof clerkSession.getToken === "function") {
+      try {
+        token = await clerkSession.getToken();
+      } catch (err) {
+        console.warn(
+          "[Offline Queue] Failed to get token from clerkSession:",
+          err,
+        );
+      }
+    }
+
+    if (!token) {
+      try {
+        const { getClerkBearerToken } = await import("./apiClient.js");
+        token = await getClerkBearerToken();
+      } catch (err) {
+        console.warn(
+          "[Offline Queue] Failed to get token from apiClient:",
+          err,
+        );
+      }
+    }
+
     const headers = {
       "Content-Type": "application/json",
       ...(item.headers || {}),
       "X-Idempotency-Key": item.idempotencyKey || `off-${item.id}`,
     };
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
 
     // Clean up Axios internal headers
     delete headers["common"];
@@ -300,7 +329,7 @@ export const replayMutation = async (id) => {
     delete headers["put"];
     delete headers["patch"];
 
-    let body = item.body;
+    let body = item.body ?? item.payload;
     if (
       body &&
       typeof body === "object" &&
@@ -310,7 +339,8 @@ export const replayMutation = async (id) => {
       body = JSON.stringify(body);
     }
 
-    const response = await fetch(item.url, {
+    const endpoint = item.url || item.endpoint;
+    const response = await fetch(endpoint, {
       method: (item.method || "POST").toUpperCase(),
       headers,
       body: ["GET", "HEAD"].includes((item.method || "").toUpperCase())
@@ -322,6 +352,14 @@ export const replayMutation = async (id) => {
     if (response.ok || response.status === 409) {
       // 2xx or 409 conflict already satisfied
       await dequeueMutation(id);
+      if (
+        typeof window !== "undefined" &&
+        typeof window.dispatchEvent === "function"
+      ) {
+        window.dispatchEvent(
+          new CustomEvent("offline-sync-success", { detail: { id: item.id } }),
+        );
+      }
       return { success: true, id };
     }
 
@@ -334,21 +372,45 @@ export const replayMutation = async (id) => {
     }
 
     await updateMutationStatus(id, "failed", errorText);
+    if (
+      typeof window !== "undefined" &&
+      typeof window.dispatchEvent === "function"
+    ) {
+      window.dispatchEvent(
+        new CustomEvent("offline-sync-failure", {
+          detail: { id: item.id, error: errorText },
+        }),
+      );
+    }
     return { success: false, id, error: errorText };
   } catch (networkErr) {
     const errMsg = networkErr?.message || "Network request failed";
     await updateMutationStatus(id, "failed", errMsg);
+    if (
+      typeof window !== "undefined" &&
+      typeof window.dispatchEvent === "function"
+    ) {
+      window.dispatchEvent(
+        new CustomEvent("offline-sync-failure", {
+          detail: { id: item.id, error: errMsg },
+        }),
+      );
+    }
     return { success: false, id, error: errMsg };
   }
 };
 
 /**
  * Replay all pending offline mutations in order.
- * @param {Object} options
+ * @param {Object} [options]
  * @param {Function} [options.onProgress] Callback receiving ({ current, total, item, succeeded, failed })
+ * @param {Object} [options.clerkSession] Active Clerk session instance
  * @returns {Promise<{total: number, succeeded: number, failed: number}>}
  */
-export const replayQueuedMutations = async ({ onProgress } = {}) => {
+export const replayQueuedMutations = async ({
+  onProgress,
+  clerkSession,
+} = {}) => {
   if (isReplaying) {
     return { total: 0, succeeded: 0, failed: 0, alreadyRunning: true };
   }
@@ -380,7 +442,7 @@ export const replayQueuedMutations = async ({ onProgress } = {}) => {
         });
       }
 
-      const result = await replayMutation(item.id);
+      const result = await replayMutation(item.id, clerkSession);
       if (result.success) {
         succeeded++;
       } else {
@@ -422,18 +484,37 @@ export const replayQueuedMutations = async ({ onProgress } = {}) => {
 };
 
 /**
+ * Iterates over the mutation queue and replays requests with dynamic Clerk token attachment.
+ * @param {Object} clerkSession - The active Clerk session instance from the frontend context.
+ */
+export async function replayAuthenticatedMutations(clerkSession) {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return;
+  return replayQueuedMutations({ clerkSession });
+}
+
+/**
+ * Setup automated reconnection replay listener.
+ * @param {Object} [clerkSession] - Optional Clerk session instance
+ */
+export function initOfflineSyncListener(clerkSession) {
+  if (typeof window !== "undefined") {
+    window.addEventListener("online", () => {
+      console.log(
+        "[Offline Queue] Connection restored. Replaying queued mutations...",
+      );
+      replayAuthenticatedMutations(clerkSession).catch((err) => {
+        console.warn("[Offline Queue] Reconnection replay failed:", err);
+      });
+    });
+  }
+}
+
+/**
  * Check if a replay process is actively running.
  */
 export const isReplayActive = () => isReplaying;
 
-// Setup automated reconnection replay listener
+// Setup default automated reconnection replay listener
 if (typeof window !== "undefined") {
-  window.addEventListener("online", () => {
-    console.log(
-      "[Offline Queue] Connection restored. Replaying queued mutations...",
-    );
-    replayQueuedMutations().catch((err) => {
-      console.warn("[Offline Queue] Reconnection replay failed:", err);
-    });
-  });
+  initOfflineSyncListener();
 }

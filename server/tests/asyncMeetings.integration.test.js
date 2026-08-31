@@ -40,9 +40,8 @@ jest.unstable_mockModule("../middleware/rateLimiter.js", () => ({
   writeLimiter: (req, res, next) => next(),
 }));
 
-const { default: asyncMeetingRoutes } = await import(
-  "../routes/asyncMeetingRoutes.js"
-);
+const { default: asyncMeetingRoutes } =
+  await import("../routes/asyncMeetingRoutes.js");
 
 describe("Async Meetings Server Integration Tests (#2666)", () => {
   let app;

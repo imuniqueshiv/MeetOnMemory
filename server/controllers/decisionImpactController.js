@@ -27,26 +27,43 @@ export const updateDecisionImpact = async (req, res, next) => {
       return res.status(404).json({ message: "Decision not found" });
     }
 
-    let impact = await DecisionImpact.findOne({ decisionId });
-    if (impact) {
-      // Update existing
-      if (outcomeStatus) impact.outcomeStatus = outcomeStatus;
-      if (impactScore !== undefined) impact.impactScore = impactScore;
-      if (evidence) impact.evidence = evidence; // expects array of strings
-      if (nextReviewDate !== undefined) impact.nextReviewDate = nextReviewDate;
-      await impact.save();
+    const updateData = {};
+    const setOnInsert = {
+      owner: req.user?.id || req.user?._id || "system",
+    };
+
+    if (outcomeStatus) {
+      updateData.outcomeStatus = outcomeStatus;
     } else {
-      // Create new
-      impact = new DecisionImpact({
-        decisionId,
-        owner: req.user?.id || req.user?._id || "system", // adjust based on auth
-        outcomeStatus: outcomeStatus || "pending",
-        impactScore: impactScore || null,
-        evidence: evidence || [],
-        nextReviewDate: nextReviewDate || null,
-      });
-      await impact.save();
+      setOnInsert.outcomeStatus = "pending";
     }
+
+    if (impactScore !== undefined) {
+      updateData.impactScore = impactScore;
+    } else {
+      setOnInsert.impactScore = null;
+    }
+
+    if (evidence) {
+      updateData.evidence = evidence;
+    } else {
+      setOnInsert.evidence = [];
+    }
+
+    if (nextReviewDate !== undefined) {
+      updateData.nextReviewDate = nextReviewDate;
+    } else {
+      setOnInsert.nextReviewDate = null;
+    }
+
+    const impact = await DecisionImpact.findOneAndUpdate(
+      { decisionId },
+      {
+        $set: updateData,
+        $setOnInsert: setOnInsert,
+      },
+      { upsert: true, new: true },
+    );
 
     res.json(impact);
   } catch (error) {

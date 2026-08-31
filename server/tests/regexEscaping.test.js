@@ -102,6 +102,31 @@ beforeAll(async () => {
 
 // ───────────────────────────────────────────────────────────────────────────
 describe("regexUtils", () => {
+  describe("escapeRegExp neutralizes #2572 search inputs", () => {
+    it("does not throw on metacharacter input that broke the old RegExp", () => {
+      expect(() => new RegExp(escapeRegExp("C++"), "i")).not.toThrow();
+      expect(() => new RegExp(escapeRegExp("("), "i")).not.toThrow();
+    });
+
+    it("treats wildcards as literals (no filter bypass)", () => {
+      const re = new RegExp(escapeRegExp(".*"), "i");
+      expect(re.test(".*")).toBe(true);
+      expect(re.test("anything else")).toBe(false);
+    });
+
+    it("renders a ReDoS pattern inert", () => {
+      const re = new RegExp(escapeRegExp("(a+)+$"), "i");
+      const start = Date.now();
+      re.test("a".repeat(40) + "!");
+      expect(Date.now() - start).toBeLessThan(50);
+    });
+
+    it("literalRegExp anchors and escapes for exact match", () => {
+      expect(literalRegExp("C++").test("C++")).toBe(true);
+      expect(literalRegExp("C++").test("XC++Y")).toBe(false);
+    });
+  });
+
   describe("escapeRegExp", () => {
     it("neutralizes every metacharacter it claims to", () => {
       const specials = ".*+?^${}()|[]\\";

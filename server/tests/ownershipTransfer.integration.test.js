@@ -56,12 +56,10 @@ jest.unstable_mockModule("../middleware/userAuth.js", () => ({
   sanitizeAuthRequestForLog: jest.fn(),
 }));
 
-const { default: meetingOwnershipTransferRoutes } = await import(
-  "../routes/meetingOwnershipTransferRoutes.js"
-);
-const { initiateTransfer } = await import(
-  "../controllers/meetingOwnershipTransferController.js"
-);
+const { default: meetingOwnershipTransferRoutes } =
+  await import("../routes/meetingOwnershipTransferRoutes.js");
+const { initiateTransfer } =
+  await import("../controllers/meetingOwnershipTransferController.js");
 
 describe("Ownership Transfer Server Integration Tests (#2666)", () => {
   let app;
@@ -72,13 +70,19 @@ describe("Ownership Transfer Server Integration Tests (#2666)", () => {
     app = express();
     app.use(express.json());
     app.use("/api/ownership-transfers", meetingOwnershipTransferRoutes);
-    app.post("/api/meetings/:meetingId/transfers", (req, res, next) => {
-      if (!req.headers.authorization) {
-        return res.status(401).json({ success: false, message: "Unauthorized" });
-      }
-      req.user = mockUser;
-      next();
-    }, initiateTransfer);
+    app.post(
+      "/api/meetings/:meetingId/transfers",
+      (req, res, next) => {
+        if (!req.headers.authorization) {
+          return res
+            .status(401)
+            .json({ success: false, message: "Unauthorized" });
+        }
+        req.user = mockUser;
+        next();
+      },
+      initiateTransfer,
+    );
   });
 
   describe("GET /api/ownership-transfers/inbox", () => {
