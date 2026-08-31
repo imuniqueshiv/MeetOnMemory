@@ -36,6 +36,7 @@ const ReportBuilder = lazy(() => import("../pages/ReportBuilder.jsx"));
 const AiSearch = lazy(() => import("../pages/AiSearch.jsx"));
 const AiAssistant = lazy(() => import("../pages/AiAssistant.jsx"));
 const MeetingDetails = lazy(() => import("../pages/MeetingDetails.jsx"));
+const MeetingAnalytics = lazy(() => import("../pages/MeetingAnalytics.jsx"));
 const MeetingBriefing = lazy(() => import("../pages/MeetingBriefing.jsx"));
 const MeetingQuality = lazy(() => import("../pages/MeetingQuality.jsx"));
 const MeetingEffectiveness = lazy(
@@ -780,6 +781,46 @@ const ProtectedRoutes = (
       element={
         <ProtectedRoute resource="meetings" action="view">
           <MeetingQuality />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/meeting/:id/analytics"
+      element={
+        <ProtectedRoute resource="meetings" action="view">
+          <RouteErrorBoundary section="Meeting Analytics">
+            <MeetingAnalytics />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/meeting/:meetingId/analytics"
+      element={
+        <ProtectedRoute resource="meetings" action="view">
+          <RouteErrorBoundary section="Meeting Analytics">
+            <MeetingAnalytics />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/meetings/:meetingId/analytics"
+      element={
+        <ProtectedRoute resource="meetings" action="view">
+          <RouteErrorBoundary section="Meeting Analytics">
+            <MeetingAnalytics />
+          </RouteErrorBoundary>
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/analytics/meetings/:meetingId"
+      element={
+        <ProtectedRoute resource="meetings" action="view">
+          <RouteErrorBoundary section="Meeting Analytics">
+            <MeetingAnalytics />
+          </RouteErrorBoundary>
         </ProtectedRoute>
       }
     />

@@ -39,7 +39,8 @@ import {
 import { toast } from "react-toastify";
 
 const MeetingAnalytics = () => {
-  const { meetingId } = useParams();
+  const { meetingId: paramMeetingId, id } = useParams();
+  const meetingId = paramMeetingId || id;
 
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -250,13 +251,27 @@ const MeetingAnalytics = () => {
     );
   }
 
-  const { speakers, metrics, insights } = analytics;
+  const speakers = Array.isArray(analytics.speakers) ? analytics.speakers : [];
+  const metrics = {
+    speakerCount: analytics.metrics?.speakerCount || 0,
+    participantCount: analytics.metrics?.participantCount || 0,
+    totalDuration: analytics.metrics?.totalDuration || 0,
+    silencePeriods: analytics.metrics?.silencePeriods || 0,
+    engagementScore: Number(analytics.metrics?.engagementScore || 0),
+    participationEquity: Number(analytics.metrics?.participationEquity || 0),
+    decisionDensity: Number(analytics.metrics?.decisionDensity || 0),
+    actionItemDensity: Number(analytics.metrics?.actionItemDensity || 0),
+    averageInterventionLength:
+      analytics.metrics?.averageInterventionLength || 0,
+    longestIntervention: analytics.metrics?.longestIntervention || 0,
+  };
+  const insights = Array.isArray(analytics.insights) ? analytics.insights : [];
 
   // Prepare chart data
   const speakerChartData = speakers.map((speaker) => ({
-    name: speaker.name.split(" ")[0],
-    time: Math.round(speaker.totalTime / 60),
-    percentage: speaker.percentage.toFixed(1),
+    name: (speaker.name || "Speaker").split(" ")[0],
+    time: Math.round((speaker.totalTime || 0) / 60),
+    percentage: Number(speaker.percentage || 0).toFixed(1),
   }));
 
   const COLORS = [
@@ -503,7 +518,7 @@ const MeetingAnalytics = () => {
                               />
                             </div>
                             <span className="text-sm text-slate-600 dark:text-slate-400 w-12">
-                              {speaker.percentage.toFixed(1)}%
+                              {Number(speaker.percentage || 0).toFixed(1)}%
                             </span>
                           </div>
                         </td>

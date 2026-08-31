@@ -57,7 +57,15 @@ import { isMeetingEnded } from "../utils/meetingLifecycle";
 import { canManageMeetingDigest } from "../utils/digestAccess";
 import MeetingRisksPanel from "../components/meetings/MeetingRisksPanel";
 import { useTranslation } from "react-i18next";
-import { Award, ShieldAlert, FileText, Star, ListTodo } from "lucide-react";
+import {
+  Award,
+  ShieldAlert,
+  FileText,
+  Star,
+  ListTodo,
+  Printer,
+  BarChart2,
+} from "lucide-react";
 import ExportDialog from "../components/export/ExportDialog";
 import RetentionQuizSection from "../components/meetings/RetentionQuizSection";
 import ResourceConflictsPanel from "../components/meeting-details/ResourceConflictsPanel";
@@ -367,8 +375,17 @@ const MeetingDetails = () => {
             </div>
           )}
 
-          <div className="mb-4 flex justify-end gap-3">
+          <div className="mb-4 flex flex-wrap justify-end gap-3">
             <CompareButton meetingId={meeting._id} />
+            <button
+              onClick={() => navigate(`/meeting/${meeting._id}/analytics`)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-sm transition-colors text-sm"
+              title="View meeting analytics"
+              data-testid="view-analytics-btn"
+            >
+              <BarChart2 className="w-4 h-4" />
+              View Analytics
+            </button>
             <button
               onClick={() => setIsPrintModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-medium shadow-sm transition-colors text-sm"
